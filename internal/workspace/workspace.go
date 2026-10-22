@@ -266,7 +266,7 @@ func (s *Service) Search(ctx context.Context, root, query string, maxResults int
 func (s *Service) searchRipgrep(ctx context.Context, root, query string, maxResults int) ([]Match, error) {
 	cmd := exec.CommandContext(ctx, "rg", "-n", "--no-heading", "--color", "never",
 		"--hidden", "--glob", "!.git/**", "--glob", "!node_modules/**",
-		"--max-count", "20", query)
+		"--max-count", "20", "--", query)
 	cmd.Dir = root
 	out, err := cmd.Output()
 	if err != nil {

@@ -80,6 +80,12 @@ func (m *Manager) Create(projectID, dir string) (*Session, error) {
 		done:      make(chan struct{}),
 	}
 	go s.readLoop()
+	go func() {
+		<-s.done
+		m.mu.Lock()
+		delete(m.sessions, s.ID)
+		m.mu.Unlock()
+	}()
 
 	m.mu.Lock()
 	m.sessions[s.ID] = s
