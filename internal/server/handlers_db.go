@@ -68,6 +68,45 @@ func (s *Server) queryDB(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, result)
 }
 
+func (s *Server) insertDBRow(w http.ResponseWriter, r *http.Request) {
+	var change database.RowChange
+	if !decodeJSON(w, r, &change) {
+		return
+	}
+	affected, err := s.db.InsertRow(r.Context(), chi.URLParam(r, "profileID"), change)
+	if err != nil {
+		apiError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]int64{"rowsAffected": affected})
+}
+
+func (s *Server) updateDBRow(w http.ResponseWriter, r *http.Request) {
+	var change database.RowChange
+	if !decodeJSON(w, r, &change) {
+		return
+	}
+	affected, err := s.db.UpdateRow(r.Context(), chi.URLParam(r, "profileID"), change)
+	if err != nil {
+		apiError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]int64{"rowsAffected": affected})
+}
+
+func (s *Server) deleteDBRow(w http.ResponseWriter, r *http.Request) {
+	var change database.RowChange
+	if !decodeJSON(w, r, &change) {
+		return
+	}
+	affected, err := s.db.DeleteRow(r.Context(), chi.URLParam(r, "profileID"), change)
+	if err != nil {
+		apiError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]int64{"rowsAffected": affected})
+}
+
 func (s *Server) dbSchema(w http.ResponseWriter, r *http.Request) {
 	tables, err := s.db.Schema(r.Context(), chi.URLParam(r, "profileID"))
 	if err != nil {

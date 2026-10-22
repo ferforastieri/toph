@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { OpenCode } from "@opencode/client";
 import { Bot, Check, CircleStop, Send, Sparkles, X } from "lucide-react";
 import { openCodeBase, type Project } from "../api";
-import { useApp, type Tab } from "../store";
+import { useApp, type AiMessage, type Tab } from "../store";
 
 interface Props {
   tab: Tab;
@@ -15,16 +15,56 @@ export default function AiPanelTab({ tab, project }: Props) {
   const appendText = useApp((state) => state.appendAiText);
   const updateMessage = useApp((state) => state.updateAiMessage);
   const setStreaming = useApp((state) => state.setAiStreaming);
+  const setMessages = useApp((state) => state.setAiMessages);
   const messages = useApp((state) => state.aiMessages[tab.id] ?? []);
   const streaming = useApp((state) => state.aiStreaming[tab.id] ?? false);
   const [input, setInput] = useState("");
   const [error, setError] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
   const client = useMemo(() => OpenCode.make({ baseUrl: openCodeBase }), []);
+  const loadedHistory = useRef<string | null>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length, streaming]);
+
+  useEffect(() => {
+    if (!tab.sessionId || messages.length > 0 || loadedHistory.current === tab.sessionId) return;
+    const sessionId = tab.sessionId;
+    loadedHistory.current = sessionId;
+    (async () => {
+      try {
+        const context = await client.session.context({ sessionID: sessionId } as never);
+        const restored: AiMessage[] = (context as Array<Record<string, any>>).flatMap<AiMessage>((message) => {
+          if (message.type === "user") {
+            return [{
+              id: `history-user-${message.id}`,
+              role: "user",
+              text: String(message.text ?? ""),
+              createdAt: Number(message.time?.created ?? Date.now()),
+            }];
+          }
+          if (message.type === "assistant") {
+            const text = (message.content ?? [])
+              .filter((part: Record<string, unknown>) => part.type === "text")
+              .map((part: Record<string, unknown>) => String(part.text ?? ""))
+              .join("\n");
+            if (!text) return [];
+            return [{
+              id: `history-assistant-${message.id}`,
+              role: "assistant",
+              text,
+              createdAt: Number(message.time?.created ?? Date.now()),
+            }];
+          }
+          return [];
+        });
+        if (restored.length > 0) setMessages(tab.id, restored);
+      } catch {
+        // A session may have been archived or the server may still be starting.
+      }
+    })();
+  }, [client, messages.length, setMessages, tab.id, tab.sessionId]);
 
   useEffect(() => {
     if (!tab.sessionId) return;

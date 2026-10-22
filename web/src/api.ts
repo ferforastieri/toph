@@ -78,6 +78,13 @@ export interface SchemaTable {
   columns: SchemaColumn[];
 }
 
+export interface RowChange {
+  schema: string;
+  table: string;
+  key?: Record<string, unknown>;
+  values?: Record<string, unknown>;
+}
+
 export interface WebTarget {
   id: string;
   name: string;
@@ -284,6 +291,27 @@ export const api = {
 
   async dbSchema(id: string): Promise<SchemaTable[]> {
     return request<SchemaTable[]>(`/db/profiles/${encodeURIComponent(id)}/schema`);
+  },
+
+  async insertRow(id: string, change: RowChange): Promise<{ rowsAffected: number }> {
+    return request(`/db/profiles/${encodeURIComponent(id)}/row`, {
+      method: "POST",
+      ...json(change),
+    });
+  },
+
+  async updateRow(id: string, change: RowChange): Promise<{ rowsAffected: number }> {
+    return request(`/db/profiles/${encodeURIComponent(id)}/row`, {
+      method: "PUT",
+      ...json(change),
+    });
+  },
+
+  async deleteRow(id: string, change: RowChange): Promise<{ rowsAffected: number }> {
+    return request(`/db/profiles/${encodeURIComponent(id)}/row`, {
+      method: "DELETE",
+      ...json(change),
+    });
   },
 
   async webTargets(): Promise<WebTarget[]> {

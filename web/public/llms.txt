@@ -86,7 +86,7 @@ TOPH_OPENCODE_AUTH is a raw Authorization header sent by the server-side OpenCod
 
 ## Databases
 
-SQL drivers: PostgreSQL, MySQL/MariaDB, SQLite, SQL Server, Oracle, ClickHouse.
+SQL/CQL drivers: PostgreSQL, MySQL/MariaDB, SQLite, SQL Server, Oracle, ClickHouse, Cassandra. Search/graph: Elasticsearch, Neo4j.
 
 DSN examples:
 
@@ -111,6 +111,10 @@ Redis query format: a Redis command string.
 
 Read-only profiles reject writes. SQL profiles use read-only drivers/queries where supported.
 
+SQL table tabs support row editing when the table has a primary key and the profile is not read-only. Updates use the primary key in the WHERE clause.
+
+Cassandra uses CQL. Elasticsearch accepts JSON `{index, body}`. Neo4j accepts Cypher.
+
 ## OpenCode
 
 Toph proxies the OpenCode V2 HTTP API. Chat is native in both clients. Sessions use the project root as the OpenCode location. Tool permission requests can be allowed once, always, or rejected.
@@ -121,7 +125,7 @@ The server must be able to reach OpenCode. Set TOPH_OPENCODE_URL and, when requi
 
 Web: polls `/api/version`. When `buildId` changes, a toast appears; clicking reloads and clears caches.
 
-Android: checks the latest GitHub release for an APK. When a newer tag exists with an APK asset, a toast appears; clicking downloads the APK and opens the Android installer. Android requires the final install confirmation.
+Android: checks the latest GitHub release for an APK. When a newer tag exists with an APK asset, a toast appears; clicking downloads the APK and opens the Android installer. Android requires the final install confirmation. Release builds use a signing keystore when the Android secrets are configured; otherwise the workflow publishes a debug APK.
 
 ## Security
 

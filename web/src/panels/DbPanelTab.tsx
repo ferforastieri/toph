@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Play, Square, Timer, Rows3 } from "lucide-react";
+import { Check, Pencil, Play, Square, Timer, Rows3, Trash2, X } from "lucide-react";
 import { api, type DBProfile, type QueryResult } from "../api";
 import { useApp, type Tab } from "../store";
 import CodeEditor from "../components/CodeEditor";
@@ -16,6 +16,15 @@ export default function DbPanelTab({ tab }: Props) {
   const [result, setResult] = useState<QueryResult | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [editing, setEditing] = useState<{ rowIndex: number; values: Record<string, string> } | null>(null);
+  const [mutationBusy, setMutationBusy] = useState(false);
+  const canEdit = Boolean(
+    tab.table &&
+      tab.table.primary.length > 0 &&
+      profile &&
+      !profile.readOnly &&
+      !["mongodb", "redis", "elasticsearch", "neo4j", "cassandra"].includes(profile.driver),
+  );
 
   useEffect(() => {
     if (!tab.profileId) return;
@@ -60,6 +69,79 @@ export default function DbPanelTab({ tab }: Props) {
     updateTab(tab.id, { sql: value });
   }
 
+  function startEdit(rowIndex: number) {
+    if (!result || !tab.table) return;
+    const row = result.rows[rowIndex];
+    if (!row) return;
+    const values: Record<string, string> = {};
+    result.columns.forEach((column, index) => {
+      values[column.name] = editableValue(row[index]);
+    });
+    setEditing({ rowIndex, values });
+  }
+
+  function keyForRow(rowIndex: number): Record<string, unknown> | null {
+    if (!result || !tab.table) return null;
+    const row = result.rows[rowIndex];
+    if (!row) return null;
+    const key: Record<string, unknown> = {};
+    for (const column of tab.table.primary) {
+      const index = result.columns.findIndex((item) => item.name === column);
+      if (index < 0) return null;
+      key[column] = coerceValue(editableValue(row[index]));
+    }
+    return key;
+  }
+
+  async function saveEdit() {
+    if (!editing || !tab.profileId || !tab.table) return;
+    const key = keyForRow(editing.rowIndex);
+    if (!key) return;
+    const values: Record<string, unknown> = {};
+    for (const [column, value] of Object.entries(editing.values)) {
+      if (!tab.table.primary.includes(column)) {
+        values[column] = coerceValue(value);
+      }
+    }
+    setMutationBusy(true);
+    try {
+      await api.updateRow(tab.profileId, {
+        schema: tab.table.schema,
+        table: tab.table.name,
+        key,
+        values,
+      });
+      setEditing(null);
+      notify("success", "Row updated.");
+      await run();
+    } catch (err) {
+      notify("error", err instanceof Error ? err.message : "Could not update row.");
+    } finally {
+      setMutationBusy(false);
+    }
+  }
+
+  async function deleteRow(rowIndex: number) {
+    if (!tab.profileId || !tab.table) return;
+    const key = keyForRow(rowIndex);
+    if (!key) return;
+    if (!window.confirm("Delete this row?")) return;
+    setMutationBusy(true);
+    try {
+      await api.deleteRow(tab.profileId, {
+        schema: tab.table.schema,
+        table: tab.table.name,
+        key,
+      });
+      notify("success", "Row deleted.");
+      await run();
+    } catch (err) {
+      notify("error", err instanceof Error ? err.message : "Could not delete row.");
+    } finally {
+      setMutationBusy(false);
+    }
+  }
+
   return (
     <div className="db-tab">
       <div className="db-tab-toolbar">
@@ -71,11 +153,15 @@ export default function DbPanelTab({ tab }: Props) {
         </div>
         <div className="db-tab-actions">
           <span className="kbd-hint">
-            {profile?.driver === "mongodb"
+            {profile?.driver === "mongodb" || profile?.driver === "elasticsearch"
               ? "JSON query"
               : profile?.driver === "redis"
                 ? "Redis command"
-                : "Ctrl/Cmd + Enter"}
+                : profile?.driver === "neo4j"
+                  ? "Cypher"
+                  : profile?.driver === "cassandra"
+                    ? "CQL"
+                    : "Ctrl/Cmd + Enter"}
           </span>
           <button className="primary small" onClick={() => void run()} disabled={busy || !sql.trim()}>
             {busy ? <Timer size={14} className="spin" /> : <Play size={14} />}
@@ -93,7 +179,13 @@ export default function DbPanelTab({ tab }: Props) {
         <CodeEditor
           path={`sql:${tab.id}`}
           value={sql}
-          language={profile?.driver === "mongodb" ? "json" : "sql"}
+          language={
+            profile?.driver === "mongodb" || profile?.driver === "elasticsearch"
+              ? "json"
+              : profile?.driver === "neo4j"
+                ? "cypher"
+                : "sql"
+          }
           onChange={updateSql}
           onRun={() => void run()}
         />
@@ -129,6 +221,7 @@ export default function DbPanelTab({ tab }: Props) {
                           {column.type && <small>{column.type}</small>}
                         </th>
                       ))}
+                      {canEdit && <th className="row-actions">Actions</th>}
                     </tr>
                   </thead>
                   <tbody>
@@ -143,6 +236,20 @@ export default function DbPanelTab({ tab }: Props) {
                             )}
                           </td>
                         ))}
+                        {canEdit && (
+                          <td className="row-actions">
+                            <button className="icon-button" title="Edit row" onClick={() => startEdit(rowIndex)}>
+                              <Pencil size={13} />
+                            </button>
+                            <button
+                              className="icon-button danger"
+                              title="Delete row"
+                              onClick={() => void deleteRow(rowIndex)}
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </td>
+                        )}
                       </tr>
                     ))}
                   </tbody>
@@ -152,8 +259,74 @@ export default function DbPanelTab({ tab }: Props) {
           </>
         )}
       </div>
+
+      {editing && tab.table && (
+        <div className="row-editor-backdrop" onClick={() => setEditing(null)}>
+          <div className="row-editor" onClick={(event) => event.stopPropagation()}>
+            <div className="row-editor-header">
+              <div>
+                <strong>Edit {tab.table.name}</strong>
+                <span>Primary key: {tab.table.primary.join(", ")}</span>
+              </div>
+              <button className="icon-button" onClick={() => setEditing(null)}>
+                <X size={15} />
+              </button>
+            </div>
+            <div className="row-editor-fields">
+              {result?.columns.map((column) => (
+                <label key={column.name}>
+                  <span>
+                    {column.name}
+                    {tab.table?.primary.includes(column.name) && <em>PK</em>}
+                  </span>
+                  <input
+                    value={editing.values[column.name] ?? ""}
+                    disabled={tab.table?.primary.includes(column.name)}
+                    onChange={(event) =>
+                      setEditing({
+                        ...editing,
+                        values: { ...editing.values, [column.name]: event.target.value },
+                      })
+                    }
+                  />
+                </label>
+              ))}
+            </div>
+            <div className="row-editor-actions">
+              <button className="ghost small" onClick={() => setEditing(null)}>
+                Cancel
+              </button>
+              <button className="primary small" disabled={mutationBusy} onClick={() => void saveEdit()}>
+                <Check size={14} /> {mutationBusy ? "Saving..." : "Save row"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
+}
+
+function editableValue(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "string") return value;
+  return JSON.stringify(value);
+}
+
+function coerceValue(value: string): unknown {
+  if (value === "") return "";
+  if (value === "null") return null;
+  if (value === "true") return true;
+  if (value === "false") return false;
+  if (/^-?\d+(\.\d+)?$/.test(value)) return Number(value);
+  if (value.startsWith("{") || value.startsWith("[")) {
+    try {
+      return JSON.parse(value);
+    } catch {
+      return value;
+    }
+  }
+  return value;
 }
 
 function formatValue(value: unknown): string {

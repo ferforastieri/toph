@@ -356,7 +356,10 @@ private fun CreateConnectionSheet(
                     onDismissRequest = { driverMenu = false },
                     containerColor = TophElevated,
                 ) {
-                    listOf("postgres", "mysql", "sqlite", "sqlserver", "oracle", "clickhouse", "mongodb", "redis").forEach {
+                    listOf(
+                        "postgres", "mysql", "sqlite", "sqlserver", "oracle", "clickhouse",
+                        "mongodb", "redis", "cassandra", "elasticsearch", "neo4j",
+                    ).forEach {
                         DropdownMenuItem(
                             text = { Text(it.displayDriver(), color = TophText) },
                             onClick = {
@@ -408,6 +411,9 @@ private fun String.displayDriver(): String = when (this) {
     "clickhouse" -> "ClickHouse"
     "mongodb" -> "MongoDB"
     "redis" -> "Redis"
+    "cassandra" -> "Cassandra"
+    "elasticsearch" -> "Elasticsearch"
+    "neo4j" -> "Neo4j"
     else -> this
 }
 
@@ -420,6 +426,9 @@ private fun dsnHint(driver: String): String = when (driver) {
     "clickhouse" -> "clickhouse://user:pass@host:9000/db"
     "mongodb" -> "mongodb://user:pass@host:27017"
     "redis" -> "redis://user:pass@host:6379/0"
+    "cassandra" -> "cassandra://host:9042/keyspace"
+    "elasticsearch" -> "http://user:pass@host:9200"
+    "neo4j" -> "neo4j://user:pass@host:7687"
     else -> ""
 }
 
@@ -427,6 +436,9 @@ private fun defaultQuery(driver: String, table: SchemaTable): String {
     return when (driver) {
         "mongodb" -> """{"database":"${table.schema}","collection":"${table.name}","filter":{},"limit":100}"""
         "redis" -> "SCAN 0 COUNT 100"
+        "cassandra" -> "SELECT * FROM ${table.schema}.${table.name} LIMIT 100;"
+        "elasticsearch" -> """{"index":"${table.name}","body":{"query":{"match_all":{}},"size":100}}"""
+        "neo4j" -> "MATCH (n:${table.name}) RETURN n LIMIT 100;"
         "mysql" -> "SELECT * FROM `${table.schema}`.`${table.name}` LIMIT 100;"
         "sqlite" -> "SELECT * FROM \"${table.name}\" LIMIT 100;"
         "sqlserver" -> "SELECT TOP 100 * FROM [${table.schema}].[${table.name}];"
@@ -437,6 +449,9 @@ private fun defaultQuery(driver: String, table: SchemaTable): String {
 private fun queryPlaceholder(driver: String?): String = when (driver) {
     "mongodb" -> """{"database":"app","collection":"users","filter":{},"limit":100}"""
     "redis" -> "HGETALL user:1"
+    "cassandra" -> "SELECT * FROM keyspace.table LIMIT 100;"
+    "elasticsearch" -> """{"index":"logs-*","body":{"query":{"match_all":{}},"size":100}}"""
+    "neo4j" -> "MATCH (n) RETURN n LIMIT 100;"
     else -> "SELECT * FROM ..."
 }
 

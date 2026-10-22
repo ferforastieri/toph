@@ -133,6 +133,12 @@ func (s *Service) Test(ctx context.Context, id string) error {
 		return testMongo(ctx, dsn)
 	case "redis":
 		return testRedis(ctx, dsn)
+	case "cassandra":
+		return testCassandra(ctx, dsn)
+	case "elasticsearch":
+		return testElasticsearch(ctx, dsn)
+	case "neo4j":
+		return testNeo4j(ctx, dsn)
 	}
 	db, err := openSQL(profile, dsn)
 	if err != nil {
@@ -164,6 +170,16 @@ func (s *Service) Query(ctx context.Context, id, query string, maxRows int) (Res
 			if !isReadOnlyRedis(query) {
 				return Result{}, errors.New("profile is read-only")
 			}
+		case "cassandra":
+			if !isReadOnlyCassandra(query) {
+				return Result{}, errors.New("profile is read-only")
+			}
+		case "neo4j":
+			if !isReadOnlyNeo4j(query) {
+				return Result{}, errors.New("profile is read-only")
+			}
+		case "elasticsearch":
+			// The Elasticsearch adapter only exposes read operations.
 		default:
 			if !isReadOnlyQuery(query) {
 				return Result{}, errors.New("profile is read-only")
@@ -175,6 +191,12 @@ func (s *Service) Query(ctx context.Context, id, query string, maxRows int) (Res
 		return queryMongo(ctx, dsn, query, maxRows)
 	case "redis":
 		return queryRedis(ctx, dsn, query, maxRows)
+	case "cassandra":
+		return queryCassandra(ctx, dsn, query, maxRows)
+	case "elasticsearch":
+		return queryElasticsearch(ctx, dsn, query, maxRows)
+	case "neo4j":
+		return queryNeo4j(ctx, dsn, query, maxRows)
 	default:
 		db, err := openSQL(profile, dsn)
 		if err != nil {
@@ -246,6 +268,12 @@ func (s *Service) Schema(ctx context.Context, id string) ([]Table, error) {
 		return mongoSchema(ctx, dsn)
 	case "redis":
 		return redisSchema(ctx, dsn)
+	case "cassandra":
+		return cassandraSchema(ctx, dsn)
+	case "elasticsearch":
+		return elasticsearchSchema(ctx, dsn)
+	case "neo4j":
+		return neo4jSchema(ctx, dsn)
 	}
 	db, err := openSQL(profile, dsn)
 	if err != nil {
@@ -345,7 +373,8 @@ func (s *Service) decrypt(encoded string) (string, error) {
 
 func supported(driver string) bool {
 	switch driver {
-	case "postgres", "mysql", "sqlite", "sqlserver", "oracle", "clickhouse", "mongodb", "redis":
+	case "postgres", "mysql", "sqlite", "sqlserver", "oracle", "clickhouse",
+		"mongodb", "redis", "cassandra", "elasticsearch", "neo4j":
 		return true
 	default:
 		return false

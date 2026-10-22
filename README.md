@@ -14,7 +14,8 @@ Toph is built for people who keep their own services, repositories and data on m
 
 - Browse and edit project files with tabs, a file tree, search and Git status.
 - Run a real terminal attached to the server.
-- Connect to PostgreSQL, MySQL/MariaDB, SQLite, SQL Server, Oracle, ClickHouse, MongoDB and Redis, inspect schemas, run queries and inspect results.
+- Edit SQL table rows with primary-key safety.
+- Connect to PostgreSQL, MySQL/MariaDB, SQLite, SQL Server, Oracle, ClickHouse, Cassandra, MongoDB, Redis, Elasticsearch and Neo4j, inspect schemas, run queries and inspect results.
 - Talk to an OpenCode server without leaving the workbench.
 - Keep web apps from the homelab in their own tabs.
 - Switch between projects without losing the state of the current one.

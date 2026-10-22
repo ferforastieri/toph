@@ -18,6 +18,11 @@ export interface Tab {
   url?: string;
   sessionId?: string;
   line?: number;
+  table?: {
+    schema: string;
+    name: string;
+    primary: string[];
+  };
 }
 
 export interface AiMessage {
@@ -63,6 +68,7 @@ interface AppState {
   toggleTerminal: () => void;
   setTerminalId: (projectId: string, terminalId: string) => void;
   addAiMessage: (tabId: string, message: AiMessage) => void;
+  setAiMessages: (tabId: string, messages: AiMessage[]) => void;
   appendAiText: (tabId: string, messageId: string, delta: string) => void;
   updateAiMessage: (tabId: string, messageId: string, patch: Partial<AiMessage>) => void;
   setAiStreaming: (tabId: string, streaming: boolean) => void;
@@ -138,6 +144,10 @@ export const useApp = create<AppState>((set, get) => ({
         ...state.aiMessages,
         [tabId]: [...(state.aiMessages[tabId] ?? []), message],
       },
+    })),
+  setAiMessages: (tabId, messages) =>
+    set((state) => ({
+      aiMessages: { ...state.aiMessages, [tabId]: messages },
     })),
   appendAiText: (tabId, messageId, delta) =>
     set((state) => ({

@@ -6,10 +6,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -143,62 +145,81 @@ fun WorkbenchScreen(viewModel: TophViewModel, state: UiState) {
             }
         },
     ) { padding ->
-        Box(
+        BoxWithConstraints(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding),
         ) {
             val project = state.activeProject
             val tab = state.activeTab
-            when {
-                project == null -> NoProjects(viewModel) { showNewProject = true }
-                tab == null -> WorkbenchWelcome(
-                    state = state,
-                    onFiles = { showFiles = true },
-                    onDatabase = viewModel::openDatabaseTab,
-                    onAi = viewModel::openAiTab,
-                    onWeb = { showWebPicker = true },
-                )
-
-                else -> when (tab.kind) {
-                    TabKind.EDITOR -> key(tab.id) {
-                        EditorPanel(
-                            tab = tab,
-                            onContentChange = { viewModel.updateEditorContent(tab.id, it) },
-                            onSave = { viewModel.saveTab(tab.id) },
-                        )
-                    }
-
-                    TabKind.DATABASE -> DatabasePanel(
+            val bodyContent: @Composable () -> Unit = {
+                when {
+                    project == null -> NoProjects(viewModel) { showNewProject = true }
+                    tab == null -> WorkbenchWelcome(
                         state = state,
-                        tab = tab,
-                        onProfile = { viewModel.setDbProfile(tab.id, it) },
-                        onSql = { viewModel.setSql(tab.id, it) },
-                        onRun = { viewModel.runQuery(tab.id) },
-                        onCreateProfile = viewModel::createDbProfile,
-                        schemas = state.dbSchemas,
-                        onLoadSchema = viewModel::loadSchema,
+                        onFiles = { showFiles = true },
+                        onDatabase = viewModel::openDatabaseTab,
+                        onAi = viewModel::openAiTab,
+                        onWeb = { showWebPicker = true },
                     )
 
-                    TabKind.AI -> AiPanel(
-                        tab = tab,
-                        onSend = { viewModel.sendAi(tab.id, it) },
-                        onStop = { viewModel.stopAi(tab.id) },
-                        onPermission = { messageId, requestId, decision ->
-                            viewModel.replyPermission(tab.id, messageId, requestId, decision)
-                        },
-                    )
+                    else -> when (tab.kind) {
+                        TabKind.EDITOR -> key(tab.id) {
+                            EditorPanel(
+                                tab = tab,
+                                onContentChange = { viewModel.updateEditorContent(tab.id, it) },
+                                onSave = { viewModel.saveTab(tab.id) },
+                            )
+                        }
 
-                    TabKind.WEB -> key(tab.id) { WebPanel(tab = tab) }
-
-                    TabKind.TERMINAL -> key(tab.id) {
-                        TerminalPanel(
+                        TabKind.DATABASE -> DatabasePanel(
+                            state = state,
                             tab = tab,
-                            wsUrl = viewModel.terminalWebSocketUrl(tab.terminalId),
-                            onClose = { viewModel.closeTab(tab.id) },
+                            onProfile = { viewModel.setDbProfile(tab.id, it) },
+                            onSql = { viewModel.setSql(tab.id, it) },
+                            onRun = { viewModel.runQuery(tab.id) },
+                            onCreateProfile = viewModel::createDbProfile,
+                            schemas = state.dbSchemas,
+                            onLoadSchema = viewModel::loadSchema,
                         )
+
+                        TabKind.AI -> AiPanel(
+                            tab = tab,
+                            onSend = { viewModel.sendAi(tab.id, it) },
+                            onStop = { viewModel.stopAi(tab.id) },
+                            onPermission = { messageId, requestId, decision ->
+                                viewModel.replyPermission(tab.id, messageId, requestId, decision)
+                            },
+                        )
+
+                        TabKind.WEB -> key(tab.id) { WebPanel(tab = tab) }
+
+                        TabKind.TERMINAL -> key(tab.id) {
+                            TerminalPanel(
+                                tab = tab,
+                                wsUrl = viewModel.terminalWebSocketUrl(tab.terminalId),
+                                onClose = { viewModel.closeTab(tab.id) },
+                            )
+                        }
                     }
                 }
+            }
+            if (maxWidth >= 840.dp && project != null) {
+                Row(modifier = Modifier.fillMaxSize()) {
+                    Surface(
+                        color = TophSurface,
+                        modifier = Modifier
+                            .width(280.dp)
+                            .fillMaxHeight(),
+                    ) {
+                        ProjectFilesPane(state = state, viewModel = viewModel, onOpenFile = viewModel::openFile)
+                    }
+                    Box(modifier = Modifier.weight(1f)) {
+                        bodyContent()
+                    }
+                }
+            } else {
+                bodyContent()
             }
         }
     }

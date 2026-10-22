@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Boxes, ChevronDown, FolderPlus, Plus } from "lucide-react";
-import { api, type Project, type WebTarget } from "../api";
-import { basename } from "../lib";
+import { api, type Project, type SchemaTable, type WebTarget } from "../api";
+import { basename, quoteIdentifier } from "../lib";
 import { useApp, type Sidebar, type Tab } from "../store";
 import ActivityBar from "./ActivityBar";
 import Tabs from "./Tabs";
@@ -169,6 +169,49 @@ export default function Workbench() {
     });
   }
 
+  function openTable(profileId: string, table: SchemaTable, driver: string) {
+    if (!project) return;
+    const schema = table.schema;
+    let sql = "";
+    if (driver === "mongodb") {
+      sql = JSON.stringify(
+        { database: schema, collection: table.name, filter: {}, limit: 100 },
+        null,
+        2,
+      );
+    } else if (driver === "redis") {
+      sql = "SCAN 0 COUNT 100";
+    } else if (driver === "elasticsearch") {
+      sql = JSON.stringify(
+        { index: table.name, body: { query: { match_all: {} }, size: 100 } },
+        null,
+        2,
+      );
+    } else if (driver === "neo4j") {
+      sql = `MATCH (n:${table.name}) RETURN n LIMIT 100;`;
+    } else if (driver === "cassandra") {
+      sql = `SELECT * FROM ${schema}.${table.name} LIMIT 100;`;
+    } else {
+      sql = `SELECT * FROM ${quoteIdentifier(driver, schema, table.name)} LIMIT 100;`;
+    }
+    const editable = !["mongodb", "redis", "elasticsearch", "neo4j", "cassandra"].includes(driver);
+    openTab({
+      id: `db:table:${project.id}:${profileId}:${schema}.${table.name}`,
+      kind: "db",
+      title: table.name,
+      projectId: project.id,
+      profileId,
+      sql,
+      table: editable
+        ? {
+            schema,
+            name: table.name,
+            primary: table.columns.filter((column) => column.primary).map((column) => column.name),
+          }
+        : undefined,
+    });
+  }
+
   function openAI() {
     if (!project) return;
     openTab({
@@ -176,6 +219,17 @@ export default function Workbench() {
       kind: "ai",
       title: "OpenCode",
       projectId: project.id,
+    });
+  }
+
+  function openAiSession(session: { id: string; title?: string }) {
+    if (!project) return;
+    openTab({
+      id: `ai:${project.id}:${session.id}`,
+      kind: "ai",
+      title: session.title ?? "OpenCode",
+      projectId: project.id,
+      sessionId: session.id,
     });
   }
 
@@ -251,8 +305,8 @@ export default function Workbench() {
         <aside className="sidebar">
           {project && sidebar === "files" && <FileTree project={project} onOpenFile={openFile} />}
           {project && sidebar === "search" && <SearchPanel project={project} onOpenFile={openFile} />}
-          {project && sidebar === "db" && <DatabasesPanel onOpenQuery={openQuery} />}
-          {project && sidebar === "ai" && <AiSidebar project={project} onOpenAI={openAI} />}
+          {project && sidebar === "db" && <DatabasesPanel onOpenQuery={openQuery} onOpenTable={openTable} />}
+          {project && sidebar === "ai" && <AiSidebar project={project} onOpenAI={openAI} onOpenSession={openAiSession} />}
           {project && sidebar === "web" && <WebSidebar onOpenWeb={openWeb} />}
           {sidebar === "settings" && <SettingsPanel version={version} />}
         </aside>

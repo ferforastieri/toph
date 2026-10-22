@@ -2,6 +2,7 @@ package database
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -137,12 +138,12 @@ func TestReadOnlyProfileRejectsWrites(t *testing.T) {
 }
 
 func TestSupportedDrivers(t *testing.T) {
-	for _, driver := range []string{"postgres", "mysql", "sqlite", "sqlserver", "oracle", "clickhouse", "mongodb", "redis"} {
+	for _, driver := range []string{"postgres", "mysql", "sqlite", "sqlserver", "oracle", "clickhouse", "mongodb", "redis", "cassandra", "elasticsearch", "neo4j"} {
 		if !supported(driver) {
 			t.Fatalf("expected %s to be supported", driver)
 		}
 	}
-	if supported("cassandra") {
+	if supported("db2") {
 		t.Fatal("unexpected unsupported driver")
 	}
 	if driverName("postgres") != "pgx" || driverName("sqlserver") != "sqlserver" {
@@ -177,5 +178,42 @@ func TestRedisResultShapes(t *testing.T) {
 	result, err = redisResult([]any{"one", "two"}, 1)
 	if err != nil || result.RowCount != 1 || result.Rows[0][0] != "one" {
 		t.Fatalf("unexpected list result: %+v %v", result, err)
+	}
+}
+
+func TestSQLiteRowCRUD(t *testing.T) {
+	svc, _ := newService(t)
+	profile, err := svc.Create(context.Background(), ProfileInput{
+		Name: "crud", Driver: "sqlite", DSN: filepath.Join(t.TempDir(), "crud.db"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.Query(context.Background(), profile.ID,
+		`CREATE TABLE people (id INTEGER PRIMARY KEY, name TEXT, role TEXT)`, 10); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.InsertRow(context.Background(), profile.ID, RowChange{
+		Schema: "", Table: "people", Values: map[string]any{"id": 1, "name": "Fernando", "role": "admin"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.UpdateRow(context.Background(), profile.ID, RowChange{
+		Schema: "", Table: "people", Key: map[string]any{"id": 1}, Values: map[string]any{"role": "owner"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	result, err := svc.Query(context.Background(), profile.ID, `SELECT role FROM people WHERE id = 1`, 10)
+	if err != nil || result.Rows[0][0] != "owner" {
+		t.Fatalf("unexpected update: %+v %v", result, err)
+	}
+	if _, err := svc.DeleteRow(context.Background(), profile.ID, RowChange{
+		Schema: "", Table: "people", Key: map[string]any{"id": 1},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	result, err = svc.Query(context.Background(), profile.ID, `SELECT COUNT(*) FROM people`, 10)
+	if err != nil || fmt.Sprint(result.Rows[0][0]) != "0" {
+		t.Fatalf("unexpected delete: %+v %v", result, err)
 	}
 }

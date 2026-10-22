@@ -11,14 +11,14 @@ import {
   Wifi,
 } from "lucide-react";
 import { api, type DBProfile, type SchemaTable } from "../api";
-import { quoteIdentifier } from "../lib";
 import { useApp } from "../store";
 
 interface Props {
   onOpenQuery: (profileId: string, sql: string) => void;
+  onOpenTable: (profileId: string, table: SchemaTable, driver: string) => void;
 }
 
-export default function DatabasesPanel({ onOpenQuery }: Props) {
+export default function DatabasesPanel({ onOpenQuery, onOpenTable }: Props) {
   const [profiles, setProfiles] = useState<DBProfile[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [schemas, setSchemas] = useState<Record<string, SchemaTable[] | undefined>>({});
@@ -139,7 +139,7 @@ export default function DatabasesPanel({ onOpenQuery }: Props) {
                 <button
                   key={`${table.schema}.${table.name}`}
                   className="db-table"
-                  onClick={() => onOpenQuery(profile.id, defaultQuery(profile.driver, table))}
+                  onClick={() => onOpenTable(profile.id, table, profile.driver)}
                   title={`${table.schema}.${table.name}`}
                 >
                   <Table2 size={14} />
@@ -163,20 +163,6 @@ export default function DatabasesPanel({ onOpenQuery }: Props) {
       )}
     </div>
   );
-}
-
-function defaultQuery(driver: string, table: SchemaTable): string {
-  if (driver === "mongodb") {
-    return JSON.stringify(
-      { database: table.schema, collection: table.name, filter: {}, limit: 100 },
-      null,
-      2,
-    );
-  }
-  if (driver === "redis") {
-    return "SCAN 0 COUNT 100";
-  }
-  return `SELECT * FROM ${quoteIdentifier(driver, table.schema, table.name)} LIMIT 100;`;
 }
 
 function ConnectionForm({ onCreated }: { onCreated: () => void }) {
@@ -210,6 +196,9 @@ function ConnectionForm({ onCreated }: { onCreated: () => void }) {
     clickhouse: "clickhouse://user:pass@host:9000/db",
     mongodb: "mongodb://user:pass@host:27017",
     redis: "redis://user:pass@host:6379/0",
+    cassandra: "cassandra://host:9042/keyspace",
+    elasticsearch: "http://user:pass@host:9200",
+    neo4j: "neo4j://user:pass@host:7687",
   };
 
   return (
@@ -229,6 +218,9 @@ function ConnectionForm({ onCreated }: { onCreated: () => void }) {
         <option value="clickhouse">ClickHouse</option>
         <option value="mongodb">MongoDB</option>
         <option value="redis">Redis</option>
+        <option value="cassandra">Cassandra</option>
+        <option value="elasticsearch">Elasticsearch</option>
+        <option value="neo4j">Neo4j</option>
       </select>
       <input
         placeholder={hints[driver]}

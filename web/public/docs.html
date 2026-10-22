@@ -220,11 +220,14 @@ TOPH_ADMIN_PASSWORD='choose-a-strong-password' \
         read-only.
       </p>
       <h3>SQL drivers</h3>
-      <p>PostgreSQL, MySQL/MariaDB, SQLite, SQL Server, Oracle and ClickHouse.</p>
+      <p>PostgreSQL, MySQL/MariaDB, SQLite, SQL Server, Oracle, ClickHouse, Cassandra, Elasticsearch and Neo4j.</p>
       <pre><code>PostgreSQL   postgres://user:pass@host:5432/db?sslmode=disable
 MySQL        user:pass@tcp(host:3306)/db
 SQLite       /path/to/database.db
 SQL Server   sqlserver://user:pass@host:1433?database=db
+Cassandra    cassandra://host:9042/keyspace
+Elasticsearch http://user:pass@host:9200
+Neo4j        neo4j://user:pass@host:7687
 Oracle       oracle://user:pass@host:1521/service
 ClickHouse   clickhouse://user:pass@host:9000/db</code></pre>
       <p>The SQL console accepts ordinary SQL. DDL, DML, transactions, EXPLAIN and cancellation are supported by the backend drivers.</p>
@@ -244,6 +247,19 @@ ClickHouse   clickhouse://user:pass@host:9000/db</code></pre>
       <pre><code>GET session:42
 HGETALL user:1
 SCAN 0 COUNT 100</code></pre>
+
+      <h3>Cassandra, Elasticsearch and Neo4j</h3>
+      <p>Cassandra uses CQL. Elasticsearch accepts JSON with an <code>index</code> and <code>body</code>. Neo4j accepts Cypher.</p>
+      <pre><code>Cassandra     SELECT * FROM keyspace.table LIMIT 100;
+Elasticsearch {"index":"logs-*","body":{"query":{"match_all":{}},"size":100}}
+Neo4j         MATCH (n:User) RETURN n LIMIT 100;</code></pre>
+
+      <h3>Editing rows</h3>
+      <p>
+        Opening a SQL table from the schema tree creates a table tab. If the table has a
+        primary key and the profile is not read-only, each result row has edit and delete
+        actions. Updates use the primary-key columns in the <code>WHERE</code> clause.
+      </p>
 
       <h2>OpenCode</h2>
       <p>
@@ -274,7 +290,9 @@ SCAN 0 COUNT 100</code></pre>
       <p>
         The APK checks the latest GitHub release. When a newer release contains an APK,
         Toph shows an update toast; clicking downloads the APK and opens the Android
-        installer. Android always requires the final install confirmation.
+        installer. Android always requires the final install confirmation. Release builds
+        are signed when the Android keystore secrets are configured; otherwise the
+        workflow publishes a debug APK.
       </p>
       <p>
         To publish an update, create a GitHub release with a tag such as

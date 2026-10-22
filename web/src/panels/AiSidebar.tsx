@@ -7,12 +7,14 @@ import { useApp } from "../store";
 interface Props {
   project: Project;
   onOpenAI: () => void;
+  onOpenSession: (session: { id: string; title?: string }) => void;
 }
 
-export default function AiSidebar({ project, onOpenAI }: Props) {
+export default function AiSidebar({ project, onOpenAI, onOpenSession }: Props) {
   const tabs = useApp((state) => state.tabs);
   const setActiveTab = useApp((state) => state.setActiveTab);
   const [status, setStatus] = useState<"checking" | "online" | "offline">("checking");
+  const [sessions, setSessions] = useState<Array<{ id: string; title?: string }>>([]);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -21,7 +23,15 @@ export default function AiSidebar({ project, onOpenAI }: Props) {
     client.server
       .info()
       .then(() => {
-        if (!cancelled) setStatus("online");
+        if (!cancelled) {
+          setStatus("online");
+          void client.session
+            .list({ directory: project.root, limit: 20, order: "desc" } as never)
+            .then((response) => {
+              if (!cancelled) setSessions(response.data);
+            })
+            .catch(() => undefined);
+        }
       })
       .catch((err) => {
         if (!cancelled) {
@@ -32,7 +42,7 @@ export default function AiSidebar({ project, onOpenAI }: Props) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [project.root]);
 
   return (
     <div className="panel">
@@ -54,6 +64,18 @@ export default function AiSidebar({ project, onOpenAI }: Props) {
         </p>
       </div>
       <div className="ai-session-list">
+        {sessions.length > 0 && <div className="ai-list-label">OpenCode history</div>}
+        {sessions.map((session) => (
+          <button
+            key={session.id}
+            className="ai-session-item"
+            onClick={() => onOpenSession(session)}
+          >
+            <Bot size={15} />
+            <span>{session.title ?? session.id.slice(0, 8)}</span>
+            <small>saved</small>
+          </button>
+        ))}
         {tabs.filter((tab) => tab.kind === "ai").map((tab) => (
           <button key={tab.id} className="ai-session-item" onClick={() => setActiveTab(tab.id)}>
             <Bot size={15} />

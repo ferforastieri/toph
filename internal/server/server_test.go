@@ -196,6 +196,15 @@ func TestDatabaseAPI(t *testing.T) {
 	if result.RowCount != 1 || result.Rows[0][1] != "toph" {
 		t.Fatalf("unexpected result: %+v", result)
 	}
+	var updated map[string]int64
+	res = c.request(http.MethodPut, "/api/db/profiles/"+profile.ID+"/row",
+		database.RowChange{
+			Table: "items", Key: map[string]any{"id": 1},
+			Values: map[string]any{"name": "toph2"},
+		}, &updated)
+	if res.StatusCode != http.StatusOK || updated["rowsAffected"] != 1 {
+		t.Fatalf("unexpected row update: %d %+v", res.StatusCode, updated)
+	}
 	var tables []database.Table
 	c.request(http.MethodGet, "/api/db/profiles/"+profile.ID+"/schema", nil, &tables)
 	if len(tables) != 1 || tables[0].Name != "items" {

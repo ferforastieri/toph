@@ -28,3 +28,5 @@ android/app/build/
 android/local.properties
 android/editor/node_modules/
 android/captures/
+*.jks
+*.keystore

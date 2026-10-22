@@ -95,6 +95,9 @@ func (s *Server) Handler() http.Handler {
 			r.Post("/{profileID}/test", s.testDBProfile)
 			r.Post("/{profileID}/query", s.queryDB)
 			r.Get("/{profileID}/schema", s.dbSchema)
+			r.Post("/{profileID}/row", s.insertDBRow)
+			r.Put("/{profileID}/row", s.updateDBRow)
+			r.Delete("/{profileID}/row", s.deleteDBRow)
 		})
 
 		r.Route("/api/web-targets", func(r chi.Router) {
