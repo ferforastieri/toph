@@ -64,7 +64,7 @@ jobs:
             exit 1
           fi
           export TOPH_VERSION_NAME="${GITHUB_REF_NAME#v}"
-          export TOPH_VERSION_CODE="${GITHUB_RUN_NUMBER}"
+          export TOPH_VERSION_CODE="$((10000 + GITHUB_RUN_NUMBER))"
           echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/toph-release.jks"
           export ANDROID_KEYSTORE_PATH="$RUNNER_TEMP/toph-release.jks"
           ./gradlew clean assembleRelease
