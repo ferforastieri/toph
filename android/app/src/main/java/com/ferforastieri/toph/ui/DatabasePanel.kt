@@ -54,9 +54,12 @@ import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Play
 import com.composables.icons.lucide.Plus
 import com.ferforastieri.toph.data.QueryResult
+import com.ferforastieri.toph.data.RowChangeRequest
 import com.ferforastieri.toph.data.SchemaTable
 import com.ferforastieri.toph.data.UiState
 import com.ferforastieri.toph.data.WorkTab
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
 
@@ -70,11 +73,19 @@ fun DatabasePanel(
     onCreateProfile: (String, String, String, Boolean) -> Unit,
     schemas: Map<String, List<SchemaTable>>,
     onLoadSchema: (String) -> Unit,
+    onOpenTable: (String, SchemaTable) -> Unit,
+    onUpdateRow: (RowChangeRequest) -> Unit,
+    onDeleteRow: (RowChangeRequest) -> Unit,
 ) {
     val profiles = state.dbProfiles
     val selected = profiles.firstOrNull { it.id == tab.profileId } ?: profiles.firstOrNull()
     var menu by remember { mutableStateOf(false) }
     var showCreate by remember { mutableStateOf(false) }
+    var editing by remember { mutableStateOf<Pair<Int, Map<String, String>>?>(null) }
+    val primaryColumns = tab.table?.columns?.filter { it.primary }?.map { it.name }.orEmpty()
+    val canEdit = tab.table != null &&
+        primaryColumns.isNotEmpty() &&
+        selected?.readOnly != true
 
     androidx.compose.runtime.LaunchedEffect(selected?.id) {
         selected?.id?.let(onLoadSchema)
@@ -138,7 +149,7 @@ fun DatabasePanel(
                 items(schemaTables, key = { "${it.schema}.${it.name}" }) { table ->
                     androidx.compose.material3.AssistChip(
                         onClick = {
-                            onSql(defaultQuery(selected.driver, table))
+                            onOpenTable(selected.id, table)
                         },
                         label = {
                             Text(
@@ -213,7 +224,7 @@ fun DatabasePanel(
                 items(schemaTables, key = { "${it.schema}.${it.name}" }) { table ->
                     androidx.compose.material3.AssistChip(
                         onClick = {
-                            onSql(defaultQuery(selected.driver, table))
+                            onOpenTable(selected.id, table)
                         },
                         label = {
                             Text(
@@ -298,8 +309,61 @@ fun DatabasePanel(
                 )
             }
         } else {
-            ResultTable(result, modifier = Modifier.weight(1f))
+            ResultTable(
+                result = result,
+                canEdit = canEdit,
+                primaryColumns = primaryColumns,
+                onEdit = { index ->
+                    val row = result.rows.getOrNull(index) ?: return@ResultTable
+                    val values = result.columns.mapIndexed { columnIndex, column ->
+                        column.name to editableCell(row[columnIndex])
+                    }.toMap()
+                    editing = index to values
+                },
+                onDelete = { index ->
+                    val row = result.rows.getOrNull(index) ?: return@ResultTable
+                    val key = rowKey(result, row, primaryColumns) ?: return@ResultTable
+                    onDeleteRow(
+                        RowChangeRequest(
+                            schema = tab.table?.schema.orEmpty(),
+                            table = tab.table?.name.orEmpty(),
+                            key = key,
+                        ),
+                    )
+                },
+                modifier = Modifier.weight(1f),
+            )
         }
+    }
+
+    if (editing != null && tab.table != null) {
+        EditRowDialog(
+            table = tab.table,
+            primaryColumns = primaryColumns,
+            columns = tab.result?.columns.orEmpty(),
+            row = tab.result?.rows?.getOrNull(editing!!.first).orEmpty(),
+            values = editing!!.second,
+            onDismiss = { editing = null },
+            onSave = { updated ->
+                val key = rowKey(
+                    tab.result,
+                    tab.result?.rows?.getOrNull(editing!!.first).orEmpty(),
+                    primaryColumns,
+                ) ?: return@EditRowDialog
+                val values = updated
+                    .filterKeys { it !in primaryColumns }
+                    .mapValues { (_, value) -> toJsonValue(value) }
+                onUpdateRow(
+                    RowChangeRequest(
+                        schema = tab.table.schema,
+                        table = tab.table.name,
+                        key = key,
+                        values = values,
+                    ),
+                )
+                editing = null
+            },
+        )
     }
 
     if (showCreate) {
@@ -456,7 +520,14 @@ private fun queryPlaceholder(driver: String?): String = when (driver) {
 }
 
 @Composable
-private fun ResultTable(result: QueryResult, modifier: Modifier = Modifier) {
+private fun ResultTable(
+    result: QueryResult,
+    canEdit: Boolean,
+    primaryColumns: List<String>,
+    onEdit: (Int) -> Unit,
+    onDelete: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     Column(modifier = modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
@@ -505,6 +576,17 @@ private fun ResultTable(result: QueryResult, modifier: Modifier = Modifier) {
                                 .padding(horizontal = 7.dp),
                         )
                     }
+                    if (canEdit) {
+                        Text(
+                            "Actions",
+                            color = TophJadeHover,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier
+                                .width(84.dp)
+                                .padding(horizontal = 7.dp),
+                        )
+                    }
                 }
                 LazyColumn(modifier = Modifier.weight(1f)) {
                     itemsIndexed(result.rows) { index, row ->
@@ -531,6 +613,25 @@ private fun ResultTable(result: QueryResult, modifier: Modifier = Modifier) {
                                         .padding(horizontal = 7.dp),
                                 )
                             }
+                            if (canEdit) {
+                                Row(
+                                    modifier = Modifier.width(84.dp),
+                                    horizontalArrangement = Arrangement.End,
+                                ) {
+                                    androidx.compose.material3.TextButton(
+                                        onClick = { onEdit(index) },
+                                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 4.dp),
+                                    ) {
+                                        Text("Edit", color = TophJade, fontSize = 10.sp)
+                                    }
+                                    androidx.compose.material3.TextButton(
+                                        onClick = { onDelete(index) },
+                                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 4.dp),
+                                    ) {
+                                        Text("Del", color = TophError, fontSize = 10.sp)
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -539,9 +640,87 @@ private fun ResultTable(result: QueryResult, modifier: Modifier = Modifier) {
     }
 }
 
-private fun formatCell(value: kotlinx.serialization.json.JsonElement): String {
+private fun formatCell(value: JsonElement): String {
     return when (value) {
         is JsonPrimitive -> value.contentOrNull ?: "NULL"
         else -> value.toString()
     }
+}
+
+private fun editableCell(value: JsonElement): String {
+    return if (value is JsonPrimitive && value.contentOrNull == null) "" else formatCell(value)
+}
+
+private fun rowKey(result: QueryResult?, row: List<JsonElement>, primary: List<String>): Map<String, JsonElement>? {
+    if (result == null) return null
+    val key = mutableMapOf<String, JsonElement>()
+    for (column in primary) {
+        val index = result.columns.indexOfFirst { it.name == column }
+        if (index < 0) return null
+        key[column] = row.getOrNull(index) ?: return null
+    }
+    return key
+}
+
+private fun toJsonValue(value: String): JsonElement {
+    if (value.isEmpty()) return JsonPrimitive("")
+    if (value == "null") return kotlinx.serialization.json.JsonNull
+    if (value == "true" || value == "false" || value.matches(Regex("-?\\d+(\\.\\d+)?"))) {
+        return runCatching { Json.parseToJsonElement(value) }.getOrElse { JsonPrimitive(value) }
+    }
+    if (value.startsWith("{") || value.startsWith("[")) {
+        return runCatching { Json.parseToJsonElement(value) }.getOrElse { JsonPrimitive(value) }
+    }
+    return JsonPrimitive(value)
+}
+
+@Composable
+private fun EditRowDialog(
+    table: SchemaTable,
+    primaryColumns: List<String>,
+    columns: List<com.ferforastieri.toph.data.QueryColumn>,
+    row: List<JsonElement>,
+    values: Map<String, String>,
+    onDismiss: () -> Unit,
+    onSave: (Map<String, String>) -> Unit,
+) {
+    var draft by remember { mutableStateOf(values) }
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = TophSurface,
+        title = { Text("Edit ${table.name}", color = TophText) },
+        text = {
+            LazyColumn(modifier = Modifier.height(320.dp)) {
+                items(columns, key = { it.name }) { column ->
+                    val disabled = column.name in primaryColumns
+                    OutlinedTextField(
+                        value = draft[column.name].orEmpty(),
+                        onValueChange = { draft = draft + (column.name to it) },
+                        enabled = !disabled,
+                        label = {
+                            Text(
+                                column.name + if (disabled) " · primary key" else "",
+                                fontSize = 10.sp,
+                                color = if (disabled) TophMuted2 else TophMuted,
+                            )
+                        },
+                        singleLine = true,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 3.dp),
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            androidx.compose.material3.TextButton(onClick = { onSave(draft) }) {
+                Text("Save", color = TophJade, fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            androidx.compose.material3.TextButton(onClick = onDismiss) {
+                Text("Cancel", color = TophMuted)
+            }
+        },
+    )
 }

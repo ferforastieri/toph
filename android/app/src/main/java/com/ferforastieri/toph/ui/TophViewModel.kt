@@ -14,6 +14,9 @@ import com.ferforastieri.toph.data.SessionStore
 import com.ferforastieri.toph.data.TabKind
 import com.ferforastieri.toph.data.TophApi
 import com.ferforastieri.toph.data.UiState
+import com.ferforastieri.toph.data.RowChangeRequest
+import com.ferforastieri.toph.data.SchemaTable
+import com.ferforastieri.toph.data.defaultTableQuery
 import com.ferforastieri.toph.data.UpdateChecker
 import com.ferforastieri.toph.data.languageFor
 import com.ferforastieri.toph.data.WebTarget
@@ -270,6 +273,43 @@ class TophViewModel(application: Application) : AndroidViewModel(application) {
                         it.copy(loading = false, error = error.message ?: "Could not open terminal.")
                     }
                 }
+        }
+    }
+
+    fun openTableTab(profileId: String, table: SchemaTable) {
+        val project = _state.value.activeProject ?: return
+        val profile = _state.value.dbProfiles.firstOrNull { it.id == profileId } ?: return
+        val editable = profile.driver !in setOf("mongodb", "redis", "elasticsearch", "neo4j", "cassandra")
+        val tab = WorkTab(
+            id = UUID.randomUUID().toString(),
+            kind = TabKind.DATABASE,
+            title = table.name,
+            profileId = profileId,
+            sql = defaultTableQuery(profile.driver, table),
+            table = if (editable) table else null,
+        )
+        addTab(project.id, tab)
+    }
+
+    fun updateRow(tabId: String, profileId: String, change: RowChangeRequest) {
+        viewModelScope.launch {
+            runCatching { requireApi().updateRow(profileId, change) }
+                .onSuccess {
+                    _state.update { state -> state.copy(notice = "Row updated.") }
+                    runQuery(tabId)
+                }
+                .onFailure { showError(it) }
+        }
+    }
+
+    fun deleteRow(tabId: String, profileId: String, change: RowChangeRequest) {
+        viewModelScope.launch {
+            runCatching { requireApi().deleteRow(profileId, change) }
+                .onSuccess {
+                    _state.update { state -> state.copy(notice = "Row deleted.") }
+                    runQuery(tabId)
+                }
+                .onFailure { showError(it) }
         }
     }
 

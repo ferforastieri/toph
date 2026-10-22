@@ -181,6 +181,13 @@ fun WorkbenchScreen(viewModel: TophViewModel, state: UiState) {
                             onCreateProfile = viewModel::createDbProfile,
                             schemas = state.dbSchemas,
                             onLoadSchema = viewModel::loadSchema,
+                            onOpenTable = viewModel::openTableTab,
+                            onUpdateRow = { change ->
+                                tab.profileId?.let { viewModel.updateRow(tab.id, it, change) }
+                            },
+                            onDeleteRow = { change ->
+                                tab.profileId?.let { viewModel.deleteRow(tab.id, it, change) }
+                            },
                         )
 
                         TabKind.AI -> AiPanel(

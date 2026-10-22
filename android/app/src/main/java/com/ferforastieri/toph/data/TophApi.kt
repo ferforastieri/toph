@@ -103,6 +103,18 @@ class TophApi(val baseUrl: String, private val token: String?) {
     suspend fun dbSchema(profileId: String): List<SchemaTable> =
         request("GET", "/api/db/profiles/$profileId/schema")
 
+    suspend fun updateRow(profileId: String, change: RowChangeRequest): Long {
+        val body = json.encodeToString(change)
+        return request<RowMutationResponse>("PUT", "/api/db/profiles/$profileId/row", body)
+            .rowsAffected
+    }
+
+    suspend fun deleteRow(profileId: String, change: RowChangeRequest): Long {
+        val body = json.encodeToString(change)
+        return request<RowMutationResponse>("DELETE", "/api/db/profiles/$profileId/row", body)
+            .rowsAffected
+    }
+
     suspend fun webTargets(): List<WebTarget> = request("GET", "/api/web-targets")
 
     suspend fun createWebTarget(name: String, url: String): WebTarget {

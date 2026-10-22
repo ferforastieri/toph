@@ -106,6 +106,17 @@ data class CreateDBProfileRequest(
 )
 
 @Serializable
+data class RowChangeRequest(
+    val schema: String,
+    val table: String,
+    val key: Map<String, JsonElement>? = null,
+    val values: Map<String, JsonElement>? = null,
+)
+
+@Serializable
+data class RowMutationResponse(val rowsAffected: Long = 0)
+
+@Serializable
 data class QueryColumn(
     val name: String,
     val type: String = "",
@@ -203,6 +214,7 @@ data class WorkTab(
     val error: String? = null,
     val sessionId: String? = null,
     val terminalId: String? = null,
+    val table: SchemaTable? = null,
     val messages: List<AiMessage> = emptyList(),
     val streaming: Boolean = false,
 )
