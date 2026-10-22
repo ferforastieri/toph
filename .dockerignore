@@ -1,0 +1,14 @@
+.git
+.github
+data
+bin
+web/node_modules
+web/dist
+web/public/monaco
+internal/webui/dist
+android
+NOTES.local.md
+*.db
+*.db-shm
+*.db-wal
+.env

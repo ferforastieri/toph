@@ -1,0 +1,295 @@
+export interface User {
+  id: number;
+  username: string;
+  createdAt: string;
+}
+
+export interface Project {
+  id: string;
+  name: string;
+  root: string;
+  color: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FileEntry {
+  name: string;
+  path: string;
+  dir: boolean;
+  size: number;
+  modTime: string;
+}
+
+export interface FileContent {
+  path: string;
+  content: string;
+  hash: string;
+  modTime: string;
+  size: number;
+}
+
+export interface SearchMatch {
+  path: string;
+  line: number;
+  column: number;
+  preview: string;
+}
+
+export interface DBProfile {
+  id: string;
+  name: string;
+  driver: string;
+  readOnly: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DBProfileInput {
+  name: string;
+  driver: string;
+  dsn: string;
+  readOnly: boolean;
+}
+
+export interface QueryColumn {
+  name: string;
+  type: string;
+}
+
+export interface QueryResult {
+  columns: QueryColumn[];
+  rows: unknown[][];
+  rowCount: number;
+  truncated: boolean;
+  durationMs: number;
+}
+
+export interface SchemaColumn {
+  name: string;
+  type: string;
+  nullable: boolean;
+  primary: boolean;
+}
+
+export interface SchemaTable {
+  schema: string;
+  name: string;
+  columns: SchemaColumn[];
+}
+
+export interface WebTarget {
+  id: string;
+  name: string;
+  url: string;
+  icon: string;
+  createdAt: string;
+}
+
+export interface LoginResponse {
+  token: string;
+  csrfToken: string;
+  expiresAt: string;
+  user: User;
+}
+
+export interface WorkspaceLayout {
+  tabs: unknown[];
+  activeTabId: string | null;
+  sidebar?: string;
+  terminalOpen?: boolean;
+}
+
+export class ApiError extends Error {
+  status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.status = status;
+  }
+}
+
+const API_BASE = "/api";
+
+function csrfToken(): string {
+  const match = document.cookie.match(/(?:^|;\s*)toph_csrf=([^;]+)/);
+  return match ? decodeURIComponent(match[1]) : "";
+}
+
+async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const headers = new Headers(options.headers);
+  const method = (options.method ?? "GET").toUpperCase();
+  if (options.body && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+  if (!["GET", "HEAD", "OPTIONS"].includes(method)) {
+    const csrf = csrfToken();
+    if (csrf) {
+      headers.set("X-Toph-CSRF", csrf);
+    }
+  }
+  const response = await fetch(`${API_BASE}${path}`, {
+    ...options,
+    headers,
+    credentials: "include",
+  });
+  if (!response.ok) {
+    let message = response.statusText;
+    try {
+      const body = (await response.json()) as { error?: string };
+      message = body.error ?? message;
+    } catch {
+      // Keep the status text.
+    }
+    throw new ApiError(response.status, message);
+  }
+  if (response.status === 204) {
+    return undefined as T;
+  }
+  const text = await response.text();
+  return (text ? JSON.parse(text) : undefined) as T;
+}
+
+function json(body: unknown): RequestInit {
+  return { body: JSON.stringify(body) };
+}
+
+export const api = {
+  async health(): Promise<{ ok: boolean; name: string; version: string }> {
+    return request("/health");
+  },
+
+  async login(username: string, password: string): Promise<LoginResponse> {
+    return request<LoginResponse>("/auth/login", {
+      method: "POST",
+      ...json({ username, password, kind: "web" }),
+    });
+  },
+
+  async me(): Promise<User> {
+    const response = await request<{ user: User }>("/auth/me");
+    return response.user;
+  },
+
+  async logout(): Promise<void> {
+    await request("/auth/logout", { method: "POST", body: JSON.stringify({}) });
+  },
+
+  async projects(): Promise<Project[]> {
+    return request<Project[]>("/projects");
+  },
+
+  async createProject(name: string, root: string, color: string): Promise<Project> {
+    return request<Project>("/projects", {
+      method: "POST",
+      ...json({ name, root, color }),
+    });
+  },
+
+  async deleteProject(id: string): Promise<void> {
+    await request(`/projects/${encodeURIComponent(id)}`, { method: "DELETE" });
+  },
+
+  async tree(projectId: string, path = ""): Promise<FileEntry[]> {
+    return request<FileEntry[]>(
+      `/projects/${encodeURIComponent(projectId)}/tree?path=${encodeURIComponent(path)}`,
+    );
+  },
+
+  async file(projectId: string, path: string): Promise<FileContent> {
+    return request<FileContent>(
+      `/projects/${encodeURIComponent(projectId)}/file?path=${encodeURIComponent(path)}`,
+    );
+  },
+
+  async saveFile(
+    projectId: string,
+    path: string,
+    content: string,
+    baseHash: string,
+  ): Promise<FileContent> {
+    return request<FileContent>(`/projects/${encodeURIComponent(projectId)}/file`, {
+      method: "PUT",
+      ...json({ path, content, baseHash }),
+    });
+  },
+
+  async search(projectId: string, query: string): Promise<SearchMatch[]> {
+    return request<SearchMatch[]>(`/projects/${encodeURIComponent(projectId)}/search`, {
+      method: "POST",
+      ...json({ query, limit: 100 }),
+    });
+  },
+
+  async gitStatus(projectId: string): Promise<string> {
+    const response = await request<{ status: string }>(
+      `/projects/${encodeURIComponent(projectId)}/git/status`,
+    );
+    return response.status;
+  },
+
+  async layout(projectId: string): Promise<WorkspaceLayout> {
+    return request<WorkspaceLayout>(`/projects/${encodeURIComponent(projectId)}/workspace`);
+  },
+
+  async saveLayout(projectId: string, layout: WorkspaceLayout): Promise<void> {
+    await request(`/projects/${encodeURIComponent(projectId)}/workspace`, {
+      method: "PUT",
+      body: JSON.stringify(layout),
+    });
+  },
+
+  async createTerminal(projectId: string): Promise<{ id: string; projectId: string }> {
+    return request(`/projects/${encodeURIComponent(projectId)}/terminals`, {
+      method: "POST",
+      body: "{}",
+    });
+  },
+
+  async dbProfiles(): Promise<DBProfile[]> {
+    return request<DBProfile[]>("/db/profiles");
+  },
+
+  async createDBProfile(input: DBProfileInput): Promise<DBProfile> {
+    return request<DBProfile>("/db/profiles", { method: "POST", ...json(input) });
+  },
+
+  async deleteDBProfile(id: string): Promise<void> {
+    await request(`/db/profiles/${encodeURIComponent(id)}`, { method: "DELETE" });
+  },
+
+  async testDBProfile(id: string): Promise<void> {
+    await request(`/db/profiles/${encodeURIComponent(id)}/test`, {
+      method: "POST",
+      body: "{}",
+    });
+  },
+
+  async queryDB(id: string, sql: string, maxRows = 500): Promise<QueryResult> {
+    return request<QueryResult>(`/db/profiles/${encodeURIComponent(id)}/query`, {
+      method: "POST",
+      ...json({ sql, maxRows }),
+    });
+  },
+
+  async dbSchema(id: string): Promise<SchemaTable[]> {
+    return request<SchemaTable[]>(`/db/profiles/${encodeURIComponent(id)}/schema`);
+  },
+
+  async webTargets(): Promise<WebTarget[]> {
+    return request<WebTarget[]>("/web-targets");
+  },
+
+  async createWebTarget(name: string, url: string): Promise<WebTarget> {
+    return request<WebTarget>("/web-targets", {
+      method: "POST",
+      ...json({ name, url }),
+    });
+  },
+
+  async deleteWebTarget(id: string): Promise<void> {
+    await request(`/web-targets/${encodeURIComponent(id)}`, { method: "DELETE" });
+  },
+};
+
+export const openCodeBase = `${window.location.origin}/api/opencode`;

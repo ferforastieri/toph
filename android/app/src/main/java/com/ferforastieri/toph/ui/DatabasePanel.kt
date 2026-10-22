@@ -1,0 +1,317 @@
+package com.ferforastieri.toph.ui
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.composables.icons.lucide.ChevronDown
+import com.composables.icons.lucide.Database
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.Play
+import com.ferforastieri.toph.data.QueryResult
+import com.ferforastieri.toph.data.UiState
+import com.ferforastieri.toph.data.WorkTab
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
+
+@Composable
+fun DatabasePanel(
+    state: UiState,
+    tab: WorkTab,
+    onProfile: (String) -> Unit,
+    onSql: (String) -> Unit,
+    onRun: () -> Unit,
+) {
+    val profiles = state.dbProfiles
+    val selected = profiles.firstOrNull { it.id == tab.profileId } ?: profiles.firstOrNull()
+    var menu by remember { mutableStateOf(false) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(TophBg)
+            .padding(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box {
+                OutlinedButton(
+                    onClick = { menu = true },
+                    shape = RoundedCornerShape(7.dp),
+                    modifier = Modifier.height(42.dp),
+                ) {
+                    Icon(Lucide.Database, null, tint = TophJade, modifier = Modifier.size(15.dp))
+                    Spacer(Modifier.width(7.dp))
+                    Text(
+                        selected?.name ?: "Choose connection",
+                        color = TophText,
+                        fontSize = 12.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Icon(Lucide.ChevronDown, null, tint = TophMuted2, modifier = Modifier.size(13.dp))
+                }
+                DropdownMenu(
+                    expanded = menu,
+                    onDismissRequest = { menu = false },
+                    containerColor = TophElevated,
+                ) {
+                    profiles.forEach { profile ->
+                        DropdownMenuItem(
+                            text = {
+                                Column {
+                                    Text(profile.name, color = TophText, fontSize = 12.sp)
+                                    Text(
+                                        "${profile.driver}${if (profile.readOnly) " · read-only" else ""}",
+                                        color = TophMuted2,
+                                        fontSize = 9.5.sp,
+                                    )
+                                }
+                            },
+                            onClick = {
+                                menu = false
+                                onProfile(profile.id)
+                            },
+                        )
+                    }
+                    if (profiles.isEmpty()) {
+                        DropdownMenuItem(
+                            text = { Text("No connections", color = TophMuted) },
+                            onClick = { menu = false },
+                        )
+                    }
+                }
+            }
+            Spacer(Modifier.width(8.dp))
+            if (selected != null) {
+                Surface(
+                    color = TophElevated,
+                    shape = RoundedCornerShape(5.dp),
+                ) {
+                    Text(
+                        selected.driver.uppercase(),
+                        color = TophInfo,
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp),
+                    )
+                }
+            }
+            Spacer(Modifier.weight(1f))
+            Button(
+                onClick = onRun,
+                enabled = selected != null && tab.sql.isNotBlank() && !tab.loading,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = TophJade,
+                    contentColor = Color(0xFF10140B),
+                ),
+                shape = RoundedCornerShape(7.dp),
+                modifier = Modifier.height(40.dp),
+            ) {
+                if (tab.loading) {
+                    CircularProgressIndicator(
+                        color = Color(0xFF10140B),
+                        strokeWidth = 2.dp,
+                        modifier = Modifier.size(15.dp),
+                    )
+                } else {
+                    Icon(Lucide.Play, null, modifier = Modifier.size(14.dp))
+                    Spacer(Modifier.width(5.dp))
+                    Text("Run", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                }
+            }
+        }
+
+        if (profiles.isEmpty()) {
+            Surface(
+                color = TophSurface,
+                shape = RoundedCornerShape(8.dp),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(
+                    "No database connections yet. Add one in the browser client; it will appear here.",
+                    color = TophMuted,
+                    fontSize = 11.5.sp,
+                    lineHeight = 17.sp,
+                    modifier = Modifier.padding(14.dp),
+                )
+            }
+        }
+
+        OutlinedTextField(
+            value = tab.sql,
+            onValueChange = onSql,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(150.dp),
+            placeholder = {
+                Text("SELECT * FROM ...", color = TophMuted2, fontFamily = FontFamily.Monospace)
+            },
+            textStyle = androidx.compose.ui.text.TextStyle(
+                fontFamily = FontFamily.Monospace,
+                fontSize = 12.sp,
+                color = TophText,
+            ),
+            shape = RoundedCornerShape(8.dp),
+        )
+
+        if (tab.error != null) {
+            Text(
+                tab.error,
+                color = TophError,
+                fontSize = 11.sp,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(TophSurface)
+                    .padding(10.dp),
+            )
+        }
+
+        val result = tab.result
+        if (result == null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    "Run a query to see results.",
+                    color = TophMuted2,
+                    fontSize = 12.sp,
+                )
+            }
+        } else {
+            ResultTable(result, modifier = Modifier.weight(1f))
+        }
+    }
+}
+
+@Composable
+private fun ResultTable(result: QueryResult, modifier: Modifier = Modifier) {
+    Column(modifier = modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 2.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text("${result.rowCount} rows", color = TophMuted2, fontSize = 10.sp)
+            Text("${result.durationMs} ms", color = TophMuted2, fontSize = 10.sp)
+            if (result.truncated) {
+                Text("truncated", color = TophWarning, fontSize = 10.sp)
+            }
+        }
+        if (result.columns.isEmpty()) {
+            Text("Statement executed.", color = TophMuted, fontSize = 12.sp)
+            return@Column
+        }
+        val scroll = rememberScrollState()
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .horizontalScroll(scroll),
+        ) {
+            Column(
+                modifier = Modifier
+                    .width((maxOf(result.columns.size, 3) * 150).dp)
+                    .fillMaxHeight(),
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(TophElevated)
+                        .padding(vertical = 6.dp),
+                ) {
+                    result.columns.forEach { column ->
+                        Text(
+                            column.name,
+                            color = TophJadeHover,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier
+                                .width(150.dp)
+                                .padding(horizontal = 7.dp),
+                        )
+                    }
+                }
+                LazyColumn(modifier = Modifier.weight(1f)) {
+                    itemsIndexed(result.rows) { index, row ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(if (index % 2 == 0) TophBg else TophSurface)
+                                .padding(vertical = 5.dp),
+                        ) {
+                            row.forEach { cell ->
+                                Text(
+                                    formatCell(cell),
+                                    color = if (cell is JsonPrimitive && cell.contentOrNull == null) {
+                                        TophMuted2
+                                    } else {
+                                        TophText
+                                    },
+                                    fontFamily = FontFamily.Monospace,
+                                    fontSize = 10.5.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier
+                                        .width(150.dp)
+                                        .padding(horizontal = 7.dp),
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun formatCell(value: kotlinx.serialization.json.JsonElement): String {
+    return when (value) {
+        is JsonPrimitive -> value.contentOrNull ?: "NULL"
+        else -> value.toString()
+    }
+}

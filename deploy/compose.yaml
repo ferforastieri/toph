@@ -1,0 +1,32 @@
+name: toph
+
+services:
+  toph:
+    image: ghcr.io/ferforastieri/toph:latest
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: toph
+    restart: unless-stopped
+    init: true
+    ports:
+      - "127.0.0.1:${TOPH_PORT:-8787}:8787"
+    environment:
+      TOPH_ADDR: 0.0.0.0:8787
+      TOPH_DATA_DIR: /data
+      TOPH_WORKSPACES: /workspaces
+      TOPH_ADMIN_PASSWORD: ${TOPH_ADMIN_PASSWORD:-}
+      TOPH_SECURE_COOKIES: ${TOPH_SECURE_COOKIES:-false}
+      TOPH_OPENCODE_URL: ${TOPH_OPENCODE_URL:-http://host.docker.internal:3005}
+      TOPH_OPENCODE_AUTH: ${TOPH_OPENCODE_AUTH:-}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - toph-data:/data
+      - ${TOPH_WORKSPACES_HOST:-/srv/workspaces}:/workspaces
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  toph-data:
+    name: toph-data
