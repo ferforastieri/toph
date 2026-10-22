@@ -2,9 +2,11 @@ package config
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 // Config is the runtime configuration for a Toph installation.
@@ -18,6 +20,7 @@ type Config struct {
 	OpenCodeAuth   string
 	WebDir         string
 	MasterKeyFile  string
+	BuildID        string
 }
 
 func Load() (Config, error) {
@@ -45,8 +48,16 @@ func Load() (Config, error) {
 		OpenCodeAuth:   os.Getenv("TOPH_OPENCODE_AUTH"),
 		WebDir:         os.Getenv("TOPH_WEB_DIR"),
 		MasterKeyFile:  filepath.Join(absData, "master.key"),
+		BuildID:        buildID(),
 	}
 	return cfg, nil
+}
+
+func buildID() string {
+	if value := strings.TrimSpace(os.Getenv("TOPH_BUILD_ID")); value != "" {
+		return value
+	}
+	return fmt.Sprintf("dev-%d", time.Now().UnixNano())
 }
 
 func splitRoots(raw string) []string {

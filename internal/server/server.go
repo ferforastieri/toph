@@ -59,6 +59,7 @@ func (s *Server) Handler() http.Handler {
 	r.Use(s.accessLog)
 
 	r.Get("/api/health", s.health)
+	r.Get("/api/version", s.version)
 	r.Post("/api/auth/login", s.login)
 
 	r.Group(func(r chi.Router) {
@@ -111,7 +112,13 @@ func (s *Server) Handler() http.Handler {
 
 func (s *Server) health(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
-		"ok": true, "name": "toph", "version": Version,
+		"ok": true, "name": "toph", "version": Version, "buildId": s.cfg.BuildID,
+	})
+}
+
+func (s *Server) version(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]string{
+		"name": "toph", "version": Version, "buildId": s.cfg.BuildID,
 	})
 }
 

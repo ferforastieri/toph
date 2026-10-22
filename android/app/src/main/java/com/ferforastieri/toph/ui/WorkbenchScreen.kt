@@ -32,7 +32,9 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -47,6 +49,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -64,11 +67,13 @@ import com.composables.icons.lucide.Terminal
 import com.composables.icons.lucide.X
 import com.ferforastieri.toph.data.TabKind
 import com.ferforastieri.toph.data.UiState
+import com.ferforastieri.toph.data.UpdateInstaller
 import com.ferforastieri.toph.data.WorkTab
 
 @Composable
 fun WorkbenchScreen(viewModel: TophViewModel, state: UiState) {
     val snackbar = remember { SnackbarHostState() }
+    val context = LocalContext.current
     var showFiles by remember { mutableStateOf(false) }
     var showWebPicker by remember { mutableStateOf(false) }
     var showNewTab by remember { mutableStateOf(false) }
@@ -85,6 +90,18 @@ fun WorkbenchScreen(viewModel: TophViewModel, state: UiState) {
         state.notice?.let {
             snackbar.showSnackbar(it)
             viewModel.clearNotice()
+        }
+    }
+    LaunchedEffect(state.availableUpdate) {
+        val update = state.availableUpdate ?: return@LaunchedEffect
+        val result = snackbar.showSnackbar(
+            message = "Toph ${update.versionName} is available.",
+            actionLabel = "Update",
+            withDismissAction = true,
+            duration = SnackbarDuration.Indefinite,
+        )
+        if (result == SnackbarResult.ActionPerformed) {
+            UpdateInstaller.install(context, update.apkUrl)
         }
     }
 

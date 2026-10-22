@@ -17,6 +17,7 @@ services:
       TOPH_WORKSPACES: /workspaces
       TOPH_ADMIN_PASSWORD: ${TOPH_ADMIN_PASSWORD:-}
       TOPH_SECURE_COOKIES: ${TOPH_SECURE_COOKIES:-false}
+      TOPH_BUILD_ID: ${TOPH_BUILD_ID:-}
       TOPH_OPENCODE_URL: ${TOPH_OPENCODE_URL:-http://host.docker.internal:3005}
       TOPH_OPENCODE_AUTH: ${TOPH_OPENCODE_AUTH:-}
     extra_hosts:

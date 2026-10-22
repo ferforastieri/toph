@@ -190,6 +190,11 @@ data class WorkTab(
     val streaming: Boolean = false,
 )
 
+data class AppUpdate(
+    val versionName: String,
+    val apkUrl: String,
+)
+
 data class UiState(
     val booting: Boolean = true,
     val user: User? = null,
@@ -205,6 +210,7 @@ data class UiState(
     val busy: Boolean = false,
     val error: String? = null,
     val notice: String? = null,
+    val availableUpdate: AppUpdate? = null,
 ) {
     val activeProject: Project?
         get() = projects.firstOrNull { it.id == activeProjectId }

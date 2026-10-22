@@ -1,6 +1,7 @@
 package com.ferforastieri.toph
 
 import com.ferforastieri.toph.data.TophApi
+import com.ferforastieri.toph.data.UpdateChecker
 import com.ferforastieri.toph.data.languageFor
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -13,6 +14,14 @@ class TophLogicTest {
         assertEquals("sql", languageFor("query.sql"))
         assertEquals("dockerfile", languageFor("Dockerfile"))
         assertEquals("plaintext", languageFor("LICENSE"))
+    }
+
+    @Test
+    fun comparesReleaseVersions() {
+        assert(UpdateChecker.isNewer("0.2.0", "0.1.9"))
+        assert(UpdateChecker.isNewer("1.0.0", "0.9.9"))
+        assert(!UpdateChecker.isNewer("0.1.0", "0.1.0"))
+        assert(!UpdateChecker.isNewer("0.1.0", "0.2.0"))
     }
 
     @Test

@@ -3,8 +3,10 @@ import { api, ApiError } from "./api";
 import { useApp } from "./store";
 import Login from "./components/Login";
 import Workbench from "./components/Workbench";
+import UpdateToast from "./components/UpdateToast";
+import Landing from "./site/Landing";
 
-export default function App() {
+function AppShell() {
   const user = useApp((state) => state.user);
   const authReady = useApp((state) => state.authReady);
   const setUser = useApp((state) => state.setUser);
@@ -45,4 +47,29 @@ export default function App() {
   }
 
   return <Workbench />;
+}
+
+export default function App() {
+  const path = window.location.pathname.replace(/\/+$/, "") || "/";
+
+  if (path === "/") {
+    return (
+      <>
+        <Landing />
+        <UpdateToast />
+      </>
+    );
+  }
+
+  if (path === "/docs") {
+    window.location.replace("/docs.html");
+    return null;
+  }
+
+  return (
+    <>
+      <AppShell />
+      <UpdateToast />
+    </>
+  );
 }

@@ -1,0 +1,175 @@
+# Toph
+
+Toph is a self-hosted workbench for a homelab. It runs on your server and provides a browser client and an Android APK.
+
+## Core facts
+
+- Single-tenant, self-hosted, MIT licensed.
+- Go backend with embedded React web client.
+- Android client: Kotlin/Jetpack Compose.
+- Tabs: code editor, database console, OpenCode AI chat, terminal, web app.
+- Browser editor: Monaco.
+- Android editor: CodeMirror 6 in a local WebView.
+- Web app tabs: Android WebView; browser iframe with external fallback.
+- The server owns files, PTYs, database credentials and AI sessions.
+- Clients are thin and connect over HTTPS/WSS.
+- Not a VS Code fork, not a multi-tenant SaaS, not a complete DBeaver replacement.
+
+## Architecture
+
+Browser (React) and Android (Compose) connect to the Go server over HTTPS/WSS.
+
+The Go server provides:
+- authentication and sessions;
+- projects and workspace files;
+- ripgrep search and git status;
+- PTY terminals;
+- SQL and NoSQL database gateway;
+- OpenCode proxy;
+- web target registry;
+- embedded web build.
+
+Repositories, databases and OpenCode remain on the server. Database credentials are encrypted with AES-GCM and never sent to clients.
+
+## Install
+
+Docker:
+
+    git clone https://github.com/ferforastieri/toph.git
+    cd toph
+    TOPH_WORKSPACES_HOST=/srv/workspaces \
+    TOPH_ADMIN_PASSWORD='strong-password' \
+    docker compose -f deploy/compose.yaml up --build
+
+Binary:
+
+    make build
+    TOPH_WORKSPACES=/srv/workspaces \
+    TOPH_ADMIN_PASSWORD='strong-password' \
+    ./bin/toph
+
+Open:
+
+    http://127.0.0.1:8787/
+
+Landing page: `/`
+Application: `/app`
+Docs: `/docs.html`
+Machine-readable docs: `/llms.txt`
+
+## Android
+
+    cd android
+    ./gradlew assembleDebug
+
+APK:
+
+    android/app/build/outputs/apk/debug/app-debug.apk
+
+On first launch, enter the Toph server URL, username and password. Use LAN, VPN or Tailscale. Do not expose Toph directly to the internet.
+
+## Configuration
+
+TOPH_ADDR=127.0.0.1:8787
+TOPH_DATA_DIR=./data
+TOPH_WORKSPACES=/workspaces
+TOPH_ADMIN_PASSWORD=
+TOPH_SECURE_COOKIES=false
+TOPH_OPENCODE_URL=http://127.0.0.1:3005
+TOPH_OPENCODE_AUTH=
+TOPH_BUILD_ID=
+TOPH_WEB_DIR=
+
+TOPH_WORKSPACES is a colon-separated list of existing directories. Projects must be inside these roots.
+
+TOPH_OPENCODE_AUTH is a raw Authorization header sent by the server-side OpenCode proxy.
+
+## Databases
+
+SQL drivers: PostgreSQL, MySQL/MariaDB, SQLite, SQL Server, Oracle, ClickHouse.
+
+DSN examples:
+
+    PostgreSQL   postgres://user:pass@host:5432/db?sslmode=disable
+    MySQL        user:pass@tcp(host:3306)/db
+    SQLite       /path/to/database.db
+    SQL Server   sqlserver://user:pass@host:1433?database=db
+    Oracle       oracle://user:pass@host:1521/service
+    ClickHouse   clickhouse://user:pass@host:9000/db
+
+MongoDB query format:
+
+    {"database":"app","collection":"users","filter":{},"limit":100}
+
+MongoDB aggregation uses `pipeline` instead of `filter`.
+
+Redis query format: a Redis command string.
+
+    GET session:42
+    HGETALL user:1
+    SCAN 0 COUNT 100
+
+Read-only profiles reject writes. SQL profiles use read-only drivers/queries where supported.
+
+## OpenCode
+
+Toph proxies the OpenCode V2 HTTP API. Chat is native in both clients. Sessions use the project root as the OpenCode location. Tool permission requests can be allowed once, always, or rejected.
+
+The server must be able to reach OpenCode. Set TOPH_OPENCODE_URL and, when required, TOPH_OPENCODE_AUTH.
+
+## Updates
+
+Web: polls `/api/version`. When `buildId` changes, a toast appears; clicking reloads and clears caches.
+
+Android: checks the latest GitHub release for an APK. When a newer tag exists with an APK asset, a toast appears; clicking downloads the APK and opens the Android installer. Android requires the final install confirmation.
+
+## Security
+
+- Bind to localhost, LAN or VPN.
+- Put TLS in front.
+- Use a strong password.
+- Login is rate-limited.
+- Session tokens are opaque and stored hashed.
+- Project paths are restricted with symlink escape checks.
+- Database credentials are encrypted at rest.
+- Treat Toph as remote administration.
+
+## API summary
+
+GET  /api/health
+GET  /api/version
+POST /api/auth/login
+GET  /api/auth/me
+POST /api/auth/logout
+GET  /api/projects
+POST /api/projects
+GET  /api/projects/:id/tree
+GET  /api/projects/:id/file
+PUT  /api/projects/:id/file
+POST /api/projects/:id/search
+GET  /api/projects/:id/git/status
+POST /api/projects/:id/terminals
+GET  /api/terminals/:id/ws
+GET  /api/db/profiles
+POST /api/db/profiles
+POST /api/db/profiles/:id/query
+GET  /api/db/profiles/:id/schema
+GET  /api/web-targets
+POST /api/web-targets
+ALL  /api/opencode/*
+
+## Development
+
+    go test ./...
+    go vet ./...
+
+    cd web
+    npm test
+    npm run build
+
+    cd ../android
+    ./gradlew testDebugUnitTest assembleDebug
+
+## Repository
+
+https://github.com/ferforastieri/toph

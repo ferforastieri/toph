@@ -18,6 +18,10 @@ func (s *Server) staticHandler() http.Handler {
 	}
 	fileServer := http.FileServer(http.FS(fsys))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/docs" || r.URL.Path == "/docs/" {
+			http.Redirect(w, r, "/docs.html", http.StatusMovedPermanently)
+			return
+		}
 		if strings.HasPrefix(r.URL.Path, "/api/") {
 			writeError(w, http.StatusNotFound, "not found")
 			return
@@ -34,6 +38,8 @@ func (s *Server) staticHandler() http.Handler {
 		if info, err := fs.Stat(fsys, path); err == nil && !info.IsDir() {
 			if strings.HasPrefix(path, "assets/") {
 				w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+			} else if path == "index.html" {
+				w.Header().Set("Cache-Control", "no-cache")
 			}
 			fileServer.ServeHTTP(w, r)
 			return

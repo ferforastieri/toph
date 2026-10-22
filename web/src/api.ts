@@ -86,6 +86,12 @@ export interface WebTarget {
   createdAt: string;
 }
 
+export interface VersionInfo {
+  name: string;
+  version: string;
+  buildId: string;
+}
+
 export interface LoginResponse {
   token: string;
   csrfToken: string;
@@ -155,8 +161,12 @@ function json(body: unknown): RequestInit {
 }
 
 export const api = {
-  async health(): Promise<{ ok: boolean; name: string; version: string }> {
+  async health(): Promise<{ ok: boolean; name: string; version: string; buildId?: string }> {
     return request("/health");
+  },
+
+  async version(): Promise<VersionInfo> {
+    return request("/version");
   },
 
   async login(username: string, password: string): Promise<LoginResponse> {

@@ -4,6 +4,12 @@
 
 Toph is built for people who keep their own services, repositories and data on machines they control. There is no hosted account, no vendor backend and no telemetry.
 
+## Public pages
+
+- `/` — landing page.
+- `/app` — the workbench (sign-in required).
+- `/docs.html` — single-page documentation, also available as `/llms.txt` for agents.
+
 ## What it does
 
 - Browse and edit project files with tabs, a file tree, search and Git status.
@@ -13,6 +19,7 @@ Toph is built for people who keep their own services, repositories and data on m
 - Keep web apps from the homelab in their own tabs.
 - Switch between projects without losing the state of the current one.
 - Use the same backend from the browser and from the Android app.
+- Get an in-app toast when a new web build or Android release is available.
 
 ## Architecture
 

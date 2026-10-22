@@ -4,6 +4,10 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
+val tophVersionName = providers.environmentVariable("TOPH_VERSION_NAME").orElse("0.1.0")
+val tophVersionCode = providers.environmentVariable("TOPH_VERSION_CODE").map(String::toInt).orElse(1)
+
+
 android {
     namespace = "com.ferforastieri.toph"
     compileSdk = 36
@@ -12,8 +16,8 @@ android {
         applicationId = "com.ferforastieri.toph"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = tophVersionCode.get()
+        versionName = tophVersionName.get()
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
     }

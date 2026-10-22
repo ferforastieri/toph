@@ -3,6 +3,7 @@ package com.ferforastieri.toph.ui
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.ferforastieri.toph.BuildConfig
 import com.ferforastieri.toph.data.AiMessage
 import com.ferforastieri.toph.data.ApiException
 import com.ferforastieri.toph.data.DBProfile
@@ -12,6 +13,7 @@ import com.ferforastieri.toph.data.SessionStore
 import com.ferforastieri.toph.data.TabKind
 import com.ferforastieri.toph.data.TophApi
 import com.ferforastieri.toph.data.UiState
+import com.ferforastieri.toph.data.UpdateChecker
 import com.ferforastieri.toph.data.languageFor
 import com.ferforastieri.toph.data.WebTarget
 import com.ferforastieri.toph.data.WorkTab
@@ -48,6 +50,7 @@ class TophViewModel(application: Application) : AndroidViewModel(application) {
             api = TophApi(baseUrl, savedToken)
             token = savedToken
             _state.update { it.copy(baseUrl = baseUrl) }
+            checkForUpdates()
             viewModelScope.launch {
                 runCatching { requireApi().me() }
                     .onSuccess { user ->
@@ -74,6 +77,7 @@ class TophViewModel(application: Application) : AndroidViewModel(application) {
                     it.copy(user = result.user, baseUrl = baseUrl, busy = false, error = null)
                 }
                 loadProjects()
+                checkForUpdates()
             } catch (error: Exception) {
                 _state.update {
                     it.copy(
@@ -464,6 +468,14 @@ class TophViewModel(application: Application) : AndroidViewModel(application) {
 
     fun clearNotice() {
         _state.update { it.copy(notice = null) }
+    }
+
+    private fun checkForUpdates() {
+        viewModelScope.launch {
+            UpdateChecker.latest(BuildConfig.VERSION_NAME)?.let { update ->
+                _state.update { it.copy(availableUpdate = update) }
+            }
+        }
     }
 
     private suspend fun loadProjects() {
