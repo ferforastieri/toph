@@ -135,3 +135,17 @@ func TestReadOnlyProfileRejectsWrites(t *testing.T) {
 		t.Fatal("expected read-only write to fail")
 	}
 }
+
+func TestSupportedDrivers(t *testing.T) {
+	for _, driver := range []string{"postgres", "mysql", "sqlite", "sqlserver", "oracle", "clickhouse"} {
+		if !supported(driver) {
+			t.Fatalf("expected %s to be supported", driver)
+		}
+	}
+	if supported("cassandra") {
+		t.Fatal("unexpected NoSQL driver in SQL registry")
+	}
+	if driverName("postgres") != "pgx" || driverName("sqlserver") != "sqlserver" {
+		t.Fatal("unexpected driver mapping")
+	}
+}

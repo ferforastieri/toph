@@ -14,9 +14,12 @@ import (
 	"strings"
 	"time"
 
+	_ "github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/ferforastieri/toph/internal/store"
 	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/jackc/pgx/v5/stdlib"
+	_ "github.com/microsoft/go-mssqldb"
+	_ "github.com/sijms/go-ora/v2"
 	_ "modernc.org/sqlite"
 )
 
@@ -212,6 +215,12 @@ func (s *Service) Schema(ctx context.Context, id string) ([]Table, error) {
 		return sqliteSchema(ctx, db)
 	case "mysql":
 		return mysqlSchema(ctx, db)
+	case "sqlserver":
+		return sqlServerSchema(ctx, db)
+	case "oracle":
+		return oracleSchema(ctx, db)
+	case "clickhouse":
+		return clickHouseSchema(ctx, db)
 	default:
 		return nil, ErrUnsupportedDriver
 	}
@@ -287,7 +296,7 @@ func (s *Service) decrypt(encoded string) (string, error) {
 
 func supported(driver string) bool {
 	switch driver {
-	case "postgres", "mysql", "sqlite":
+	case "postgres", "mysql", "sqlite", "sqlserver", "oracle", "clickhouse":
 		return true
 	default:
 		return false
@@ -298,6 +307,12 @@ func driverName(driver string) string {
 	switch driver {
 	case "postgres":
 		return "pgx"
+	case "sqlserver":
+		return "sqlserver"
+	case "oracle":
+		return "oracle"
+	case "clickhouse":
+		return "clickhouse"
 	default:
 		return driver
 	}

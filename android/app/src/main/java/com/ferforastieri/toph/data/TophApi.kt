@@ -74,6 +74,18 @@ class TophApi(val baseUrl: String, private val token: String?) {
 
     suspend fun dbProfiles(): List<DBProfile> = request("GET", "/api/db/profiles")
 
+    suspend fun createDBProfile(
+        name: String,
+        driver: String,
+        dsn: String,
+        readOnly: Boolean,
+    ): DBProfile {
+        val body = json.encodeToString(
+            CreateDBProfileRequest(name = name, driver = driver, dsn = dsn, readOnly = readOnly),
+        )
+        return request("POST", "/api/db/profiles", body)
+    }
+
     suspend fun queryDB(profileId: String, sql: String): QueryResult {
         val body = json.encodeToString(QueryRequest(sql = sql))
         return request("POST", "/api/db/profiles/$profileId/query", body)
@@ -83,6 +95,29 @@ class TophApi(val baseUrl: String, private val token: String?) {
         request("GET", "/api/db/profiles/$profileId/schema")
 
     suspend fun webTargets(): List<WebTarget> = request("GET", "/api/web-targets")
+
+    suspend fun createWebTarget(name: String, url: String): WebTarget {
+        val body = json.encodeToString(CreateWebTargetRequest(name = name, url = url))
+        return request("POST", "/api/web-targets", body)
+    }
+
+    suspend fun createTerminal(projectId: String): String {
+        return request<TerminalResponse>(
+            "POST",
+            "/api/projects/$projectId/terminals",
+            "{}",
+        ).id
+    }
+
+    fun terminalWebSocketUrl(terminalId: String): String {
+        val wsBase = when {
+            baseUrl.startsWith("https://") -> "wss://" + baseUrl.removePrefix("https://")
+            baseUrl.startsWith("http://") -> "ws://" + baseUrl.removePrefix("http://")
+            else -> baseUrl
+        }
+        val suffix = if (token.isNullOrBlank()) "" else "?token=" + URLEncoder.encode(token, "UTF-8")
+        return "$wsBase/api/terminals/$terminalId/ws$suffix"
+    }
 
     suspend fun createOpenCodeSession(root: String): String {
         val body = buildJsonObject {
@@ -96,6 +131,19 @@ class TophApi(val baseUrl: String, private val token: String?) {
     suspend fun promptOpenCode(sessionId: String, text: String) {
         val body = buildJsonObject { put("text", text) }.toString()
         request<Unit>("POST", "/api/opencode/api/session/$sessionId/prompt", body)
+    }
+
+    suspend fun replyOpenCodePermission(
+        sessionId: String,
+        requestId: String,
+        decision: String,
+    ) {
+        val body = buildJsonObject { put("decision", decision) }.toString()
+        request<Unit>(
+            "POST",
+            "/api/opencode/api/session/$sessionId/permission/$requestId/reply",
+            body,
+        )
     }
 
     suspend fun interruptOpenCode(sessionId: String) {

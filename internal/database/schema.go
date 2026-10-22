@@ -164,3 +164,103 @@ func mysqlSchema(ctx context.Context, db *sql.DB) ([]Table, error) {
 	}
 	return tables, nil
 }
+
+func sqlServerSchema(ctx context.Context, db *sql.DB) ([]Table, error) {
+	rows, err := db.QueryContext(ctx, `
+		SELECT c.table_schema, c.table_name, c.column_name, c.data_type, c.is_nullable,
+		       CASE WHEN kcu.column_name IS NULL THEN 0 ELSE 1 END
+		FROM information_schema.columns c
+		LEFT JOIN information_schema.table_constraints tc
+		  ON tc.table_schema = c.table_schema AND tc.table_name = c.table_name
+		 AND tc.constraint_type = 'PRIMARY KEY'
+		LEFT JOIN information_schema.key_column_usage kcu
+		  ON kcu.constraint_name = tc.constraint_name
+		 AND kcu.table_schema = tc.table_schema
+		 AND kcu.table_name = tc.table_name
+		 AND kcu.column_name = c.column_name
+		WHERE c.table_schema NOT IN ('sys', 'INFORMATION_SCHEMA')
+		ORDER BY c.table_schema, c.table_name, c.ordinal_position`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanFlatSchema(rows)
+}
+
+func oracleSchema(ctx context.Context, db *sql.DB) ([]Table, error) {
+	rows, err := db.QueryContext(ctx, `
+		SELECT c.owner, c.table_name, c.column_name, c.data_type, c.nullable,
+		       CASE WHEN cc.column_name IS NULL THEN 0 ELSE 1 END
+		FROM all_tab_columns c
+		LEFT JOIN all_constraints ac
+		  ON ac.owner = c.owner AND ac.table_name = c.table_name AND ac.constraint_type = 'P'
+		LEFT JOIN all_cons_columns cc
+		  ON cc.owner = ac.owner AND cc.constraint_name = ac.constraint_name
+		 AND cc.column_name = c.column_name
+		WHERE c.owner NOT IN (
+		  'SYS','SYSTEM','XDB','MDSYS','CTXSYS','ORDDATA','ORDSYS','LBACSYS',
+		  'DBSNMP','OUTLN','APPQOSSYS','GSMADMIN_INTERNAL','AUDSYS','DVSYS',
+		  'DVF','OJVMSYS','WMSYS','REMOTE_SCHEDULER_AGENT','SYSBACKUP','SYSDG',
+		  'SYSKM','SYSRAC','SYS$UMF'
+		)
+		ORDER BY c.owner, c.table_name, c.column_id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanFlatSchema(rows)
+}
+
+func clickHouseSchema(ctx context.Context, db *sql.DB) ([]Table, error) {
+	rows, err := db.QueryContext(ctx, `
+		SELECT database, table, name, type
+		FROM system.columns
+		WHERE database NOT IN ('system', 'INFORMATION_SCHEMA', 'information_schema')
+		ORDER BY database, table, position`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var tables []Table
+	index := map[string]int{}
+	for rows.Next() {
+		var database, table, name, typ string
+		if err := rows.Scan(&database, &table, &name, &typ); err != nil {
+			return nil, err
+		}
+		key := database + "." + table
+		i, ok := index[key]
+		if !ok {
+			tables = append(tables, Table{Schema: database, Name: table})
+			i = len(tables) - 1
+			index[key] = i
+		}
+		tables[i].Columns = append(tables[i].Columns, TableColumn{
+			Name: name, Type: typ, Nullable: len(typ) >= 9 && typ[:9] == "Nullable(",
+		})
+	}
+	return tables, rows.Err()
+}
+
+func scanFlatSchema(rows *sql.Rows) ([]Table, error) {
+	var tables []Table
+	index := map[string]int{}
+	for rows.Next() {
+		var schema, table, name, typ, nullable string
+		var primary int
+		if err := rows.Scan(&schema, &table, &name, &typ, &nullable, &primary); err != nil {
+			return nil, err
+		}
+		key := schema + "." + table
+		i, ok := index[key]
+		if !ok {
+			tables = append(tables, Table{Schema: schema, Name: table})
+			i = len(tables) - 1
+			index[key] = i
+		}
+		tables[i].Columns = append(tables[i].Columns, TableColumn{
+			Name: name, Type: typ, Nullable: nullable == "YES" || nullable == "Y", Primary: primary != 0,
+		})
+	}
+	return tables, rows.Err()
+}

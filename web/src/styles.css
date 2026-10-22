@@ -1641,3 +1641,15 @@ textarea {
     display: none;
   }
 }
+
+.ai-permission-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 9px;
+}
+
+.ai-permission-actions .ghost.danger {
+  color: var(--error);
+  border-color: rgba(217, 108, 95, 0.35);
+}

@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+    />
+    <title>Toph Terminal</title>
+    <link rel="stylesheet" href="terminal.css" />
+    <style>
+      html,
+      body,
+      #terminal {
+        height: 100%;
+        margin: 0;
+        padding: 0;
+        background: #0f120d;
+        overflow: hidden;
+      }
+      #terminal {
+        padding: 6px 8px;
+        box-sizing: border-box;
+      }
+      .xterm {
+        height: 100%;
+      }
+      .xterm-viewport {
+        background: #0f120d !important;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="terminal"></div>
+    <script src="terminal.js"></script>
+  </body>
+</html>

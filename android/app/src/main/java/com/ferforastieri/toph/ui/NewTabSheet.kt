@@ -27,6 +27,7 @@ import com.composables.icons.lucide.Files
 import com.composables.icons.lucide.Globe
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Sparkles
+import com.composables.icons.lucide.Terminal
 
 @Composable
 fun NewTabSheet(
@@ -35,6 +36,7 @@ fun NewTabSheet(
     onDatabase: () -> Unit,
     onAi: () -> Unit,
     onWeb: () -> Unit,
+    onTerminal: () -> Unit,
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -53,6 +55,7 @@ fun NewTabSheet(
             NewTabRow("Database", "Run SQL and inspect results", Lucide.Database, onDatabase)
             NewTabRow("OpenCode", "Start an AI session", Lucide.Sparkles, onAi)
             NewTabRow("Web app", "Open a homelab interface", Lucide.Globe, onWeb)
+            NewTabRow("Terminal", "Open a shell in this project", Lucide.Terminal, onTerminal)
             Spacer(Modifier.height(18.dp))
         }
     }

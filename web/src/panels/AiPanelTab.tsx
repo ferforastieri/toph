@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { OpenCode } from "@opencode/client";
-import { Bot, CircleStop, Send, Sparkles } from "lucide-react";
+import { Bot, Check, CircleStop, Send, Sparkles, X } from "lucide-react";
 import { openCodeBase, type Project } from "../api";
 import { useApp, type Tab } from "../store";
 
@@ -13,6 +13,7 @@ export default function AiPanelTab({ tab, project }: Props) {
   const updateTab = useApp((state) => state.updateTab);
   const addMessage = useApp((state) => state.addAiMessage);
   const appendText = useApp((state) => state.appendAiText);
+  const updateMessage = useApp((state) => state.updateAiMessage);
   const setStreaming = useApp((state) => state.setAiStreaming);
   const messages = useApp((state) => state.aiMessages[tab.id] ?? []);
   const streaming = useApp((state) => state.aiStreaming[tab.id] ?? false);
@@ -78,6 +79,8 @@ export default function AiPanelTab({ tab, project }: Props) {
                 text: `Permission requested: ${String(data.action)} ${JSON.stringify(data.resources ?? [])}`,
                 title: "Permission",
                 createdAt: Date.now(),
+                permissionId: String(data.id),
+                permissionAction: String(data.action ?? ""),
               });
               break;
             }
@@ -144,6 +147,28 @@ export default function AiPanelTab({ tab, project }: Props) {
     }
   }
 
+  async function replyPermission(messageId: string, requestId: string, decision: "once" | "always" | "reject") {
+    if (!tab.sessionId) return;
+    try {
+      await client.permission.reply({
+        sessionID: tab.sessionId,
+        requestID: requestId,
+        decision,
+      } as never);
+      updateMessage(tab.id, messageId, {
+        permissionId: undefined,
+        text:
+          decision === "reject"
+            ? "Permission rejected."
+            : decision === "always"
+              ? "Permission allowed for this session."
+              : "Permission allowed once.",
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not reply to the permission request.");
+    }
+  }
+
   async function stop() {
     if (!tab.sessionId) return;
     try {
@@ -189,6 +214,46 @@ export default function AiPanelTab({ tab, project }: Props) {
                     : "Error"}
             </div>
             <pre>{message.text}</pre>
+            {message.permissionId && (
+              <div className="ai-permission-actions">
+                <button
+                  className="ghost small"
+                  onClick={() =>
+                    void replyPermission(
+                      message.id,
+                      message.permissionId!,
+                      "once",
+                    )
+                  }
+                >
+                  <Check size={13} /> Allow once
+                </button>
+                <button
+                  className="ghost small"
+                  onClick={() =>
+                    void replyPermission(
+                      message.id,
+                      message.permissionId!,
+                      "always",
+                    )
+                  }
+                >
+                  <Check size={13} /> Always
+                </button>
+                <button
+                  className="ghost small danger"
+                  onClick={() =>
+                    void replyPermission(
+                      message.id,
+                      message.permissionId!,
+                      "reject",
+                    )
+                  }
+                >
+                  <X size={13} /> Reject
+                </button>
+              </div>
+            )}
           </div>
         ))}
         {streaming && (

@@ -48,6 +48,23 @@ describe("workbench store", () => {
     expect(useApp.getState().aiMessages["ai:1"][0].text).toBe("hello world");
   });
 
+  it("updates a permission message after a decision", () => {
+    useApp.getState().addAiMessage("ai:1", {
+      id: "permission-1",
+      role: "tool",
+      text: "Permission requested",
+      createdAt: 1,
+      permissionId: "req-1",
+    });
+    useApp.getState().updateAiMessage("ai:1", "permission-1", {
+      permissionId: undefined,
+      text: "Permission allowed.",
+    });
+    const message = useApp.getState().aiMessages["ai:1"][0];
+    expect(message.permissionId).toBeUndefined();
+    expect(message.text).toBe("Permission allowed.");
+  });
+
   it("stores terminal ids per project", () => {
     useApp.getState().setTerminalId("p1", "t1");
     useApp.getState().setTerminalId("p2", "t2");

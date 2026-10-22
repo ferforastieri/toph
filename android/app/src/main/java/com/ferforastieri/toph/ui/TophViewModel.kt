@@ -209,6 +209,30 @@ class TophViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun openTerminalTab() {
+        val project = _state.value.activeProject ?: return
+        val tab = WorkTab(
+            id = UUID.randomUUID().toString(),
+            kind = TabKind.TERMINAL,
+            title = "Terminal",
+            loading = true,
+        )
+        addTab(project.id, tab)
+        viewModelScope.launch {
+            runCatching { requireApi().createTerminal(project.id) }
+                .onSuccess { terminalId ->
+                    updateTab(project.id, tab.id) {
+                        it.copy(terminalId = terminalId, loading = false)
+                    }
+                }
+                .onFailure { error ->
+                    updateTab(project.id, tab.id) {
+                        it.copy(loading = false, error = error.message ?: "Could not open terminal.")
+                    }
+                }
+        }
+    }
+
     fun openAiTab() {
         val project = _state.value.activeProject ?: return
         val tab = WorkTab(
@@ -353,6 +377,37 @@ class TophViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun replyPermission(tabId: String, messageId: String, requestId: String, decision: String) {
+        val current = _state.value
+        val project = current.activeProject ?: return
+        val tab = current.projectTabs.firstOrNull { it.id == tabId } ?: return
+        val sessionId = tab.sessionId ?: return
+        viewModelScope.launch {
+            runCatching { requireApi().replyOpenCodePermission(sessionId, requestId, decision) }
+                .onSuccess {
+                    updateTab(project.id, tabId) { currentTab ->
+                        currentTab.copy(
+                            messages = currentTab.messages.map { message ->
+                                if (message.id == messageId) {
+                                    message.copy(
+                                        permissionId = null,
+                                        text = if (decision == "reject") {
+                                            "Permission rejected."
+                                        } else {
+                                            "Permission allowed."
+                                        },
+                                    )
+                                } else {
+                                    message
+                                }
+                            },
+                        )
+                    }
+                }
+                .onFailure { showError(it) }
+        }
+    }
+
     fun stopAi(tabId: String) {
         val current = _state.value
         val project = current.activeProject ?: return
@@ -362,6 +417,45 @@ class TophViewModel(application: Application) : AndroidViewModel(application) {
             runCatching { requireApi().interruptOpenCode(sessionId) }
             updateTab(project.id, tabId) { it.copy(streaming = false) }
         }
+    }
+
+    fun createProject(name: String, root: String) {
+        viewModelScope.launch {
+            runCatching { requireApi().createProject(name, root) }
+                .onSuccess { project ->
+                    loadProjects()
+                    selectProject(project.id)
+                    _state.update { it.copy(notice = "Project created.") }
+                }
+                .onFailure { showError(it) }
+        }
+    }
+
+    fun createWebTarget(name: String, url: String) {
+        viewModelScope.launch {
+            runCatching { requireApi().createWebTarget(name, url) }
+                .onSuccess {
+                    loadWebTargets()
+                    _state.update { state -> state.copy(notice = "Web app added.") }
+                }
+                .onFailure { showError(it) }
+        }
+    }
+
+    fun createDbProfile(name: String, driver: String, dsn: String, readOnly: Boolean) {
+        viewModelScope.launch {
+            runCatching { requireApi().createDBProfile(name, driver, dsn, readOnly) }
+                .onSuccess {
+                    loadDbProfiles()
+                    _state.update { state -> state.copy(notice = "Database connection added.") }
+                }
+                .onFailure { showError(it) }
+        }
+    }
+
+    fun terminalWebSocketUrl(terminalId: String?): String? {
+        if (terminalId.isNullOrBlank()) return null
+        return api?.terminalWebSocketUrl(terminalId)
     }
 
     fun clearError() {
@@ -504,12 +598,15 @@ class TophViewModel(application: Application) : AndroidViewModel(application) {
                     "permission.asked" -> {
                         val action = payload.string("action").orEmpty()
                         val resources = payload["resources"]?.toString().orEmpty()
+                        val requestId = payload.string("id").orEmpty()
                         updateTabBySession(sessionId) { tab ->
                             if (tab.id != tabId) tab else tab.copy(
                                 messages = tab.messages + AiMessage(
-                                    UUID.randomUUID().toString(),
-                                    "tool",
-                                    "Permission requested: $action $resources",
+                                    id = UUID.randomUUID().toString(),
+                                    role = "tool",
+                                    text = "Permission requested: $action $resources",
+                                    permissionId = requestId,
+                                    permissionAction = action,
                                 ),
                             )
                         }

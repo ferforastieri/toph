@@ -196,6 +196,9 @@ function ConnectionForm({ onCreated }: { onCreated: () => void }) {
     postgres: "postgres://user:pass@host:5432/db?sslmode=disable",
     mysql: "user:pass@tcp(host:3306)/db",
     sqlite: "/path/to/database.db",
+    sqlserver: "sqlserver://user:pass@host:1433?database=db",
+    oracle: "oracle://user:pass@host:1521/service",
+    clickhouse: "clickhouse://user:pass@host:9000/db",
   };
 
   return (
@@ -210,6 +213,9 @@ function ConnectionForm({ onCreated }: { onCreated: () => void }) {
         <option value="postgres">PostgreSQL</option>
         <option value="mysql">MySQL / MariaDB</option>
         <option value="sqlite">SQLite</option>
+        <option value="sqlserver">SQL Server</option>
+        <option value="oracle">Oracle</option>
+        <option value="clickhouse">ClickHouse</option>
       </select>
       <input
         placeholder={hints[driver]}

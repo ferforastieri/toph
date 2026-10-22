@@ -55,6 +55,7 @@ fun AiPanel(
     tab: WorkTab,
     onSend: (String) -> Unit,
     onStop: () -> Unit,
+    onPermission: (String, String, String) -> Unit,
 ) {
     var input by remember(tab.id) { mutableStateOf("") }
     val listState = rememberLazyListState()
@@ -127,7 +128,14 @@ fun AiPanel(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 items(tab.messages, key = { it.id }) { message ->
-                    MessageBubble(message)
+                    MessageBubble(
+                        message = message,
+                        onPermission = { decision ->
+                            message.permissionId?.let { requestId ->
+                                onPermission(message.id, requestId, decision)
+                            }
+                        },
+                    )
                 }
                 if (tab.streaming) {
                     item {
@@ -207,7 +215,7 @@ fun AiPanel(
 }
 
 @Composable
-private fun MessageBubble(message: AiMessage) {
+private fun MessageBubble(message: AiMessage, onPermission: (String) -> Unit) {
     val isUser = message.role == "user"
     val accent = when (message.role) {
         "assistant" -> TophJade
@@ -249,6 +257,27 @@ private fun MessageBubble(message: AiMessage) {
                 lineHeight = 16.sp,
                 modifier = Modifier.fillMaxWidth(),
             )
+            if (message.permissionId != null) {
+                Row(
+                    modifier = Modifier.padding(top = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    PermissionButton("Allow once", TophJade) { onPermission("once") }
+                    PermissionButton("Always", TophInfo) { onPermission("always") }
+                    PermissionButton("Reject", TophError) { onPermission("reject") }
+                }
+            }
         }
+    }
+}
+
+@Composable
+private fun PermissionButton(label: String, color: Color, onClick: () -> Unit) {
+    androidx.compose.material3.OutlinedButton(
+        onClick = onClick,
+        shape = RoundedCornerShape(6.dp),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 9.dp, vertical = 3.dp),
+    ) {
+        Text(label, color = color, fontSize = 10.sp)
     }
 }

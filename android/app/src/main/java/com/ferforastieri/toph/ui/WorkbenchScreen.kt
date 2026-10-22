@@ -30,6 +30,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -59,6 +60,7 @@ import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Plus
 import com.composables.icons.lucide.Settings
 import com.composables.icons.lucide.Sparkles
+import com.composables.icons.lucide.Terminal
 import com.composables.icons.lucide.X
 import com.ferforastieri.toph.data.TabKind
 import com.ferforastieri.toph.data.UiState
@@ -71,6 +73,7 @@ fun WorkbenchScreen(viewModel: TophViewModel, state: UiState) {
     var showWebPicker by remember { mutableStateOf(false) }
     var showNewTab by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
+    var showNewProject by remember { mutableStateOf(false) }
 
     LaunchedEffect(state.error) {
         state.error?.let {
@@ -93,6 +96,7 @@ fun WorkbenchScreen(viewModel: TophViewModel, state: UiState) {
                 WorkbenchTopBar(
                     state = state,
                     onSelectProject = viewModel::selectProject,
+                    onNewProject = { showNewProject = true },
                     onSettings = { showSettings = true },
                 )
                 TabStrip(
@@ -116,7 +120,9 @@ fun WorkbenchScreen(viewModel: TophViewModel, state: UiState) {
                 BottomItem("Web", Lucide.Globe, state.activeTab?.kind == TabKind.WEB) {
                     showWebPicker = true
                 }
-                BottomItem("Settings", Lucide.Settings, false) { showSettings = true }
+                BottomItem("Terminal", Lucide.Terminal, state.activeTab?.kind == TabKind.TERMINAL) {
+                    viewModel.openTerminalTab()
+                }
             }
         },
     ) { padding ->
@@ -128,7 +134,7 @@ fun WorkbenchScreen(viewModel: TophViewModel, state: UiState) {
             val project = state.activeProject
             val tab = state.activeTab
             when {
-                project == null -> NoProjects(viewModel)
+                project == null -> NoProjects(viewModel) { showNewProject = true }
                 tab == null -> WorkbenchWelcome(
                     state = state,
                     onFiles = { showFiles = true },
@@ -152,15 +158,27 @@ fun WorkbenchScreen(viewModel: TophViewModel, state: UiState) {
                         onProfile = { viewModel.setDbProfile(tab.id, it) },
                         onSql = { viewModel.setSql(tab.id, it) },
                         onRun = { viewModel.runQuery(tab.id) },
+                        onCreateProfile = viewModel::createDbProfile,
                     )
 
                     TabKind.AI -> AiPanel(
                         tab = tab,
                         onSend = { viewModel.sendAi(tab.id, it) },
                         onStop = { viewModel.stopAi(tab.id) },
+                        onPermission = { messageId, requestId, decision ->
+                            viewModel.replyPermission(tab.id, messageId, requestId, decision)
+                        },
                     )
 
                     TabKind.WEB -> key(tab.id) { WebPanel(tab = tab) }
+
+                    TabKind.TERMINAL -> key(tab.id) {
+                        TerminalPanel(
+                            tab = tab,
+                            wsUrl = viewModel.terminalWebSocketUrl(tab.terminalId),
+                            onClose = { viewModel.closeTab(tab.id) },
+                        )
+                    }
                 }
             }
         }
@@ -185,6 +203,7 @@ fun WorkbenchScreen(viewModel: TophViewModel, state: UiState) {
                 showWebPicker = false
                 viewModel.openWebTab(it)
             },
+            onCreate = viewModel::createWebTarget,
         )
     }
     if (showNewTab) {
@@ -206,6 +225,10 @@ fun WorkbenchScreen(viewModel: TophViewModel, state: UiState) {
                 showNewTab = false
                 showWebPicker = true
             },
+            onTerminal = {
+                showNewTab = false
+                viewModel.openTerminalTab()
+            },
         )
     }
     if (showSettings) {
@@ -218,12 +241,71 @@ fun WorkbenchScreen(viewModel: TophViewModel, state: UiState) {
             },
         )
     }
+    if (showNewProject) {
+        CreateProjectDialog(
+            onDismiss = { showNewProject = false },
+            onCreate = { name, root ->
+                showNewProject = false
+                viewModel.createProject(name, root)
+            },
+        )
+    }
+}
+
+@Composable
+private fun CreateProjectDialog(
+    onDismiss: () -> Unit,
+    onCreate: (String, String) -> Unit,
+) {
+    var name by remember { mutableStateOf("") }
+    var root by remember { mutableStateOf("") }
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = TophSurface,
+        title = { Text("New project", color = TophText) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Name") },
+                    singleLine = true,
+                )
+                OutlinedTextField(
+                    value = root,
+                    onValueChange = { root = it },
+                    label = { Text("Server path") },
+                    placeholder = { Text("/workspaces/my-project", color = TophMuted2, fontSize = 10.5.sp) },
+                    singleLine = true,
+                )
+                Text(
+                    "The path must exist inside TOPH_WORKSPACES.",
+                    color = TophMuted2,
+                    fontSize = 10.sp,
+                )
+            }
+        },
+        confirmButton = {
+            androidx.compose.material3.TextButton(
+                onClick = { onCreate(name.trim(), root.trim()) },
+                enabled = name.isNotBlank() && root.isNotBlank(),
+            ) {
+                Text("Create", color = TophJade, fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            androidx.compose.material3.TextButton(onClick = onDismiss) {
+                Text("Cancel", color = TophMuted)
+            }
+        },
+    )
 }
 
 @Composable
 private fun WorkbenchTopBar(
     state: UiState,
     onSelectProject: (String) -> Unit,
+    onNewProject: () -> Unit,
     onSettings: () -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
@@ -289,6 +371,14 @@ private fun WorkbenchTopBar(
                         },
                     )
                 }
+                HorizontalDivider(color = TophBorder)
+                DropdownMenuItem(
+                    text = { Text("New project...", color = TophJade) },
+                    onClick = {
+                        expanded = false
+                        onNewProject()
+                    },
+                )
                 if (state.projects.isEmpty()) {
                     DropdownMenuItem(
                         text = { Text("No projects", color = TophMuted) },
@@ -349,6 +439,7 @@ private fun TabPill(
         TabKind.DATABASE -> Lucide.Database
         TabKind.AI -> Lucide.Sparkles
         TabKind.WEB -> Lucide.Globe
+        TabKind.TERMINAL -> Lucide.Terminal
     }
     Row(
         modifier = Modifier
@@ -481,7 +572,7 @@ private fun QuickAction(
 }
 
 @Composable
-private fun NoProjects(viewModel: TophViewModel) {
+private fun NoProjects(viewModel: TophViewModel, onNewProject: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -507,11 +598,16 @@ private fun NoProjects(viewModel: TophViewModel) {
             fontSize = 12.sp,
         )
         Spacer(Modifier.height(14.dp))
-        androidx.compose.material3.Button(
-            onClick = viewModel::refreshProjects,
-            colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = TophJade),
-        ) {
-            Text("Refresh", color = Color(0xFF10140B), fontWeight = FontWeight.Bold)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            androidx.compose.material3.Button(
+                onClick = onNewProject,
+                colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = TophJade),
+            ) {
+                Text("New project", color = Color(0xFF10140B), fontWeight = FontWeight.Bold)
+            }
+            androidx.compose.material3.OutlinedButton(onClick = viewModel::refreshProjects) {
+                Text("Refresh", color = TophMuted)
+            }
         }
     }
 }

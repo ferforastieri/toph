@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+
 package com.ferforastieri.toph.ui
 
 import androidx.compose.foundation.background
@@ -24,9 +26,12 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -45,6 +50,7 @@ import com.composables.icons.lucide.ChevronDown
 import com.composables.icons.lucide.Database
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Play
+import com.composables.icons.lucide.Plus
 import com.ferforastieri.toph.data.QueryResult
 import com.ferforastieri.toph.data.UiState
 import com.ferforastieri.toph.data.WorkTab
@@ -58,10 +64,12 @@ fun DatabasePanel(
     onProfile: (String) -> Unit,
     onSql: (String) -> Unit,
     onRun: () -> Unit,
+    onCreateProfile: (String, String, String, Boolean) -> Unit,
 ) {
     val profiles = state.dbProfiles
     val selected = profiles.firstOrNull { it.id == tab.profileId } ?: profiles.firstOrNull()
     var menu by remember { mutableStateOf(false) }
+    var showCreate by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -136,6 +144,9 @@ fun DatabasePanel(
                 }
             }
             Spacer(Modifier.weight(1f))
+            IconButton(onClick = { showCreate = true }, modifier = Modifier.size(38.dp)) {
+                Icon(Lucide.Plus, "New connection", tint = TophMuted, modifier = Modifier.size(18.dp))
+            }
             Button(
                 onClick = onRun,
                 enabled = selected != null && tab.sql.isNotBlank() && !tab.loading,
@@ -166,13 +177,19 @@ fun DatabasePanel(
                 shape = RoundedCornerShape(8.dp),
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text(
-                    "No database connections yet. Add one in the browser client; it will appear here.",
-                    color = TophMuted,
-                    fontSize = 11.5.sp,
-                    lineHeight = 17.sp,
-                    modifier = Modifier.padding(14.dp),
-                )
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Text(
+                        "No database connections yet.",
+                        color = TophMuted,
+                        fontSize = 11.5.sp,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedButton(onClick = { showCreate = true }) {
+                        Icon(Lucide.Plus, null, modifier = Modifier.size(14.dp))
+                        Spacer(Modifier.width(5.dp))
+                        Text("Add connection", fontSize = 11.sp)
+                    }
+                }
             }
         }
 
@@ -223,6 +240,122 @@ fun DatabasePanel(
             ResultTable(result, modifier = Modifier.weight(1f))
         }
     }
+
+    if (showCreate) {
+        CreateConnectionSheet(
+            onDismiss = { showCreate = false },
+            onCreate = { name, driver, dsn, readOnly ->
+                showCreate = false
+                onCreateProfile(name, driver, dsn, readOnly)
+            },
+        )
+    }
+}
+
+@Composable
+private fun CreateConnectionSheet(
+    onDismiss: () -> Unit,
+    onCreate: (String, String, String, Boolean) -> Unit,
+) {
+    var name by remember { mutableStateOf("") }
+    var driver by remember { mutableStateOf("postgres") }
+    var dsn by remember { mutableStateOf("") }
+    var readOnly by remember { mutableStateOf(true) }
+    var driverMenu by remember { mutableStateOf(false) }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = TophSurface,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+                .padding(bottom = 26.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text("New database connection", color = TophText, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+            OutlinedTextField(
+                value = name,
+                onValueChange = { name = it },
+                label = { Text("Name") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Box {
+                OutlinedButton(
+                    onClick = { driverMenu = true },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(driver.displayDriver(), color = TophText, modifier = Modifier.weight(1f), fontSize = 12.sp)
+                    Icon(Lucide.ChevronDown, null, tint = TophMuted2, modifier = Modifier.size(14.dp))
+                }
+                DropdownMenu(
+                    expanded = driverMenu,
+                    onDismissRequest = { driverMenu = false },
+                    containerColor = TophElevated,
+                ) {
+                    listOf("postgres", "mysql", "sqlite", "sqlserver", "oracle", "clickhouse").forEach {
+                        DropdownMenuItem(
+                            text = { Text(it.displayDriver(), color = TophText) },
+                            onClick = {
+                                driver = it
+                                driverMenu = false
+                            },
+                        )
+                    }
+                }
+            }
+            OutlinedTextField(
+                value = dsn,
+                onValueChange = { dsn = it },
+                label = { Text("DSN") },
+                placeholder = { Text(dsnHint(driver), color = TophMuted2, fontSize = 10.5.sp) },
+                minLines = 2,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Read-only", color = TophText, fontSize = 12.sp)
+                    Text("Reject writes in the Toph query editor.", color = TophMuted2, fontSize = 10.sp)
+                }
+                Switch(checked = readOnly, onCheckedChange = { readOnly = it })
+            }
+            Button(
+                onClick = { onCreate(name.trim(), driver, dsn.trim(), readOnly) },
+                enabled = name.isNotBlank() && dsn.isNotBlank(),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = TophJade,
+                    contentColor = Color(0xFF10140B),
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(44.dp),
+            ) {
+                Text("Add connection", fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+}
+
+private fun String.displayDriver(): String = when (this) {
+    "postgres" -> "PostgreSQL"
+    "mysql" -> "MySQL / MariaDB"
+    "sqlite" -> "SQLite"
+    "sqlserver" -> "SQL Server"
+    "oracle" -> "Oracle"
+    "clickhouse" -> "ClickHouse"
+    else -> this
+}
+
+private fun dsnHint(driver: String): String = when (driver) {
+    "postgres" -> "postgres://user:pass@host:5432/db?sslmode=disable"
+    "mysql" -> "user:pass@tcp(host:3306)/db"
+    "sqlite" -> "/path/to/database.db"
+    "sqlserver" -> "sqlserver://user:pass@host:1433?database=db"
+    "oracle" -> "oracle://user:pass@host:1521/service"
+    "clickhouse" -> "clickhouse://user:pass@host:9000/db"
+    else -> ""
 }
 
 @Composable

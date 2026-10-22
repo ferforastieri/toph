@@ -26,6 +26,8 @@ export interface AiMessage {
   text: string;
   createdAt: number;
   title?: string;
+  permissionId?: string;
+  permissionAction?: string;
 }
 
 export interface Toast {
@@ -62,6 +64,7 @@ interface AppState {
   setTerminalId: (projectId: string, terminalId: string) => void;
   addAiMessage: (tabId: string, message: AiMessage) => void;
   appendAiText: (tabId: string, messageId: string, delta: string) => void;
+  updateAiMessage: (tabId: string, messageId: string, patch: Partial<AiMessage>) => void;
   setAiStreaming: (tabId: string, streaming: boolean) => void;
   notify: (kind: Toast["kind"], message: string) => void;
   dismissToast: (id: number) => void;
@@ -144,6 +147,15 @@ export const useApp = create<AppState>((set, get) => ({
           message.id === messageId
             ? { ...message, text: message.text + delta }
             : message,
+        ),
+      },
+    })),
+  updateAiMessage: (tabId, messageId, patch) =>
+    set((state) => ({
+      aiMessages: {
+        ...state.aiMessages,
+        [tabId]: (state.aiMessages[tabId] ?? []).map((message) =>
+          message.id === messageId ? { ...message, ...patch } : message,
         ),
       },
     })),

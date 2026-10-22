@@ -81,6 +81,14 @@ data class DBProfile(
 )
 
 @Serializable
+data class CreateDBProfileRequest(
+    val name: String,
+    val driver: String,
+    val dsn: String,
+    val readOnly: Boolean = true,
+)
+
+@Serializable
 data class QueryColumn(
     val name: String,
     val type: String = "",
@@ -126,6 +134,12 @@ data class WebTarget(
 )
 
 @Serializable
+data class CreateWebTargetRequest(
+    val name: String,
+    val url: String,
+)
+
+@Serializable
 data class Health(
     val ok: Boolean,
     val name: String,
@@ -136,10 +150,15 @@ data class Health(
 data class OpenCodeSession(val id: String)
 
 @Serializable
+data class TerminalResponse(val id: String, val projectId: String = "")
+
+@Serializable
 data class AiMessage(
     val id: String,
     val role: String,
     val text: String,
+    val permissionId: String? = null,
+    val permissionAction: String? = null,
 )
 
 enum class TabKind {
@@ -147,6 +166,7 @@ enum class TabKind {
     DATABASE,
     AI,
     WEB,
+    TERMINAL,
 }
 
 data class WorkTab(
@@ -165,6 +185,7 @@ data class WorkTab(
     val result: QueryResult? = null,
     val error: String? = null,
     val sessionId: String? = null,
+    val terminalId: String? = null,
     val messages: List<AiMessage> = emptyList(),
     val streaming: Boolean = false,
 )
