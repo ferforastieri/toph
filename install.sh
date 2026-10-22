@@ -69,6 +69,13 @@ if [ ! -f "$ENV_FILE" ]; then
   chmod 0600 "$ENV_FILE"
 fi
 
+# Every install gets a new build id so open browser sessions can show the update toast.
+if grep -q '^TOPH_BUILD_ID=' "$ENV_FILE"; then
+  sed -i "s|^TOPH_BUILD_ID=.*|TOPH_BUILD_ID=${VERSION}-$(date +%s)|" "$ENV_FILE"
+else
+  echo "TOPH_BUILD_ID=${VERSION}-$(date +%s)" >> "$ENV_FILE"
+fi
+
 cat > "$SERVICE" <<EOF
 [Unit]
 Description=Toph self-hosted workbench
