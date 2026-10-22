@@ -124,7 +124,17 @@ func (s *Service) Delete(ctx context.Context, id string) error {
 }
 
 func (s *Service) Test(ctx context.Context, id string) error {
-	db, _, err := s.open(ctx, id)
+	profile, dsn, err := s.profileAndDSN(ctx, id)
+	if err != nil {
+		return err
+	}
+	switch profile.Driver {
+	case "mongodb":
+		return testMongo(ctx, dsn)
+	case "redis":
+		return testRedis(ctx, dsn)
+	}
+	db, err := openSQL(profile, dsn)
 	if err != nil {
 		return err
 	}
@@ -142,19 +152,44 @@ func (s *Service) Query(ctx context.Context, id, query string, maxRows int) (Res
 	if maxRows > 5000 {
 		maxRows = 5000
 	}
-	db, profile, err := s.open(ctx, id)
+	profile, dsn, err := s.profileAndDSN(ctx, id)
 	if err != nil {
 		return Result{}, err
 	}
-	defer db.Close()
+	if profile.ReadOnly {
+		switch profile.Driver {
+		case "mongodb":
+			// The Mongo adapter only exposes read operations.
+		case "redis":
+			if !isReadOnlyRedis(query) {
+				return Result{}, errors.New("profile is read-only")
+			}
+		default:
+			if !isReadOnlyQuery(query) {
+				return Result{}, errors.New("profile is read-only")
+			}
+		}
+	}
+	switch profile.Driver {
+	case "mongodb":
+		return queryMongo(ctx, dsn, query, maxRows)
+	case "redis":
+		return queryRedis(ctx, dsn, query, maxRows)
+	default:
+		db, err := openSQL(profile, dsn)
+		if err != nil {
+			return Result{}, err
+		}
+		defer db.Close()
+		return querySQL(ctx, db, query, maxRows)
+	}
+}
 
+func querySQL(ctx context.Context, db *sql.DB, query string, maxRows int) (Result, error) {
 	start := time.Now()
 	ctx, cancel := context.WithTimeout(ctx, queryTimeout)
 	defer cancel()
 
-	if profile.ReadOnly && !isReadOnlyQuery(query) {
-		return Result{}, errors.New("profile is read-only")
-	}
 	rows, err := db.QueryContext(ctx, query)
 	if err != nil {
 		return Result{}, err
@@ -202,7 +237,17 @@ func (s *Service) Query(ctx context.Context, id, query string, maxRows int) (Res
 }
 
 func (s *Service) Schema(ctx context.Context, id string) ([]Table, error) {
-	db, profile, err := s.open(ctx, id)
+	profile, dsn, err := s.profileAndDSN(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	switch profile.Driver {
+	case "mongodb":
+		return mongoSchema(ctx, dsn)
+	case "redis":
+		return redisSchema(ctx, dsn)
+	}
+	db, err := openSQL(profile, dsn)
 	if err != nil {
 		return nil, err
 	}
@@ -226,18 +271,22 @@ func (s *Service) Schema(ctx context.Context, id string) ([]Table, error) {
 	}
 }
 
-func (s *Service) open(ctx context.Context, id string) (*sql.DB, store.DBProfile, error) {
+func (s *Service) profileAndDSN(ctx context.Context, id string) (store.DBProfile, string, error) {
 	profile, err := s.store.DBProfile(ctx, id)
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
-			return nil, store.DBProfile{}, ErrProfileNotFound
+			return store.DBProfile{}, "", ErrProfileNotFound
 		}
-		return nil, store.DBProfile{}, err
+		return store.DBProfile{}, "", err
 	}
 	dsn, err := s.decrypt(profile.DSNEncrypted)
 	if err != nil {
-		return nil, store.DBProfile{}, err
+		return store.DBProfile{}, "", err
 	}
+	return profile, dsn, nil
+}
+
+func openSQL(profile store.DBProfile, dsn string) (*sql.DB, error) {
 	if profile.Driver == "sqlite" && profile.ReadOnly {
 		dsn = sqliteReadOnly(dsn)
 	}
@@ -246,12 +295,12 @@ func (s *Service) open(ctx context.Context, id string) (*sql.DB, store.DBProfile
 	}
 	db, err := sql.Open(driverName(profile.Driver), dsn)
 	if err != nil {
-		return nil, store.DBProfile{}, err
+		return nil, err
 	}
 	db.SetMaxOpenConns(2)
 	db.SetMaxIdleConns(1)
 	db.SetConnMaxLifetime(5 * time.Minute)
-	return db, profile, nil
+	return db, nil
 }
 
 func (s *Service) encrypt(plain string) (string, error) {
@@ -296,7 +345,7 @@ func (s *Service) decrypt(encoded string) (string, error) {
 
 func supported(driver string) bool {
 	switch driver {
-	case "postgres", "mysql", "sqlite", "sqlserver", "oracle", "clickhouse":
+	case "postgres", "mysql", "sqlite", "sqlserver", "oracle", "clickhouse", "mongodb", "redis":
 		return true
 	default:
 		return false

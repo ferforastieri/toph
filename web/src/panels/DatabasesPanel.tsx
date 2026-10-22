@@ -139,12 +139,7 @@ export default function DatabasesPanel({ onOpenQuery }: Props) {
                 <button
                   key={`${table.schema}.${table.name}`}
                   className="db-table"
-                  onClick={() =>
-                    onOpenQuery(
-                      profile.id,
-                      `SELECT * FROM ${quoteIdentifier(profile.driver, table.schema, table.name)} LIMIT 100;`,
-                    )
-                  }
+                  onClick={() => onOpenQuery(profile.id, defaultQuery(profile.driver, table))}
                   title={`${table.schema}.${table.name}`}
                 >
                   <Table2 size={14} />
@@ -168,6 +163,20 @@ export default function DatabasesPanel({ onOpenQuery }: Props) {
       )}
     </div>
   );
+}
+
+function defaultQuery(driver: string, table: SchemaTable): string {
+  if (driver === "mongodb") {
+    return JSON.stringify(
+      { database: table.schema, collection: table.name, filter: {}, limit: 100 },
+      null,
+      2,
+    );
+  }
+  if (driver === "redis") {
+    return "SCAN 0 COUNT 100";
+  }
+  return `SELECT * FROM ${quoteIdentifier(driver, table.schema, table.name)} LIMIT 100;`;
 }
 
 function ConnectionForm({ onCreated }: { onCreated: () => void }) {
@@ -199,6 +208,8 @@ function ConnectionForm({ onCreated }: { onCreated: () => void }) {
     sqlserver: "sqlserver://user:pass@host:1433?database=db",
     oracle: "oracle://user:pass@host:1521/service",
     clickhouse: "clickhouse://user:pass@host:9000/db",
+    mongodb: "mongodb://user:pass@host:27017",
+    redis: "redis://user:pass@host:6379/0",
   };
 
   return (
@@ -216,6 +227,8 @@ function ConnectionForm({ onCreated }: { onCreated: () => void }) {
         <option value="sqlserver">SQL Server</option>
         <option value="oracle">Oracle</option>
         <option value="clickhouse">ClickHouse</option>
+        <option value="mongodb">MongoDB</option>
+        <option value="redis">Redis</option>
       </select>
       <input
         placeholder={hints[driver]}

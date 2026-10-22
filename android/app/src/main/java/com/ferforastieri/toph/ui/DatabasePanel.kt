@@ -200,7 +200,11 @@ fun DatabasePanel(
                 .fillMaxWidth()
                 .height(150.dp),
             placeholder = {
-                Text("SELECT * FROM ...", color = TophMuted2, fontFamily = FontFamily.Monospace)
+                Text(
+                    queryPlaceholder(selected?.driver),
+                    color = TophMuted2,
+                    fontFamily = FontFamily.Monospace,
+                )
             },
             textStyle = androidx.compose.ui.text.TextStyle(
                 fontFamily = FontFamily.Monospace,
@@ -295,7 +299,7 @@ private fun CreateConnectionSheet(
                     onDismissRequest = { driverMenu = false },
                     containerColor = TophElevated,
                 ) {
-                    listOf("postgres", "mysql", "sqlite", "sqlserver", "oracle", "clickhouse").forEach {
+                    listOf("postgres", "mysql", "sqlite", "sqlserver", "oracle", "clickhouse", "mongodb", "redis").forEach {
                         DropdownMenuItem(
                             text = { Text(it.displayDriver(), color = TophText) },
                             onClick = {
@@ -345,6 +349,8 @@ private fun String.displayDriver(): String = when (this) {
     "sqlserver" -> "SQL Server"
     "oracle" -> "Oracle"
     "clickhouse" -> "ClickHouse"
+    "mongodb" -> "MongoDB"
+    "redis" -> "Redis"
     else -> this
 }
 
@@ -355,7 +361,15 @@ private fun dsnHint(driver: String): String = when (driver) {
     "sqlserver" -> "sqlserver://user:pass@host:1433?database=db"
     "oracle" -> "oracle://user:pass@host:1521/service"
     "clickhouse" -> "clickhouse://user:pass@host:9000/db"
+    "mongodb" -> "mongodb://user:pass@host:27017"
+    "redis" -> "redis://user:pass@host:6379/0"
     else -> ""
+}
+
+private fun queryPlaceholder(driver: String?): String = when (driver) {
+    "mongodb" -> """{"database":"app","collection":"users","filter":{},"limit":100}"""
+    "redis" -> "HGETALL user:1"
+    else -> "SELECT * FROM ..."
 }
 
 @Composable

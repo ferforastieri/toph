@@ -70,7 +70,13 @@ export default function DbPanelTab({ tab }: Props) {
           {profile?.readOnly && <span className="readonly-badge">read-only</span>}
         </div>
         <div className="db-tab-actions">
-          <span className="kbd-hint">Ctrl/Cmd + Enter</span>
+          <span className="kbd-hint">
+            {profile?.driver === "mongodb"
+              ? "JSON query"
+              : profile?.driver === "redis"
+                ? "Redis command"
+                : "Ctrl/Cmd + Enter"}
+          </span>
           <button className="primary small" onClick={() => void run()} disabled={busy || !sql.trim()}>
             {busy ? <Timer size={14} className="spin" /> : <Play size={14} />}
             {busy ? "Running" : "Run"}
@@ -87,7 +93,7 @@ export default function DbPanelTab({ tab }: Props) {
         <CodeEditor
           path={`sql:${tab.id}`}
           value={sql}
-          language="sql"
+          language={profile?.driver === "mongodb" ? "json" : "sql"}
           onChange={updateSql}
           onRun={() => void run()}
         />

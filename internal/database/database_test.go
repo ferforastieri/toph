@@ -137,15 +137,45 @@ func TestReadOnlyProfileRejectsWrites(t *testing.T) {
 }
 
 func TestSupportedDrivers(t *testing.T) {
-	for _, driver := range []string{"postgres", "mysql", "sqlite", "sqlserver", "oracle", "clickhouse"} {
+	for _, driver := range []string{"postgres", "mysql", "sqlite", "sqlserver", "oracle", "clickhouse", "mongodb", "redis"} {
 		if !supported(driver) {
 			t.Fatalf("expected %s to be supported", driver)
 		}
 	}
 	if supported("cassandra") {
-		t.Fatal("unexpected NoSQL driver in SQL registry")
+		t.Fatal("unexpected unsupported driver")
 	}
 	if driverName("postgres") != "pgx" || driverName("sqlserver") != "sqlserver" {
 		t.Fatal("unexpected driver mapping")
+	}
+}
+
+func TestRedisCommandParsingAndReadOnly(t *testing.T) {
+	args, err := parseRedisCommand(`GET "hello world"`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(args) != 2 || args[0] != "GET" || args[1] != "hello world" {
+		t.Fatalf("unexpected args: %#v", args)
+	}
+	if !isReadOnlyRedis("HGETALL user:1") {
+		t.Fatal("expected HGETALL to be read-only")
+	}
+	if isReadOnlyRedis("SET user:1 name") {
+		t.Fatal("expected SET to be rejected")
+	}
+	if _, err := parseRedisCommand(`GET "unterminated`); err == nil {
+		t.Fatal("expected unterminated quote error")
+	}
+}
+
+func TestRedisResultShapes(t *testing.T) {
+	result, err := redisResult(map[string]string{"a": "1", "b": "2"}, 10)
+	if err != nil || result.RowCount != 2 || len(result.Columns) != 2 {
+		t.Fatalf("unexpected map result: %+v %v", result, err)
+	}
+	result, err = redisResult([]any{"one", "two"}, 1)
+	if err != nil || result.RowCount != 1 || result.Rows[0][0] != "one" {
+		t.Fatalf("unexpected list result: %+v %v", result, err)
 	}
 }
