@@ -21,14 +21,15 @@ import (
 const Version = "0.1.0"
 
 type Server struct {
-	cfg       config.Config
-	store     *store.Store
-	auth      *auth.Manager
-	workspace *workspace.Service
-	terminals *terminal.Manager
-	db        *database.Service
-	opencode  *opencode.Proxy
-	web       http.Handler
+	cfg          config.Config
+	store        *store.Store
+	auth         *auth.Manager
+	workspace    *workspace.Service
+	terminals    *terminal.Manager
+	db           *database.Service
+	opencode     *opencode.Proxy
+	web          http.Handler
+	loginLimiter *loginLimiter
 }
 
 func New(
@@ -43,6 +44,7 @@ func New(
 	s := &Server{
 		cfg: cfg, store: st, auth: authManager, workspace: ws,
 		terminals: terminals, db: db, opencode: oc,
+		loginLimiter: newLoginLimiter(10, 5*time.Minute),
 	}
 	s.web = s.staticHandler()
 	return s

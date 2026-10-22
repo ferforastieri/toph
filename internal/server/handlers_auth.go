@@ -21,6 +21,12 @@ type loginResponse struct {
 }
 
 func (s *Server) login(w http.ResponseWriter, r *http.Request) {
+	key := clientKey(r.RemoteAddr)
+	if !s.loginLimiter.allow(key) {
+		w.Header().Set("Retry-After", "60")
+		writeError(w, http.StatusTooManyRequests, "too many login attempts")
+		return
+	}
 	var req loginRequest
 	if !decodeJSON(w, r, &req) {
 		return
@@ -44,6 +50,7 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "could not create session")
 		return
 	}
+	s.loginLimiter.reset(key)
 	setAuthCookies(w, result.Token, result.CSRFToken, s.auth.SecureCookies())
 	writeJSON(w, http.StatusOK, loginResponse{
 		Token:     result.Token,
