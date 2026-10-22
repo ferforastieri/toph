@@ -78,6 +78,17 @@ make build
 
 `make build` builds the web client and embeds it into the Go binary. Open `http://127.0.0.1:8787`.
 
+### One-command install
+
+On a Debian/Ubuntu server or LXC:
+
+```sh
+curl -fsSL https://github.com/ferforastieri/toph/releases/latest/download/install.sh | sudo sh
+```
+
+The installer creates the `toph` user, installs the binary, creates a systemd
+service, generates the first password and starts Toph on port `8787`.
+
 ### Docker
 
 ```sh

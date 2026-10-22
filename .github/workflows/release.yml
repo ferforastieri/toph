@@ -37,7 +37,8 @@ jobs:
           mkdir -p internal/webui/dist
           cp -R web/dist/. internal/webui/dist/
           touch internal/webui/dist/.keep
-          CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o toph-linux-amd64 ./cmd/toph
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o toph-linux-amd64 ./cmd/toph
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags="-s -w" -o toph-linux-arm64 ./cmd/toph
 
       - uses: actions/setup-java@v4
         with:
@@ -77,5 +78,7 @@ jobs:
         with:
           generate_release_notes: true
           files: |
+            install.sh
             toph-linux-amd64
+            toph-linux-arm64
             toph-${{ github.ref_name }}.apk

@@ -145,6 +145,14 @@
         <li>Optional: an OpenCode server for AI sessions.</li>
       </ul>
 
+      <h2>One-command install</h2>
+      <pre><code>curl -fsSL https://github.com/ferforastieri/toph/releases/latest/download/install.sh | sudo sh</code></pre>
+      <p>
+        The installer supports Debian/Ubuntu and creates a systemd service, a
+        <code>toph</code> user, the data directory, the workspace directory and the first
+        admin password.
+      </p>
+
       <h2>Install with Docker</h2>
       <pre><code>git clone https://github.com/ferforastieri/toph.git
 cd toph

@@ -33,6 +33,10 @@ Repositories, databases and OpenCode remain on the server. Database credentials 
 
 ## Install
 
+One command (Debian/Ubuntu/LXC):
+
+    curl -fsSL https://github.com/ferforastieri/toph/releases/latest/download/install.sh | sudo sh
+
 Docker:
 
     git clone https://github.com/ferforastieri/toph.git
