@@ -59,12 +59,12 @@ Machine-readable docs: `/llms.txt`
 
 ## Android
 
+Download the signed APK from GitHub Releases. Debug APKs are not published.
+
+Local development only:
+
     cd android
     ./gradlew assembleDebug
-
-APK:
-
-    android/app/build/outputs/apk/debug/app-debug.apk
 
 On first launch, enter the Toph server URL, username and password. Use LAN, VPN or Tailscale. Do not expose Toph directly to the internet.
 

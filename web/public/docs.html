@@ -173,12 +173,16 @@ TOPH_ADMIN_PASSWORD='choose-a-strong-password' \
       </p>
 
       <h2>Android APK</h2>
-      <pre><code>cd android
-./gradlew assembleDebug</code></pre>
       <p>
-        The APK is written to
-        <code>android/app/build/outputs/apk/debug/app-debug.apk</code>. On first launch,
-        enter the Toph server URL, username and password. Use LAN, VPN or Tailscale.
+        Download the signed APK from
+        <a href="https://github.com/ferforastieri/toph/releases">GitHub Releases</a>.
+        Debug APKs are not published. On first launch, enter the Toph server URL,
+        username and password. Use LAN, VPN or Tailscale.
+      </p>
+      <p>
+        Release builds are signed in CI from the repository's Android keystore secrets.
+        Local development builds use <code>./gradlew assembleDebug</code> and are not
+        distribution artifacts.
       </p>
 
       <h2>Configuration</h2>
@@ -292,7 +296,7 @@ Neo4j         MATCH (n:User) RETURN n LIMIT 100;</code></pre>
         Toph shows an update toast; clicking downloads the APK and opens the Android
         installer. Android always requires the final install confirmation. Release builds
         are signed when the Android keystore secrets are configured; otherwise the
-        workflow publishes a debug APK.
+        workflow fails rather than publishing a debug APK.
       </p>
       <p>
         To publish an update, create a GitHub release with a tag such as

@@ -88,14 +88,16 @@ Mount the repositories you want to expose under `/workspaces` and keep `TOPH_DAT
 
 ### Android
 
-The Android client lives in `android/`. It needs JDK 17+, Android SDK 36 and either `ANDROID_HOME` or `android/local.properties` pointing at the SDK. Build a debug APK with:
+Download the signed APK from [GitHub Releases](https://github.com/ferforastieri/toph/releases). Debug APKs are not published.
+
+For development, the Android client lives in `android/`. It needs JDK 17+, Android SDK 36 and either `ANDROID_HOME` or `android/local.properties` pointing at the SDK. A local debug build is only for development:
 
 ```sh
 cd android
 ./gradlew assembleDebug
 ```
 
-The APK is written to `android/app/build/outputs/apk/debug/app-debug.apk`. It connects to the Toph server URL configured during onboarding. Use LAN, VPN or Tailscale; do not expose the server directly to the internet.
+It connects to the Toph server URL configured during onboarding. Use LAN, VPN or Tailscale; do not expose the server directly to the internet.
 
 ## Configuration
 

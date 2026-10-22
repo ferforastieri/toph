@@ -4,8 +4,8 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
-val tophVersionName = providers.environmentVariable("TOPH_VERSION_NAME").orElse("0.1.0")
-val tophVersionCode = providers.environmentVariable("TOPH_VERSION_CODE").map(String::toInt).orElse(1)
+val tophVersionName = providers.environmentVariable("TOPH_VERSION_NAME").orElse("0.1.1")
+val tophVersionCode = providers.environmentVariable("TOPH_VERSION_CODE").map(String::toInt).orElse(2)
 
 
 android {
