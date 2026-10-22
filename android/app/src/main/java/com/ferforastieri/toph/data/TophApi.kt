@@ -55,6 +55,15 @@ class TophApi(val baseUrl: String, private val token: String?) {
         return request("GET", "/api/projects/$projectId/tree?path=$encoded")
     }
 
+    suspend fun search(projectId: String, query: String): List<SearchMatch> {
+        val body = json.encodeToString(SearchRequest(query = query))
+        return request("POST", "/api/projects/$projectId/search", body)
+    }
+
+    suspend fun gitStatus(projectId: String): String {
+        return request<GitStatusResponse>("GET", "/api/projects/$projectId/git/status").status
+    }
+
     suspend fun file(projectId: String, path: String): FileContent {
         val encoded = URLEncoder.encode(path, "UTF-8")
         return request("GET", "/api/projects/$projectId/file?path=$encoded")

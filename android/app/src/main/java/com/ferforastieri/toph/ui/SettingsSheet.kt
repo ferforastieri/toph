@@ -26,6 +26,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.composables.icons.lucide.GitBranch
 import com.composables.icons.lucide.LogOut
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Server
@@ -60,6 +61,14 @@ fun SettingsSheet(
             SettingRow(Lucide.UserRound, "Account", state.user?.username ?: "unknown")
             SettingRow(Lucide.Server, "Server", state.baseUrl)
             SettingRow(Lucide.Server, "Version", "Toph ${BuildConfig.VERSION_NAME}")
+            SettingRow(
+                Lucide.GitBranch,
+                "Git",
+                state.gitStatus.lineSequence().firstOrNull()?.removePrefix("## ")
+                    ?.substringBefore("...")
+                    ?.ifBlank { "not a repository" }
+                    ?: "not a repository",
+            )
             Spacer(Modifier.height(14.dp))
             Button(
                 onClick = onLogout,

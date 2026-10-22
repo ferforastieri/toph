@@ -46,6 +46,23 @@ data class CreateProjectRequest(
 )
 
 @Serializable
+data class SearchMatch(
+    val path: String,
+    val line: Int = 0,
+    val column: Int = 0,
+    val preview: String = "",
+)
+
+@Serializable
+data class SearchRequest(
+    val query: String,
+    val limit: Int = 100,
+)
+
+@Serializable
+data class GitStatusResponse(val status: String = "")
+
+@Serializable
 data class FileEntry(
     val name: String,
     val path: String,
@@ -206,6 +223,11 @@ data class UiState(
     val files: List<FileEntry> = emptyList(),
     val path: String = "",
     val dbProfiles: List<DBProfile> = emptyList(),
+    val dbSchemas: Map<String, List<SchemaTable>> = emptyMap(),
+    val searchQuery: String = "",
+    val searchResults: List<SearchMatch> = emptyList(),
+    val searchLoading: Boolean = false,
+    val gitStatus: String = "",
     val webTargets: List<WebTarget> = emptyList(),
     val busy: Boolean = false,
     val error: String? = null,

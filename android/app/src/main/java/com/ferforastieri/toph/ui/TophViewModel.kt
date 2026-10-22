@@ -9,6 +9,7 @@ import com.ferforastieri.toph.data.ApiException
 import com.ferforastieri.toph.data.DBProfile
 import com.ferforastieri.toph.data.FileEntry
 import com.ferforastieri.toph.data.Project
+import com.ferforastieri.toph.data.SearchMatch
 import com.ferforastieri.toph.data.SessionStore
 import com.ferforastieri.toph.data.TabKind
 import com.ferforastieri.toph.data.TophApi
@@ -104,7 +105,11 @@ class TophViewModel(application: Application) : AndroidViewModel(application) {
                 activeProjectId = projectId,
                 files = emptyList(),
                 path = "",
+                searchQuery = "",
+                searchResults = emptyList(),
+                gitStatus = "",
                 dbProfiles = emptyList(),
+                dbSchemas = emptyMap(),
                 webTargets = emptyList(),
             )
         }
@@ -112,6 +117,7 @@ class TophViewModel(application: Application) : AndroidViewModel(application) {
             loadTree("")
             loadDbProfiles()
             loadWebTargets()
+            loadGitStatus()
         }
     }
 
@@ -124,6 +130,36 @@ class TophViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 .onFailure { showError(it) }
         }
+    }
+
+    fun search(query: String) {
+        val project = _state.value.activeProject ?: return
+        _state.update { it.copy(searchQuery = query) }
+        if (query.isBlank()) {
+            _state.update { it.copy(searchResults = emptyList(), searchLoading = false) }
+            return
+        }
+        _state.update { it.copy(searchLoading = true) }
+        viewModelScope.launch {
+            runCatching { requireApi().search(project.id, query) }
+                .onSuccess { results ->
+                    _state.update { it.copy(searchResults = results, searchLoading = false) }
+                }
+                .onFailure { error ->
+                    _state.update { it.copy(searchLoading = false) }
+                    showError(error)
+                }
+        }
+    }
+
+    fun clearSearch() {
+        _state.update { it.copy(searchQuery = "", searchResults = emptyList(), searchLoading = false) }
+    }
+
+    private suspend fun loadGitStatus() {
+        val project = _state.value.activeProject ?: return
+        runCatching { requireApi().gitStatus(project.id) }
+            .onSuccess { status -> _state.update { it.copy(gitStatus = status) } }
     }
 
     fun openFile(path: String) {
@@ -312,6 +348,19 @@ class TophViewModel(application: Application) : AndroidViewModel(application) {
         updateTab(project.id, tabId) { it.copy(sql = sql) }
     }
 
+    fun loadSchema(profileId: String) {
+        if (_state.value.dbSchemas.containsKey(profileId)) return
+        viewModelScope.launch {
+            runCatching { requireApi().dbSchema(profileId) }
+                .onSuccess { tables ->
+                    _state.update { state ->
+                        state.copy(dbSchemas = state.dbSchemas + (profileId to tables))
+                    }
+                }
+                .onFailure { showError(it) }
+        }
+    }
+
     fun runQuery(tabId: String) {
         val current = _state.value
         val project = current.activeProject ?: return
@@ -495,6 +544,7 @@ class TophViewModel(application: Application) : AndroidViewModel(application) {
                     loadTree("")
                     loadDbProfiles()
                     loadWebTargets()
+                    loadGitStatus()
                 }
             }
             .onFailure { showError(it) }

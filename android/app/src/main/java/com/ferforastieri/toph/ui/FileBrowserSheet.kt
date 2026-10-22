@@ -22,9 +22,14 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
@@ -36,6 +41,7 @@ import com.composables.icons.lucide.ChevronLeft
 import com.composables.icons.lucide.FileCode
 import com.composables.icons.lucide.Folder
 import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.Search
 import com.ferforastieri.toph.data.UiState
 
 @Composable
@@ -45,8 +51,13 @@ fun FileBrowserSheet(
     onDismiss: () -> Unit,
     onOpenFile: (String) -> Unit,
 ) {
+    var search by remember { mutableStateOf("") }
     LaunchedEffect(Unit) {
         viewModel.loadTree(state.path)
+    }
+    LaunchedEffect(search) {
+        kotlinx.coroutines.delay(250)
+        viewModel.search(search)
     }
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -85,8 +96,63 @@ fun FileBrowserSheet(
                     )
                 }
             }
+            OutlinedTextField(
+                value = search,
+                onValueChange = { search = it },
+                placeholder = { Text("Search project", color = TophMuted2, fontSize = 11.sp) },
+                leadingIcon = { Icon(Lucide.Search, null, tint = TophMuted2, modifier = Modifier.size(16.dp)) },
+                singleLine = true,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
+            )
             HorizontalDivider(color = TophBorder)
-            if (state.files.isEmpty()) {
+            if (search.isNotBlank()) {
+                val results = state.searchResults
+                if (state.searchLoading) {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().height(100.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        CircularProgressIndicator(color = TophJade, strokeWidth = 2.dp, modifier = Modifier.size(18.dp))
+                    }
+                } else if (results.isEmpty()) {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().height(100.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text("No matches.", color = TophMuted, fontSize = 12.sp)
+                    }
+                } else {
+                    LazyColumn {
+                        items(results, key = { "${it.path}:${it.line}" }) { match ->
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { onOpenFile(match.path) }
+                                    .padding(horizontal = 14.dp, vertical = 8.dp),
+                            ) {
+                                Text(
+                                    "${match.path}:${match.line}",
+                                    color = TophInfo,
+                                    fontFamily = FontFamily.Monospace,
+                                    fontSize = 10.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                Text(
+                                    match.preview,
+                                    color = TophMuted,
+                                    fontFamily = FontFamily.Monospace,
+                                    fontSize = 10.5.sp,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                        }
+                    }
+                }
+            } else if (state.files.isEmpty()) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()

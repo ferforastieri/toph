@@ -176,6 +176,8 @@ fun WorkbenchScreen(viewModel: TophViewModel, state: UiState) {
                         onSql = { viewModel.setSql(tab.id, it) },
                         onRun = { viewModel.runQuery(tab.id) },
                         onCreateProfile = viewModel::createDbProfile,
+                        schemas = state.dbSchemas,
+                        onLoadSchema = viewModel::loadSchema,
                     )
 
                     TabKind.AI -> AiPanel(

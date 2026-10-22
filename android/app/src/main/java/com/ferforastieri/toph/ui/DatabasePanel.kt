@@ -17,6 +17,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -52,6 +54,7 @@ import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Play
 import com.composables.icons.lucide.Plus
 import com.ferforastieri.toph.data.QueryResult
+import com.ferforastieri.toph.data.SchemaTable
 import com.ferforastieri.toph.data.UiState
 import com.ferforastieri.toph.data.WorkTab
 import kotlinx.serialization.json.JsonPrimitive
@@ -65,11 +68,17 @@ fun DatabasePanel(
     onSql: (String) -> Unit,
     onRun: () -> Unit,
     onCreateProfile: (String, String, String, Boolean) -> Unit,
+    schemas: Map<String, List<SchemaTable>>,
+    onLoadSchema: (String) -> Unit,
 ) {
     val profiles = state.dbProfiles
     val selected = profiles.firstOrNull { it.id == tab.profileId } ?: profiles.firstOrNull()
     var menu by remember { mutableStateOf(false) }
     var showCreate by remember { mutableStateOf(false) }
+
+    androidx.compose.runtime.LaunchedEffect(selected?.id) {
+        selected?.id?.let(onLoadSchema)
+    }
 
     Column(
         modifier = Modifier
@@ -120,7 +129,31 @@ fun DatabasePanel(
                             },
                         )
                     }
-                    if (profiles.isEmpty()) {
+                    val schemaTables = selected?.let { schemas[it.id] }.orEmpty()
+        if (selected != null && schemaTables.isNotEmpty()) {
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(5.dp),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 1.dp),
+            ) {
+                items(schemaTables, key = { "${it.schema}.${it.name}" }) { table ->
+                    androidx.compose.material3.AssistChip(
+                        onClick = {
+                            onSql(defaultQuery(selected.driver, table))
+                        },
+                        label = {
+                            Text(
+                                table.name,
+                                color = TophMuted,
+                                fontSize = 10.sp,
+                                maxLines = 1,
+                            )
+                        },
+                    )
+                }
+            }
+        }
+
+        if (profiles.isEmpty()) {
                         DropdownMenuItem(
                             text = { Text("No connections", color = TophMuted) },
                             onClick = { menu = false },
@@ -167,6 +200,30 @@ fun DatabasePanel(
                     Icon(Lucide.Play, null, modifier = Modifier.size(14.dp))
                     Spacer(Modifier.width(5.dp))
                     Text("Run", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                }
+            }
+        }
+
+        val schemaTables = selected?.let { schemas[it.id] }.orEmpty()
+        if (selected != null && schemaTables.isNotEmpty()) {
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(5.dp),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 1.dp),
+            ) {
+                items(schemaTables, key = { "${it.schema}.${it.name}" }) { table ->
+                    androidx.compose.material3.AssistChip(
+                        onClick = {
+                            onSql(defaultQuery(selected.driver, table))
+                        },
+                        label = {
+                            Text(
+                                table.name,
+                                color = TophMuted,
+                                fontSize = 10.sp,
+                                maxLines = 1,
+                            )
+                        },
+                    )
                 }
             }
         }
@@ -364,6 +421,17 @@ private fun dsnHint(driver: String): String = when (driver) {
     "mongodb" -> "mongodb://user:pass@host:27017"
     "redis" -> "redis://user:pass@host:6379/0"
     else -> ""
+}
+
+private fun defaultQuery(driver: String, table: SchemaTable): String {
+    return when (driver) {
+        "mongodb" -> """{"database":"${table.schema}","collection":"${table.name}","filter":{},"limit":100}"""
+        "redis" -> "SCAN 0 COUNT 100"
+        "mysql" -> "SELECT * FROM `${table.schema}`.`${table.name}` LIMIT 100;"
+        "sqlite" -> "SELECT * FROM \"${table.name}\" LIMIT 100;"
+        "sqlserver" -> "SELECT TOP 100 * FROM [${table.schema}].[${table.name}];"
+        else -> "SELECT * FROM \"${table.schema}\".\"${table.name}\" LIMIT 100;"
+    }
 }
 
 private fun queryPlaceholder(driver: String?): String = when (driver) {
