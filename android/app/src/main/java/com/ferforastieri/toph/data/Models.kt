@@ -178,6 +178,17 @@ data class Health(
 data class OpenCodeSession(val id: String)
 
 @Serializable
+data class OpenCodeSessionInfo(
+    val id: String,
+    val title: String? = null,
+)
+
+@Serializable
+data class OpenCodeSessionsResponse(
+    val data: List<OpenCodeSessionInfo> = emptyList(),
+)
+
+@Serializable
 data class TerminalResponse(val id: String, val projectId: String = "")
 
 @Serializable
@@ -241,6 +252,7 @@ data class UiState(
     val searchLoading: Boolean = false,
     val gitStatus: String = "",
     val webTargets: List<WebTarget> = emptyList(),
+    val aiSessions: List<OpenCodeSessionInfo> = emptyList(),
     val busy: Boolean = false,
     val error: String? = null,
     val notice: String? = null,

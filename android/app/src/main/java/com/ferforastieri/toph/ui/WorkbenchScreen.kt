@@ -192,11 +192,13 @@ fun WorkbenchScreen(viewModel: TophViewModel, state: UiState) {
 
                         TabKind.AI -> AiPanel(
                             tab = tab,
+                            sessions = state.aiSessions,
                             onSend = { viewModel.sendAi(tab.id, it) },
                             onStop = { viewModel.stopAi(tab.id) },
                             onPermission = { messageId, requestId, decision ->
                                 viewModel.replyPermission(tab.id, messageId, requestId, decision)
                             },
+                            onOpenSession = viewModel::openAiSession,
                         )
 
                         TabKind.WEB -> key(tab.id) { WebPanel(tab = tab) }

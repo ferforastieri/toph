@@ -13,6 +13,7 @@ import com.ferforastieri.toph.data.SearchMatch
 import com.ferforastieri.toph.data.SessionStore
 import com.ferforastieri.toph.data.TabKind
 import com.ferforastieri.toph.data.TophApi
+import com.ferforastieri.toph.data.OpenCodeSessionInfo
 import com.ferforastieri.toph.data.UiState
 import com.ferforastieri.toph.data.RowChangeRequest
 import com.ferforastieri.toph.data.SchemaTable
@@ -30,6 +31,7 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.sse.EventSource
@@ -321,6 +323,60 @@ class TophViewModel(application: Application) : AndroidViewModel(application) {
             title = "OpenCode",
         )
         addTab(project.id, tab)
+        loadAiSessions()
+    }
+
+    fun openAiSession(session: OpenCodeSessionInfo) {
+        val project = _state.value.activeProject ?: return
+        val tab = WorkTab(
+            id = UUID.randomUUID().toString(),
+            kind = TabKind.AI,
+            title = session.title ?: "OpenCode",
+            sessionId = session.id,
+        )
+        addTab(project.id, tab)
+        viewModelScope.launch {
+            runCatching { requireApi().openCodeContext(session.id) }
+                .onSuccess { context ->
+                    val messages = context.flatMap { item ->
+                        when (item["type"]?.jsonPrimitive?.contentOrNull) {
+                            "user" -> listOf(
+                                AiMessage(
+                                    id = "history-user-${item["id"]?.jsonPrimitive?.contentOrNull}",
+                                    role = "user",
+                                    text = item["text"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+                                ),
+                            )
+                            "assistant" -> {
+                                val text = item["content"]?.jsonArray?.mapNotNull { part ->
+                                    if (part.jsonObject["type"]?.jsonPrimitive?.contentOrNull == "text") {
+                                        part.jsonObject["text"]?.jsonPrimitive?.contentOrNull
+                                    } else null
+                                }?.joinToString("\n").orEmpty()
+                                if (text.isBlank()) emptyList() else listOf(
+                                    AiMessage(
+                                        id = "history-assistant-${item["id"]?.jsonPrimitive?.contentOrNull}",
+                                        role = "assistant",
+                                        text = text,
+                                    ),
+                                )
+                            }
+                            else -> emptyList()
+                        }
+                    }
+                    updateTab(project.id, tab.id) { it.copy(messages = messages) }
+                }
+                .onFailure { showError(it) }
+        }
+        loadAiSessions()
+    }
+
+    private fun loadAiSessions() {
+        val project = _state.value.activeProject ?: return
+        viewModelScope.launch {
+            runCatching { requireApi().openCodeSessions(project.root) }
+                .onSuccess { sessions -> _state.update { it.copy(aiSessions = sessions) } }
+        }
     }
 
     fun openWebTab(target: WebTarget) {

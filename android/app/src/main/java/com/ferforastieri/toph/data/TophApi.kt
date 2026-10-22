@@ -140,6 +140,18 @@ class TophApi(val baseUrl: String, private val token: String?) {
         return "$wsBase/api/terminals/$terminalId/ws$suffix"
     }
 
+    suspend fun openCodeSessions(root: String): List<OpenCodeSessionInfo> {
+        val encoded = URLEncoder.encode(root, "UTF-8")
+        return request<OpenCodeSessionsResponse>(
+            "GET",
+            "/api/opencode/api/session?directory=$encoded&limit=20&order=desc",
+        ).data
+    }
+
+    suspend fun openCodeContext(sessionId: String): List<kotlinx.serialization.json.JsonObject> {
+        return request("GET", "/api/opencode/api/session/$sessionId/context")
+    }
+
     suspend fun createOpenCodeSession(root: String): String {
         val body = buildJsonObject {
             putJsonObject("location") {

@@ -22,6 +22,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
@@ -43,21 +45,26 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.composables.icons.lucide.Bot
+import com.composables.icons.lucide.History
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.Send
 import com.composables.icons.lucide.Sparkles
 import com.composables.icons.lucide.Square
 import com.ferforastieri.toph.data.AiMessage
+import com.ferforastieri.toph.data.OpenCodeSessionInfo
 import com.ferforastieri.toph.data.WorkTab
 
 @Composable
 fun AiPanel(
     tab: WorkTab,
+    sessions: List<OpenCodeSessionInfo>,
     onSend: (String) -> Unit,
     onStop: () -> Unit,
     onPermission: (String, String, String) -> Unit,
+    onOpenSession: (OpenCodeSessionInfo) -> Unit,
 ) {
     var input by remember(tab.id) { mutableStateOf("") }
+    var historyOpen by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
 
     LaunchedEffect(tab.messages.size, tab.streaming) {
@@ -88,6 +95,39 @@ fun AiPanel(
                 fontFamily = FontFamily.Monospace,
                 fontSize = 9.5.sp,
             )
+            androidx.compose.foundation.layout.Box {
+                IconButton(onClick = { historyOpen = true }, modifier = Modifier.size(32.dp)) {
+                    Icon(Lucide.History, "History", tint = TophMuted, modifier = Modifier.size(16.dp))
+                }
+                DropdownMenu(
+                    expanded = historyOpen,
+                    onDismissRequest = { historyOpen = false },
+                    containerColor = TophElevated,
+                ) {
+                    if (sessions.isEmpty()) {
+                        DropdownMenuItem(
+                            text = { Text("No saved sessions", color = TophMuted, fontSize = 11.sp) },
+                            onClick = { historyOpen = false },
+                        )
+                    }
+                    sessions.forEach { session ->
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    session.title ?: session.id.take(8),
+                                    color = TophText,
+                                    fontSize = 11.sp,
+                                    maxLines = 1,
+                                )
+                            },
+                            onClick = {
+                                historyOpen = false
+                                onOpenSession(session)
+                            },
+                        )
+                    }
+                }
+            }
         }
 
         if (tab.messages.isEmpty()) {
