@@ -31,12 +31,6 @@ jobs:
           npm ci
           npm run build:app
 
-      - name: Build landing
-        working-directory: web
-        run: |
-          npm run build:landing
-          tar -C dist/landing -czf ../toph-landing.tar.gz .
-
       - name: Embed web and build binary
         run: |
           rm -rf backend/internal/webui/dist
@@ -89,4 +83,3 @@ jobs:
             toph-linux-amd64
             toph-linux-arm64
             toph-${{ github.ref_name }}.apk
-            toph-landing.tar.gz

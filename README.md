@@ -6,9 +6,10 @@ Toph is built for people who keep their own services, repositories and data on m
 
 ## Public pages
 
-- `/` — landing page.
+- `/` — redirects to the workbench.
 - `/app` — the workbench (sign-in required).
-- `/docs.html` — single-page documentation, also available as `/llms.txt` for agents.
+
+The installed server does not serve the landing page or documentation. The landing source lives in `web/landing/` for separate local work only; it is not part of the installer, release or backend bundle.
 
 ## What it does
 
@@ -27,11 +28,11 @@ Toph is built for people who keep their own services, repositories and data on m
 ```text
 backend/   Go API, workspace, terminals, databases, OpenCode proxy
 mobile/    Android app (Kotlin/Compose)
-web/       landing page and web application (separate builds)
+web/       web application plus landing source (separate builds)
 deploy/    Docker Compose
 ```
 
-The backend embeds only the application. The landing page is built and deployed separately.
+The backend embeds only the application. The landing page is never installed, embedded, released or served by the Toph server.
 
 ## Architecture
 
@@ -79,14 +80,14 @@ npm install
 npm run dev:app
 ```
 
-Landing page, separately:
+Landing source, separately (not part of the installable app):
 
 ```sh
 cd web
 npm run dev:landing
 ```
 
-App: `http://localhost:5173/app/`. Landing: `http://localhost:5174/`.
+App: `http://localhost:5173/app/`. Landing source: `http://localhost:5174/`.
 
 ### Production build
 

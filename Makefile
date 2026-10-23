@@ -1,12 +1,16 @@
-.PHONY: dev web build run test fmt mobile mobile-editor docker
+.PHONY: dev web web-landing build run test fmt mobile mobile-editor docker
 
 web:
 	cd web && npm install
-	cd web && npm run build
+	cd web && npm run build:app
 	rm -rf backend/internal/webui/dist
 	mkdir -p backend/internal/webui/dist
 	cp -R web/dist/app/. backend/internal/webui/dist/
 	touch backend/internal/webui/dist/.keep
+
+web-landing:
+	cd web && npm install
+	cd web && npm run build:landing
 
 build: web
 	mkdir -p bin

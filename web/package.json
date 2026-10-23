@@ -9,7 +9,7 @@
     "dev:app": "vite --config vite.app.config.ts --host 0.0.0.0",
     "dev:landing": "vite --config vite.landing.config.ts --host 0.0.0.0",
     "dev": "npm run dev:app",
-    "build": "npm run build:app && npm run build:landing",
+    "build": "npm run build:app",
     "prebuild:app": "npm run monaco",
     "build:app": "vite build --config vite.app.config.ts",
     "build:landing": "vite build --config vite.landing.config.ts",
