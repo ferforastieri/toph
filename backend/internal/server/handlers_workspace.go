@@ -141,6 +141,21 @@ func (s *Server) gitDiff(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"diff": diff})
 }
 
+func (s *Server) gitFileVersions(w http.ResponseWriter, r *http.Request) {
+	path := r.URL.Query().Get("path")
+	if path == "" {
+		writeError(w, http.StatusBadRequest, "path is required")
+		return
+	}
+	staged := r.URL.Query().Get("staged") == "true"
+	original, modified, err := s.workspace.GitFileVersions(r.Context(), currentProject(r).Root, path, staged)
+	if err != nil {
+		apiError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"original": original, "modified": modified})
+}
+
 func (s *Server) gitBlame(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Query().Get("path")
 	if path == "" {

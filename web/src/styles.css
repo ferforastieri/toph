@@ -4080,3 +4080,11 @@ body.resize-active * {
 .blame-summary { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .blame-line { margin-left: auto; color: var(--muted-3); flex: none; }
 .scm-commit-button:disabled { opacity: 0.42; }
+
+.diff-editor-host {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.diff-editor-host .monaco-diff-editor,
+.diff-editor-host .monaco-diff-editor .diffOverview { height: 100%; }

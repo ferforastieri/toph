@@ -173,3 +173,38 @@ func isHex(value string) bool {
 	}
 	return true
 }
+
+// GitFileVersions returns the two sides of a source-control diff. For staged
+// changes the original is HEAD and the modified side is the index. For working
+// tree changes the original is the index (or empty for an untracked file) and
+// the modified side is the file on disk.
+func (s *Service) GitFileVersions(ctx context.Context, root, path string, staged bool) (string, string, error) {
+	rel, err := s.gitPath(root, path, false)
+	if err != nil {
+		return "", "", err
+	}
+	original := ""
+	if staged {
+		original = gitShow(ctx, root, "HEAD:"+rel)
+	} else {
+		original = gitShow(ctx, root, ":"+rel)
+	}
+	modified := ""
+	if staged {
+		modified = gitShow(ctx, root, ":"+rel)
+	} else {
+		data, readErr := os.ReadFile(filepath.Join(root, filepath.FromSlash(rel)))
+		if readErr == nil {
+			modified = string(data)
+		}
+	}
+	return original, modified, nil
+}
+
+func gitShow(ctx context.Context, root, spec string) string {
+	out, err := exec.CommandContext(ctx, "git", "-C", root, "show", spec).Output()
+	if err != nil {
+		return ""
+	}
+	return string(out)
+}

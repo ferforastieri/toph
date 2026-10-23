@@ -339,6 +339,12 @@ export const api = {
     return response.status;
   },
 
+  async gitFileVersions(projectId: string, path: string, staged: boolean): Promise<{ original: string; modified: string }> {
+    return request<{ original: string; modified: string }>(
+      `/projects/${encodeURIComponent(projectId)}/git/file?path=${encodeURIComponent(path)}&staged=${staged ? "true" : "false"}`,
+    );
+  },
+
   async gitDiff(projectId: string, path: string, staged: boolean): Promise<string> {
     const response = await request<{ diff: string }>(
       `/projects/${encodeURIComponent(projectId)}/git/diff?path=${encodeURIComponent(path)}&staged=${staged ? "true" : "false"}`,
