@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { create } from "zustand";
 
-export type ThemePreference = "auto" | "dark" | "light";
+export type ThemePreference = "auto" | "dark" | "light" | "brand" | "nightwolf";
+export type ResolvedTheme = "dark" | "light" | "brand" | "nightwolf";
+export type IconTheme = "toph" | "material" | "outline";
 export type Accent = "jade" | "ocean" | "violet" | "amber" | "rose" | "graphite";
 export type GlassLevel = "off" | "subtle" | "regular" | "strong";
 export type BackgroundStyle = "aurora" | "mesh" | "grid" | "solid";
@@ -26,6 +28,7 @@ export interface AppearanceSettings {
   minimap: boolean;
   respectReducedTransparency: boolean;
   aiPanelWidth: number;
+  iconTheme: IconTheme;
 }
 
 export interface SettingsState extends AppearanceSettings {
@@ -53,9 +56,11 @@ export const defaultSettings: AppearanceSettings = {
   minimap: false,
   respectReducedTransparency: false,
   aiPanelWidth: 390,
+  iconTheme: "toph",
 };
 
-const themes: ThemePreference[] = ["auto", "dark", "light"];
+const themes: ThemePreference[] = ["auto", "dark", "light", "brand", "nightwolf"];
+const iconThemes: IconTheme[] = ["toph", "material", "outline"];
 const accents: Accent[] = ["jade", "ocean", "violet", "amber", "rose", "graphite"];
 const glassLevels: GlassLevel[] = ["off", "subtle", "regular", "strong"];
 const backgrounds: BackgroundStyle[] = ["aurora", "mesh", "grid", "solid"];
@@ -95,13 +100,14 @@ function readSettings(): AppearanceSettings {
       minimap: value.minimap === true,
       respectReducedTransparency: value.respectReducedTransparency === true,
       aiPanelWidth: numberIn(value.aiPanelWidth, 300, 620, defaultSettings.aiPanelWidth),
-        };
+      iconTheme: choose(value.iconTheme, iconThemes, defaultSettings.iconTheme),
+    };
   } catch {
     return defaultSettings;
   }
 }
 
-export function resolveTheme(preference: ThemePreference): "dark" | "light" {
+export function resolveTheme(preference: ThemePreference): ResolvedTheme {
   if (preference !== "auto") return preference;
   return window.matchMedia?.("(prefers-color-scheme: light)").matches ? "light" : "dark";
 }
@@ -158,7 +164,8 @@ export const useSettings = create<SettingsState>((set, get) => ({
       minimap: next.minimap,
       respectReducedTransparency: next.respectReducedTransparency,
       aiPanelWidth: next.aiPanelWidth,
-        };
+      iconTheme: next.iconTheme,
+    };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
     applyAppearance(settings);
     set(settings);
@@ -184,7 +191,7 @@ export function initAppearance(): void {
   });
 }
 
-export function useResolvedTheme(): "dark" | "light" {
+export function useResolvedTheme(): ResolvedTheme {
   const preference = useSettings((state) => state.theme);
   const [resolved, setResolved] = useState(() => resolveTheme(preference));
   useEffect(() => {

@@ -3683,3 +3683,101 @@ a.icon-button {
   .ai-dock { width: 100%; border-radius: 0; }
 }
 .titlebar-chip.active { color: var(--primary); border-color: var(--primary); background: var(--primary-soft); }
+.brand-mark { padding: 0; overflow: hidden; background: #080b12; }
+.brand-mark img { width: 100%; height: 100%; display: block; object-fit: cover; }
+
+/* Brand palette theme */
+html[data-theme="brand"] {
+  color-scheme: dark;
+  --bg: #080b12;
+  --chrome: rgba(13, 18, 30, 0.78);
+  --surface: #111625;
+  --surface-2: #1a1f2e;
+  --surface-hover: #222941;
+  --elevated: #232a3d;
+  --input-bg: #080b12;
+  --editor-bg: #080b12;
+  --border: #2a3147;
+  --border-soft: #1e2639;
+  --border-faint: #182033;
+  --line: #2a3147;
+  --line-strong: #3d4a69;
+  --text: #dce4f7;
+  --text-strong: #f4f7ff;
+  --text-soft: #b7c4e2;
+  --muted: #8d9bb8;
+  --muted-2: #67748f;
+  --muted-3: #4d5870;
+  --primary: #7c9bff;
+  --primary-hover: #98b0ff;
+  --primary-pressed: #4f46e5;
+  --primary-soft: rgba(124, 155, 255, 0.16);
+  --on-primary: #080b12;
+  --secondary: #a9b8ff;
+  --info: #58c4ff;
+  --success: #7bd88f;
+  --warning: #ffc857;
+  --error: #ff6b7a;
+  --glass-border: rgba(124, 155, 255, 0.24);
+  --glass-highlight: rgba(220, 228, 247, 0.32);
+  --glass-shadow: 0 24px 70px rgba(0, 0, 0, 0.55);
+  --ambient-1: rgba(124, 155, 255, 0.28);
+  --ambient-2: rgba(79, 70, 229, 0.2);
+  --ambient-3: rgba(88, 196, 255, 0.12);
+  --selection: rgba(124, 155, 255, 0.25);
+  --surface-rgb: 17, 22, 37;
+  --text-rgb: 220, 228, 247;
+  --accent-rgb: 124, 155, 255;
+}
+
+/* Night Wolf Black — colors from MaoSantaella.night-wolf */
+html[data-theme="nightwolf"] {
+  color-scheme: dark;
+  --bg: #000000;
+  --chrome: rgba(0, 0, 0, 0.86);
+  --surface: #141414;
+  --surface-2: #1b1b1b;
+  --surface-hover: #282828;
+  --elevated: #282828;
+  --input-bg: #000000;
+  --editor-bg: #000000;
+  --border: #282828;
+  --border-soft: #1b1b1b;
+  --border-faint: #141414;
+  --line: #282828;
+  --line-strong: #505050;
+  --text: #c8c8c8;
+  --text-strong: #ffffff;
+  --text-soft: #b4b4b4;
+  --muted: #969696;
+  --muted-2: #787878;
+  --muted-3: #505050;
+  --primary: #ff50ff;
+  --primary-hover: #ff72ff;
+  --primary-pressed: #960096;
+  --primary-soft: rgba(255, 80, 255, 0.14);
+  --on-primary: #ffffff;
+  --secondary: #64b4fa;
+  --info: #00b1ff;
+  --success: #aae682;
+  --warning: #ffc828;
+  --error: #f05050;
+  --glass-border: rgba(255, 80, 255, 0.25);
+  --glass-highlight: rgba(255, 255, 255, 0.24);
+  --glass-shadow: 0 24px 70px rgba(0, 0, 0, 0.7);
+  --ambient-1: rgba(255, 80, 255, 0.12);
+  --ambient-2: rgba(0, 177, 255, 0.09);
+  --ambient-3: rgba(100, 180, 250, 0.08);
+  --selection: rgba(150, 150, 150, 0.35);
+  --surface-rgb: 20, 20, 20;
+  --text-rgb: 200, 200, 200;
+  --accent-rgb: 255, 80, 255;
+}
+.segmented button { white-space: nowrap; }
+html[data-theme="nightwolf"] {
+  --ambient-1: transparent;
+  --ambient-2: transparent;
+  --ambient-3: transparent;
+  --glass-border: #282828;
+  --glass-highlight: rgba(255, 255, 255, 0.14);
+}

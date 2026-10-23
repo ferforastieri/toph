@@ -25,6 +25,7 @@ import {
   type Density,
   type GlassLevel,
   type TabStyle,
+  type IconTheme,
   type ThemePreference,
   useSettings,
 } from "../settings";
@@ -73,6 +74,14 @@ const themes: Array<{ id: ThemePreference; label: string; icon: typeof Sun }> = 
   { id: "auto", label: "Auto", icon: Monitor },
   { id: "dark", label: "Dark", icon: Moon },
   { id: "light", label: "Light", icon: Sun },
+  { id: "brand", label: "Brand", icon: Palette },
+  { id: "nightwolf", label: "Night Wolf", icon: Moon },
+];
+
+const iconOptions: Array<{ id: IconTheme; label: string }> = [
+  { id: "toph", label: "Toph" },
+  { id: "material", label: "Material" },
+  { id: "outline", label: "Outline" },
 ];
 
 const glassOptions: Array<{ id: GlassLevel; label: string }> = [
@@ -258,7 +267,7 @@ export default function SettingsPanel({ version, buildId }: Props) {
           </div>
           <div className="settings-field">
             <span>Accent color</span>
-            <div className="swatches">
+            <div className="swatches" style={{ opacity: settings.theme === "brand" || settings.theme === "nightwolf" ? 0.45 : 1 }}>
               {accents.map((accent) => (
                 <Button
                   key={accent.id}
@@ -266,6 +275,7 @@ export default function SettingsPanel({ version, buildId }: Props) {
                   className={`swatch ${accent.id} ${settings.accent === accent.id ? "active" : ""}`}
                   title={accent.label}
                   aria-label={accent.label}
+                  disabled={settings.theme === "brand" || settings.theme === "nightwolf"}
                   onClick={() => update({ accent: accent.id })}
                 >
                   {settings.accent === accent.id && <Check size={11} />}
@@ -280,6 +290,10 @@ export default function SettingsPanel({ version, buildId }: Props) {
           <div className="settings-field">
             <span>Background</span>
             <Segmented value={settings.background} options={backgroundOptions} onChange={(background) => update({ background })} />
+          </div>
+          <div className="settings-field">
+            <span>File icons</span>
+            <Segmented value={settings.iconTheme} options={iconOptions} onChange={(iconTheme) => update({ iconTheme })} />
           </div>
           <Range label="Corner radius" value={settings.radius} min={0} max={32} suffix="px" onChange={(radius) => update({ radius })} />
           <Toggle label="Animations" checked={settings.motion} onChange={(motion) => update({ motion })} />

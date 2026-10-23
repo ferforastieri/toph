@@ -8,6 +8,7 @@ import {
   MonitorSmartphone,
   TerminalSquare,
 } from "lucide-react";
+import BrandMark from "../brand/BrandMark";
 
 const features = [
   {
@@ -47,7 +48,7 @@ export default function Landing() {
     <main className="landing">
       <nav className="landing-nav">
         <a className="landing-brand" href="/">
-          <span className="brand-mark small">T</span>
+          <BrandMark size="small" />
           <strong>Toph</strong>
         </a>
         <div className="landing-links">

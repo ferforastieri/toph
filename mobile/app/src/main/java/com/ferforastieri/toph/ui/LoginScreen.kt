@@ -71,20 +71,7 @@ fun LoginScreen(viewModel: TophViewModel, state: UiState) {
                 modifier = Modifier.padding(24.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
-                Surface(
-                    color = TophElevated,
-                    shape = RoundedCornerShape(16.dp),
-                    modifier = Modifier.size(58.dp),
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Text(
-                            "T",
-                            color = TophJade,
-                            fontSize = 31.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                        )
-                    }
-                }
+                BrandMark(58.dp)
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(
                         "Toph",

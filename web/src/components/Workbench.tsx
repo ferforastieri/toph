@@ -20,6 +20,7 @@ import AiPanelTab from "../panels/AiPanelTab";
 import WebPanelTab from "../panels/WebPanelTab";
 import TerminalPanel from "../panels/TerminalPanel";
 import { Button } from "../ui/Button";
+import BrandMark from "../brand/BrandMark";
 import { Select } from "../ui/Select";
 
 export default function Workbench() {
@@ -303,7 +304,7 @@ export default function Workbench() {
     return (
       <main className="empty-workbench">
         <div className="welcome-card">
-          <div className="brand-mark large">T</div>
+          <BrandMark size="large" />
           <h1>Welcome to Toph</h1>
           <p>Create your first project from a directory on the server.</p>
           <Button className="primary" onClick={() => setShowProjectModal(true)}>
@@ -322,7 +323,7 @@ export default function Workbench() {
     <div className="workbench">
       <header className="titlebar">
         <div className="titlebar-brand">
-          <div className="brand-mark small">T</div>
+          <BrandMark size="small" />
           <span>Toph</span>
         </div>
         <div className="project-switcher">
@@ -367,7 +368,7 @@ export default function Workbench() {
           <div className="editor-host">
             {!activeTab && project && (
               <div className="welcome">
-                <div className="welcome-mark">T</div>
+                <BrandMark size="large" className="welcome-mark" />
                 <h2>{project.name}</h2>
                 <p>{project.root}</p>
                 <div className="welcome-actions">

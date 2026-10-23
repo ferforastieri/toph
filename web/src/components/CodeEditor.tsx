@@ -86,6 +86,71 @@ const lightTheme: editor.IStandaloneThemeData = {
   },
 };
 
+const brandTheme: editor.IStandaloneThemeData = {
+  ...darkTheme,
+  colors: {
+    ...darkTheme.colors,
+    "editor.background": "#080B12",
+    "editor.foreground": "#DCE4F7",
+    "editorLineNumber.foreground": "#4D5870",
+    "editorLineNumber.activeForeground": "#8D9BB8",
+    "editorCursor.foreground": "#7C9BFF",
+    "editor.selectionBackground": "#2B3B70",
+    "editor.inactiveSelectionBackground": "#202A4A",
+    "editor.lineHighlightBackground": "#111625",
+    "editorIndentGuide.background1": "#1E2639",
+    "editorIndentGuide.activeBackground1": "#2A3147",
+    "editorWidget.background": "#1A1F2E",
+    "editorWidget.border": "#2A3147",
+    "input.background": "#080B12",
+    "input.border": "#2A3147",
+    "list.hoverBackground": "#1A1F2E",
+    "list.activeSelectionBackground": "#202A4A",
+    "scrollbarSlider.background": "#2A314788",
+    "scrollbarSlider.hoverBackground": "#4F46E5AA",
+    "minimap.background": "#080B12",
+  },
+};
+
+const nightwolfTheme: editor.IStandaloneThemeData = {
+  base: "vs-dark",
+  inherit: false,
+  rules: [
+    { token: "comment", foreground: "787878", fontStyle: "italic" },
+    { token: "keyword", foreground: "00B1FF", fontStyle: "italic" },
+    { token: "keyword.control", foreground: "DC8CFF" },
+    { token: "string", foreground: "AAE682" },
+    { token: "number", foreground: "FFDC96" },
+    { token: "constant", foreground: "FFDC96" },
+    { token: "type", foreground: "00DCDC" },
+    { token: "function", foreground: "00DCDC" },
+    { token: "variable", foreground: "FFDC96" },
+    { token: "variable.parameter", foreground: "FFDC96" },
+    { token: "entity.other.attribute-name", foreground: "9696FF", fontStyle: "italic" },
+  ],
+  colors: {
+    "editor.background": "#000000",
+    "editor.foreground": "#C8C8C8",
+    "editorLineNumber.foreground": "#3C3C3C",
+    "editorLineNumber.activeForeground": "#969696",
+    "editorCursor.foreground": "#FF50FF",
+    "editor.selectionBackground": "#96969659",
+    "editor.inactiveSelectionBackground": "#96969633",
+    "editor.lineHighlightBackground": "#9696961A",
+    "editorIndentGuide.background1": "#282828",
+    "editorIndentGuide.activeBackground1": "#505050",
+    "editorWidget.background": "#141414",
+    "editorWidget.border": "#282828",
+    "input.background": "#000000",
+    "input.border": "#282828",
+    "list.hoverBackground": "#141414",
+    "list.activeSelectionBackground": "#3C3C3C",
+    "scrollbarSlider.background": "#50505050",
+    "scrollbarSlider.hoverBackground": "#50505080",
+    "minimap.background": "#000000",
+  },
+};
+
 export default function CodeEditor({
   path,
   value,
@@ -104,7 +169,13 @@ export default function CodeEditor({
   const resolved = useResolvedTheme();
   const aiConfig = useAI((state) => state.config);
   const loadAI = useAI((state) => state.load);
-  const themeName = resolved === "light" ? "toph-light" : "toph-dark";
+  const themeName = resolved === "light"
+    ? "toph-light"
+    : resolved === "brand"
+      ? "toph-brand"
+      : resolved === "nightwolf"
+        ? "toph-nightwolf"
+        : "toph-dark";
   const saveRef = useRef(onSave);
   saveRef.current = onSave;
   const runRef = useRef(onRun);
@@ -124,6 +195,8 @@ export default function CodeEditor({
   const beforeMount = (monaco: Monaco) => {
     monaco.editor.defineTheme("toph-dark", themed(darkTheme, true));
     monaco.editor.defineTheme("toph-light", themed(lightTheme, false));
+    monaco.editor.defineTheme("toph-brand", brandTheme);
+    monaco.editor.defineTheme("toph-nightwolf", nightwolfTheme);
   };
 
   const onMount: OnMount = (instance, monaco) => {
@@ -155,6 +228,8 @@ export default function CodeEditor({
     if (!monaco) return;
     monaco.editor.defineTheme("toph-dark", themed(darkTheme, true));
     monaco.editor.defineTheme("toph-light", themed(lightTheme, false));
+    monaco.editor.defineTheme("toph-brand", brandTheme);
+    monaco.editor.defineTheme("toph-nightwolf", nightwolfTheme);
     monaco.editor.setTheme(themeName);
   }, [accent, resolved, themeName]);
 

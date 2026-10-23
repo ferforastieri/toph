@@ -5,17 +5,20 @@
   "type": "module",
   "scripts": {
     "monaco": "node scripts/copy-monaco.mjs",
-    "predev:app": "npm run monaco",
+    "predev:app": "npm run sync-brand && npm run monaco",
     "dev:app": "vite --config vite.app.config.ts --host 0.0.0.0",
     "dev:landing": "vite --config vite.landing.config.ts --host 0.0.0.0",
     "dev": "npm run dev:app",
     "build": "npm run build:app",
-    "prebuild:app": "npm run monaco",
+    "prebuild:app": "npm run sync-brand && npm run monaco",
     "build:app": "vite build --config vite.app.config.ts",
     "build:landing": "vite build --config vite.landing.config.ts",
     "preview:app": "vite preview --config vite.app.config.ts --host 0.0.0.0",
     "preview:landing": "vite preview --config vite.landing.config.ts --host 0.0.0.0",
-    "test": "vitest run --config vitest.config.ts"
+    "test": "vitest run --config vitest.config.ts",
+    "sync-brand": "node scripts/sync-brand.mjs",
+    "predev:landing": "npm run sync-brand",
+    "prebuild:landing": "npm run sync-brand"
   },
   "dependencies": {
     "@fontsource-variable/inter": "^5.2.8",

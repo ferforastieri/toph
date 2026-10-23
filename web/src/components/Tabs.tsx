@@ -9,6 +9,7 @@ import { useApp, type Tab } from "../store";
 import { useSettings } from "../settings";
 import { Button } from "../ui/Button";
 import { useConfirm } from "../ui/Confirm";
+import FileIcon from "../ui/FileIcon";
 
 const icons = {
   editor: FileCode2,
@@ -24,6 +25,7 @@ export default function Tabs() {
   const closeTab = useApp((state) => state.closeTab);
   const confirmClose = useSettings((state) => state.confirmClose);
   const confirm = useConfirm();
+  const iconTheme = useSettings((state) => state.iconTheme);
 
   async function requestClose(tab: Tab) {
     if (tab.dirty && confirmClose) {
@@ -41,7 +43,7 @@ export default function Tabs() {
   return (
     <div className="tab-strip" role="tablist">
       {tabs.map((tab) => {
-        const Icon = icons[tab.kind];
+        const Icon = icons[tab.kind as keyof typeof icons] ?? icons.editor;
         return (
           <div
             key={tab.id}
@@ -54,7 +56,11 @@ export default function Tabs() {
             }}
             title={tab.path ?? tab.url ?? tab.title}
           >
-            <Icon size={14} className="tab-icon" />
+            {tab.kind === "editor" ? (
+              <FileIcon name={tab.title} path={tab.path} iconTheme={iconTheme} size={14} />
+            ) : (
+              <Icon size={14} className="tab-icon" />
+            )}
             <span className="tab-title">{tab.title}</span>
             {tab.dirty && <span className="tab-dirty" />}
             <Button

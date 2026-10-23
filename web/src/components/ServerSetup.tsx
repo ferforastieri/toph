@@ -1,6 +1,7 @@
 import { FormEvent, useState } from "react";
 import { ArrowRight, Server } from "lucide-react";
 import { probeServer } from "../api";
+import BrandMark from "../brand/BrandMark";
 import { Button } from "../ui/Button";
 
 interface Props {
@@ -30,7 +31,7 @@ export default function ServerSetup({ defaultUrl, onConnected }: Props) {
     <main className="login">
       <div className="login-panel">
         <div className="brand">
-          <div className="brand-mark">T</div>
+          <BrandMark />
           <div>
             <h1>Toph</h1>
             <p>Connect to your self-hosted workbench.</p>

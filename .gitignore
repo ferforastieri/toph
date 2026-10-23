@@ -30,3 +30,5 @@ mobile/editor/node_modules/
 mobile/captures/
 *.jks
 *.keystore
+web/app/public/brand/
+web/landing/public/brand/

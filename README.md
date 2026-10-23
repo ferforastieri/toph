@@ -25,7 +25,7 @@ The installed server does not serve the landing page or documentation. The landi
 - Switch between projects without losing the state of the current one.
 - Use the same backend from the browser and from the Android app.
 - Get an in-app toast when a new web build or Android release is available.
-- Personalize the web app with light/dark/auto themes, accents, liquid-glass intensity, backgrounds, radius, density, sidebar width, editor and terminal typography, and tab styles.
+- Personalize the web app with light/dark/auto themes, the Toph brand palette, Night Wolf Black, accents, liquid-glass intensity, backgrounds, radius, density, sidebar width, editor and terminal typography, tab styles, and file icon themes.
 
 ## Repository layout
 

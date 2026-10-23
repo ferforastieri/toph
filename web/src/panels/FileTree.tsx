@@ -1,14 +1,9 @@
 import { useEffect, useState } from "react";
-import {
-  ChevronDown,
-  ChevronRight,
-  FileCode2,
-  Folder,
-  FolderOpen,
-  RefreshCw,
-} from "lucide-react";
+import { ChevronDown, ChevronRight, RefreshCw } from "lucide-react";
 import { api, type FileEntry, type Project } from "../api";
 import { useApp } from "../store";
+import { useSettings } from "../settings";
+import FileIcon from "../ui/FileIcon";
 import { Button } from "../ui/Button";
 
 interface Props {
@@ -77,6 +72,7 @@ function TreeNode({
   const [children, setChildren] = useState<FileEntry[] | null>(null);
   const [loading, setLoading] = useState(false);
   const notify = useApp((state) => state.notify);
+  const iconTheme = useSettings((state) => state.iconTheme);
 
   async function toggle() {
     if (!entry.dir) {
@@ -114,15 +110,14 @@ function TreeNode({
             )
           ) : null}
         </span>
-        {entry.dir ? (
-          open ? (
-            <FolderOpen size={15} className="folder-icon" />
-          ) : (
-            <Folder size={15} className="folder-icon" />
-          )
-        ) : (
-          <FileCode2 size={15} className="file-icon" />
-        )}
+        <FileIcon
+          name={entry.name}
+          path={entry.path}
+          dir={entry.dir}
+          open={open}
+          iconTheme={iconTheme}
+          size={15}
+        />
         <span className="tree-name">{entry.name}</span>
       </Button>
       {open && loading && (

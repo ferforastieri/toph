@@ -5,6 +5,7 @@ import Login from "./components/Login";
 import ServerSetup from "./components/ServerSetup";
 import UpdateToast from "./components/UpdateToast";
 import Workbench from "./components/Workbench";
+import BrandMark from "./brand/BrandMark";
 
 const SERVER_KEY = "toph_server_url";
 
@@ -58,7 +59,7 @@ function AppShell() {
   if (!authReady) {
     return (
       <div className="boot">
-        <div className="boot-mark">T</div>
+        <BrandMark className="boot-mark" />
         <p>Connecting to Toph...</p>
       </div>
     );

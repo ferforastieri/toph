@@ -366,15 +366,7 @@ private fun WorkbenchTopBar(
             .padding(horizontal = 10.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Surface(
-            color = TophElevated,
-            shape = RoundedCornerShape(8.dp),
-            modifier = Modifier.size(28.dp),
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                Text("T", color = TophJade, fontWeight = FontWeight.ExtraBold, fontSize = 15.sp)
-            }
-        }
+        BrandMark(28.dp)
         Spacer(Modifier.width(9.dp))
         Text(
             "Toph",
@@ -566,15 +558,7 @@ private fun WorkbenchWelcome(
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Surface(
-            color = TophElevated,
-            shape = RoundedCornerShape(18.dp),
-            modifier = Modifier.size(64.dp),
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                Text("T", color = TophJade, fontWeight = FontWeight.ExtraBold, fontSize = 32.sp)
-            }
-        }
+        BrandMark(64.dp)
         Spacer(Modifier.height(14.dp))
         Text(
             state.activeProject?.name ?: "Toph",
@@ -629,15 +613,7 @@ private fun NoProjects(viewModel: TophViewModel, onNewProject: () -> Unit) {
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Surface(
-            color = TophElevated,
-            shape = RoundedCornerShape(16.dp),
-            modifier = Modifier.size(56.dp),
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                Text("T", color = TophJade, fontWeight = FontWeight.ExtraBold, fontSize = 28.sp)
-            }
-        }
+        BrandMark(56.dp)
         Spacer(Modifier.height(16.dp))
         Text("No projects on this server.", color = TophText)
         Spacer(Modifier.height(8.dp))

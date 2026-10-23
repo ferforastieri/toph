@@ -32,23 +32,7 @@ fun BootScreen() {
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Surface(
-            color = TophElevated,
-            shape = RoundedCornerShape(18.dp),
-            modifier = Modifier.size(64.dp),
-        ) {
-            Column(
-                verticalArrangement = Arrangement.Center,
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Text(
-                    text = "T",
-                    color = TophJade,
-                    fontSize = 34.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                )
-            }
-        }
+        BrandMark(64.dp)
         Text(
             text = "Loading Toph...",
             color = TophMuted,

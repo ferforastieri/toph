@@ -1,6 +1,7 @@
 import { FormEvent, useState } from "react";
 import { api, ApiError } from "../api";
 import { useApp } from "../store";
+import BrandMark from "../brand/BrandMark";
 import { Button } from "../ui/Button";
 
 interface Props {
@@ -42,7 +43,7 @@ export default function Login({ onChangeServer }: Props) {
     <main className="login">
       <div className="login-panel">
         <div className="brand">
-          <div className="brand-mark">T</div>
+          <BrandMark />
           <div>
             <h1>Toph</h1>
             <p>Code, data and AI in one workbench.</p>
