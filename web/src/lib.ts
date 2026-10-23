@@ -122,6 +122,7 @@ export function sanitizeBranchName(value: string): string {
     .replace(/[~^:?*\\[\]]+/g, "-")
     .replace(/\.\.+/g, ".")
     .replace(/\/{2,}/g, "/")
+    .replace(/\/-+/g, "/")
     .replace(/^[-./]+|[-./]+$/g, "")
     .replace(/\.lock$/i, "");
   return cleaned || "feature/update";

@@ -75,10 +75,6 @@ function choose<T extends string>(value: unknown, options: T[], fallback: T): T 
   return typeof value === "string" && options.includes(value as T) ? (value as T) : fallback;
 }
 
-function stringIn(value: unknown, fallback: string): string {
-  return typeof value === "string" && value.trim() ? value : fallback;
-}
-
 function numberIn(value: unknown, min: number, max: number, fallback: number): number {
   return typeof value === "number" && Number.isFinite(value)
     ? Math.min(max, Math.max(min, value))
@@ -109,8 +105,12 @@ function readSettings(): AppearanceSettings {
       respectReducedTransparency: value.respectReducedTransparency === true,
       aiPanelWidth: numberIn(value.aiPanelWidth, 300, 620, defaultSettings.aiPanelWidth),
       iconTheme: choose(value.iconTheme, iconThemes, defaultSettings.iconTheme),
-      gitBranchPattern: stringIn(value.gitBranchPattern, defaultSettings.gitBranchPattern),
-      gitCommitPattern: stringIn(value.gitCommitPattern, defaultSettings.gitCommitPattern),
+      gitBranchPattern: !value.gitBranchPattern || value.gitBranchPattern === "feature/{datetime}" || value.gitBranchPattern === "feature/{date}"
+        ? defaultSettings.gitBranchPattern
+        : value.gitBranchPattern,
+      gitCommitPattern: !value.gitCommitPattern || value.gitCommitPattern === "chore: update {date}"
+        ? defaultSettings.gitCommitPattern
+        : value.gitCommitPattern,
     };
   } catch {
     return defaultSettings;
