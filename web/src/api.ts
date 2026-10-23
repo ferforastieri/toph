@@ -13,6 +13,13 @@ export interface Project {
   updatedAt: string;
 }
 
+export interface Repository {
+  name: string;
+  path: string;
+  root: string;
+  relative: string;
+}
+
 export interface FileEntry {
   name: string;
   path: string;
@@ -278,6 +285,12 @@ export const api = {
 
   async deleteProject(id: string): Promise<void> {
     await request(`/projects/${encodeURIComponent(id)}`, { method: "DELETE" });
+  },
+
+  async repos(query = ""): Promise<Repository[]> {
+    const suffix = query.trim() ? `?q=${encodeURIComponent(query.trim())}` : "";
+    const response = await request<{ repos: Repository[] }>(`/repos${suffix}`);
+    return response.repos;
   },
 
   async tree(projectId: string, path = ""): Promise<FileEntry[]> {

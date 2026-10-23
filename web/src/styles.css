@@ -3855,3 +3855,47 @@ body.resize-active * {
     display: none;
   }
 }
+
+/* Repository picker */
+.repo-picker { display: grid; gap: 10px; }
+.repo-search { width: 100%; }
+.repo-search input { flex: 1; min-width: 0; font-size: 12px; }
+.repo-results {
+  display: grid;
+  gap: 2px;
+  max-height: min(52vh, 430px);
+  overflow: auto;
+  margin: 0 -4px;
+  padding: 0 4px;
+}
+.repo-result {
+  width: 100%;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 8px;
+  border-radius: 8px;
+  color: var(--text-soft);
+  text-align: left;
+}
+.repo-result:hover,
+.repo-result:focus-visible { background: var(--surface-hover); color: var(--text); }
+.repo-result.opening { opacity: 0.55; }
+.repo-result-icon { color: var(--primary); flex: none; }
+.repo-result-body { display: grid; gap: 2px; min-width: 0; }
+.repo-result-name { font-size: 12px; font-weight: 600; }
+.repo-result-path {
+  overflow: hidden;
+  color: var(--muted-2);
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.repo-empty {
+  padding: 18px 8px;
+  color: var(--muted-2);
+  font-size: 11px;
+  text-align: center;
+}

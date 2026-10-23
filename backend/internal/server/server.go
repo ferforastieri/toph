@@ -19,7 +19,7 @@ import (
 	"github.com/ferforastieri/toph/internal/workspace"
 )
 
-const Version = "0.7.1"
+const Version = "0.7.2"
 
 type Server struct {
 	cfg          config.Config
@@ -98,6 +98,7 @@ func (s *Server) Handler() http.Handler {
 
 		r.Get("/api/terminals/{terminalID}/ws", s.terminalWS)
 
+		r.Get("/api/repos", s.listRepos)
 		r.Get("/api/workspaces/roots", s.listWorkspaceRoots)
 		r.Post("/api/workspaces/roots", s.addWorkspaceRoot)
 		r.Delete("/api/workspaces/roots", s.removeWorkspaceRoot)

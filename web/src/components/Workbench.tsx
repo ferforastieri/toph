@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Boxes, FolderPlus, GitBranch, Plus } from "lucide-react";
-import { api, type Project, type SchemaTable, type WebTarget } from "../api";
+import { api, type Repository, type SchemaTable, type WebTarget } from "../api";
 import { basename, quoteIdentifier } from "../lib";
 import { useApp, type Sidebar, type Tab } from "../store";
 import { providerLabel, useAI } from "../ai";
 import ActivityBar from "./ActivityBar";
 import Tabs from "./Tabs";
 import Toasts from "./Toasts";
-import ProjectModal from "./ProjectModal";
+import RepoPicker from "./RepoPicker";
 import FileTree from "../panels/FileTree";
 import SearchPanel from "../panels/SearchPanel";
 import DatabasesPanel from "../panels/DatabasesPanel";
@@ -50,7 +50,7 @@ export default function Workbench() {
   const aiPanelWidth = useSettings((state) => state.aiPanelWidth);
   const updateSettings = useSettings((state) => state.update);
 
-  const [showProjectModal, setShowProjectModal] = useState(false);
+  const [showRepoPicker, setShowRepoPicker] = useState(false);
   const [version, setVersion] = useState("0.1.0");
   const [buildId, setBuildId] = useState("");
   const [gitStatus, setGitStatus] = useState("");
@@ -76,7 +76,7 @@ export default function Workbench() {
       .projects()
       .then((items) => {
         setProjects(items);
-        if (items.length === 0) setShowProjectModal(true);
+        if (items.length === 0) setShowRepoPicker(true);
       })
       .catch((error) => {
         notify("error", error instanceof Error ? error.message : "Could not load projects.");
@@ -299,10 +299,18 @@ export default function Workbench() {
     });
   }
 
-  function projectCreated(next: Project) {
-    setShowProjectModal(false);
+  async function openRepo(repo: Repository) {
+    const existing = projects.find((item) => item.root === repo.path);
+    if (existing) {
+      switchProject(existing.id);
+      setShowRepoPicker(false);
+      return;
+    }
+    const next = await api.createProject(repo.name, repo.path, "#7C9BFF");
     setProjects([...projects, next]);
+    setShowRepoPicker(false);
     switchProject(next.id);
+    notify("success", `Opened ${next.name}.`);
   }
 
   if (projects.length === 0) {
@@ -311,13 +319,13 @@ export default function Workbench() {
         <div className="welcome-card">
           <BrandMark size="large" />
           <h1>Welcome to Toph</h1>
-          <p>Create your first project from a directory on the server.</p>
-          <Button className="primary" onClick={() => setShowProjectModal(true)}>
-            <FolderPlus size={15} /> Create project
+          <p>Open a Git repository from the server.</p>
+          <Button className="primary" onClick={() => setShowRepoPicker(true)}>
+            <FolderPlus size={15} /> Open repository
           </Button>
         </div>
-        {showProjectModal && (
-          <ProjectModal onClose={() => setShowProjectModal(false)} onCreated={projectCreated} />
+        {showRepoPicker && (
+          <RepoPicker onClose={() => setShowRepoPicker(false)} onOpen={openRepo} />
         )}
         <Toasts />
       </main>
@@ -340,7 +348,7 @@ export default function Workbench() {
             placeholder="Select project"
             className="project-select-trigger"
           />
-          <Button className="icon-button" title="New project" onClick={() => setShowProjectModal(true)}>
+          <Button className="icon-button" title="Open repository" onClick={() => setShowRepoPicker(true)}>
             <Plus size={15} />
           </Button>
         </div>
@@ -435,8 +443,8 @@ export default function Workbench() {
         )}
       </div>
 
-      {showProjectModal && (
-        <ProjectModal onClose={() => setShowProjectModal(false)} onCreated={projectCreated} />
+      {showRepoPicker && (
+        <RepoPicker onClose={() => setShowRepoPicker(false)} onOpen={openRepo} />
       )}
       <Toasts />
     </div>

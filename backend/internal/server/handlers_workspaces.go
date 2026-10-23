@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+
+	"github.com/ferforastieri/toph/internal/workspace"
 )
 
 const workspaceRootsSetting = "workspace_roots"
@@ -22,6 +24,18 @@ func (s *Server) LoadWorkspaceRoots(ctx context.Context) error {
 		return nil
 	}
 	return s.workspace.SetRoots(roots)
+}
+
+func (s *Server) listRepos(w http.ResponseWriter, r *http.Request) {
+	repos, err := s.workspace.FindRepos(r.Context(), r.URL.Query().Get("q"), 50)
+	if err != nil {
+		apiError(w, err)
+		return
+	}
+	if repos == nil {
+		repos = []workspace.Repo{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"repos": repos})
 }
 
 func (s *Server) listWorkspaceRoots(w http.ResponseWriter, r *http.Request) {
