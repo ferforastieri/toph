@@ -1,6 +1,7 @@
 import Editor, { type Monaco, type OnMount } from "@monaco-editor/react";
 import { useEffect, useRef } from "react";
 import type { editor } from "monaco-editor";
+import { useResolvedTheme, useSettings } from "../settings";
 
 interface Props {
   path: string;
@@ -13,7 +14,7 @@ interface Props {
   onRun?: () => void;
 }
 
-const theme: editor.IStandaloneThemeData = {
+const darkTheme: editor.IStandaloneThemeData = {
   base: "vs-dark",
   inherit: true,
   rules: [
@@ -48,6 +49,41 @@ const theme: editor.IStandaloneThemeData = {
   },
 };
 
+const lightTheme: editor.IStandaloneThemeData = {
+  base: "vs",
+  inherit: true,
+  rules: [
+    { token: "comment", foreground: "7A8177", fontStyle: "italic" },
+    { token: "keyword", foreground: "9A5B12" },
+    { token: "string", foreground: "3E7A45" },
+    { token: "number", foreground: "A05A18" },
+    { token: "type", foreground: "2F6E76" },
+    { token: "function", foreground: "2E6A3A" },
+    { token: "variable", foreground: "22251F" },
+  ],
+  colors: {
+    "editor.background": "#F7F8F5",
+    "editor.foreground": "#22251F",
+    "editorLineNumber.foreground": "#A2A79D",
+    "editorLineNumber.activeForeground": "#555C52",
+    "editorCursor.foreground": "#4F7A2E",
+    "editor.selectionBackground": "#CFE3B8",
+    "editor.inactiveSelectionBackground": "#E1ECD5",
+    "editor.lineHighlightBackground": "#EEF1EA",
+    "editorIndentGuide.background1": "#DDE2D8",
+    "editorIndentGuide.activeBackground1": "#B8C1B0",
+    "editorWidget.background": "#FFFFFF",
+    "editorWidget.border": "#D7DDD2",
+    "input.background": "#FFFFFF",
+    "input.border": "#CDD5C7",
+    "list.hoverBackground": "#F0F3EC",
+    "list.activeSelectionBackground": "#E4ECD9",
+    "scrollbarSlider.background": "#B8C1B088",
+    "scrollbarSlider.hoverBackground": "#9AA58FAA",
+    "minimap.background": "#F7F8F5",
+  },
+};
+
 export default function CodeEditor({
   path,
   value,
@@ -59,13 +95,17 @@ export default function CodeEditor({
   onRun,
 }: Props) {
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
+  const settings = useSettings();
+  const resolved = useResolvedTheme();
+  const themeName = resolved === "light" ? "toph-light" : "toph-dark";
   const saveRef = useRef(onSave);
   saveRef.current = onSave;
   const runRef = useRef(onRun);
   runRef.current = onRun;
 
   const beforeMount = (monaco: Monaco) => {
-    monaco.editor.defineTheme("toph-dark", theme);
+    monaco.editor.defineTheme("toph-dark", darkTheme);
+    monaco.editor.defineTheme("toph-light", lightTheme);
   };
 
   const onMount: OnMount = (instance, monaco) => {
@@ -95,7 +135,7 @@ export default function CodeEditor({
       path={path}
       language={language}
       value={value}
-      theme="toph-dark"
+      theme={themeName}
       beforeMount={beforeMount}
       onMount={onMount}
       onChange={(next) => onChange(next ?? "")}
@@ -103,9 +143,9 @@ export default function CodeEditor({
       options={{
         readOnly,
         fontFamily: "'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace",
-        fontSize: 13,
-        lineHeight: 21,
-        minimap: { enabled: false },
+        fontSize: settings.editorFontSize,
+        lineHeight: Math.round(settings.editorFontSize * 1.55),
+        minimap: { enabled: settings.minimap },
         automaticLayout: true,
         scrollBeyondLastLine: false,
         smoothScrolling: true,
@@ -113,7 +153,7 @@ export default function CodeEditor({
         renderWhitespace: "selection",
         padding: { top: 10, bottom: 20 },
         tabSize: 2,
-        wordWrap: "off",
+        wordWrap: settings.wordWrap ? "on" : "off",
         fixedOverflowWidgets: true,
       }}
     />

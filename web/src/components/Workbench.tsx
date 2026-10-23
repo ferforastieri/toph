@@ -37,6 +37,7 @@ export default function Workbench() {
 
   const [showProjectModal, setShowProjectModal] = useState(false);
   const [version, setVersion] = useState("0.1.0");
+  const [buildId, setBuildId] = useState("");
   const [gitStatus, setGitStatus] = useState("");
   const loadedProject = useRef<string | null>(null);
 
@@ -46,7 +47,10 @@ export default function Workbench() {
   useEffect(() => {
     api
       .health()
-      .then((health) => setVersion(health.version))
+      .then((health) => {
+        setVersion(health.version);
+        setBuildId(health.buildId ?? "");
+      })
       .catch(() => undefined);
     api
       .projects()
@@ -70,7 +74,7 @@ export default function Workbench() {
       .layout(activeProjectId)
       .then((layout) => {
         if (cancelled) return;
-        const restored = (layout.tabs as Tab[]).filter(
+        const restored = (Array.isArray(layout.tabs) ? (layout.tabs as Tab[]) : []).filter(
           (tab) =>
             tab &&
             typeof tab.id === "string" &&
@@ -308,7 +312,7 @@ export default function Workbench() {
           {project && sidebar === "db" && <DatabasesPanel onOpenQuery={openQuery} onOpenTable={openTable} />}
           {project && sidebar === "ai" && <AiSidebar project={project} onOpenAI={openAI} onOpenSession={openAiSession} />}
           {project && sidebar === "web" && <WebSidebar onOpenWeb={openWeb} />}
-          {sidebar === "settings" && <SettingsPanel version={version} />}
+          {sidebar === "settings" && <SettingsPanel version={version} buildId={buildId} />}
         </aside>
 
         <main className="editor-column">

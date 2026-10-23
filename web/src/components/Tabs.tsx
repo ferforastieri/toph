@@ -6,6 +6,7 @@ import {
   X,
 } from "lucide-react";
 import { useApp, type Tab } from "../store";
+import { useSettings } from "../settings";
 
 const icons = {
   editor: FileCode2,
@@ -19,9 +20,10 @@ export default function Tabs() {
   const activeTabId = useApp((state) => state.activeTabId);
   const setActiveTab = useApp((state) => state.setActiveTab);
   const closeTab = useApp((state) => state.closeTab);
+  const confirmClose = useSettings((state) => state.confirmClose);
 
   function requestClose(tab: Tab) {
-    if (tab.dirty && !window.confirm(`Close ${tab.title} without saving?`)) {
+    if (tab.dirty && confirmClose && !window.confirm(`Close ${tab.title} without saving?`)) {
       return;
     }
     closeTab(tab.id);

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect } from "react";
 import { api, ApiError, type Project } from "../api";
 import { languageFor } from "../lib";
 import { useApp, type Tab } from "../store";
@@ -12,12 +12,10 @@ interface Props {
 export default function EditorPanel({ tab, project }: Props) {
   const updateTab = useApp((state) => state.updateTab);
   const notify = useApp((state) => state.notify);
-  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (tab.content !== undefined || !tab.path) return;
     let cancelled = false;
-    setLoading(true);
     api
       .file(project.id, tab.path)
       .then((file) => {
@@ -28,9 +26,6 @@ export default function EditorPanel({ tab, project }: Props) {
         if (cancelled) return;
         notify("error", error instanceof Error ? error.message : "Could not open file.");
       })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
     return () => {
       cancelled = true;
     };
@@ -51,7 +46,7 @@ export default function EditorPanel({ tab, project }: Props) {
     }
   }, [notify, project.id, tab.content, tab.hash, tab.id, tab.path, updateTab]);
 
-  if (loading || tab.content === undefined) {
+  if (tab.content === undefined) {
     return <div className="editor-loading">Opening {tab.path}...</div>;
   }
 

@@ -4,6 +4,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { RefreshCw, X } from "lucide-react";
 import { api, type Project } from "../api";
 import { useApp } from "../store";
+import { useResolvedTheme, useSettings } from "../settings";
 
 interface Props {
   project: Project;
@@ -16,6 +17,9 @@ export default function TerminalPanel({ project }: Props) {
   const [status, setStatus] = useState<"connecting" | "open" | "closed" | "error">("connecting");
   const [attempt, setAttempt] = useState(0);
   const [error, setError] = useState("");
+  const terminalFontSize = useSettings((state) => state.terminalFontSize);
+  const terminalHeight = useSettings((state) => state.terminalHeight);
+  const resolved = useResolvedTheme();
 
   useEffect(() => {
     if (!hostRef.current) return;
@@ -26,31 +30,54 @@ export default function TerminalPanel({ project }: Props) {
       convertEol: true,
       cursorBlink: true,
       fontFamily: "'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace",
-      fontSize: 12.5,
-      lineHeight: 1.3,
+      fontSize: terminalFontSize,
+      lineHeight: 1.35,
       scrollback: 5000,
-      theme: {
-        background: "#0F120D",
-        foreground: "#EEF1E8",
-        cursor: "#A8C66C",
-        selectionBackground: "#33421F",
-        black: "#0F120D",
-        red: "#D96C5F",
-        green: "#A8C66C",
-        yellow: "#D4A24C",
-        blue: "#7FA7A0",
-        magenta: "#B9A0D6",
-        cyan: "#7FA7A0",
-        white: "#EEF1E8",
-        brightBlack: "#566050",
-        brightRed: "#F08A7D",
-        brightGreen: "#B9D77E",
-        brightYellow: "#E3B662",
-        brightBlue: "#9BC2BA",
-        brightMagenta: "#CDB8E6",
-        brightCyan: "#9BC2BA",
-        brightWhite: "#FFFFFF",
-      },
+      theme: resolved === "light"
+        ? {
+            background: "#F7F8F5",
+            foreground: "#22251F",
+            cursor: "#4F7A2E",
+            selectionBackground: "#CFE3B8",
+            black: "#22251F",
+            red: "#B64B40",
+            green: "#3E7A45",
+            yellow: "#9A6A15",
+            blue: "#2F6E76",
+            magenta: "#7A4E8E",
+            cyan: "#2F6E76",
+            white: "#F7F8F5",
+            brightBlack: "#7A8177",
+            brightRed: "#D46355",
+            brightGreen: "#4F914F",
+            brightYellow: "#B8822A",
+            brightBlue: "#4C8C94",
+            brightMagenta: "#9568AA",
+            brightCyan: "#4C8C94",
+            brightWhite: "#11130F",
+          }
+        : {
+            background: "#0F120D",
+            foreground: "#EEF1E8",
+            cursor: "#A8C66C",
+            selectionBackground: "#33421F",
+            black: "#0F120D",
+            red: "#D96C5F",
+            green: "#A8C66C",
+            yellow: "#D4A24C",
+            blue: "#7FA7A0",
+            magenta: "#B9A0D6",
+            cyan: "#7FA7A0",
+            white: "#EEF1E8",
+            brightBlack: "#566050",
+            brightRed: "#F08A7D",
+            brightGreen: "#B9D77E",
+            brightYellow: "#E3B662",
+            brightBlue: "#9BC2BA",
+            brightMagenta: "#CDB8E6",
+            brightCyan: "#9BC2BA",
+            brightWhite: "#FFFFFF",
+          },
     });
     const fit = new FitAddon();
     term.loadAddon(fit);
@@ -120,10 +147,10 @@ export default function TerminalPanel({ project }: Props) {
       socket?.close();
       term.dispose();
     };
-  }, [attempt, project.id, setTerminalId]);
+  }, [attempt, project.id, setTerminalId, terminalFontSize, resolved]);
 
   return (
-    <section className="terminal-panel">
+    <section className="terminal-panel" style={{ height: terminalHeight }}>
       <div className="terminal-header">
         <div className="terminal-tabs">
           <span className="terminal-tab active">Terminal</span>

@@ -1,14 +1,174 @@
-import { LogOut, Server, UserRound } from "lucide-react";
-import { api } from "../api";
+import { FormEvent, useState } from "react";
+import {
+  Check,
+  Info,
+  LayoutPanelLeft,
+  LogOut,
+  Monitor,
+  Moon,
+  Palette,
+  RotateCcw,
+  Server,
+  ShieldCheck,
+  Sun,
+  TerminalSquare,
+  Type,
+  UserRound,
+} from "lucide-react";
+import { api, getApiBase, probeServer, setApiBase } from "../api";
 import { useApp } from "../store";
+import {
+  type Accent,
+  type BackgroundStyle,
+  type Density,
+  type GlassLevel,
+  type TabStyle,
+  type ThemePreference,
+  useSettings,
+} from "../settings";
 
 interface Props {
   version: string;
+  buildId?: string;
 }
 
-export default function SettingsPanel({ version }: Props) {
+const accents: Array<{ id: Accent; label: string }> = [
+  { id: "jade", label: "Jade" },
+  { id: "ocean", label: "Ocean" },
+  { id: "violet", label: "Violet" },
+  { id: "amber", label: "Amber" },
+  { id: "rose", label: "Rose" },
+  { id: "graphite", label: "Graphite" },
+];
+
+const themes: Array<{ id: ThemePreference; label: string; icon: typeof Sun }> = [
+  { id: "auto", label: "Auto", icon: Monitor },
+  { id: "dark", label: "Dark", icon: Moon },
+  { id: "light", label: "Light", icon: Sun },
+];
+
+function Segmented<T extends string>({
+  value,
+  options,
+  onChange,
+}: {
+  value: T;
+  options: Array<{ id: T; label: string; icon?: typeof Sun }>;
+  onChange: (value: T) => void;
+}) {
+  return (
+    <div className="segmented">
+      {options.map((option) => {
+        const Icon = option.icon;
+        return (
+          <button
+            key={option.id}
+            type="button"
+            className={value === option.id ? "active" : ""}
+            onClick={() => onChange(option.id)}
+          >
+            {Icon && <Icon size={13} />}
+            {option.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function Range({
+  label,
+  value,
+  min,
+  max,
+  step = 1,
+  suffix,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  step?: number;
+  suffix: string;
+  onChange: (value: number) => void;
+}) {
+  return (
+    <label className="settings-range">
+      <span className="settings-range-label">
+        {label}
+        <b>{value}{suffix}</b>
+      </span>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(event) => onChange(Number(event.target.value))}
+      />
+    </label>
+  );
+}
+
+function Toggle({
+  label,
+  checked,
+  onChange,
+}: {
+  label: string;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={`settings-toggle ${checked ? "on" : ""}`}
+      role="switch"
+      aria-checked={checked}
+      onClick={() => onChange(!checked)}
+    >
+      <span>{label}</span>
+      <span className="switch-track"><span className="switch-thumb" /></span>
+    </button>
+  );
+}
+
+const glassOptions: Array<{ id: GlassLevel; label: string }> = [
+  { id: "off", label: "Off" },
+  { id: "subtle", label: "Soft" },
+  { id: "regular", label: "Regular" },
+  { id: "strong", label: "Clear" },
+];
+
+const backgroundOptions: Array<{ id: BackgroundStyle; label: string }> = [
+  { id: "aurora", label: "Aurora" },
+  { id: "mesh", label: "Mesh" },
+  { id: "grid", label: "Grid" },
+  { id: "solid", label: "Solid" },
+];
+
+const densityOptions: Array<{ id: Density; label: string }> = [
+  { id: "compact", label: "Compact" },
+  { id: "comfortable", label: "Comfort" },
+  { id: "spacious", label: "Roomy" },
+];
+
+const tabOptions: Array<{ id: TabStyle; label: string }> = [
+  { id: "glass", label: "Glass" },
+  { id: "underline", label: "Line" },
+  { id: "compact", label: "Compact" },
+];
+
+export default function SettingsPanel({ version, buildId }: Props) {
   const user = useApp((state) => state.user);
   const setUser = useApp((state) => state.setUser);
+  const notify = useApp((state) => state.notify);
+  const settings = useSettings();
+  const update = useSettings((state) => state.update);
+  const reset = useSettings((state) => state.reset);
+  const [serverDraft, setServerDraft] = useState(() => getApiBase() || window.location.origin);
+  const [serverBusy, setServerBusy] = useState(false);
 
   async function logout() {
     try {
@@ -18,13 +178,114 @@ export default function SettingsPanel({ version }: Props) {
     }
   }
 
+  async function changeServer(event: FormEvent) {
+    event.preventDefault();
+    setServerBusy(true);
+    try {
+      const base = await probeServer(serverDraft);
+      localStorage.setItem("toph_server_url", base);
+      setApiBase(base);
+      window.location.reload();
+    } catch (error) {
+      notify("error", error instanceof Error ? error.message : "Could not reach this server.");
+    } finally {
+      setServerBusy(false);
+    }
+  }
+
   return (
-    <div className="panel">
+    <div className="panel settings-panel">
       <div className="panel-heading">
         <span>Settings</span>
+        <span className="settings-version">v{version}</span>
       </div>
-      <div className="settings-block">
-        <div className="settings-label">Account</div>
+
+      <section className="settings-section">
+        <div className="settings-section-title"><Palette size={13} /> Appearance</div>
+        <div className="settings-field">
+          <span>Theme</span>
+          <Segmented value={settings.theme} options={themes} onChange={(theme) => update({ theme })} />
+        </div>
+        <div className="settings-field">
+          <span>Accent</span>
+          <div className="swatches">
+            {accents.map((accent) => (
+              <button
+                key={accent.id}
+                type="button"
+                className={`swatch ${accent.id} ${settings.accent === accent.id ? "active" : ""}`}
+                title={accent.label}
+                aria-label={accent.label}
+                onClick={() => update({ accent: accent.id })}
+              >
+                {settings.accent === accent.id && <Check size={11} />}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="settings-field">
+          <span>Liquid glass</span>
+          <Segmented value={settings.glass} options={glassOptions} onChange={(glass) => update({ glass })} />
+        </div>
+        <div className="settings-field">
+          <span>Background</span>
+          <Segmented value={settings.background} options={backgroundOptions} onChange={(background) => update({ background })} />
+        </div>
+        <Range label="Corner radius" value={settings.radius} min={0} max={32} suffix="px" onChange={(radius) => update({ radius })} />
+        <Toggle label="Animations" checked={settings.motion} onChange={(motion) => update({ motion })} />
+      </section>
+
+      <section className="settings-section">
+        <div className="settings-section-title"><LayoutPanelLeft size={13} /> Layout</div>
+        <Range label="Sidebar width" value={settings.sidebarWidth} min={220} max={460} step={4} suffix="px" onChange={(sidebarWidth) => update({ sidebarWidth })} />
+        <div className="settings-field">
+          <span>Density</span>
+          <Segmented value={settings.density} options={densityOptions} onChange={(density) => update({ density })} />
+        </div>
+        <div className="settings-field">
+          <span>Tab style</span>
+          <Segmented value={settings.tabs} options={tabOptions} onChange={(tabs) => update({ tabs })} />
+        </div>
+        <Toggle label="Status bar" checked={settings.statusBar} onChange={(statusBar) => update({ statusBar })} />
+        <Toggle label="Confirm closing dirty tabs" checked={settings.confirmClose} onChange={(confirmClose) => update({ confirmClose })} />
+      </section>
+
+      <section className="settings-section">
+        <div className="settings-section-title"><Type size={13} /> Editor</div>
+        <Range label="Font size" value={settings.editorFontSize} min={11} max={20} suffix="px" onChange={(editorFontSize) => update({ editorFontSize })} />
+        <Toggle label="Word wrap" checked={settings.wordWrap} onChange={(wordWrap) => update({ wordWrap })} />
+        <Toggle label="Minimap" checked={settings.minimap} onChange={(minimap) => update({ minimap })} />
+      </section>
+
+      <section className="settings-section">
+        <div className="settings-section-title"><TerminalSquare size={13} /> Terminal</div>
+        <Range label="Font size" value={settings.terminalFontSize} min={10} max={18} step={0.5} suffix="px" onChange={(terminalFontSize) => update({ terminalFontSize })} />
+        <Range label="Panel height" value={settings.terminalHeight} min={180} max={520} step={10} suffix="px" onChange={(terminalHeight) => update({ terminalHeight })} />
+      </section>
+
+      <section className="settings-section">
+        <div className="settings-section-title"><Server size={13} /> Server</div>
+        <form className="settings-server" onSubmit={(event) => void changeServer(event)}>
+          <label>
+            Server URL
+            <input
+              value={serverDraft}
+              onChange={(event) => setServerDraft(event.target.value)}
+              placeholder="https://seu-servidor"
+              autoComplete="url"
+            />
+          </label>
+          <button className="ghost small" disabled={serverBusy || !serverDraft.trim()}>
+            {serverBusy ? "Checking..." : "Apply and reconnect"}
+          </button>
+        </form>
+        <p className="settings-note">
+          The URL is stored only in this browser. Changing it signs you out of the current server.
+        </p>
+      </section>
+
+      <section className="settings-section">
+        <div className="settings-section-title"><ShieldCheck size={13} /> Account</div>
         <div className="settings-row">
           <UserRound size={15} />
           <span>{user?.username ?? "unknown"}</span>
@@ -32,17 +293,20 @@ export default function SettingsPanel({ version }: Props) {
         <button className="ghost small" onClick={() => void logout()}>
           <LogOut size={14} /> Sign out
         </button>
-      </div>
-      <div className="settings-block">
-        <div className="settings-label">Server</div>
-        <div className="settings-row">
-          <Server size={15} />
-          <span>Toph {version}</span>
-        </div>
-        <p className="muted small">
-          Self-hosted workbench. Sessions, repositories and credentials stay on this server.
+      </section>
+
+      <section className="settings-section">
+        <div className="settings-section-title"><Info size={13} /> About</div>
+        <div className="settings-kv"><span>Toph</span><b>{version}</b></div>
+        {buildId && <div className="settings-kv"><span>Build</span><b>{buildId}</b></div>}
+        <div className="settings-kv"><span>Server</span><b>{getApiBase() || window.location.origin}</b></div>
+        <p className="settings-note">
+          Self-hosted workbench. Repositories, sessions and credentials stay on your server.
         </p>
-      </div>
+        <button className="ghost small" onClick={reset}>
+          <RotateCcw size={14} /> Reset appearance
+        </button>
+      </section>
     </div>
   );
 }
