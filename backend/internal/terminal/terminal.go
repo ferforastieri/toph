@@ -10,7 +10,11 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"strconv"
+	"strings"
 	"sync"
+	"syscall"
+	"time"
 
 	"github.com/coder/websocket"
 	"github.com/creack/pty"
@@ -104,6 +108,24 @@ func (m *Manager) Close(id string) {
 	if s, ok := m.Get(id); ok {
 		s.Close()
 	}
+}
+
+// CloseProject stops every terminal session attached to a project. Killing the
+// process group also stops child processes such as dev servers started from the
+// terminal.
+func (m *Manager) CloseProject(projectID string) int {
+	m.mu.Lock()
+	sessions := make([]*Session, 0)
+	for _, s := range m.sessions {
+		if s.ProjectID == projectID {
+			sessions = append(sessions, s)
+		}
+	}
+	m.mu.Unlock()
+	for _, s := range sessions {
+		s.Close()
+	}
+	return len(sessions)
 }
 
 func (m *Manager) CloseAll() {
@@ -214,9 +236,20 @@ func (s *Session) Close() {
 	s.closed = true
 	s.closeClientsLocked()
 	s.mu.Unlock()
-	_ = s.cmd.Process.Kill()
+	if s.cmd.Process != nil {
+		// pty.Start makes the shell a session leader. Interactive job control
+		// gives foreground jobs their own process group, so kill the whole
+		// session rather than only the shell's group.
+		killSession(s.cmd.Process.Pid)
+		_ = syscall.Kill(-s.cmd.Process.Pid, syscall.SIGKILL)
+		_ = s.cmd.Process.Kill()
+	}
 	_ = s.pty.Close()
-	<-s.done
+	// Do not let a stuck PTY reader hold the HTTP request open forever.
+	select {
+	case <-s.done:
+	case <-time.After(2 * time.Second):
+	}
 }
 
 // Serve upgrades an HTTP request to a terminal WebSocket. Binary frames are
@@ -279,6 +312,39 @@ func (s *Session) Serve(w http.ResponseWriter, r *http.Request) error {
 			if err := json.Unmarshal(data, &msg); err == nil && msg.Type == "resize" {
 				_ = s.Resize(msg.Cols, msg.Rows)
 			}
+		}
+	}
+}
+
+func killSession(sessionID int) {
+	entries, err := os.ReadDir("/proc")
+	if err != nil {
+		return
+	}
+	for _, entry := range entries {
+		pid, err := strconv.Atoi(entry.Name())
+		if err != nil || pid <= 1 {
+			continue
+		}
+		data, err := os.ReadFile("/proc/" + entry.Name() + "/stat")
+		if err != nil {
+			continue
+		}
+		text := string(data)
+		end := strings.LastIndex(text, ")")
+		if end < 0 {
+			continue
+		}
+		fields := strings.Fields(text[end+1:])
+		if len(fields) < 4 {
+			continue
+		}
+		sid, err := strconv.Atoi(fields[3])
+		if err != nil {
+			continue
+		}
+		if sid == sessionID {
+			_ = syscall.Kill(pid, syscall.SIGKILL)
 		}
 	}
 }

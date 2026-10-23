@@ -349,6 +349,12 @@ export const api = {
     });
   },
 
+  async closeProjectTerminals(projectId: string): Promise<{ ok: boolean; closed: number }> {
+    return request(`/projects/${encodeURIComponent(projectId)}/terminals`, {
+      method: "DELETE",
+    });
+  },
+
   async dbProfiles(): Promise<DBProfile[]> {
     return request<DBProfile[]>("/db/profiles");
   },

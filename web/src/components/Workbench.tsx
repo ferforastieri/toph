@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Boxes, FolderPlus, GitBranch, Plus } from "lucide-react";
+import { Boxes, FolderPlus, GitBranch, Plus, X } from "lucide-react";
 import { api, type Repository, type SchemaTable, type WebTarget } from "../api";
 import { basename, quoteIdentifier } from "../lib";
 import { useApp, type Sidebar, type Tab } from "../store";
@@ -21,7 +21,6 @@ import WebPanelTab from "../panels/WebPanelTab";
 import TerminalPanel from "../panels/TerminalPanel";
 import { Button } from "../ui/Button";
 import BrandMark from "../brand/BrandMark";
-import { Select } from "../ui/Select";
 import ResizeHandle from "../ui/ResizeHandle";
 import { useSettings } from "../settings";
 
@@ -30,6 +29,8 @@ export default function Workbench() {
   const activeProjectId = useApp((state) => state.activeProjectId);
   const setProjects = useApp((state) => state.setProjects);
   const setActiveProject = useApp((state) => state.setActiveProject);
+  const openProjectIds = useApp((state) => state.openProjectIds);
+  const closeProjectTab = useApp((state) => state.closeProjectTab);
   const tabs = useApp((state) => state.tabs);
   const activeTabId = useApp((state) => state.activeTabId);
   const setTabs = useApp((state) => state.setTabs);
@@ -175,6 +176,7 @@ export default function Workbench() {
   }, [activeProjectId, layoutKey, layoutTabs, terminalOpen, sidebar, activeTabId]);
 
   function switchProject(next: string) {
+    if (next === activeProjectId) return;
     if (project && loadedProject.current === project.id) {
       void api.saveLayout(project.id, {
         tabs: layoutTabs,
@@ -307,19 +309,37 @@ export default function Workbench() {
       return;
     }
     const next = await api.createProject(repo.name, repo.path, "#7C9BFF");
+    setActiveProject(next.id);
     setProjects([...projects, next]);
     setShowRepoPicker(false);
-    switchProject(next.id);
     notify("success", `Opened ${next.name}.`);
   }
 
-  if (projects.length === 0) {
+  async function closeProject(id: string) {
+    const target = projects.find((item) => item.id === id);
+    if (!target) return;
+    if (activeProjectId === id && loadedProject.current === id) {
+      await api
+        .saveLayout(id, { tabs: layoutTabs, activeTabId, sidebar, terminalOpen })
+        .catch(() => undefined);
+    }
+    try {
+      await api.closeProjectTerminals(id);
+    } catch (error) {
+      notify("error", error instanceof Error ? error.message : "Could not stop project terminals.");
+    }
+    if (activeProjectId === id) loadedProject.current = null;
+    closeProjectTab(id);
+    notify("info", `Closed ${target.name}. Terminals stopped.`);
+  }
+
+  if (projects.length === 0 || !project) {
     return (
       <main className="empty-workbench">
         <div className="welcome-card">
           <BrandMark size="large" />
           <h1>Welcome to Toph</h1>
-          <p>Open a Git repository from the server.</p>
+          <p>{projects.length === 0 ? "Open a Git repository from the server." : "Open a project tab to continue."}</p>
           <Button className="primary" onClick={() => setShowRepoPicker(true)}>
             <FolderPlus size={15} /> Open repository
           </Button>
@@ -340,14 +360,39 @@ export default function Workbench() {
           <span>Toph</span>
         </div>
         <div className="project-switcher">
-          <Select
-            value={activeProjectId ?? ""}
-            options={projects.map((item) => ({ value: item.id, label: item.name }))}
-            onChange={switchProject}
-            label="Project"
-            placeholder="Select project"
-            className="project-select-trigger"
-          />
+          <div className="project-tabs" role="tablist" aria-label="Open projects">
+            {openProjectIds.map((id) => {
+              const item = projects.find((projectItem) => projectItem.id === id);
+              if (!item) return null;
+              return (
+                <div
+                  key={item.id}
+                  className={`project-tab ${item.id === activeProjectId ? "active" : ""}`}
+                  role="tab"
+                  aria-selected={item.id === activeProjectId}
+                >
+                  <Button
+                    className="project-tab-main"
+                    title={item.root}
+                    onClick={() => switchProject(item.id)}
+                  >
+                    {item.name}
+                  </Button>
+                  <Button
+                    className="project-tab-close"
+                    title={`Close ${item.name}`}
+                    aria-label={`Close ${item.name}`}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      void closeProject(item.id);
+                    }}
+                  >
+                    <X size={11} />
+                  </Button>
+                </div>
+              );
+            })}
+          </div>
           <Button className="icon-button" title="Open repository" onClick={() => setShowRepoPicker(true)}>
             <Plus size={15} />
           </Button>

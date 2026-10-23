@@ -3899,3 +3899,60 @@ body.resize-active * {
   font-size: 11px;
   text-align: center;
 }
+
+/* Project tabs */
+.project-switcher {
+  min-width: 0;
+  max-width: min(62vw, 760px);
+}
+.project-tabs {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.project-tabs::-webkit-scrollbar { display: none; }
+.project-tab {
+  display: flex;
+  align-items: center;
+  flex: none;
+  height: 34px;
+  border: 1px solid var(--border-soft);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--surface-2) 55%, transparent);
+  color: var(--muted);
+  overflow: hidden;
+}
+.project-tab:hover { color: var(--text); border-color: var(--border); }
+.project-tab.active {
+  color: var(--text-strong);
+  border-color: color-mix(in srgb, var(--primary) 52%, var(--border));
+  background: var(--primary-soft);
+  box-shadow: inset 0 1px 0 var(--glass-highlight);
+}
+.project-tab-main {
+  height: 32px;
+  max-width: 170px;
+  padding: 0 5px 0 10px;
+  overflow: hidden;
+  color: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.project-tab-close {
+  width: 24px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  color: var(--muted-2);
+  border-radius: 0 8px 8px 0;
+}
+.project-tab-close:hover { color: var(--error); background: rgba(217, 108, 95, 0.12); }
+@media (max-width: 680px) {
+  .project-switcher { max-width: calc(100vw - 190px); }
+  .project-tab-main { max-width: 112px; }
+}

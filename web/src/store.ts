@@ -46,6 +46,7 @@ interface AppState {
   authReady: boolean;
   projects: Project[];
   activeProjectId: string | null;
+  openProjectIds: string[];
   tabs: Tab[];
   activeTabId: string | null;
   sidebar: Sidebar;
@@ -60,6 +61,7 @@ interface AppState {
   setAuthReady: (ready: boolean) => void;
   setProjects: (projects: Project[]) => void;
   setActiveProject: (id: string | null) => void;
+  closeProjectTab: (id: string) => void;
   openTab: (tab: Tab) => void;
   closeTab: (id: string) => void;
   setActiveTab: (id: string) => void;
@@ -86,6 +88,7 @@ export const useApp = create<AppState>((set, get) => ({
   authReady: false,
   projects: [],
   activeProjectId: null,
+  openProjectIds: [],
   tabs: [],
   activeTabId: null,
   sidebar: "files",
@@ -100,14 +103,40 @@ export const useApp = create<AppState>((set, get) => ({
   setUser: (user) => set({ user }),
   setAuthReady: (authReady) => set({ authReady }),
   setProjects: (projects) =>
-    set((state) => ({
-      projects,
-      activeProjectId:
+    set((state) => {
+      const activeProjectId =
         state.activeProjectId && projects.some((p) => p.id === state.activeProjectId)
           ? state.activeProjectId
-          : (projects[0]?.id ?? null),
+          : (projects[0]?.id ?? null);
+      const openProjectIds = state.openProjectIds.filter((id) =>
+        projects.some((project) => project.id === id),
+      );
+      if (activeProjectId && !openProjectIds.includes(activeProjectId)) {
+        openProjectIds.push(activeProjectId);
+      }
+      return { projects, activeProjectId, openProjectIds };
+    }),
+  setActiveProject: (activeProjectId) =>
+    set((state) => ({
+      activeProjectId,
+      openProjectIds:
+        activeProjectId && !state.openProjectIds.includes(activeProjectId)
+          ? [...state.openProjectIds, activeProjectId]
+          : state.openProjectIds,
     })),
-  setActiveProject: (activeProjectId) => set({ activeProjectId }),
+  closeProjectTab: (id) =>
+    set((state) => {
+      const index = state.openProjectIds.indexOf(id);
+      const openProjectIds = state.openProjectIds.filter((item) => item !== id);
+      let activeProjectId = state.activeProjectId;
+      if (activeProjectId === id) {
+        activeProjectId =
+          openProjectIds[Math.min(index, openProjectIds.length - 1)] ?? null;
+      }
+      const terminalIds = { ...state.terminalIds };
+      delete terminalIds[id];
+      return { openProjectIds, activeProjectId, terminalIds };
+    }),
   openTab: (tab) =>
     set((state) => {
       const existing = state.tabs.find((item) => item.id === tab.id);

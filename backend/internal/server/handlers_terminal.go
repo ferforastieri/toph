@@ -18,6 +18,12 @@ func (s *Server) createTerminal(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (s *Server) closeProjectTerminals(w http.ResponseWriter, r *http.Request) {
+	project := currentProject(r)
+	closed := s.terminals.CloseProject(project.ID)
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "closed": closed})
+}
+
 func (s *Server) terminalWS(w http.ResponseWriter, r *http.Request) {
 	session, ok := s.terminals.Get(chi.URLParam(r, "terminalID"))
 	if !ok {

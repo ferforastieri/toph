@@ -16,6 +16,7 @@ The installed server does not serve the landing page or documentation. The landi
 - Browse and edit project files with tabs, a file tree, search and Git status.
 - Run a real terminal attached to the server, with a draggable terminal height and working keyboard input.
 - Open repositories from a searchable repository picker; names are derived automatically.
+- Open projects as top-level tabs. Closing a project tab stops its terminal sessions and child processes without deleting the project.
 - Edit SQL table rows with primary-key safety.
 - Connect to PostgreSQL, MySQL/MariaDB, SQLite, SQL Server, Oracle, ClickHouse, Cassandra, MongoDB, Redis, Elasticsearch and Neo4j, inspect schemas, run queries and inspect results.
 - Talk to OpenCode, OpenAI-compatible endpoints, Codex, Claude or Ollama from the Agent tab without leaving the workbench.

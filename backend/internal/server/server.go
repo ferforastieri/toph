@@ -19,7 +19,7 @@ import (
 	"github.com/ferforastieri/toph/internal/workspace"
 )
 
-const Version = "0.7.2"
+const Version = "0.7.3"
 
 type Server struct {
 	cfg          config.Config
@@ -93,6 +93,7 @@ func (s *Server) Handler() http.Handler {
 				r.Get("/workspace", s.getWorkspace)
 				r.Put("/workspace", s.saveWorkspace)
 				r.Post("/terminals", s.createTerminal)
+				r.Delete("/terminals", s.closeProjectTerminals)
 			})
 		})
 
