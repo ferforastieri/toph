@@ -136,7 +136,14 @@ export function getApiBase(): string {
 export async function probeServer(raw: string): Promise<string> {
   let base = raw.trim().replace(/\/+$/, "");
   if (!/^https?:\/\//i.test(base)) {
-    base = `https://${base}`;
+    const host = base.split("/")[0].split(":")[0];
+    const local =
+      host === "localhost" ||
+      host === "127.0.0.1" ||
+      host.startsWith("192.168.") ||
+      host.startsWith("10.") ||
+      /^172\.(1[6-9]|2[0-9]|3[01])\./.test(host);
+    base = `${local ? "http" : "https"}://${base}`;
   }
   const response = await fetch(`${base}${API_BASE}/health`, {
     headers: { Accept: "application/json" },
