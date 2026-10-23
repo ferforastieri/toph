@@ -2,6 +2,7 @@ package com.ferforastieri.toph.data
 
 import java.net.URLEncoder
 import java.util.concurrent.TimeUnit
+import com.ferforastieri.toph.BuildConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
@@ -210,6 +211,7 @@ class TophApi(val baseUrl: String, private val token: String?) {
     ): T = withContext(Dispatchers.IO) {
         val builder = Request.Builder()
             .url("$baseUrl$path")
+            .header("User-Agent", "Toph-Android/${BuildConfig.VERSION_NAME}")
             .method(method, body?.toRequestBody(jsonMedia))
         if (authenticated && !token.isNullOrBlank()) {
             builder.header("Authorization", "Bearer $token")
@@ -248,6 +250,7 @@ class TophApi(val baseUrl: String, private val token: String?) {
                 .newCall(
                     Request.Builder()
                         .url("$base/api/health")
+                        .header("User-Agent", "Toph-Android/${BuildConfig.VERSION_NAME}")
                         .build(),
                 ).execute()
             response.use {
@@ -259,17 +262,18 @@ class TophApi(val baseUrl: String, private val token: String?) {
             base
         }
 
-        suspend fun login(baseUrl: String, username: String, password: String): LoginResponse {
-            val api = TophApi(normalizeBaseUrl(baseUrl), null)
-            return try {
-                val body = Json.encodeToString(
-                    LoginRequest(username = username, password = password, kind = "mobile"),
-                )
-                api.request("POST", "/api/auth/login", body, authenticated = false)
-            } finally {
-                api.close()
+        suspend fun login(baseUrl: String, username: String, password: String): LoginResponse =
+            withContext(Dispatchers.IO) {
+                val api = TophApi(normalizeBaseUrl(baseUrl), null)
+                try {
+                    val body = Json.encodeToString(
+                        LoginRequest(username = username, password = password, kind = "mobile"),
+                    )
+                    api.request("POST", "/api/auth/login", body, authenticated = false)
+                } finally {
+                    api.close()
+                }
             }
-        }
 
         fun normalizeBaseUrl(raw: String): String {
             var value = raw.trim().trimEnd('/')

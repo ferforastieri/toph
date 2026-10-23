@@ -23,11 +23,13 @@ import com.ferforastieri.toph.data.languageFor
 import com.ferforastieri.toph.data.WebTarget
 import com.ferforastieri.toph.data.WorkTab
 import java.util.UUID
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.contentOrNull
@@ -106,14 +108,20 @@ class TophViewModel(application: Application) : AndroidViewModel(application) {
         }
         _state.update { it.copy(busy = true, error = null) }
         viewModelScope.launch {
+            var stage = "login"
             try {
-                val result = TophApi.login(baseUrl, username, password)
+                val result = withContext(Dispatchers.IO) {
+                    TophApi.login(baseUrl, username, password)
+                }
+                stage = "session"
                 token = result.token
                 api = TophApi(baseUrl, result.token)
+                stage = "state"
                 _state.update {
                     it.copy(user = result.user, baseUrl = baseUrl, busy = false, error = null)
                 }
                 runCatching { session.save(baseUrl, result.token, result.user.username) }
+                stage = "projects"
                 loadProjects()
                 checkForUpdates()
             } catch (error: Exception) {
@@ -122,7 +130,7 @@ class TophViewModel(application: Application) : AndroidViewModel(application) {
                 _state.update {
                     it.copy(
                         busy = false,
-                        error = detail,
+                        error = "$stage: $detail",
                     )
                 }
             }
