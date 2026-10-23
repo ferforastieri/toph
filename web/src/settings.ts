@@ -21,13 +21,11 @@ export interface AppearanceSettings {
   terminalFontSize: number;
   terminalHeight: number;
   motion: boolean;
-  statusBar: boolean;
   confirmClose: boolean;
   wordWrap: boolean;
   minimap: boolean;
   respectReducedTransparency: boolean;
   aiPanelWidth: number;
-  settingsVersion?: number;
 }
 
 export interface SettingsState extends AppearanceSettings {
@@ -50,13 +48,11 @@ export const defaultSettings: AppearanceSettings = {
   terminalFontSize: 12.5,
   terminalHeight: 280,
   motion: true,
-  statusBar: false,
   confirmClose: true,
   wordWrap: false,
   minimap: false,
   respectReducedTransparency: false,
   aiPanelWidth: 390,
-  settingsVersion: 2,
 };
 
 const themes: ThemePreference[] = ["auto", "dark", "light"];
@@ -99,9 +95,7 @@ function readSettings(): AppearanceSettings {
       minimap: value.minimap === true,
       respectReducedTransparency: value.respectReducedTransparency === true,
       aiPanelWidth: numberIn(value.aiPanelWidth, 300, 620, defaultSettings.aiPanelWidth),
-      settingsVersion: 2,
-      statusBar: value.settingsVersion === 2 ? value.statusBar === true : false,
-    };
+        };
   } catch {
     return defaultSettings;
   }
@@ -128,7 +122,6 @@ export function applyAppearance(settings: AppearanceSettings): void {
   root.dataset.density = settings.density;
   root.dataset.tabs = settings.tabs;
   root.dataset.motion = settings.motion ? "on" : "off";
-  root.dataset.status = settings.statusBar ? "on" : "off";
   root.dataset.reducedTransparency = settings.respectReducedTransparency ? "on" : "off";
   root.style.setProperty("--radius", `${settings.radius}px`);
   root.style.setProperty("--sidebar-width", `${settings.sidebarWidth}px`);
@@ -160,14 +153,12 @@ export const useSettings = create<SettingsState>((set, get) => ({
       terminalFontSize: next.terminalFontSize,
       terminalHeight: next.terminalHeight,
       motion: next.motion,
-      statusBar: next.statusBar,
       confirmClose: next.confirmClose,
       wordWrap: next.wordWrap,
       minimap: next.minimap,
       respectReducedTransparency: next.respectReducedTransparency,
       aiPanelWidth: next.aiPanelWidth,
-      settingsVersion: 2,
-    };
+        };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
     applyAppearance(settings);
     set(settings);

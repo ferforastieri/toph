@@ -1,12 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Bot, Boxes, FolderPlus, GitBranch, Plus, TerminalSquare } from "lucide-react";
+import { Boxes, FolderPlus, GitBranch, Plus } from "lucide-react";
 import { api, type Project, type SchemaTable, type WebTarget } from "../api";
 import { basename, quoteIdentifier } from "../lib";
 import { useApp, type Sidebar, type Tab } from "../store";
 import { providerLabel, useAI } from "../ai";
 import ActivityBar from "./ActivityBar";
 import Tabs from "./Tabs";
-import StatusBar from "./StatusBar";
 import Toasts from "./Toasts";
 import ProjectModal from "./ProjectModal";
 import FileTree from "../panels/FileTree";
@@ -36,7 +35,6 @@ export default function Workbench() {
   const setSidebar = useApp((state) => state.setSidebar);
   const terminalOpen = useApp((state) => state.terminalOpen);
   const setTerminalOpen = useApp((state) => state.setTerminalOpen);
-  const toggleTerminal = useApp((state) => state.toggleTerminal);
   const notify = useApp((state) => state.notify);
   const aiPanelOpen = useApp((state) => state.aiPanelOpen);
   const setAiPanelOpen = useApp((state) => state.setAiPanelOpen);
@@ -345,12 +343,6 @@ export default function Workbench() {
           {branch && (
             <span className="titlebar-chip"><GitBranch size={12} /> {branch}</span>
           )}
-          <Button className={`titlebar-chip ${aiPanelOpen ? "active" : ""}`} onClick={toggleAI} title="Toggle agent">
-            <Bot size={13} /> {providerLabel(aiProvider)}
-          </Button>
-          <Button className="titlebar-chip" onClick={toggleTerminal} title="Toggle terminal">
-            <TerminalSquare size={13} /> Terminal
-          </Button>
           <span className="titlebar-version">v{version}</span>
         </div>
         <div className="titlebar-note">
@@ -413,10 +405,6 @@ export default function Workbench() {
           </aside>
         )}
       </div>
-
-      {project && (
-        <StatusBar project={project} version={version} gitStatus={gitStatus} />
-      )}
 
       {showProjectModal && (
         <ProjectModal onClose={() => setShowProjectModal(false)} onCreated={projectCreated} />

@@ -307,7 +307,6 @@ export default function SettingsPanel({ version, buildId }: Props) {
             <span>Tab style</span>
             <Segmented value={settings.tabs} options={tabOptions} onChange={(tabs) => update({ tabs })} />
           </div>
-          <Toggle label="Show footer status bar" checked={settings.statusBar} onChange={(statusBar) => update({ statusBar })} />
           <Toggle label="Confirm closing dirty tabs" checked={settings.confirmClose} onChange={(confirmClose) => update({ confirmClose })} />
         </div>
       )}

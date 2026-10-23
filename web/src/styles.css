@@ -2512,9 +2512,9 @@ a:focus-visible {
 
 .workbench {
   height: 100dvh;
-  padding: 10px 10px 8px;
+  padding: 10px 10px 10px;
   gap: 8px;
-  grid-template-rows: var(--titlebar-height) minmax(0, 1fr) var(--status-height);
+  grid-template-rows: var(--titlebar-height) minmax(0, 1fr);
   background: transparent;
 }
 
@@ -2843,11 +2843,6 @@ textarea:focus {
 .status-button:hover,
 .status-button.active { background: var(--primary-soft); color: var(--primary); }
 
-html[data-status="off"] .status-bar { display: none; }
-html[data-status="off"] .workbench {
-  grid-template-rows: var(--titlebar-height) minmax(0, 1fr);
-  padding-bottom: 10px;
-}
 
 .terminal-panel {
   height: var(--terminal-height);
@@ -3063,12 +3058,10 @@ html[data-status="off"] .workbench {
 }
 
 @media (max-width: 680px) {
-  .workbench { padding: 0; gap: 0; grid-template-rows: var(--titlebar-height) minmax(0, 1fr) var(--status-height); }
+  .workbench { padding: 0; gap: 0; grid-template-rows: var(--titlebar-height) minmax(0, 1fr); }
   .titlebar { border-radius: 0; border-width: 0 0 1px; }
   .workbench-body { border-radius: 0; border-width: 0; grid-template-columns: var(--activity-width) minmax(0, 1fr); }
   .sidebar { border-radius: 0 var(--radius-lg) var(--radius-lg) 0; border: 1px solid var(--glass-border); backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate)); background: var(--glass-bg-strong); }
-  .status-bar { border-radius: 0; border-width: 1px 0 0; }
-  html[data-status="off"] .workbench { padding-bottom: 0; }
   .terminal-panel { margin: 4px; }
 }
 
