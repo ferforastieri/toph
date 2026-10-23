@@ -50,31 +50,63 @@ class TophViewModel(application: Application) : AndroidViewModel(application) {
     init {
         val baseUrl = session.baseUrl
         val savedToken = session.token
-        if (baseUrl.isNullOrBlank() || savedToken.isNullOrBlank()) {
+        if (baseUrl.isNullOrBlank()) {
             _state.update { it.copy(booting = false) }
         } else {
-            api = TophApi(baseUrl, savedToken)
-            token = savedToken
             _state.update { it.copy(baseUrl = baseUrl) }
-            checkForUpdates()
-            viewModelScope.launch {
-                runCatching { requireApi().me() }
-                    .onSuccess { user ->
-                        _state.update { it.copy(user = user) }
-                        loadProjects()
-                    }
-                    .onFailure { clearSession() }
+            if (savedToken.isNullOrBlank()) {
                 _state.update { it.copy(booting = false) }
+            } else {
+                api = TophApi(baseUrl, savedToken)
+                token = savedToken
+                checkForUpdates()
+                viewModelScope.launch {
+                    runCatching { requireApi().me() }
+                        .onSuccess { user ->
+                            _state.update { it.copy(user = user) }
+                            loadProjects()
+                        }
+                        .onFailure { clearSession() }
+                    _state.update { it.copy(booting = false) }
+                }
             }
         }
     }
 
-    fun login(rawBaseUrl: String, username: String, password: String) {
+    fun connectServer(rawBaseUrl: String) {
         if (_state.value.busy) return
         _state.update { it.copy(busy = true, error = null) }
         viewModelScope.launch {
             try {
-                val baseUrl = TophApi.normalizeBaseUrl(rawBaseUrl)
+                val baseUrl = TophApi.probe(rawBaseUrl)
+                session.saveBaseUrl(baseUrl)
+                _state.update { it.copy(baseUrl = baseUrl, busy = false, error = null) }
+            } catch (error: Exception) {
+                _state.update {
+                    it.copy(busy = false, error = error.message ?: "Could not reach this server.")
+                }
+            }
+        }
+    }
+
+    fun changeServer() {
+        api?.close()
+        api = null
+        token = null
+        session.clearToken()
+        _state.value = UiState(booting = false, baseUrl = _state.value.baseUrl)
+    }
+
+    fun login(username: String, password: String) {
+        if (_state.value.busy) return
+        val baseUrl = _state.value.baseUrl
+        if (baseUrl.isBlank()) {
+            _state.update { it.copy(error = "Choose a server first.") }
+            return
+        }
+        _state.update { it.copy(busy = true, error = null) }
+        viewModelScope.launch {
+            try {
                 val result = TophApi.login(baseUrl, username, password)
                 session.save(baseUrl, result.token, result.user.username)
                 token = result.token
@@ -808,8 +840,8 @@ class TophViewModel(application: Application) : AndroidViewModel(application) {
         api?.close()
         api = null
         token = null
-        session.clear()
-        _state.value = UiState(booting = false)
+        session.clearToken()
+        _state.value = UiState(booting = false, baseUrl = _state.value.baseUrl)
     }
 
     private fun requireApi(): TophApi =

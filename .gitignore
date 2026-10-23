@@ -16,17 +16,17 @@ NOTES.local.md
 web/node_modules/
 web/dist/
 web/.vite/
-web/public/monaco/
+web/app/public/monaco/
 
-internal/webui/dist/*
-!internal/webui/dist/.keep
+backend/internal/webui/dist/*
+!backend/internal/webui/dist/.keep
 
-android/.gradle/
-android/.kotlin/
-android/build/
-android/app/build/
-android/local.properties
-android/editor/node_modules/
-android/captures/
+mobile/.gradle/
+mobile/.kotlin/
+mobile/build/
+mobile/app/build/
+mobile/local.properties
+mobile/editor/node_modules/
+mobile/captures/
 *.jks
 *.keystore

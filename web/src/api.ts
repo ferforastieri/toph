@@ -123,6 +123,34 @@ export class ApiError extends Error {
 }
 
 const API_BASE = "/api";
+let apiBase = "";
+
+export function setApiBase(value: string): void {
+  apiBase = value.trim().replace(/\/+$/, "");
+}
+
+export function getApiBase(): string {
+  return apiBase;
+}
+
+export async function probeServer(raw: string): Promise<string> {
+  let base = raw.trim().replace(/\/+$/, "");
+  if (!/^https?:\/\//i.test(base)) {
+    base = `https://${base}`;
+  }
+  const response = await fetch(`${base}${API_BASE}/health`, {
+    headers: { Accept: "application/json" },
+    credentials: "omit",
+  });
+  if (!response.ok) {
+    throw new Error(`Server returned ${response.status}.`);
+  }
+  const body = (await response.json()) as { name?: string };
+  if (body.name !== "toph") {
+    throw new Error("That URL does not point to a Toph server.");
+  }
+  return base;
+}
 
 function csrfToken(): string {
   const match = document.cookie.match(/(?:^|;\s*)toph_csrf=([^;]+)/);
@@ -141,7 +169,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
       headers.set("X-Toph-CSRF", csrf);
     }
   }
-  const response = await fetch(`${API_BASE}${path}`, {
+  const response = await fetch(`${apiBase}${API_BASE}${path}`, {
     ...options,
     headers,
     credentials: "include",
@@ -330,4 +358,6 @@ export const api = {
   },
 };
 
-export const openCodeBase = `${window.location.origin}/api/opencode`;
+export function openCodeBase(): string {
+  return `${apiBase}${API_BASE}/opencode`;
+}

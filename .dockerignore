@@ -4,9 +4,9 @@ data
 bin
 web/node_modules
 web/dist
-web/public/monaco
-internal/webui/dist
-android
+web/app/public/monaco
+backend/internal/webui/dist
+mobile
 NOTES.local.md
 *.db
 *.db-shm

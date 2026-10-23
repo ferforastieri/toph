@@ -41,10 +41,9 @@ import com.ferforastieri.toph.data.UiState
 
 @Composable
 fun LoginScreen(viewModel: TophViewModel, state: UiState) {
-    var baseUrl by rememberSaveable { mutableStateOf(state.baseUrl.ifBlank { "http://" }) }
     var username by rememberSaveable { mutableStateOf("admin") }
     var password by rememberSaveable { mutableStateOf("") }
-    val canSubmit = baseUrl.isNotBlank() && username.isNotBlank() && password.isNotBlank()
+    val canSubmit = username.isNotBlank() && password.isNotBlank()
 
     LaunchedEffect(state.error) {
         // The inline error is enough; clear it when the user edits the form.
@@ -99,17 +98,11 @@ fun LoginScreen(viewModel: TophViewModel, state: UiState) {
                     )
                 }
                 Spacer(Modifier.height(4.dp))
-                OutlinedTextField(
-                    value = baseUrl,
-                    onValueChange = { baseUrl = it },
-                    label = { Text("Server URL") },
-                    placeholder = { Text("http://192.168.1.10:8787") },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Uri,
-                        imeAction = ImeAction.Next,
-                    ),
-                    modifier = Modifier.fillMaxWidth(),
+                Text(
+                    state.baseUrl,
+                    color = TophMuted2,
+                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                    fontSize = 10.sp,
                 )
                 OutlinedTextField(
                     value = username,
@@ -139,7 +132,7 @@ fun LoginScreen(viewModel: TophViewModel, state: UiState) {
                     )
                 }
                 Button(
-                    onClick = { viewModel.login(baseUrl, username, password) },
+                    onClick = { viewModel.login(username, password) },
                     enabled = canSubmit && !state.busy,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = TophJade,
@@ -166,10 +159,9 @@ fun LoginScreen(viewModel: TophViewModel, state: UiState) {
                     lineHeight = 15.sp,
                 )
                 TextButton(
-                    onClick = { viewModel.clearError() },
-                    enabled = state.error != null,
+                    onClick = viewModel::changeServer,
                 ) {
-                    Text("Clear error", color = TophMuted2, fontSize = 11.sp)
+                    Text("Change server", color = TophMuted2, fontSize = 11.sp)
                 }
             }
         }

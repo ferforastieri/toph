@@ -18,13 +18,20 @@ func (s *Server) staticHandler() http.Handler {
 	}
 	fileServer := http.FileServer(http.FS(fsys))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/docs" || r.URL.Path == "/docs/" {
-			http.Redirect(w, r, "/docs.html", http.StatusMovedPermanently)
-			return
-		}
 		if strings.HasPrefix(r.URL.Path, "/api/") {
 			writeError(w, http.StatusNotFound, "not found")
 			return
+		}
+		if r.URL.Path == "/" {
+			http.Redirect(w, r, "/app/", http.StatusFound)
+			return
+		}
+		if r.URL.Path == "/app" {
+			http.Redirect(w, r, "/app/", http.StatusFound)
+			return
+		}
+		if strings.HasPrefix(r.URL.Path, "/app/") {
+			r.URL.Path = strings.TrimPrefix(r.URL.Path, "/app")
 		}
 		path := strings.TrimPrefix(r.URL.Path, "/")
 		if path == "" {

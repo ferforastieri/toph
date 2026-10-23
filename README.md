@@ -22,6 +22,17 @@ Toph is built for people who keep their own services, repositories and data on m
 - Use the same backend from the browser and from the Android app.
 - Get an in-app toast when a new web build or Android release is available.
 
+## Repository layout
+
+```text
+backend/   Go API, workspace, terminals, databases, OpenCode proxy
+mobile/    Android app (Kotlin/Compose)
+web/       landing page and web application (separate builds)
+deploy/    Docker Compose
+```
+
+The backend embeds only the application. The landing page is built and deployed separately.
+
 ## Architecture
 
 ```text
@@ -56,6 +67,7 @@ The Go server is the only component that touches repositories, database credenti
 
 ```sh
 cp .env.example .env
+cd backend
 go run ./cmd/toph
 ```
 
@@ -64,10 +76,17 @@ In another terminal:
 ```sh
 cd web
 npm install
-npm run dev
+npm run dev:app
 ```
 
-Open `http://localhost:5173`. The Vite dev server proxies `/api` and WebSocket traffic to `http://127.0.0.1:8787`.
+Landing page, separately:
+
+```sh
+cd web
+npm run dev:landing
+```
+
+App: `http://localhost:5173/app/`. Landing: `http://localhost:5174/`.
 
 ### Production build
 
@@ -101,10 +120,10 @@ Mount the repositories you want to expose under `/workspaces` and keep `TOPH_DAT
 
 Download the signed APK from [GitHub Releases](https://github.com/ferforastieri/toph/releases). Debug APKs are not published.
 
-For development, the Android client lives in `android/`. It needs JDK 17+, Android SDK 36 and either `ANDROID_HOME` or `android/local.properties` pointing at the SDK. A local debug build is only for development:
+For development, the mobile client lives in `mobile/`. It needs JDK 17+, Android SDK 36 and either `ANDROID_HOME` or `mobile/local.properties` pointing at the SDK. A local debug build is only for development:
 
 ```sh
-cd android
+cd mobile
 ./gradlew assembleDebug
 ```
 

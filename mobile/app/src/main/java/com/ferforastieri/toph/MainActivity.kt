@@ -11,6 +11,7 @@ import com.ferforastieri.toph.ui.BootScreen
 import com.ferforastieri.toph.ui.LoginScreen
 import com.ferforastieri.toph.ui.TophTheme
 import com.ferforastieri.toph.ui.TophViewModel
+import com.ferforastieri.toph.ui.ServerSetupScreen
 import com.ferforastieri.toph.ui.WorkbenchScreen
 
 class MainActivity : ComponentActivity() {
@@ -23,6 +24,7 @@ class MainActivity : ComponentActivity() {
                 val state by viewModel.state.collectAsStateWithLifecycle()
                 when {
                     state.booting -> BootScreen()
+                    state.baseUrl.isBlank() -> ServerSetupScreen(viewModel, state)
                     state.user == null -> LoginScreen(viewModel, state)
                     else -> WorkbenchScreen(viewModel, state)
                 }

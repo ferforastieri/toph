@@ -20,6 +20,14 @@ class SessionStore(context: Context) {
         get() = prefs.getString(KEY_USERNAME, null)
         private set(value) = prefs.edit().putString(KEY_USERNAME, value).apply()
 
+    fun saveBaseUrl(baseUrl: String) {
+        prefs.edit().putString(KEY_BASE_URL, baseUrl).apply()
+    }
+
+    fun clearToken() {
+        prefs.edit().remove(KEY_TOKEN).remove(KEY_USERNAME).apply()
+    }
+
     fun save(baseUrl: String, token: String, username: String) {
         prefs.edit()
             .putString(KEY_BASE_URL, baseUrl)

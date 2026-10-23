@@ -19,7 +19,7 @@ export default function AiSidebar({ project, onOpenAI, onOpenSession }: Props) {
 
   useEffect(() => {
     let cancelled = false;
-    const client = OpenCode.make({ baseUrl: openCodeBase });
+    const client = OpenCode.make({ baseUrl: openCodeBase() });
     client.server
       .info()
       .then(() => {

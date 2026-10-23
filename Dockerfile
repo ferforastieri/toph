@@ -5,14 +5,14 @@ WORKDIR /src/web
 COPY web/package.json web/package-lock.json ./
 RUN npm ci
 COPY web/ ./
-RUN npm run build
+RUN npm run build:app
 
 FROM golang:1.26-bookworm AS build
-WORKDIR /src
-COPY go.mod go.sum ./
+WORKDIR /src/backend
+COPY backend/go.mod backend/go.sum ./
 RUN go mod download
-COPY . .
-COPY --from=web /src/web/dist ./internal/webui/dist
+COPY backend/ ./
+COPY --from=web /src/web/dist/app ./internal/webui/dist
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/toph ./cmd/toph
 
 FROM debian:bookworm-slim

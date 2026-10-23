@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const source = resolve(here, "../node_modules/monaco-editor/min/vs");
-const target = resolve(here, "../public/monaco/vs");
+const target = resolve(here, "../app/public/monaco/vs");
 
 if (!existsSync(source)) {
   console.error("monaco-editor is not installed; run npm install first");

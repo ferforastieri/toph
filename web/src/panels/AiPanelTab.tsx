@@ -21,7 +21,7 @@ export default function AiPanelTab({ tab, project }: Props) {
   const [input, setInput] = useState("");
   const [error, setError] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
-  const client = useMemo(() => OpenCode.make({ baseUrl: openCodeBase }), []);
+  const client = useMemo(() => OpenCode.make({ baseUrl: openCodeBase() }), []);
   const loadedHistory = useRef<string | null>(null);
 
   useEffect(() => {

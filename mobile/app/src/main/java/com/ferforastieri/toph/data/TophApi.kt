@@ -239,6 +239,26 @@ class TophApi(val baseUrl: String, private val token: String?) {
     }
 
     companion object {
+        suspend fun probe(raw: String): String {
+            val base = normalizeBaseUrl(raw)
+            val response = OkHttpClient.Builder()
+                .connectTimeout(10, TimeUnit.SECONDS)
+                .readTimeout(10, TimeUnit.SECONDS)
+                .build()
+                .newCall(
+                    Request.Builder()
+                        .url("$base/api/health")
+                        .build(),
+                ).execute()
+            response.use {
+                if (!it.isSuccessful) throw ApiException(it.code, "Server returned ${it.code}")
+                val body = it.body?.string().orEmpty()
+                val health = Json { ignoreUnknownKeys = true }.decodeFromString<Health>(body)
+                if (health.name != "toph") throw ApiException(400, "That URL does not point to a Toph server.")
+            }
+            return base
+        }
+
         suspend fun login(baseUrl: String, username: String, password: String): LoginResponse {
             val api = TophApi(normalizeBaseUrl(baseUrl), null)
             return try {
@@ -255,7 +275,11 @@ class TophApi(val baseUrl: String, private val token: String?) {
             var value = raw.trim().trimEnd('/')
             if (value.isBlank()) return value
             if (!value.startsWith("http://") && !value.startsWith("https://")) {
-                value = "http://$value"
+                val host = value.substringBefore('/').substringBefore(':')
+                val local = host == "localhost" || host == "127.0.0.1" ||
+                    host.startsWith("192.168.") || host.startsWith("10.") ||
+                    Regex("^172\\.(1[6-9]|2[0-9]|3[01])\\.").containsMatchIn(host)
+                value = if (local) "http://$value" else "https://$value"
             }
             return value
         }

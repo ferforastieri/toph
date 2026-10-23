@@ -2,7 +2,11 @@ import { FormEvent, useState } from "react";
 import { api, ApiError } from "../api";
 import { useApp } from "../store";
 
-export default function Login() {
+interface Props {
+  onChangeServer?: () => void;
+}
+
+export default function Login({ onChangeServer }: Props) {
   const setUser = useApp((state) => state.setUser);
   const notify = useApp((state) => state.notify);
   const [username, setUsername] = useState("admin");
@@ -67,6 +71,11 @@ export default function Login() {
           Toph is self-hosted. If this is a fresh install, the initial password was printed
           in the server log.
         </p>
+        {onChangeServer && (
+          <button type="button" className="ghost small" onClick={onChangeServer}>
+            Change server
+          </button>
+        )}
       </div>
     </main>
   );
