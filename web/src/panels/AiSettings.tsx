@@ -63,7 +63,7 @@ export default function AiSettings() {
     const preset = providers.find((item) => item.id === provider);
     patch({
       provider,
-      baseUrl: form.baseUrl || preset?.base || "",
+      baseUrl: provider === "custom" ? form.baseUrl : (preset?.base ?? ""),
       autocomplete: provider === "opencode" ? false : form.autocomplete,
     });
   }
