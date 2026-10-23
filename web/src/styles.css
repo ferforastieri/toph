@@ -4088,3 +4088,20 @@ body.resize-active * {
 }
 .diff-editor-host .monaco-diff-editor,
 .diff-editor-host .monaco-diff-editor .diffOverview { height: 100%; }
+
+.scm-branch-button {
+  width: 27px;
+  height: 25px;
+  margin-left: 2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  color: var(--muted-2);
+}
+.scm-branch-button:hover { color: var(--primary); background: var(--primary-soft); }
+.scm-branch-plus { margin-left: -3px; margin-top: -7px; }
+.scm-section-actions { display: inline-flex; align-items: center; gap: 2px; }
+.scm-commit-actions { display: grid; grid-template-columns: 1fr 1.4fr; gap: 5px; }
+.scm-commit-actions .ui-button { min-width: 0; padding: 0 7px; font-size: 10.5px; }
+.scm-action.danger:hover { color: var(--error); background: rgba(217, 108, 95, 0.12); }

@@ -373,6 +373,21 @@ export const api = {
     });
   },
 
+  async gitCreateBranch(projectId: string, name: string): Promise<string> {
+    const response = await request<{ name: string }>(
+      `/projects/${encodeURIComponent(projectId)}/git/branch`,
+      { method: "POST", ...json({ name }) },
+    );
+    return response.name;
+  },
+
+  async gitDiscard(projectId: string, paths: string[], staged: boolean): Promise<void> {
+    await request(`/projects/${encodeURIComponent(projectId)}/git/discard`, {
+      method: "POST",
+      ...json({ paths, staged }),
+    });
+  },
+
   async gitCommit(projectId: string, message: string): Promise<string> {
     const response = await request<{ output: string }>(
       `/projects/${encodeURIComponent(projectId)}/git/commit`,

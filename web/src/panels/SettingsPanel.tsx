@@ -1,6 +1,7 @@
 import { FormEvent, useState, type ReactNode } from "react";
 import {
   Check,
+  GitBranch,
   HardDrive,
   Info,
   LayoutPanelLeft,
@@ -45,6 +46,7 @@ type Category =
   | "terminal"
   | "ai"
   | "workspace"
+  | "git"
   | "server"
   | "account"
   | "about";
@@ -56,6 +58,7 @@ const categories: Array<{ id: Category; label: string; icon: typeof Sun }> = [
   { id: "terminal", label: "Terminal", icon: TerminalSquare },
   { id: "ai", label: "AI", icon: Sparkles },
   { id: "workspace", label: "Workspace", icon: HardDrive },
+  { id: "git", label: "Git", icon: GitBranch },
   { id: "server", label: "Server", icon: Server },
   { id: "account", label: "Account", icon: UserRound },
   { id: "about", label: "About", icon: Info },
@@ -345,6 +348,37 @@ export default function SettingsPanel({ version, buildId }: Props) {
 
       {category === "ai" && <AiSettings />}
       {category === "workspace" && <WorkspaceSettings />}
+
+      {category === "git" && (
+        <div className="settings-page">
+          <PageTitle icon={GitBranch}>Git</PageTitle>
+          <form className="settings-form" onSubmit={(event) => event.preventDefault()}>
+            <label>
+              Branch pattern
+              <input
+                value={settings.gitBranchPattern}
+                onChange={(event) => update({ gitBranchPattern: event.target.value })}
+                placeholder="feature/{datetime}"
+                spellCheck={false}
+              />
+            </label>
+            <label>
+              Commit message pattern
+              <input
+                value={settings.gitCommitPattern}
+                onChange={(event) => update({ gitCommitPattern: event.target.value })}
+                placeholder="chore: update {date}"
+                spellCheck={false}
+              />
+            </label>
+          </form>
+          <p className="settings-note">
+            Tokens: <code>{"{date}"}</code>, <code>{"{time}"}</code>, <code>{"{datetime}"}</code>,{" "}
+            <code>{"{repo}"}</code>, <code>{"{branch}"}</code> and <code>{"{user}"}</code>.
+            The branch button and commit action use these patterns.
+          </p>
+        </div>
+      )}
 
       {category === "server" && (
         <div className="settings-page">

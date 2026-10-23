@@ -141,6 +141,38 @@ func (s *Server) gitDiff(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"diff": diff})
 }
 
+type gitDiscardRequest struct {
+	Paths  []string `json:"paths"`
+	Staged bool     `json:"staged"`
+}
+
+func (s *Server) gitDiscard(w http.ResponseWriter, r *http.Request) {
+	var req gitDiscardRequest
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	if err := s.workspace.GitDiscard(r.Context(), currentProject(r).Root, req.Paths, req.Staged); err != nil {
+		apiError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+func (s *Server) gitCreateBranch(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Name string `json:"name"`
+	}
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	name, err := s.workspace.GitCreateBranch(r.Context(), currentProject(r).Root, req.Name)
+	if err != nil {
+		apiError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"name": name})
+}
+
 func (s *Server) gitFileVersions(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Query().Get("path")
 	if path == "" {

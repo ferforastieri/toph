@@ -1,7 +1,6 @@
-import { FormEvent, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Search } from "lucide-react";
 import { api, type Project, type SearchMatch } from "../api";
-import { useApp } from "../store";
 import { Button } from "../ui/Button";
 
 interface Props {
@@ -14,22 +13,41 @@ export default function SearchPanel({ project, onOpenFile }: Props) {
   const [matches, setMatches] = useState<SearchMatch[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const notify = useApp((state) => state.notify);
 
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    if (!query.trim()) return;
-    setBusy(true);
-    setError("");
-    try {
-      setMatches(await api.search(project.id, query));
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Search failed.";
-      setError(message);
-      notify("error", message);
-    } finally {
+  useEffect(() => {
+    const text = query.trim();
+    if (!text) {
+      setMatches([]);
+      setError("");
       setBusy(false);
+      return;
     }
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      setBusy(true);
+      api
+        .search(project.id, text)
+        .then((items) => {
+          if (!cancelled) {
+            setMatches(items);
+            setError("");
+          }
+        })
+        .catch((err) => {
+          if (!cancelled) setError(err instanceof Error ? err.message : "Search failed.");
+        })
+        .finally(() => {
+          if (!cancelled) setBusy(false);
+        });
+    }, 300);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [project.id, query]);
+
+  function submit(event: FormEvent) {
+    event.preventDefault();
   }
 
   return (
@@ -50,7 +68,7 @@ export default function SearchPanel({ project, onOpenFile }: Props) {
       </form>
       {busy && <div className="panel-muted">Searching...</div>}
       {error && <div className="panel-error">{error}</div>}
-      {!busy && !error && matches.length === 0 && query && (
+      {!busy && !error && matches.length === 0 && query.trim() && (
         <div className="panel-muted">No matches.</div>
       )}
       <div className="search-results">

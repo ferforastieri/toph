@@ -29,6 +29,8 @@ export interface AppearanceSettings {
   respectReducedTransparency: boolean;
   aiPanelWidth: number;
   iconTheme: IconTheme;
+  gitBranchPattern: string;
+  gitCommitPattern: string;
 }
 
 export interface SettingsState extends AppearanceSettings {
@@ -57,6 +59,8 @@ export const defaultSettings: AppearanceSettings = {
   respectReducedTransparency: false,
   aiPanelWidth: 390,
   iconTheme: "toph",
+  gitBranchPattern: "feature/{datetime}",
+  gitCommitPattern: "chore: update {date}",
 };
 
 const themes: ThemePreference[] = ["auto", "dark", "light", "brand", "nightwolf"];
@@ -69,6 +73,10 @@ const tabStyles: TabStyle[] = ["glass", "underline", "compact"];
 
 function choose<T extends string>(value: unknown, options: T[], fallback: T): T {
   return typeof value === "string" && options.includes(value as T) ? (value as T) : fallback;
+}
+
+function stringIn(value: unknown, fallback: string): string {
+  return typeof value === "string" && value.trim() ? value : fallback;
 }
 
 function numberIn(value: unknown, min: number, max: number, fallback: number): number {
@@ -101,6 +109,8 @@ function readSettings(): AppearanceSettings {
       respectReducedTransparency: value.respectReducedTransparency === true,
       aiPanelWidth: numberIn(value.aiPanelWidth, 300, 620, defaultSettings.aiPanelWidth),
       iconTheme: choose(value.iconTheme, iconThemes, defaultSettings.iconTheme),
+      gitBranchPattern: stringIn(value.gitBranchPattern, defaultSettings.gitBranchPattern),
+      gitCommitPattern: stringIn(value.gitCommitPattern, defaultSettings.gitCommitPattern),
     };
   } catch {
     return defaultSettings;
@@ -165,6 +175,8 @@ export const useSettings = create<SettingsState>((set, get) => ({
       respectReducedTransparency: next.respectReducedTransparency,
       aiPanelWidth: next.aiPanelWidth,
       iconTheme: next.iconTheme,
+      gitBranchPattern: next.gitBranchPattern,
+      gitCommitPattern: next.gitCommitPattern,
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
     applyAppearance(settings);

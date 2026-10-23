@@ -92,3 +92,34 @@ export function relativeTime(value: string): string {
   if (days < 30) return `${days}d ago`;
   return new Date(timestamp).toLocaleDateString();
 }
+
+export function expandGitPattern(
+  pattern: string,
+  values: { repo: string; branch: string; user: string },
+): string {
+  const now = new Date();
+  const pad = (value: number) => String(value).padStart(2, "0");
+  const date = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  const time = `${pad(now.getHours())}-${pad(now.getMinutes())}`;
+  const tokens: Record<string, string> = {
+    date,
+    time,
+    datetime: `${date}-${time}`,
+    repo: values.repo,
+    branch: values.branch || "main",
+    user: values.user || "user",
+  };
+  return pattern.replace(/\{(date|time|datetime|repo|branch|user)\}/g, (_, key: string) => tokens[key] ?? "");
+}
+
+export function sanitizeBranchName(value: string): string {
+  const cleaned = value
+    .trim()
+    .replace(/\s+/g, "-")
+    .replace(/[~^:?*\\[\]]+/g, "-")
+    .replace(/\.\.+/g, ".")
+    .replace(/\/{2,}/g, "/")
+    .replace(/^[-./]+|[-./]+$/g, "")
+    .replace(/\.lock$/i, "");
+  return cleaned || "feature/update";
+}

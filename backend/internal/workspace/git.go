@@ -208,3 +208,51 @@ func gitShow(ctx context.Context, root, spec string) string {
 	}
 	return string(out)
 }
+
+func (s *Service) GitCreateBranch(ctx context.Context, root, name string) (string, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return "", fmt.Errorf("branch name is required")
+	}
+	check := exec.CommandContext(ctx, "git", "-C", root, "check-ref-format", "--branch", name)
+	if out, err := check.CombinedOutput(); err != nil {
+		return "", fmt.Errorf("%s", strings.TrimSpace(string(out)))
+	}
+	cmd := exec.CommandContext(ctx, "git", "-C", root, "switch", "-c", name)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("%s", strings.TrimSpace(string(out)))
+	}
+	return name, nil
+}
+
+func (s *Service) GitDiscard(ctx context.Context, root string, paths []string, staged bool) error {
+	if len(paths) == 0 {
+		return fmt.Errorf("no paths provided")
+	}
+	for _, path := range paths {
+		rel, err := s.gitPath(root, path, false)
+		if err != nil {
+			return err
+		}
+		tracked := exec.CommandContext(ctx, "git", "-C", root, "ls-files", "--error-unmatch", "--", rel).Run() == nil
+		if !tracked {
+			if err := os.RemoveAll(filepath.Join(root, filepath.FromSlash(rel))); err != nil {
+				return err
+			}
+			continue
+		}
+		args := []string{"-C", root, "restore"}
+		if staged {
+			args = append(args, "--staged", "--worktree")
+		} else {
+			args = append(args, "--worktree")
+		}
+		args = append(args, "--", rel)
+		cmd := exec.CommandContext(ctx, "git", args...)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			return fmt.Errorf("%s", strings.TrimSpace(string(out)))
+		}
+	}
+	return nil
+}

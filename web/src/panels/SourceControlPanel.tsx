@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Check, GitBranch, Minus, Plus, RefreshCw } from "lucide-react";
+import { Check, GitBranch, Minus, Plus, RefreshCw, Sparkles, Trash2 } from "lucide-react";
 import { api, type Project } from "../api";
+import { expandGitPattern, sanitizeBranchName } from "../lib";
+import { useSettings } from "../settings";
 import { useApp } from "../store";
 import { Button } from "../ui/Button";
+import { useConfirm } from "../ui/Confirm";
 
 interface Props {
   project: Project;
@@ -52,6 +55,9 @@ function statusLabel(change: Change): string {
 
 export default function SourceControlPanel({ project, onOpenDiff }: Props) {
   const notify = useApp((state) => state.notify);
+  const user = useApp((state) => state.user);
+  const settings = useSettings();
+  const confirm = useConfirm();
   const [status, setStatus] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState("");
@@ -101,16 +107,75 @@ export default function SourceControlPanel({ project, onOpenDiff }: Props) {
     }
   }
 
+  function generateCommitMessage(): string {
+    return expandGitPattern(settings.gitCommitPattern, {
+      repo: project.name,
+      branch: parsed.branch,
+      user: user?.username ?? "",
+    }).trim();
+  }
+
   async function commit() {
-    if (!message.trim() || !staged.length) return;
+    const finalMessage = message.trim() || generateCommitMessage();
+    if (!finalMessage || !staged.length) return;
     setBusy("commit");
     try {
-      await api.gitCommit(project.id, message.trim());
+      await api.gitCommit(project.id, finalMessage);
       setMessage("");
       await load();
       notify("success", "Changes committed.");
     } catch (err) {
       notify("error", err instanceof Error ? err.message : "Could not commit changes.");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function createBranch() {
+    const base = sanitizeBranchName(expandGitPattern(settings.gitBranchPattern, {
+      repo: project.name,
+      branch: parsed.branch,
+      user: user?.username ?? "",
+    }));
+    setBusy("branch");
+    try {
+      let name = base;
+      for (let attempt = 2; attempt < 8; attempt += 1) {
+        try {
+          const created = await api.gitCreateBranch(project.id, name);
+          await load();
+          notify("success", `Branch ${created} created.`);
+          return;
+        } catch (err) {
+          const text = err instanceof Error ? err.message : "";
+          if (!/already exists|já existe/i.test(text)) throw err;
+          name = `${base}-${attempt}`;
+        }
+      }
+      throw new Error("Could not create a unique branch name.");
+    } catch (err) {
+      notify("error", err instanceof Error ? err.message : "Could not create branch.");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function discard(paths: string[], stagedChange: boolean) {
+    if (!paths.length) return;
+    const ok = await confirm({
+      title: "Discard changes?",
+      message: `Discard ${paths.length === 1 ? paths[0] : `${paths.length} files`}? This cannot be undone.`,
+      confirmLabel: "Discard",
+      danger: true,
+    });
+    if (!ok) return;
+    setBusy("discard");
+    try {
+      await api.gitDiscard(project.id, paths, stagedChange);
+      await load();
+      notify("success", "Changes discarded.");
+    } catch (err) {
+      notify("error", err instanceof Error ? err.message : "Could not discard changes.");
     } finally {
       setBusy("");
     }
@@ -128,6 +193,16 @@ export default function SourceControlPanel({ project, onOpenDiff }: Props) {
         <GitBranch size={13} />
         <span>{parsed.branch || "detached"}</span>
         <b>{parsed.changes.length}</b>
+        <Button
+          className="icon-button scm-branch-button"
+          title="Create branch from pattern"
+          aria-label="Create branch from pattern"
+          disabled={Boolean(busy)}
+          onClick={() => void createBranch()}
+        >
+          <GitBranch size={13} />
+          <Plus size={9} className="scm-branch-plus" />
+        </Button>
       </div>
 
       {error && <div className="panel-error">{error}</div>}
@@ -142,13 +217,23 @@ export default function SourceControlPanel({ project, onOpenDiff }: Props) {
             if ((event.ctrlKey || event.metaKey) && event.key === "Enter") void commit();
           }}
         />
-        <Button
-          className="primary scm-commit-button"
-          disabled={!message.trim() || staged.length === 0 || Boolean(busy)}
-          onClick={() => void commit()}
-        >
-          <Check size={13} /> Commit
-        </Button>
+        <div className="scm-commit-actions">
+          <Button
+            className="ghost scm-generate"
+            title="Generate message from settings pattern"
+            disabled={Boolean(busy)}
+            onClick={() => setMessage(generateCommitMessage())}
+          >
+            <Sparkles size={13} /> Generate
+          </Button>
+          <Button
+            className="primary scm-commit-button"
+            disabled={staged.length === 0 || Boolean(busy)}
+            onClick={() => void commit()}
+          >
+            <Check size={13} /> Commit
+          </Button>
+        </div>
       </div>
 
       <div className="scm-sections">
@@ -156,9 +241,14 @@ export default function SourceControlPanel({ project, onOpenDiff }: Props) {
           <section className="scm-section">
             <div className="scm-section-head">
               <span>Staged Changes</span>
-              <Button className="icon-button" title="Unstage all" onClick={() => void unstage(staged.map((change) => change.path))}>
-                <Minus size={13} />
-              </Button>
+              <span className="scm-section-actions">
+                <Button className="icon-button" title="Unstage all" onClick={() => void unstage(staged.map((change) => change.path))}>
+                  <Minus size={13} />
+                </Button>
+                <Button className="icon-button danger" title="Discard all staged changes" onClick={() => void discard(staged.map((change) => change.path), true)}>
+                  <Trash2 size={13} />
+                </Button>
+              </span>
             </div>
             {staged.map((change) => (
               <div className="scm-file" key={`staged:${change.path}`}>
@@ -169,6 +259,9 @@ export default function SourceControlPanel({ project, onOpenDiff }: Props) {
                 <Button className="scm-action" title="Unstage" onClick={() => void unstage([change.path])}>
                   <Minus size={12} />
                 </Button>
+                <Button className="scm-action danger" title="Discard changes" onClick={() => void discard([change.path], true)}>
+                  <Trash2 size={12} />
+                </Button>
               </div>
             ))}
           </section>
@@ -178,9 +271,14 @@ export default function SourceControlPanel({ project, onOpenDiff }: Props) {
           <div className="scm-section-head">
             <span>Changes</span>
             {unstaged.length > 0 && (
-              <Button className="icon-button" title="Stage all" onClick={() => void stage(unstaged.map((change) => change.path))}>
-                <Plus size={13} />
-              </Button>
+              <span className="scm-section-actions">
+                <Button className="icon-button" title="Stage all" onClick={() => void stage(unstaged.map((change) => change.path))}>
+                  <Plus size={13} />
+                </Button>
+                <Button className="icon-button danger" title="Discard all changes" onClick={() => void discard(unstaged.map((change) => change.path), false)}>
+                  <Trash2 size={13} />
+                </Button>
+              </span>
             )}
           </div>
           {unstaged.length === 0 && staged.length === 0 && !error && (
@@ -196,6 +294,9 @@ export default function SourceControlPanel({ project, onOpenDiff }: Props) {
               </Button>
               <Button className="scm-action" title="Stage" onClick={() => void stage([change.path])}>
                 <Plus size={12} />
+              </Button>
+              <Button className="scm-action danger" title="Discard changes" onClick={() => void discard([change.path], false)}>
+                <Trash2 size={12} />
               </Button>
             </div>
           ))}
