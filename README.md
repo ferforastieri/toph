@@ -14,7 +14,7 @@ The installed server does not serve the landing page or documentation. The landi
 ## What it does
 
 - Browse and edit project files with tabs, a file tree, search and Git status.
-- Run a real terminal attached to the server.
+- Run a real terminal attached to the server, with a draggable terminal height and working keyboard input.
 - Edit SQL table rows with primary-key safety.
 - Connect to PostgreSQL, MySQL/MariaDB, SQLite, SQL Server, Oracle, ClickHouse, Cassandra, MongoDB, Redis, Elasticsearch and Neo4j, inspect schemas, run queries and inspect results.
 - Talk to OpenCode, OpenAI-compatible endpoints, Codex, Claude or Ollama from the Agent tab without leaving the workbench.
@@ -25,7 +25,7 @@ The installed server does not serve the landing page or documentation. The landi
 - Switch between projects without losing the state of the current one.
 - Use the same backend from the browser and from the Android app.
 - Get an in-app toast when a new web build or Android release is available.
-- Personalize the web app with light/dark/auto themes, the Toph brand palette, Night Wolf Black, accents, liquid-glass intensity, backgrounds, radius, density, sidebar width, editor and terminal typography, tab styles, and file icon themes.
+- Personalize the web app with light/dark/auto themes, the Toph brand palette, Night Wolf Black, accents, liquid-glass intensity, backgrounds, radius, density, sidebar width, editor and terminal typography, tab styles, and file icon themes. Drag the sidebar, agent dock and terminal edges to resize them.
 
 ## Repository layout
 

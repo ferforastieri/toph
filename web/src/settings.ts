@@ -93,7 +93,7 @@ function readSettings(): AppearanceSettings {
       sidebarWidth: numberIn(value.sidebarWidth, 220, 460, defaultSettings.sidebarWidth),
       editorFontSize: numberIn(value.editorFontSize, 11, 20, defaultSettings.editorFontSize),
       terminalFontSize: numberIn(value.terminalFontSize, 10, 18, defaultSettings.terminalFontSize),
-      terminalHeight: numberIn(value.terminalHeight, 180, 520, defaultSettings.terminalHeight),
+      terminalHeight: numberIn(value.terminalHeight, 180, 640, defaultSettings.terminalHeight),
       motion: value.motion !== false,
       confirmClose: value.confirmClose !== false,
       wordWrap: value.wordWrap === true,

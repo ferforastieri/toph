@@ -6,6 +6,7 @@ import { api, type Project } from "../api";
 import { useApp } from "../store";
 import { useResolvedTheme, useSettings } from "../settings";
 import { Button } from "../ui/Button";
+import ResizeHandle from "../ui/ResizeHandle";
 
 interface Props {
   project: Project;
@@ -20,6 +21,7 @@ export default function TerminalPanel({ project }: Props) {
   const [error, setError] = useState("");
   const terminalFontSize = useSettings((state) => state.terminalFontSize);
   const terminalHeight = useSettings((state) => state.terminalHeight);
+  const updateSettings = useSettings((state) => state.update);
   const accent = useSettings((state) => state.accent);
   const resolved = useResolvedTheme();
 
@@ -132,6 +134,7 @@ export default function TerminalPanel({ project }: Props) {
     term.loadAddon(fit);
     term.open(hostRef.current);
     fit.fit();
+    term.focus();
 
     async function connect() {
       try {
@@ -177,8 +180,11 @@ export default function TerminalPanel({ project }: Props) {
       }
     }
 
+    const encoder = new TextEncoder();
     term.onData((data) => {
-      if (socket?.readyState === WebSocket.OPEN) socket.send(data);
+      // xterm input is binary terminal data. Text frames are reserved for
+      // resize/control messages by the backend.
+      if (socket?.readyState === WebSocket.OPEN) socket.send(encoder.encode(data));
     });
     term.onResize(({ cols, rows }) => {
       if (socket?.readyState === WebSocket.OPEN) {
@@ -199,7 +205,18 @@ export default function TerminalPanel({ project }: Props) {
   }, [accent, attempt, project.id, setTerminalId, terminalFontSize, resolved]);
 
   return (
-    <section className="terminal-panel" style={{ height: terminalHeight }}>
+    <section className="terminal-panel">
+      <ResizeHandle
+        className="terminal-resize"
+        orientation="horizontal"
+        value={terminalHeight}
+        min={180}
+        max={640}
+        invert
+        label="Resize terminal"
+        onChange={(height) => document.documentElement.style.setProperty("--terminal-height", `${height}px`)}
+        onCommit={(height) => updateSettings({ terminalHeight: height })}
+      />
       <div className="terminal-header">
         <div className="terminal-tabs">
           <span className="terminal-tab active">Terminal</span>

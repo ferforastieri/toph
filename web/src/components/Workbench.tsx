@@ -22,6 +22,8 @@ import TerminalPanel from "../panels/TerminalPanel";
 import { Button } from "../ui/Button";
 import BrandMark from "../brand/BrandMark";
 import { Select } from "../ui/Select";
+import ResizeHandle from "../ui/ResizeHandle";
+import { useSettings } from "../settings";
 
 export default function Workbench() {
   const projects = useApp((state) => state.projects);
@@ -44,6 +46,9 @@ export default function Workbench() {
   const loadAI = useAI((state) => state.load);
   const loadModels = useAI((state) => state.loadModels);
   const aiProvider = useAI((state) => state.config?.provider);
+  const sidebarWidth = useSettings((state) => state.sidebarWidth);
+  const aiPanelWidth = useSettings((state) => state.aiPanelWidth);
+  const updateSettings = useSettings((state) => state.update);
 
   const [showProjectModal, setShowProjectModal] = useState(false);
   const [version, setVersion] = useState("0.1.0");
@@ -354,6 +359,16 @@ export default function Workbench() {
 
       <div className={`workbench-body ${aiPanelOpen && project ? "ai-open" : ""}`}>
         <ActivityBar onOpenAI={toggleAI} />
+        <ResizeHandle
+          className="sidebar-resize"
+          orientation="vertical"
+          value={sidebarWidth}
+          min={220}
+          max={460}
+          label="Resize sidebar"
+          onChange={(width) => document.documentElement.style.setProperty("--sidebar-width", `${width}px`)}
+          onCommit={(width) => updateSettings({ sidebarWidth: width })}
+        />
         <aside className="sidebar">
           {project && sidebar === "files" && <FileTree project={project} onOpenFile={openFile} />}
           {project && sidebar === "search" && <SearchPanel project={project} onOpenFile={openFile} />}
@@ -396,6 +411,19 @@ export default function Workbench() {
           {terminalOpen && project && <TerminalPanel project={project} />}
         </main>
 
+        {project && aiDockTab && aiPanelOpen && (
+          <ResizeHandle
+            className="ai-resize"
+            orientation="vertical"
+            value={aiPanelWidth}
+            min={300}
+            max={620}
+            invert
+            label="Resize agent panel"
+            onChange={(width) => document.documentElement.style.setProperty("--ai-panel-width", `${width}px`)}
+            onCommit={(width) => updateSettings({ aiPanelWidth: width })}
+          />
+        )}
         {project && aiDockTab && aiPanelOpen && (
           <aside className="ai-dock">
             <AiPanelTab

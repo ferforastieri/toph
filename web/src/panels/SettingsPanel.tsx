@@ -339,7 +339,7 @@ export default function SettingsPanel({ version, buildId }: Props) {
         <div className="settings-page">
           <PageTitle icon={TerminalSquare}>Terminal</PageTitle>
           <Range label="Font size" value={settings.terminalFontSize} min={10} max={18} step={0.5} suffix="px" onChange={(terminalFontSize) => update({ terminalFontSize })} />
-          <Range label="Panel height" value={settings.terminalHeight} min={180} max={520} step={10} suffix="px" onChange={(terminalHeight) => update({ terminalHeight })} />
+          <Range label="Panel height" value={settings.terminalHeight} min={180} max={640} step={10} suffix="px" onChange={(terminalHeight) => update({ terminalHeight })} />
         </div>
       )}
 
