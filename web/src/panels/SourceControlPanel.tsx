@@ -2,9 +2,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Check, GitBranch, Minus, Plus, RefreshCw, Sparkles, Trash2 } from "lucide-react";
 import { api, type Project } from "../api";
 import { expandGitPattern, sanitizeBranchName } from "../lib";
+import { suggestGitChanges } from "../gitAi";
 import { useSettings } from "../settings";
 import { useApp } from "../store";
+import { useAI } from "../ai";
 import { Button } from "../ui/Button";
+import FileIcon from "../ui/FileIcon";
 import { useConfirm } from "../ui/Confirm";
 
 interface Props {
@@ -56,7 +59,9 @@ function statusLabel(change: Change): string {
 export default function SourceControlPanel({ project, onOpenDiff }: Props) {
   const notify = useApp((state) => state.notify);
   const user = useApp((state) => state.user);
+  const aiConfig = useAI((state) => state.config);
   const settings = useSettings();
+  const iconTheme = useSettings((state) => state.iconTheme);
   const confirm = useConfirm();
   const [status, setStatus] = useState("");
   const [message, setMessage] = useState("");
@@ -107,19 +112,51 @@ export default function SourceControlPanel({ project, onOpenDiff }: Props) {
     }
   }
 
-  function generateCommitMessage(): string {
-    return expandGitPattern(settings.gitCommitPattern, {
+  async function collectDiff(stagedOnly: boolean): Promise<string> {
+    const entries = stagedOnly ? staged : [...staged, ...unstaged];
+    const seen = new Set<string>();
+    const parts: string[] = [];
+    for (const change of entries) {
+      if (seen.has(change.path)) continue;
+      seen.add(change.path);
+      const isStaged = stagedOnly || (change.staged && !change.unstaged);
+      const diff = await api.gitDiff(project.id, change.path, isStaged).catch(() => "");
+      if (diff) parts.push(diff);
+    }
+    return parts.join("\n").slice(0, 16000);
+  }
+
+  async function buildCommitMessage(): Promise<string> {
+    const diff = await collectDiff(true) || await collectDiff(false);
+    const suggestion = await suggestGitChanges(aiConfig, diff, parsed.branch);
+    const generated = expandGitPattern(settings.gitCommitPattern, {
       repo: project.name,
       branch: parsed.branch,
       user: user?.username ?? "",
-    }).trim();
+      task: suggestion.task,
+      slug: suggestion.slug,
+      summary: suggestion.summary,
+    }).replace(/\s+/g, " ").trim();
+    return generated || suggestion.summary || "chore: update project files";
+  }
+
+  async function generateMessage() {
+    if (busy) return;
+    setBusy("generate");
+    try {
+      setMessage(await buildCommitMessage());
+    } catch (err) {
+      notify("error", err instanceof Error ? err.message : "Could not generate commit message.");
+    } finally {
+      setBusy("");
+    }
   }
 
   async function commit() {
-    const finalMessage = message.trim() || generateCommitMessage();
-    if (!finalMessage || !staged.length) return;
+    if (!staged.length) return;
     setBusy("commit");
     try {
+      const finalMessage = message.trim() || await buildCommitMessage();
       await api.gitCommit(project.id, finalMessage);
       setMessage("");
       await load();
@@ -132,19 +169,24 @@ export default function SourceControlPanel({ project, onOpenDiff }: Props) {
   }
 
   async function createBranch() {
-    const base = sanitizeBranchName(expandGitPattern(settings.gitBranchPattern, {
-      repo: project.name,
-      branch: parsed.branch,
-      user: user?.username ?? "",
-    }));
     setBusy("branch");
     try {
+      const diff = await collectDiff(false);
+      const suggestion = await suggestGitChanges(aiConfig, diff, parsed.branch);
+      const base = sanitizeBranchName(expandGitPattern(settings.gitBranchPattern, {
+        repo: project.name,
+        branch: parsed.branch,
+        user: user?.username ?? "",
+        task: suggestion.task,
+        slug: suggestion.slug || "update",
+        summary: suggestion.summary,
+      }));
       let name = base;
       for (let attempt = 2; attempt < 8; attempt += 1) {
         try {
           const created = await api.gitCreateBranch(project.id, name);
           await load();
-          notify("success", `Branch ${created} created.`);
+          notify("success", `Branch ${created} created and checked out.`);
           return;
         } catch (err) {
           const text = err instanceof Error ? err.message : "";
@@ -220,11 +262,11 @@ export default function SourceControlPanel({ project, onOpenDiff }: Props) {
         <div className="scm-commit-actions">
           <Button
             className="ghost scm-generate"
-            title="Generate message from settings pattern"
+            title="Generate message from pattern"
             disabled={Boolean(busy)}
-            onClick={() => setMessage(generateCommitMessage())}
+            onClick={() => void generateMessage()}
           >
-            <Sparkles size={13} /> Generate
+            <Sparkles size={13} />
           </Button>
           <Button
             className="primary scm-commit-button"
@@ -254,6 +296,7 @@ export default function SourceControlPanel({ project, onOpenDiff }: Props) {
               <div className="scm-file" key={`staged:${change.path}`}>
                 <Button className="scm-file-main" title={change.path} onClick={() => onOpenDiff(change.path, true)}>
                   <span className={`scm-status ${change.index.trim() || "M"}`}>{statusLabel(change)}</span>
+                  <FileIcon name={change.path} iconTheme={iconTheme} size={13} />
                   <span className="scm-path">{change.path}</span>
                 </Button>
                 <Button className="scm-action" title="Unstage" onClick={() => void unstage([change.path])}>
@@ -290,6 +333,7 @@ export default function SourceControlPanel({ project, onOpenDiff }: Props) {
                 <span className={`scm-status ${change.index === "?" ? "U" : change.worktree.trim() || "M"}`}>
                   {statusLabel(change)}
                 </span>
+                <FileIcon name={change.path} iconTheme={iconTheme} size={13} />
                 <span className="scm-path">{change.path}</span>
               </Button>
               <Button className="scm-action" title="Stage" onClick={() => void stage([change.path])}>

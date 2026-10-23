@@ -2611,7 +2611,7 @@ a:focus-visible {
     var(--glass-shadow);
   grid-template-columns: var(--activity-width) var(--sidebar-width) minmax(0, 1fr);
   overflow: hidden;
-  background: color-mix(in srgb, var(--surface) 32%, transparent);
+  background: var(--glass-bg);
 }
 
 .activity-bar {
@@ -2620,7 +2620,7 @@ a:focus-visible {
   border: 0;
   border-right: 1px solid var(--border-soft);
   border-radius: 0;
-  background: color-mix(in srgb, var(--surface) 18%, transparent);
+  background: var(--glass-bg);
   box-shadow: none;
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
@@ -2663,10 +2663,10 @@ a:focus-visible {
   border: 0;
   border-right: 1px solid var(--border-soft);
   border-radius: 0;
-  background: color-mix(in srgb, var(--surface) 28%, transparent);
+  background: var(--glass-bg-strong);
   box-shadow: none;
-  -webkit-backdrop-filter: none;
-  backdrop-filter: none;
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
 }
 
 .editor-column {
@@ -2683,10 +2683,10 @@ a:focus-visible {
   border: 0;
   border-bottom: 1px solid var(--border-soft);
   border-radius: 0;
-  background: color-mix(in srgb, var(--surface) 38%, transparent);
+  background: var(--glass-bg);
   box-shadow: none;
-  -webkit-backdrop-filter: none;
-  backdrop-filter: none;
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
 }
 
 .tab {
@@ -2859,10 +2859,10 @@ textarea:focus {
   border: 0;
   border-bottom: 1px solid var(--border-soft);
   border-radius: 0;
-  background: color-mix(in srgb, var(--surface) 48%, transparent);
+  background: var(--glass-bg-strong);
   box-shadow: none;
-  -webkit-backdrop-filter: none;
-  backdrop-filter: none;
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
 }
 
 .toasts { z-index: 60; }
@@ -3106,7 +3106,7 @@ html[data-reduced-transparency="on"] .welcome-card {
 
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .titlebar, .workbench-body, .status-bar, .sidebar, .activity-bar, .tab-strip,
-  .modal, .toast, .login-panel, .welcome-card { background: var(--surface); }
+  .modal, .toast, .login-panel, .welcome-card { background: var(--glass-bg); }
 }
 
 @media (max-width: 680px) {
@@ -3337,11 +3337,11 @@ html[data-accent="graphite"] { --accent-rgb: 192, 200, 185; }
     background: var(--glass-bg);
   }
 
-  .workbench-body { background: rgba(var(--surface-rgb), 0.32); }
-  .activity-bar { background: rgba(var(--surface-rgb), 0.18); }
-  .sidebar { background: rgba(var(--surface-rgb), 0.28); }
-  .tab-strip { background: rgba(var(--surface-rgb), 0.38); }
-  .terminal-header { background: rgba(var(--surface-rgb), 0.48); }
+  .workbench-body { background: var(--glass-bg); }
+  .activity-bar { background: var(--glass-bg); }
+  .sidebar { background: var(--glass-bg-strong); }
+  .tab-strip { background: var(--glass-bg); }
+  .terminal-header { background: var(--glass-bg-strong); }
   .project-switcher select { background: var(--surface-2); }
   .tab:hover,
   .tab.active,
@@ -4102,6 +4102,11 @@ body.resize-active * {
 .scm-branch-button:hover { color: var(--primary); background: var(--primary-soft); }
 .scm-branch-plus { margin-left: -3px; margin-top: -7px; }
 .scm-section-actions { display: inline-flex; align-items: center; gap: 2px; }
-.scm-commit-actions { display: grid; grid-template-columns: 1fr 1.4fr; gap: 5px; }
-.scm-commit-actions .ui-button { min-width: 0; padding: 0 7px; font-size: 10.5px; }
+.scm-commit-actions { display: flex; gap: 5px; }
+.scm-commit-actions .ui-button { min-width: 0; }
+.scm-generate { width: 30px; flex: none; padding: 0 !important; }
+.scm-commit-button { flex: 1; }
 .scm-action.danger:hover { color: var(--error); background: rgba(217, 108, 95, 0.12); }
+.search-path { display: flex; align-items: center; gap: 5px; }
+.search-path .file-icon { flex: none; }
+.scm-file-main .file-icon { flex: none; }

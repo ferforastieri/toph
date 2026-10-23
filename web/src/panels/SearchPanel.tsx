@@ -2,6 +2,9 @@ import { useEffect, useState, type FormEvent } from "react";
 import { Search } from "lucide-react";
 import { api, type Project, type SearchMatch } from "../api";
 import { Button } from "../ui/Button";
+import FileIcon from "../ui/FileIcon";
+import { basename } from "../lib";
+import { useSettings } from "../settings";
 
 interface Props {
   project: Project;
@@ -13,6 +16,7 @@ export default function SearchPanel({ project, onOpenFile }: Props) {
   const [matches, setMatches] = useState<SearchMatch[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const iconTheme = useSettings((state) => state.iconTheme);
 
   useEffect(() => {
     const text = query.trim();
@@ -80,6 +84,7 @@ export default function SearchPanel({ project, onOpenFile }: Props) {
             title={match.preview}
           >
             <span className="search-path">
+              <FileIcon name={basename(match.path)} iconTheme={iconTheme} size={12} />
               {match.path}
               <span className="search-line">:{match.line}</span>
             </span>

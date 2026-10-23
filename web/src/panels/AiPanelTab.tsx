@@ -82,7 +82,6 @@ function GenericAiPanel({ tab, project, config, onClose }: Props & { config: AIC
         <div className="ai-title">
           <Bot size={16} />
           <strong>{label}</strong>
-          <span className="ai-project">{config.model || "default model"}</span>
         </div>
         <span className="ai-session">{project.name}</span>
         {onClose && <Button className="icon-button" title="Close agent" onClick={onClose}><X size={15} /></Button>}

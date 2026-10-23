@@ -33,6 +33,7 @@ import {
 import AiSettings from "./AiSettings";
 import WorkspaceSettings from "./WorkspaceSettings";
 import { Button } from "../ui/Button";
+import { Select } from "../ui/Select";
 
 interface Props {
   version: string;
@@ -85,6 +86,7 @@ const iconOptions: Array<{ id: IconTheme; label: string }> = [
   { id: "toph", label: "Toph" },
   { id: "material", label: "Material" },
   { id: "outline", label: "Outline" },
+  { id: "vivid", label: "Vivid" },
 ];
 
 const glassOptions: Array<{ id: GlassLevel; label: string }> = [
@@ -266,7 +268,12 @@ export default function SettingsPanel({ version, buildId }: Props) {
           <PageTitle icon={Palette}>Appearance</PageTitle>
           <div className="settings-field">
             <span>Theme</span>
-            <Segmented value={settings.theme} options={themes} onChange={(theme) => update({ theme })} />
+            <Select
+              value={settings.theme}
+              options={themes.map((theme) => ({ value: theme.id, label: theme.label }))}
+              onChange={(theme) => update({ theme })}
+              label="Theme"
+            />
           </div>
           <div className="settings-field">
             <span>Accent color</span>
@@ -374,8 +381,9 @@ export default function SettingsPanel({ version, buildId }: Props) {
           </form>
           <p className="settings-note">
             Tokens: <code>{"{date}"}</code>, <code>{"{time}"}</code>, <code>{"{datetime}"}</code>,{" "}
-            <code>{"{repo}"}</code>, <code>{"{branch}"}</code> and <code>{"{user}"}</code>.
-            The branch button and commit action use these patterns.
+            <code>{"{repo}"}</code>, <code>{"{branch}"}</code>, <code>{"{user}"}</code>,{" "}
+            <code>{"{task}"}</code>, <code>{"{slug}"}</code> and <code>{"{summary}"}</code>.
+            Branch and commit suggestions are generated from the changed files by AI, then applied to these patterns.
           </p>
         </div>
       )}

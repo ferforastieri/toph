@@ -36,7 +36,13 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
   const yoloRef = useRef(yolo);
   yoloRef.current = yolo;
   const bottomRef = useRef<HTMLDivElement>(null);
-  const client = useMemo(() => OpenCode.make({ baseUrl: openCodeBase() }), []);
+  const client = useMemo(() => {
+    const csrf = document.cookie.match(/(?:^|;\s*)toph_csrf=([^;]+)/)?.[1] ?? "";
+    return OpenCode.make({
+      baseUrl: openCodeBase(),
+      headers: { "X-Toph-CSRF": csrf },
+    });
+  }, []);
   const loadedHistory = useRef<string | null>(null);
   const selectedModel = models.find((item) => item.id === model);
   const efforts = selectedModel?.variants ?? [];

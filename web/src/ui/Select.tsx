@@ -31,18 +31,23 @@ export function Select<T extends string>({
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
-  const [position, setPosition] = useState({ top: 0, left: 0, width: 0 });
+  const [position, setPosition] = useState({ top: 0, left: 0, width: 0, maxHeight: 280 });
   const selected = options.find((option) => option.value === value);
 
   function place() {
     const rect = triggerRef.current?.getBoundingClientRect();
-    if (rect) {
-      setPosition({
-        top: placement === "top" ? rect.top - 6 : rect.bottom + 6,
-        left: rect.left,
-        width: rect.width,
-      });
-    }
+    if (!rect) return;
+    const desired = Math.min(280, options.length * 34 + 10);
+    const below = window.innerHeight - rect.bottom - 8;
+    const above = rect.top - 8;
+    let side = placement;
+    if (side === "bottom" && below < Math.min(desired, 120) && above > below) side = "top";
+    if (side === "top" && above < Math.min(desired, 120) && below > above) side = "bottom";
+    const maxHeight = Math.max(76, Math.min(280, desired, side === "top" ? above : below));
+    const top = side === "top"
+      ? Math.max(8, rect.top - maxHeight - 6)
+      : Math.min(window.innerHeight - maxHeight - 8, rect.bottom + 6);
+    setPosition({ top, left: Math.max(8, Math.min(rect.left, window.innerWidth - rect.width - 8)), width: rect.width, maxHeight });
   }
 
   useEffect(() => {
@@ -66,7 +71,7 @@ export function Select<T extends string>({
       window.removeEventListener("resize", place);
       window.removeEventListener("scroll", place, true);
     };
-  }, [open]);
+  }, [open, options.length, placement]);
 
   return (
     <>
@@ -100,7 +105,8 @@ export function Select<T extends string>({
             top: position.top,
             left: position.left,
             width: position.width,
-            transform: placement === "top" ? "translateY(-100%)" : undefined,
+            maxHeight: position.maxHeight,
+            overflowY: "auto",
           }}
         >
           {options.map((option) => (

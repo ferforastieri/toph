@@ -3,7 +3,7 @@ import { create } from "zustand";
 
 export type ThemePreference = "auto" | "dark" | "light" | "brand" | "nightwolf";
 export type ResolvedTheme = "dark" | "light" | "brand" | "nightwolf";
-export type IconTheme = "toph" | "material" | "outline";
+export type IconTheme = "toph" | "material" | "outline" | "vivid";
 export type Accent = "jade" | "ocean" | "violet" | "amber" | "rose" | "graphite";
 export type GlassLevel = "off" | "subtle" | "regular" | "strong";
 export type BackgroundStyle = "aurora" | "mesh" | "grid" | "solid";
@@ -41,7 +41,7 @@ export interface SettingsState extends AppearanceSettings {
 const STORAGE_KEY = "toph_appearance";
 
 export const defaultSettings: AppearanceSettings = {
-  theme: "dark",
+  theme: "brand",
   accent: "jade",
   glass: "regular",
   background: "aurora",
@@ -59,12 +59,12 @@ export const defaultSettings: AppearanceSettings = {
   respectReducedTransparency: false,
   aiPanelWidth: 390,
   iconTheme: "toph",
-  gitBranchPattern: "feature/{datetime}",
-  gitCommitPattern: "chore: update {date}",
+  gitBranchPattern: "feature/{task}-{slug}",
+  gitCommitPattern: "{task} {summary}",
 };
 
 const themes: ThemePreference[] = ["auto", "dark", "light", "brand", "nightwolf"];
-const iconThemes: IconTheme[] = ["toph", "material", "outline"];
+const iconThemes: IconTheme[] = ["toph", "material", "outline", "vivid"];
 const accents: Accent[] = ["jade", "ocean", "violet", "amber", "rose", "graphite"];
 const glassLevels: GlassLevel[] = ["off", "subtle", "regular", "strong"];
 const backgrounds: BackgroundStyle[] = ["aurora", "mesh", "grid", "solid"];

@@ -160,7 +160,6 @@ export function AgentComposer({
             YOLO
           </button>
           <span className="agent-composer-spacer" />
-          <span className="agent-model-name">{model || "OpenCode"}</span>
         </div>
         {attachments.length > 0 && (
           <div className="agent-attachments">

@@ -95,7 +95,7 @@ export function relativeTime(value: string): string {
 
 export function expandGitPattern(
   pattern: string,
-  values: { repo: string; branch: string; user: string },
+  values: { repo: string; branch: string; user: string; task?: string; slug?: string; summary?: string },
 ): string {
   const now = new Date();
   const pad = (value: number) => String(value).padStart(2, "0");
@@ -108,8 +108,11 @@ export function expandGitPattern(
     repo: values.repo,
     branch: values.branch || "main",
     user: values.user || "user",
+    task: values.task ?? "",
+    slug: values.slug ?? "",
+    summary: values.summary ?? "",
   };
-  return pattern.replace(/\{(date|time|datetime|repo|branch|user)\}/g, (_, key: string) => tokens[key] ?? "");
+  return pattern.replace(/\{(date|time|datetime|repo|branch|user|task|slug|summary)\}/g, (_, key: string) => tokens[key] ?? "");
 }
 
 export function sanitizeBranchName(value: string): string {
