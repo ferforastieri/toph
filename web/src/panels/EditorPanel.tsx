@@ -1,6 +1,6 @@
-import { useCallback, useEffect } from "react";
-import { api, ApiError, type Project } from "../api";
-import { languageFor } from "../lib";
+import { useCallback, useEffect, useState } from "react";
+import { api, ApiError, type GitBlameLine, type Project } from "../api";
+import { languageFor, relativeTime } from "../lib";
 import { useApp, type Tab } from "../store";
 import CodeEditor from "../components/CodeEditor";
 
@@ -12,6 +12,8 @@ interface Props {
 export default function EditorPanel({ tab, project }: Props) {
   const updateTab = useApp((state) => state.updateTab);
   const notify = useApp((state) => state.notify);
+  const [blame, setBlame] = useState<GitBlameLine[]>([]);
+  const [cursorLine, setCursorLine] = useState(1);
 
   useEffect(() => {
     if (tab.content !== undefined || !tab.path) return;
@@ -30,6 +32,25 @@ export default function EditorPanel({ tab, project }: Props) {
       cancelled = true;
     };
   }, [notify, project.id, tab.content, tab.id, tab.path, updateTab]);
+
+  useEffect(() => {
+    if (!tab.path || tab.content === undefined) {
+      setBlame([]);
+      return;
+    }
+    let cancelled = false;
+    api
+      .gitBlame(project.id, tab.path)
+      .then((lines) => {
+        if (!cancelled) setBlame(lines);
+      })
+      .catch(() => {
+        if (!cancelled) setBlame([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [project.id, tab.content === undefined, tab.hash, tab.path]);
 
   const save = useCallback(async () => {
     if (!tab.path || tab.content === undefined) return;
@@ -50,6 +71,8 @@ export default function EditorPanel({ tab, project }: Props) {
     return <div className="editor-loading">Opening {tab.path}...</div>;
   }
 
+  const currentBlame = blame.find((item) => item.line === cursorLine);
+
   return (
     <div className="editor-panel">
       <div className="editor-breadcrumb">
@@ -64,10 +87,19 @@ export default function EditorPanel({ tab, project }: Props) {
           value={tab.content}
           language={languageFor(tab.path ?? tab.title)}
           line={tab.line}
+          onCursorLine={setCursorLine}
           onChange={(content) => updateTab(tab.id, { content, dirty: true })}
           onSave={() => void save()}
         />
       </div>
+      {currentBlame && (
+        <div className="blame-bar" title={`${currentBlame.commit.slice(0, 8)} · ${currentBlame.summary}`}>
+          <span className="blame-author">{currentBlame.author}</span>
+          <span>{relativeTime(currentBlame.authorTime)}</span>
+          <span className="blame-summary">{currentBlame.summary}</span>
+          <span className="blame-line">Ln {cursorLine}</span>
+        </div>
+      )}
     </div>
   );
 }

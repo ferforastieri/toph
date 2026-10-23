@@ -367,13 +367,6 @@ private fun WorkbenchTopBar(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         BrandMark(28.dp)
-        Spacer(Modifier.width(9.dp))
-        Text(
-            "Toph",
-            color = TophText,
-            fontWeight = FontWeight.Bold,
-            fontSize = 14.sp,
-        )
         Spacer(Modifier.width(10.dp))
         Box {
             Row(

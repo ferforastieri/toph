@@ -10,6 +10,7 @@ import Toasts from "./Toasts";
 import RepoPicker from "./RepoPicker";
 import FileTree from "../panels/FileTree";
 import SearchPanel from "../panels/SearchPanel";
+import SourceControlPanel from "../panels/SourceControlPanel";
 import DatabasesPanel from "../panels/DatabasesPanel";
 import AiSidebar from "../panels/AiSidebar";
 import WebSidebar from "../panels/WebSidebar";
@@ -18,6 +19,7 @@ import EditorPanel from "../panels/EditorPanel";
 import DbPanelTab from "../panels/DbPanelTab";
 import AiPanelTab from "../panels/AiPanelTab";
 import WebPanelTab from "../panels/WebPanelTab";
+import DiffPanelTab from "../panels/DiffPanelTab";
 import TerminalPanel from "../panels/TerminalPanel";
 import { Button } from "../ui/Button";
 import BrandMark from "../brand/BrandMark";
@@ -99,7 +101,7 @@ export default function Workbench() {
           (tab) =>
             tab &&
             typeof tab.id === "string" &&
-            ["editor", "db", "web"].includes(tab.kind),
+            ["editor", "db", "web", "diff"].includes(tab.kind),
         );
         setTabs(
           restored.map((tab) => ({ ...tab, projectId: activeProjectId })),
@@ -210,6 +212,18 @@ export default function Workbench() {
       projectId: project.id,
       profileId,
       sql,
+    });
+  }
+
+  function openDiff(path: string, staged: boolean) {
+    if (!project) return;
+    openTab({
+      id: `diff:${project.id}:${staged ? "staged" : "worktree"}:${path}`,
+      kind: "diff",
+      title: basename(path),
+      projectId: project.id,
+      path,
+      staged,
     });
   }
 
@@ -357,7 +371,6 @@ export default function Workbench() {
       <header className="titlebar">
         <div className="titlebar-brand">
           <BrandMark size="small" />
-          <span>Toph</span>
         </div>
         <div className="project-switcher">
           <div className="project-tabs" role="tablist" aria-label="Open projects">
@@ -425,6 +438,7 @@ export default function Workbench() {
         <aside className="sidebar">
           {project && sidebar === "files" && <FileTree project={project} onOpenFile={openFile} />}
           {project && sidebar === "search" && <SearchPanel project={project} onOpenFile={openFile} />}
+          {project && sidebar === "scm" && <SourceControlPanel project={project} onOpenDiff={openDiff} />}
           {project && sidebar === "db" && <DatabasesPanel onOpenQuery={openQuery} onOpenTable={openTable} />}
           {project && sidebar === "ai" && <AiSidebar project={project} onOpenAI={openAI} onOpenSession={openAiSession} />}
           {project && sidebar === "web" && <WebSidebar onOpenWeb={openWeb} />}
@@ -460,6 +474,9 @@ export default function Workbench() {
               <AiPanelTab tab={activeTab} project={project} />
             )}
             {activeTab?.kind === "web" && <WebPanelTab tab={activeTab} />}
+            {activeTab?.kind === "diff" && project && (
+              <DiffPanelTab tab={activeTab} project={project} />
+            )}
           </div>
           {terminalOpen && project && <TerminalPanel project={project} />}
         </main>

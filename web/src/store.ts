@@ -1,8 +1,8 @@
 import { create } from "zustand";
 import type { Project, User } from "./api";
 
-export type TabKind = "editor" | "db" | "ai" | "web";
-export type Sidebar = "files" | "search" | "db" | "ai" | "web" | "settings";
+export type TabKind = "editor" | "db" | "ai" | "web" | "diff";
+export type Sidebar = "files" | "search" | "scm" | "db" | "ai" | "web" | "settings";
 
 export interface Tab {
   id: string;
@@ -16,6 +16,8 @@ export interface Tab {
   profileId?: string;
   sql?: string;
   url?: string;
+  diff?: string;
+  staged?: boolean;
   sessionId?: string;
   line?: number;
   table?: {

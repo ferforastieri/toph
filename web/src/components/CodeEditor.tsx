@@ -11,6 +11,7 @@ interface Props {
   language: string;
   readOnly?: boolean;
   line?: number;
+  onCursorLine?: (line: number) => void;
   onChange: (value: string) => void;
   onSave?: () => void;
   onRun?: () => void;
@@ -157,6 +158,7 @@ export default function CodeEditor({
   language,
   readOnly = false,
   line,
+  onCursorLine,
   onChange,
   onSave,
   onRun,
@@ -203,6 +205,8 @@ export default function CodeEditor({
     editorRef.current = instance;
     monacoRef.current = monaco;
     setMonacoReady(true);
+    onCursorLine?.(instance.getPosition()?.lineNumber ?? 1);
+    instance.onDidChangeCursorPosition((event) => onCursorLine?.(event.position.lineNumber));
     instance.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
       saveRef.current?.();
     });

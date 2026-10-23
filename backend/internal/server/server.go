@@ -19,7 +19,7 @@ import (
 	"github.com/ferforastieri/toph/internal/workspace"
 )
 
-const Version = "0.7.3"
+const Version = "0.7.4"
 
 type Server struct {
 	cfg          config.Config
@@ -90,6 +90,11 @@ func (s *Server) Handler() http.Handler {
 				r.Put("/file", s.writeFile)
 				r.Post("/search", s.search)
 				r.Get("/git/status", s.gitStatus)
+				r.Get("/git/diff", s.gitDiff)
+				r.Get("/git/blame", s.gitBlame)
+				r.Post("/git/stage", s.gitStage)
+				r.Post("/git/unstage", s.gitUnstage)
+				r.Post("/git/commit", s.gitCommit)
 				r.Get("/workspace", s.getWorkspace)
 				r.Put("/workspace", s.saveWorkspace)
 				r.Post("/terminals", s.createTerminal)

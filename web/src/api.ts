@@ -36,6 +36,14 @@ export interface FileContent {
   size: number;
 }
 
+export interface GitBlameLine {
+  line: number;
+  commit: string;
+  author: string;
+  authorTime: string;
+  summary: string;
+}
+
 export interface SearchMatch {
   path: string;
   line: number;
@@ -329,6 +337,42 @@ export const api = {
       `/projects/${encodeURIComponent(projectId)}/git/status`,
     );
     return response.status;
+  },
+
+  async gitDiff(projectId: string, path: string, staged: boolean): Promise<string> {
+    const response = await request<{ diff: string }>(
+      `/projects/${encodeURIComponent(projectId)}/git/diff?path=${encodeURIComponent(path)}&staged=${staged ? "true" : "false"}`,
+    );
+    return response.diff;
+  },
+
+  async gitBlame(projectId: string, path: string): Promise<GitBlameLine[]> {
+    const response = await request<{ lines: GitBlameLine[] }>(
+      `/projects/${encodeURIComponent(projectId)}/git/blame?path=${encodeURIComponent(path)}`,
+    );
+    return response.lines;
+  },
+
+  async gitStage(projectId: string, paths: string[]): Promise<void> {
+    await request(`/projects/${encodeURIComponent(projectId)}/git/stage`, {
+      method: "POST",
+      ...json({ paths }),
+    });
+  },
+
+  async gitUnstage(projectId: string, paths: string[]): Promise<void> {
+    await request(`/projects/${encodeURIComponent(projectId)}/git/unstage`, {
+      method: "POST",
+      ...json({ paths }),
+    });
+  },
+
+  async gitCommit(projectId: string, message: string): Promise<string> {
+    const response = await request<{ output: string }>(
+      `/projects/${encodeURIComponent(projectId)}/git/commit`,
+      { method: "POST", ...json({ message }) },
+    );
+    return response.output;
   },
 
   async layout(projectId: string): Promise<WorkspaceLayout> {

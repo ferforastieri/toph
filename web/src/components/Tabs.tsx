@@ -2,6 +2,7 @@ import {
   Bot,
   Database,
   FileCode2,
+  FileDiff,
   Globe2,
   X,
 } from "lucide-react";
@@ -16,6 +17,7 @@ const icons = {
   db: Database,
   ai: Bot,
   web: Globe2,
+  diff: FileDiff,
 };
 
 export default function Tabs() {

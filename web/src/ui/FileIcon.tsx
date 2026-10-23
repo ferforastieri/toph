@@ -15,6 +15,7 @@ import {
   Package,
   Settings,
 } from "lucide-react";
+import materialManifest from "material-icon-theme/dist/material-icons.json";
 import type { IconTheme } from "../settings";
 
 interface Props {
@@ -26,17 +27,40 @@ interface Props {
   size?: number;
 }
 
-const materialColors: Record<string, string> = {
-  js: "#f1e05a", jsx: "#61dafb", ts: "#3178c6", tsx: "#61dafb",
-  json: "#cbcb41", md: "#519aba", mdx: "#519aba", css: "#a074c4",
-  scss: "#c6538c", html: "#e34c26", vue: "#41b883", svelte: "#ff3e00",
-  py: "#3572a5", go: "#00add8", rs: "#dea584", java: "#b07219",
-  kt: "#a97bff", kts: "#a97bff", sql: "#e38c00", sh: "#89e051",
-  yml: "#cb171e", yaml: "#cb171e", toml: "#9c4221", xml: "#e34c26",
-  png: "#a074c4", jpg: "#a074c4", jpeg: "#a074c4", gif: "#a074c4",
-  svg: "#ffb13b", ico: "#a074c4", lock: "#f1e05a", env: "#faf08b",
-  dockerfile: "#2496ed", db: "#e38c00", sqlite: "#e38c00", pdf: "#e34c26",
-};
+interface MaterialManifest {
+  fileNames: Record<string, string>;
+  fileExtensions: Record<string, string>;
+  folderNames: Record<string, string>;
+  folderNamesExpanded: Record<string, string>;
+  file: string;
+  folder: string;
+  folderExpanded: string;
+  iconDefinitions: Record<string, { iconPath?: string }>;
+}
+
+const material = materialManifest as MaterialManifest;
+
+function materialIconName(name: string, dir: boolean, open: boolean): string {
+  const lower = name.toLowerCase();
+  if (dir) {
+    return (open ? material.folderNamesExpanded[lower] : material.folderNames[lower])
+      ?? (open ? material.folderExpanded : material.folder);
+  }
+  const exact = material.fileNames[lower];
+  if (exact) return exact;
+  const dot = lower.lastIndexOf(".");
+  if (dot >= 0) {
+    const extension = material.fileExtensions[lower.slice(dot + 1)];
+    if (extension) return extension;
+  }
+  return material.file;
+}
+
+function materialIconFile(name: string, dir: boolean, open: boolean): string {
+  const definition = material.iconDefinitions[materialIconName(name, dir, open)];
+  const path = definition?.iconPath ?? "file.svg";
+  return path.split("/").pop() ?? "file.svg";
+}
 
 function iconFor(name: string, dir: boolean, open: boolean) {
   if (dir) return open ? FolderOpen : Folder;
@@ -57,12 +81,16 @@ function iconFor(name: string, dir: boolean, open: boolean) {
 }
 
 export default function FileIcon({ name, dir = false, open = false, iconTheme, size = 15 }: Props) {
-  const Icon = iconTheme === "toph"
-    ? dir ? (open ? FolderOpen : Folder) : FileCode2
-    : iconFor(name, dir, open);
-  const ext = name.toLowerCase().split(".").pop() ?? "";
-  const color = iconTheme === "material"
-    ? (dir ? "#7c9bff" : materialColors[ext] ?? materialColors[name.toLowerCase()] ?? "#a3aa99")
-    : undefined;
-  return <Icon size={size} className={`${dir ? "folder-icon" : "file-icon"} file-icon-theme-${iconTheme}`} color={color} />;
+  if (iconTheme === "material") {
+    return (
+      <img
+        src={`${import.meta.env.BASE_URL}material-icons/${materialIconFile(name, dir, open)}`}
+        alt=""
+        className={`${dir ? "folder-icon" : "file-icon"} material-file-icon`}
+        style={{ width: size, height: size }}
+      />
+    );
+  }
+  const Icon = iconFor(name, dir, open);
+  return <Icon size={size} className={`${dir ? "folder-icon" : "file-icon"} file-icon-theme-${iconTheme}`} />;
 }

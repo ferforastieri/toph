@@ -49,7 +49,6 @@ export default function Landing() {
       <nav className="landing-nav">
         <a className="landing-brand" href="/">
           <BrandMark size="small" />
-          <strong>Toph</strong>
         </a>
         <div className="landing-links">
           <a href="#features">Features</a>
