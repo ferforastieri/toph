@@ -338,7 +338,7 @@ export default function Workbench() {
                     Database
                   </button>
                   <button className="ghost" onClick={openAI}>
-                    OpenCode
+                    Agent
                   </button>
                 </div>
               </div>
