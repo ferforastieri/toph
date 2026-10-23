@@ -76,7 +76,7 @@ fun ServerSetupScreen(viewModel: TophViewModel, state: UiState) {
                     value = url,
                     onValueChange = { url = it },
                     label = { Text("URL do servidor") },
-                    placeholder = { Text("https://example.com") },
+                    placeholder = { Text("https://seu-servidor") },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(
                         keyboardType = KeyboardType.Uri,

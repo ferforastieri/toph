@@ -145,6 +145,7 @@ export async function probeServer(raw: string): Promise<string> {
       /^172\.(1[6-9]|2[0-9]|3[01])\./.test(host);
     base = `${local ? "http" : "https"}://${base}`;
   }
+  base = base.replace(/\/app$/i, "");
   const response = await fetch(`${base}${API_BASE}/health`, {
     headers: { Accept: "application/json" },
     credentials: "omit",

@@ -29,5 +29,6 @@ class TophLogicTest {
         assertEquals("http://192.168.1.10:8787", TophApi.normalizeBaseUrl("192.168.1.10:8787/"))
         assertEquals("https://lab.home.arpa", TophApi.normalizeBaseUrl("https://lab.home.arpa/"))
         assertEquals("http://localhost:8787", TophApi.normalizeBaseUrl(" http://localhost:8787/ "))
+        assertEquals("https://example.com", TophApi.normalizeBaseUrl("https://example.com/app/"))
     }
 }

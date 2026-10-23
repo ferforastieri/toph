@@ -239,7 +239,7 @@ class TophApi(val baseUrl: String, private val token: String?) {
     }
 
     companion object {
-        suspend fun probe(raw: String): String {
+        suspend fun probe(raw: String): String = withContext(Dispatchers.IO) {
             val base = normalizeBaseUrl(raw)
             val response = OkHttpClient.Builder()
                 .connectTimeout(10, TimeUnit.SECONDS)
@@ -256,7 +256,7 @@ class TophApi(val baseUrl: String, private val token: String?) {
                 val health = Json { ignoreUnknownKeys = true }.decodeFromString<Health>(body)
                 if (health.name != "toph") throw ApiException(400, "That URL does not point to a Toph server.")
             }
-            return base
+            base
         }
 
         suspend fun login(baseUrl: String, username: String, password: String): LoginResponse {
@@ -281,6 +281,7 @@ class TophApi(val baseUrl: String, private val token: String?) {
                     Regex("^172\\.(1[6-9]|2[0-9]|3[01])\\.").containsMatchIn(host)
                 value = if (local) "http://$value" else "https://$value"
             }
+            if (value.endsWith("/app")) value = value.removeSuffix("/app")
             return value
         }
     }
