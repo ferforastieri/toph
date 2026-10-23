@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { OpenCode } from "@opencode/client";
-import { Bot, Check, CircleStop, Send, Sparkles, X } from "lucide-react";
+import { Bot, Check, Sparkles, X } from "lucide-react";
 import { openCodeBase, type Project } from "../api";
+import { useAI } from "../ai";
 import { useApp, type AiMessage, type Tab } from "../store";
 import { Button } from "../ui/Button";
+import { AgentComposer, type AgentAttachment } from "../ui/AgentComposer";
 
 const EMPTY_MESSAGES: AiMessage[] = [];
 
@@ -22,11 +24,36 @@ export default function OpenCodePanelTab({ tab, project }: Props) {
   const emptyMessages = useApp((state) => state.aiMessages[tab.id]);
   const messages = emptyMessages ?? EMPTY_MESSAGES;
   const streaming = useApp((state) => state.aiStreaming[tab.id] ?? false);
+  const aiConfig = useAI((state) => state.config);
+  const models = useAI((state) => state.models);
+  const loadModels = useAI((state) => state.loadModels);
   const [input, setInput] = useState("");
   const [error, setError] = useState("");
+  const [model, setModel] = useState(aiConfig?.model ?? "");
+  const [effort, setEffort] = useState("");
+  const [yolo, setYolo] = useState(false);
+  const yoloRef = useRef(yolo);
+  yoloRef.current = yolo;
   const bottomRef = useRef<HTMLDivElement>(null);
   const client = useMemo(() => OpenCode.make({ baseUrl: openCodeBase() }), []);
   const loadedHistory = useRef<string | null>(null);
+  const selectedModel = models.find((item) => item.id === model);
+  const efforts = selectedModel?.variants ?? [];
+
+  useEffect(() => {
+    if (models.length === 0) void loadModels();
+  }, [loadModels, models.length]);
+
+  useEffect(() => {
+    if (!model && aiConfig?.model) setModel(aiConfig.model);
+  }, [aiConfig?.model, model]);
+
+  useEffect(() => {
+    if (efforts.length === 0) return;
+    if (!efforts.includes(effort)) {
+      setEffort(efforts.includes("max") ? "max" : efforts[efforts.length - 1]);
+    }
+  }, [effort, efforts]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -121,11 +148,18 @@ export default function OpenCodePanelTab({ tab, project }: Props) {
                 id: `permission-${String(data.id)}`,
                 role: "tool",
                 text: `Permission requested: ${String(data.action)} ${JSON.stringify(data.resources ?? [])}`,
-                title: "Permission",
+                title: yoloRef.current ? "Permission auto-approved" : "Permission",
                 createdAt: Date.now(),
-                permissionId: String(data.id),
+                permissionId: yoloRef.current ? undefined : String(data.id),
                 permissionAction: String(data.action ?? ""),
               });
+              if (yoloRef.current) {
+                void client.permission.reply({
+                  sessionID: sessionId,
+                  requestID: String(data.id),
+                  decision: "always",
+                } as never).catch(() => undefined);
+              }
               break;
             }
             case "session.execution.failed": {
@@ -154,30 +188,73 @@ export default function OpenCodePanelTab({ tab, project }: Props) {
     return () => controller.abort();
   }, [addMessage, appendText, client, setStreaming, tab.id, tab.sessionId]);
 
+  async function applyModel(sessionID: string, nextModel = model, nextEffort = effort) {
+    if (!nextModel) return;
+    const split = nextModel.indexOf("/");
+    if (split < 0) return;
+    await client.session.switchModel({
+      sessionID,
+      model: {
+        providerID: nextModel.slice(0, split),
+        id: nextModel.slice(split + 1),
+        variant: nextEffort || undefined,
+      },
+    } as never);
+  }
+
   async function ensureSession(): Promise<string> {
-    if (tab.sessionId) return tab.sessionId;
+    if (tab.sessionId) {
+      await applyModel(tab.sessionId).catch(() => undefined);
+      return tab.sessionId;
+    }
     const session = await client.session.create({
       location: { directory: project.root },
     } as never);
     updateTab(tab.id, { sessionId: session.id });
+    await applyModel(session.id).catch(() => undefined);
     return session.id;
   }
 
-  async function send() {
-    const text = input.trim();
-    if (!text || streaming) return;
+  async function chooseModel(next: string) {
+    setModel(next);
+    const nextModel = models.find((item) => item.id === next);
+    const variants = nextModel?.variants ?? [];
+    const nextEffort = variants.includes(effort)
+      ? effort
+      : variants.includes("max")
+        ? "max"
+        : variants[variants.length - 1] ?? "";
+    setEffort(nextEffort);
+    if (tab.sessionId) await applyModel(tab.sessionId, next, nextEffort).catch(() => undefined);
+  }
+
+  async function chooseEffort(next: string) {
+    setEffort(next);
+    if (tab.sessionId) await applyModel(tab.sessionId, model, next).catch(() => undefined);
+  }
+
+  async function send(text: string, attachments: AgentAttachment[]) {
+    if ((!text && attachments.length === 0) || streaming) return;
     setInput("");
     setError("");
     addMessage(tab.id, {
       id: `user-${Date.now()}`,
       role: "user",
-      text,
+      text: text || attachments.map((file) => file.name).join(", "),
       createdAt: Date.now(),
     });
     setStreaming(tab.id, true);
     try {
       const sessionId = await ensureSession();
-      await client.session.prompt({ sessionID: sessionId, text } as never);
+      await client.session.prompt({
+        sessionID: sessionId,
+        text: text || "See attached files.",
+        files: attachments.map((file) => ({
+          uri: file.uri,
+          name: file.name,
+          description: file.mime,
+        })),
+      } as never);
     } catch (err) {
       setStreaming(tab.id, false);
       const message = err instanceof Error ? err.message : "Could not reach OpenCode.";
@@ -311,31 +388,22 @@ export default function OpenCodePanelTab({ tab, project }: Props) {
 
       {error && <div className="ai-error">{error}</div>}
 
-      <div className="ai-composer">
-        <textarea
-          value={input}
-          onChange={(event) => setInput(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" && !event.shiftKey) {
-              event.preventDefault();
-              void send();
-            }
-          }}
-          placeholder="Ask OpenCode... (Enter to send, Shift+Enter for newline)"
-          rows={3}
-        />
-        <div className="ai-composer-actions">
-          {streaming ? (
-            <Button className="ghost small" onClick={() => void stop()}>
-              <CircleStop size={14} /> Stop
-            </Button>
-          ) : (
-            <Button className="primary small" onClick={() => void send()} disabled={!input.trim()}>
-              <Send size={14} /> Send
-            </Button>
-          )}
-        </div>
-      </div>
+      <AgentComposer
+        value={input}
+        onChange={setInput}
+        onSend={(text, attachments) => void send(text, attachments)}
+        onStop={() => void stop()}
+        busy={streaming}
+        models={models}
+        model={model}
+        onModelChange={(next) => void chooseModel(next)}
+        effort={effort}
+        efforts={efforts}
+        onEffortChange={(next) => void chooseEffort(next)}
+        yolo={yolo}
+        onYoloChange={setYolo}
+        placeholder="Pergunte ao OpenCode... (/ comandos, @ contexto, ! shell)"
+      />
     </div>
   );
 }

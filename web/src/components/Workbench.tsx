@@ -38,6 +38,7 @@ export default function Workbench() {
   const setTerminalOpen = useApp((state) => state.setTerminalOpen);
   const notify = useApp((state) => state.notify);
   const loadAI = useAI((state) => state.load);
+  const loadModels = useAI((state) => state.loadModels);
   const aiProvider = useAI((state) => state.config?.provider);
 
   const [showProjectModal, setShowProjectModal] = useState(false);
@@ -50,8 +51,8 @@ export default function Workbench() {
   const activeTab = tabs.find((tab) => tab.id === activeTabId) ?? null;
 
   useEffect(() => {
-    void loadAI();
-  }, [loadAI]);
+    void loadAI().then(() => loadModels());
+  }, [loadAI, loadModels]);
 
   useEffect(() => {
     api

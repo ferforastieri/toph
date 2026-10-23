@@ -60,6 +60,14 @@ export interface AIConfigInput {
   systemPrompt: string;
 }
 
+export interface AIModel {
+  id: string;
+  label: string;
+  provider: string;
+  variants?: string[];
+  inputs?: string[];
+}
+
 export interface AIMessage {
   role: "system" | "user" | "assistant";
   content: string;
@@ -414,6 +422,10 @@ export const api = {
     return request<AIConfig>("/ai/config");
   },
 
+  async aiModels(): Promise<{ models: AIModel[] }> {
+    return request<{ models: AIModel[] }>("/ai/models");
+  },
+
   async saveAIConfig(input: AIConfigInput): Promise<AIConfig> {
     return request<AIConfig>("/ai/config", {
       method: "PUT",
@@ -425,10 +437,13 @@ export const api = {
     return request<{ ok: boolean }>("/ai/test", { method: "POST", ...json({}) });
   },
 
-  async aiChat(messages: AIMessage[]): Promise<{ text: string }> {
+  async aiChat(
+    messages: AIMessage[],
+    options: { model?: string; effort?: string; yolo?: boolean } = {},
+  ): Promise<{ text: string }> {
     return request<{ text: string }>("/ai/chat", {
       method: "POST",
-      ...json({ messages }),
+      ...json({ messages, ...options }),
     });
   },
 

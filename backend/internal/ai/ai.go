@@ -15,6 +15,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -67,6 +68,14 @@ type Input struct {
 	Temperature  float64 `json:"temperature"`
 	Autocomplete bool    `json:"autocomplete"`
 	SystemPrompt string  `json:"systemPrompt"`
+}
+
+type Model struct {
+	ID       string   `json:"id"`
+	Label    string   `json:"label"`
+	Provider string   `json:"provider"`
+	Variants []string `json:"variants,omitempty"`
+	Inputs   []string `json:"inputs,omitempty"`
 }
 
 type CompleteInput struct {
@@ -213,13 +222,161 @@ func (s *Service) Test(ctx context.Context) error {
 	}
 }
 
+func (s *Service) Models(ctx context.Context) ([]Model, error) {
+	cfg, err := s.Load(ctx)
+	if err != nil {
+		return nil, err
+	}
+	switch cfg.Provider {
+	case "opencode":
+		return s.modelsOpenCode(ctx, cfg)
+	case "claude", "anthropic":
+		return s.modelsAnthropic(ctx, cfg)
+	case "ollama":
+		return s.modelsOllama(ctx, cfg)
+	default:
+		return s.modelsOpenAI(ctx, cfg)
+	}
+}
+
+func (s *Service) modelsOpenCode(ctx context.Context, cfg Config) ([]Model, error) {
+	var out struct {
+		Data []struct {
+			ID         string `json:"modelID"`
+			ProviderID string `json:"providerID"`
+			Name       string `json:"name"`
+			Enabled    bool   `json:"enabled"`
+			Status     string `json:"status"`
+			Variants   []struct {
+				ID string `json:"id"`
+			} `json:"variants"`
+			Capabilities struct {
+				Input []string `json:"input"`
+			} `json:"capabilities"`
+		} `json:"data"`
+	}
+	headers := map[string]string{}
+	if cfg.APIKey != "" {
+		headers["Authorization"] = cfg.APIKey
+	}
+	if err := s.getJSON(ctx, strings.TrimRight(cfg.BaseURL, "/")+"/api/model", headers, &out); err != nil {
+		return nil, err
+	}
+	models := make([]Model, 0, len(out.Data))
+	for _, item := range out.Data {
+		if !item.Enabled || item.Status == "deprecated" || item.ID == "" {
+			continue
+		}
+		model := Model{
+			ID: item.ProviderID + "/" + item.ID, Label: item.Name,
+			Provider: item.ProviderID, Inputs: item.Capabilities.Input,
+		}
+		for _, variant := range item.Variants {
+			model.Variants = append(model.Variants, variant.ID)
+		}
+		models = append(models, model)
+	}
+	sort.Slice(models, func(i, j int) bool { return strings.ToLower(models[i].Label) < strings.ToLower(models[j].Label) })
+	return models, nil
+}
+
+func (s *Service) modelsOpenAI(ctx context.Context, cfg Config) ([]Model, error) {
+	var out struct {
+		Data []struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	if err := s.getJSON(ctx, endpoint(cfg.BaseURL, "/models"), map[string]string{"Authorization": "Bearer " + cfg.APIKey}, &out); err != nil {
+		return nil, err
+	}
+	models := make([]Model, 0, len(out.Data))
+	for _, item := range out.Data {
+		if item.ID != "" {
+			models = append(models, Model{ID: item.ID, Label: item.ID, Provider: cfg.Provider})
+		}
+	}
+	sort.Slice(models, func(i, j int) bool { return models[i].Label < models[j].Label })
+	return models, nil
+}
+
+func (s *Service) modelsAnthropic(ctx context.Context, cfg Config) ([]Model, error) {
+	var out struct {
+		Data []struct {
+			ID          string `json:"id"`
+			DisplayName string `json:"display_name"`
+		} `json:"data"`
+	}
+	headers := map[string]string{"x-api-key": cfg.APIKey, "anthropic-version": "2023-06-01"}
+	if err := s.getJSON(ctx, endpoint(cfg.BaseURL, "/models"), headers, &out); err != nil {
+		return nil, err
+	}
+	models := make([]Model, 0, len(out.Data))
+	for _, item := range out.Data {
+		label := item.DisplayName
+		if label == "" {
+			label = item.ID
+		}
+		if item.ID != "" {
+			models = append(models, Model{ID: item.ID, Label: label, Provider: cfg.Provider})
+		}
+	}
+	return models, nil
+}
+
+func (s *Service) modelsOllama(ctx context.Context, cfg Config) ([]Model, error) {
+	var out struct {
+		Models []struct {
+			Name string `json:"name"`
+		} `json:"models"`
+	}
+	if err := s.getJSON(ctx, strings.TrimRight(cfg.BaseURL, "/")+"/api/tags", nil, &out); err != nil {
+		return nil, err
+	}
+	models := make([]Model, 0, len(out.Models))
+	for _, item := range out.Models {
+		if item.Name != "" {
+			models = append(models, Model{ID: item.Name, Label: item.Name, Provider: "ollama"})
+		}
+	}
+	return models, nil
+}
+
+func (s *Service) getJSON(ctx context.Context, rawURL string, headers map[string]string, out any) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
+	if err != nil {
+		return err
+	}
+	for key, value := range headers {
+		if value != "" {
+			req.Header.Set(key, value)
+		}
+	}
+	res, err := s.http.Do(req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode >= 400 {
+		body, _ := io.ReadAll(io.LimitReader(res.Body, 1024))
+		return fmt.Errorf("provider returned %d: %s", res.StatusCode, strings.TrimSpace(string(body)))
+	}
+	return json.NewDecoder(io.LimitReader(res.Body, 8<<20)).Decode(out)
+}
+
 func (s *Service) Chat(ctx context.Context, messages []Message) (string, error) {
+	return s.ChatWithOptions(ctx, messages, "", "")
+}
+
+func (s *Service) ChatWithOptions(ctx context.Context, messages []Message, model, effort string) (string, error) {
 	cfg, err := s.Load(ctx)
 	if err != nil {
 		return "", err
 	}
 	if cfg.Provider == "opencode" {
 		return "", ErrOpenCodeAgent
+	}
+	if model != "" {
+		cfg.Model = model
 	}
 	if len(messages) == 0 {
 		return "", errors.New("messages are required")
@@ -230,7 +387,7 @@ func (s *Service) Chat(ctx context.Context, messages []Message) (string, error) 
 	case "ollama":
 		return s.chatOllama(ctx, cfg, messages)
 	default:
-		return s.chatOpenAI(ctx, cfg, messages)
+		return s.chatOpenAI(ctx, cfg, messages, effort)
 	}
 }
 
@@ -285,10 +442,13 @@ func (s *Service) completeOpenCode(ctx context.Context, cfg Config, prompt strin
 	return out.Data.Text, nil
 }
 
-func (s *Service) chatOpenAI(ctx context.Context, cfg Config, messages []Message) (string, error) {
+func (s *Service) chatOpenAI(ctx context.Context, cfg Config, messages []Message, effort string) (string, error) {
 	body := map[string]any{
 		"model": cfg.Model, "messages": messages,
 		"max_tokens": cfg.MaxTokens, "temperature": cfg.Temperature,
+	}
+	if effort != "" {
+		body["reasoning_effort"] = effort
 	}
 	var out struct {
 		Choices []struct {

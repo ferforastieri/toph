@@ -1,12 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { Bot, CircleStop, Send } from "lucide-react";
+import { Bot } from "lucide-react";
 import { api, type AIConfig } from "../api";
 import { providerLabel, useAI } from "../ai";
 import { useApp, type AiMessage, type Tab } from "../store";
 import type { Project } from "../api";
 import OpenCodePanelTab from "./OpenCodePanelTab";
-import { useConfirm } from "../ui/Confirm";
-import { Button } from "../ui/Button";
+import { AgentComposer } from "../ui/AgentComposer";
 
 const EMPTY_MESSAGES: AiMessage[] = [];
 
@@ -19,23 +18,32 @@ interface Props {
 function GenericAiPanel({ tab, project, config }: Props & { config: AIConfig }) {
   const updateTab = useApp((state) => state.updateTab);
   const addMessage = useApp((state) => state.addAiMessage);
-  const setMessages = useApp((state) => state.setAiMessages);
   const setStreaming = useApp((state) => state.setAiStreaming);
   const emptyMessages = useApp((state) => state.aiMessages[tab.id]);
   const messages = emptyMessages ?? EMPTY_MESSAGES;
   const streaming = useApp((state) => state.aiStreaming[tab.id] ?? false);
   const [input, setInput] = useState("");
   const [error, setError] = useState("");
+  const [model, setModel] = useState(config.model);
+  const [effort, setEffort] = useState("");
+  const [yolo, setYolo] = useState(false);
+  const models = useAI((state) => state.models);
+  const loadModels = useAI((state) => state.loadModels);
   const bottomRef = useRef<HTMLDivElement>(null);
   const label = providerLabel(config.provider);
-  const confirm = useConfirm();
 
+  useEffect(() => {
+    if (models.length === 0) void loadModels();
+  }, [loadModels, models.length]);
+
+  useEffect(() => {
+    if (!model && config.model) setModel(config.model);
+  }, [config.model, model]);
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length, streaming]);
 
-  async function send() {
-    const text = input.trim();
+  async function send(text: string) {
     if (!text || streaming) return;
     setInput("");
     setError("");
@@ -49,7 +57,7 @@ function GenericAiPanel({ tab, project, config }: Props & { config: AIConfig }) 
       const context = config.systemPrompt
         ? [{ role: "system" as const, content: config.systemPrompt }, ...history]
         : history;
-      const result = await api.aiChat(context);
+      const result = await api.aiChat(context, { model, effort, yolo });
       addMessage(tab.id, {
         id: `assistant-${Date.now()}`,
         role: "assistant",
@@ -64,18 +72,6 @@ function GenericAiPanel({ tab, project, config }: Props & { config: AIConfig }) 
     } finally {
       setStreaming(tab.id, false);
     }
-  }
-
-  async function clear() {
-    const ok = await confirm({
-      title: "Clear conversation?",
-      message: "All messages in this agent tab will be removed.",
-      confirmLabel: "Clear",
-      danger: true,
-    });
-    if (!ok) return;
-    setMessages(tab.id, []);
-    setError("");
   }
 
   return (
@@ -110,26 +106,22 @@ function GenericAiPanel({ tab, project, config }: Props & { config: AIConfig }) 
         <div ref={bottomRef} />
       </div>
       {error && <div className="ai-error">{error}</div>}
-      <div className="ai-composer">
-        <textarea
-          value={input}
-          onChange={(event) => setInput(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" && !event.shiftKey) {
-              event.preventDefault();
-              void send();
-            }
-          }}
-          placeholder={`Ask ${label}... (Enter to send, Shift+Enter for newline)`}
-          rows={3}
-        />
-        <div className="ai-composer-actions">
-          {messages.length > 0 && <Button className="ghost small" onClick={() => void clear()}><CircleStop size={14} /> Clear</Button>}
-          <Button className="primary small" onClick={() => void send()} disabled={!input.trim() || streaming}>
-            <Send size={14} /> Send
-          </Button>
-        </div>
-      </div>
+      <AgentComposer
+        value={input}
+        onChange={setInput}
+        onSend={(text) => void send(text)}
+        busy={streaming}
+        models={models}
+        model={model}
+        onModelChange={setModel}
+        effort={effort}
+        efforts={[]}
+        onEffortChange={setEffort}
+        yolo={yolo}
+        onYoloChange={setYolo}
+        placeholder={`Pergunte ao ${label} sobre este projeto...`}
+        allowAttachments={false}
+      />
     </div>
   );
 }

@@ -31,6 +31,9 @@ const empty: AIConfigInput = {
 export default function AiSettings() {
   const config = useAI((state) => state.config);
   const setConfig = useAI((state) => state.setConfig);
+  const models = useAI((state) => state.models);
+  const loadingModels = useAI((state) => state.loadingModels);
+  const loadModels = useAI((state) => state.loadModels);
   const notify = useApp((state) => state.notify);
   const [form, setForm] = useState<AIConfigInput>(empty);
   const [busy, setBusy] = useState(false);
@@ -42,6 +45,7 @@ export default function AiSettings() {
       .aiConfig()
       .then((next) => {
         setConfig(next);
+        void loadModels();
         setForm({
           provider: next.provider,
           baseUrl: next.baseUrl,
@@ -67,6 +71,7 @@ export default function AiSettings() {
     patch({
       provider,
       baseUrl: provider === "custom" ? form.baseUrl : (preset?.base ?? ""),
+      model: "",
       autocomplete: form.autocomplete,
     });
   }
@@ -78,6 +83,7 @@ export default function AiSettings() {
     try {
       const saved = await api.saveAIConfig(form);
       setConfig(saved);
+      await loadModels();
       setForm((current) => ({ ...current, apiKey: "", clearKey: false }));
       notify("success", "AI settings saved.");
       if (test) {
@@ -122,14 +128,30 @@ export default function AiSettings() {
             autoComplete="url"
           />
         </label>
-        <label>
-          Model
-          <input
+        <div className="settings-field">
+          <span className="settings-field-head">
+            Model
+            <button type="button" className="ui-link-button" onClick={() => void loadModels()} disabled={loadingModels}>
+              {loadingModels ? "Loading..." : "Refresh"}
+            </button>
+          </span>
+          <Select
             value={form.model}
-            onChange={(event) => patch({ model: event.target.value })}
-            placeholder={form.provider === "opencode" ? "provider/model (optional)" : form.provider === "claude" ? "claude-sonnet-4" : "gpt-4.1-mini"}
+            options={[
+              ...(form.model && !models.some((model) => model.id === form.model)
+                ? [{ value: form.model, label: form.model }]
+                : []),
+              ...models.map((model) => ({
+                value: model.id,
+                label: model.label + (model.provider ? ` · ${model.provider}` : ""),
+              })),
+            ]}
+            onChange={(model) => patch({ model })}
+            label="Model"
+            placeholder={models.length ? "Choose a model" : "Save settings and refresh models"}
+            disabled={loadingModels || models.length === 0}
           />
-        </label>
+        </div>
         <label>
           API key {config?.hasKey && <span className="settings-inline-badge">stored</span>}
           <input

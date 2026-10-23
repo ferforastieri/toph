@@ -8,6 +8,9 @@ import (
 
 type chatRequest struct {
 	Messages []ai.Message `json:"messages"`
+	Model    string       `json:"model"`
+	Effort   string       `json:"effort"`
+	Yolo     bool         `json:"yolo"`
 }
 
 func (s *Server) getAIConfig(w http.ResponseWriter, r *http.Request) {
@@ -54,7 +57,7 @@ func (s *Server) chatAI(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &request) {
 		return
 	}
-	text, err := s.ai.Chat(r.Context(), request.Messages)
+	text, err := s.ai.ChatWithOptions(r.Context(), request.Messages, request.Model, request.Effort)
 	if err != nil {
 		apiError(w, err)
 		return
@@ -77,4 +80,13 @@ func (s *Server) completeAI(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"completion": completion})
+}
+
+func (s *Server) aiModels(w http.ResponseWriter, r *http.Request) {
+	models, err := s.ai.Models(r.Context())
+	if err != nil {
+		apiError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"models": models})
 }

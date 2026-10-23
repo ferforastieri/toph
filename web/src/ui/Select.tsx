@@ -15,6 +15,7 @@ interface SelectProps<T extends string> {
   placeholder?: string;
   disabled?: boolean;
   className?: string;
+  placement?: "bottom" | "top";
 }
 
 export function Select<T extends string>({
@@ -25,6 +26,7 @@ export function Select<T extends string>({
   placeholder = "Select...",
   disabled = false,
   className = "",
+  placement = "bottom",
 }: SelectProps<T>) {
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -34,7 +36,13 @@ export function Select<T extends string>({
 
   function place() {
     const rect = triggerRef.current?.getBoundingClientRect();
-    if (rect) setPosition({ top: rect.bottom + 6, left: rect.left, width: rect.width });
+    if (rect) {
+      setPosition({
+        top: placement === "top" ? rect.top - 6 : rect.bottom + 6,
+        left: rect.left,
+        width: rect.width,
+      });
+    }
   }
 
   useEffect(() => {
@@ -88,7 +96,12 @@ export function Select<T extends string>({
           ref={menuRef}
           className="ui-select-menu"
           role="listbox"
-          style={{ top: position.top, left: position.left, width: position.width }}
+          style={{
+            top: position.top,
+            left: position.left,
+            width: position.width,
+            transform: placement === "top" ? "translateY(-100%)" : undefined,
+          }}
         >
           {options.map((option) => (
             <button

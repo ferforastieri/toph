@@ -19,7 +19,7 @@ import (
 	"github.com/ferforastieri/toph/internal/workspace"
 )
 
-const Version = "0.5.1"
+const Version = "0.5.2"
 
 type Server struct {
 	cfg          config.Config
@@ -101,6 +101,7 @@ func (s *Server) Handler() http.Handler {
 
 		r.Get("/api/ai/config", s.getAIConfig)
 		r.Put("/api/ai/config", s.saveAIConfig)
+		r.Get("/api/ai/models", s.aiModels)
 		r.Post("/api/ai/test", s.testAI)
 		r.Post("/api/ai/chat", s.chatAI)
 		r.Post("/api/ai/complete", s.completeAI)
