@@ -1,8 +1,11 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Check, CircleAlert, PlugZap, Save, Sparkles } from "lucide-react";
 import { api, type AIConfigInput } from "../api";
+import { Checkbox } from "../ui/Checkbox";
+import { Select } from "../ui/Select";
 import { useAI } from "../ai";
 import { useApp } from "../store";
+import { Button } from "../ui/Button";
 
 const providers = [
   { id: "opencode", label: "OpenCode", base: "" },
@@ -101,14 +104,15 @@ export default function AiSettings() {
         Keys and URLs are stored on the server, not baked into the image or environment.
       </p>
       <form className="settings-form" onSubmit={(event) => void save(event)}>
-        <label>
-          Provider
-          <select value={form.provider} onChange={(event) => chooseProvider(event.target.value)}>
-            {providers.map((provider) => (
-              <option key={provider.id} value={provider.id}>{provider.label}</option>
-            ))}
-          </select>
-        </label>
+        <div className="settings-field">
+          <span>Provider</span>
+          <Select
+            value={form.provider}
+            options={providers.map((provider) => ({ value: provider.id, label: provider.label }))}
+            onChange={chooseProvider}
+            label="Provider"
+          />
+        </div>
         <label>
           Base URL
           <input
@@ -137,14 +141,11 @@ export default function AiSettings() {
           />
         </label>
         {config?.hasKey && (
-          <label className="checkbox">
-            <input
-              type="checkbox"
-              checked={form.clearKey}
-              onChange={(event) => patch({ clearKey: event.target.checked })}
-            />
-            Remove stored key
-          </label>
+          <Checkbox
+            checked={Boolean(form.clearKey)}
+            onChange={(clearKey) => patch({ clearKey })}
+            label="Remove stored key"
+          />
         )}
         <div className="settings-form-grid">
           <label>
@@ -183,7 +184,7 @@ export default function AiSettings() {
             Editor autocomplete
             <small>Uses the configured provider and model.</small>
           </span>
-          <button
+          <Button
             type="button"
             className="switch-track"
             role="switch"
@@ -191,7 +192,7 @@ export default function AiSettings() {
             onClick={() => patch({ autocomplete: !form.autocomplete })}
           >
             <span className="switch-thumb" />
-          </button>
+          </Button>
         </div>
         {error && <div className="form-error"><CircleAlert size={13} /> {error}</div>}
         {tested && (
@@ -200,12 +201,12 @@ export default function AiSettings() {
           </div>
         )}
         <div className="settings-actions">
-          <button type="button" className="ghost small" disabled={busy} onClick={() => void save(undefined, true)}>
+          <Button type="button" className="ghost small" disabled={busy} onClick={() => void save(undefined, true)}>
             <PlugZap size={14} /> Save and test
-          </button>
-          <button className="primary small" disabled={busy}>
+          </Button>
+          <Button className="primary small" disabled={busy}>
             <Save size={14} /> {busy ? "Saving..." : "Save AI settings"}
-          </button>
+          </Button>
         </div>
       </form>
     </div>

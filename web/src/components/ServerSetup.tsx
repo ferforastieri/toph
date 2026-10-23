@@ -1,6 +1,7 @@
 import { FormEvent, useState } from "react";
 import { ArrowRight, Server } from "lucide-react";
 import { probeServer } from "../api";
+import { Button } from "../ui/Button";
 
 interface Props {
   defaultUrl: string;
@@ -49,9 +50,9 @@ export default function ServerSetup({ defaultUrl, onConnected }: Props) {
             </div>
           </label>
           {error && <div className="form-error">{error}</div>}
-          <button className="primary" disabled={busy || !url.trim()}>
+          <Button className="primary" disabled={busy || !url.trim()}>
             {busy ? "Connecting..." : "Connect"} <ArrowRight size={15} />
-          </button>
+          </Button>
         </form>
         <p className="login-note">
           Toph runs on your server. The address is saved on this device; credentials are

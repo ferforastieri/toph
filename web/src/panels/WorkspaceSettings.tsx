@@ -3,6 +3,8 @@ import { AlertTriangle, FolderOpen, FolderPlus, HardDrive, Plus, Trash2 } from "
 import { api } from "../api";
 import { basename } from "../lib";
 import { useApp } from "../store";
+import { useConfirm } from "../ui/Confirm";
+import { Button } from "../ui/Button";
 
 export default function WorkspaceSettings() {
   const projects = useApp((state) => state.projects);
@@ -11,6 +13,7 @@ export default function WorkspaceSettings() {
   const setActiveProject = useApp((state) => state.setActiveProject);
   const setSidebar = useApp((state) => state.setSidebar);
   const notify = useApp((state) => state.notify);
+  const confirm = useConfirm();
   const [roots, setRoots] = useState<string[]>([]);
   const [root, setRoot] = useState("");
   const [projectPath, setProjectPath] = useState("");
@@ -44,7 +47,13 @@ export default function WorkspaceSettings() {
   }
 
   async function removeRoot(value: string) {
-    if (!window.confirm(`Remove ${value} from the workspace roots?`)) return;
+    const ok = await confirm({
+      title: "Remove workspace folder?",
+      message: `Remove ${value} from the allowed workspace folders?`,
+      confirmLabel: "Remove",
+      danger: true,
+    });
+    if (!ok) return;
     setBusy(true);
     setError("");
     try {
@@ -124,9 +133,9 @@ export default function WorkspaceSettings() {
             placeholder={projectPath ? basename(projectPath) : "Optional"}
           />
         </label>
-        <button className="primary small" disabled={busy || !projectPath.trim()}>
+        <Button className="primary small" disabled={busy || !projectPath.trim()}>
           <Plus size={14} /> {busy ? "Opening..." : "Open as project"}
-        </button>
+        </Button>
       </form>
 
       <div className="settings-subtitle"><FolderPlus size={13} /> Allowed folders</div>
@@ -134,9 +143,9 @@ export default function WorkspaceSettings() {
         {roots.map((value) => (
           <div className="settings-root" key={value}>
             <code>{value}</code>
-            <button className="icon-button danger" title="Remove" onClick={() => void removeRoot(value)}>
+            <Button className="icon-button danger" title="Remove" onClick={() => void removeRoot(value)}>
               <Trash2 size={13} />
-            </button>
+            </Button>
           </div>
         ))}
         {roots.length === 0 && <div className="settings-empty">No allowed folders configured.</div>}
@@ -147,9 +156,9 @@ export default function WorkspaceSettings() {
           onChange={(event) => setRoot(event.target.value)}
           placeholder="/srv/repos"
         />
-        <button className="ghost small" disabled={busy || !root.trim()}>
+        <Button className="ghost small" disabled={busy || !root.trim()}>
           <FolderPlus size={14} /> Add folder
-        </button>
+        </Button>
       </form>
       <div className="settings-warning">
         <AlertTriangle size={13} />

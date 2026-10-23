@@ -6,12 +6,15 @@ import "@xterm/xterm/css/xterm.css";
 import "./monaco";
 import "./styles.css";
 import { initAppearance } from "./settings";
+import { ConfirmProvider } from "./ui/Confirm";
 import App from "./App";
 
 initAppearance();
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <App />
+    <ConfirmProvider>
+      <App />
+    </ConfirmProvider>
   </React.StrictMode>,
 );

@@ -12,6 +12,10 @@ import {
 } from "lucide-react";
 import { api, type DBProfile, type SchemaTable } from "../api";
 import { useApp } from "../store";
+import { Button } from "../ui/Button";
+import { Checkbox } from "../ui/Checkbox";
+import { Select } from "../ui/Select";
+import { useConfirm } from "../ui/Confirm";
 
 interface Props {
   onOpenQuery: (profileId: string, sql: string) => void;
@@ -26,6 +30,7 @@ export default function DatabasesPanel({ onOpenQuery, onOpenTable }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const notify = useApp((state) => state.notify);
+  const confirm = useConfirm();
 
   async function load() {
     setBusy(true);
@@ -61,12 +66,12 @@ export default function DatabasesPanel({ onOpenQuery, onOpenTable }: Props) {
       <div className="panel-heading">
         <span>Databases</span>
         <div className="panel-actions">
-          <button className="icon-button" title="Refresh" onClick={() => void load()}>
+          <Button className="icon-button" title="Refresh" onClick={() => void load()}>
             <RefreshCw size={14} />
-          </button>
-          <button className="icon-button" title="New connection" onClick={() => setShowForm((v) => !v)}>
+          </Button>
+          <Button className="icon-button" title="New connection" onClick={() => setShowForm((v) => !v)}>
             <Plus size={15} />
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -85,22 +90,22 @@ export default function DatabasesPanel({ onOpenQuery, onOpenTable }: Props) {
       {profiles.map((profile) => (
         <div className="db-profile" key={profile.id}>
           <div className="db-profile-row">
-            <button className="db-profile-name" onClick={() => void toggle(profile)}>
+            <Button className="db-profile-name" onClick={() => void toggle(profile)}>
               {expanded[profile.id] ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
               <Database size={15} className="db-icon" />
               <span>{profile.name}</span>
               <span className={`driver-badge ${profile.driver}`}>{profile.driver}</span>
               {profile.readOnly && <span className="readonly-badge">read-only</span>}
-            </button>
+            </Button>
             <div className="db-profile-actions">
-              <button
+              <Button
                 className="icon-button"
                 title="New query"
                 onClick={() => onOpenQuery(profile.id, "")}
               >
                 <Play size={13} />
-              </button>
-              <button
+              </Button>
+              <Button
                 className="icon-button"
                 title="Test connection"
                 onClick={() => {
@@ -113,22 +118,28 @@ export default function DatabasesPanel({ onOpenQuery, onOpenTable }: Props) {
                 }}
               >
                 <Wifi size={13} />
-              </button>
-              <button
+              </Button>
+              <Button
                 className="icon-button danger"
                 title="Delete connection"
-                onClick={() => {
-                  if (!window.confirm(`Delete connection "${profile.name}"?`)) return;
-                  api
-                    .deleteDBProfile(profile.id)
-                    .then(() => void load())
-                    .catch((err) =>
-                      notify("error", err instanceof Error ? err.message : "Could not delete."),
-                    );
+                onClick={async () => {
+                  const ok = await confirm({
+                    title: "Delete connection?",
+                    message: `Delete "${profile.name}" from this workspace?`,
+                    confirmLabel: "Delete",
+                    danger: true,
+                  });
+                  if (!ok) return;
+                  try {
+                    await api.deleteDBProfile(profile.id);
+                    await load();
+                  } catch (err) {
+                    notify("error", err instanceof Error ? err.message : "Could not delete.");
+                  }
                 }}
               >
                 <Trash2 size={13} />
-              </button>
+              </Button>
             </div>
           </div>
           {expanded[profile.id] && (
@@ -136,7 +147,7 @@ export default function DatabasesPanel({ onOpenQuery, onOpenTable }: Props) {
               {schemas[profile.id] === undefined && <div className="panel-muted">Reading schema...</div>}
               {schemas[profile.id]?.length === 0 && <div className="panel-muted">No tables.</div>}
               {schemas[profile.id]?.map((table) => (
-                <button
+                <Button
                   key={`${table.schema}.${table.name}`}
                   className="db-table"
                   onClick={() => onOpenTable(profile.id, table, profile.driver)}
@@ -145,7 +156,7 @@ export default function DatabasesPanel({ onOpenQuery, onOpenTable }: Props) {
                   <Table2 size={14} />
                   <span>{table.name}</span>
                   <span className="db-column-count">{table.columns.length}</span>
-                </button>
+                </Button>
               ))}
             </div>
           )}
@@ -156,9 +167,9 @@ export default function DatabasesPanel({ onOpenQuery, onOpenTable }: Props) {
         <div className="empty-hint">
           <Database size={22} />
           <p>No database connections yet.</p>
-          <button className="ghost" onClick={() => setShowForm(true)}>
+          <Button className="ghost" onClick={() => setShowForm(true)}>
             Add connection
-          </button>
+          </Button>
         </div>
       )}
     </div>
@@ -209,36 +220,34 @@ function ConnectionForm({ onCreated }: { onCreated: () => void }) {
         onChange={(event) => setName(event.target.value)}
         required
       />
-      <select value={driver} onChange={(event) => setDriver(event.target.value)}>
-        <option value="postgres">PostgreSQL</option>
-        <option value="mysql">MySQL / MariaDB</option>
-        <option value="sqlite">SQLite</option>
-        <option value="sqlserver">SQL Server</option>
-        <option value="oracle">Oracle</option>
-        <option value="clickhouse">ClickHouse</option>
-        <option value="mongodb">MongoDB</option>
-        <option value="redis">Redis</option>
-        <option value="cassandra">Cassandra</option>
-        <option value="elasticsearch">Elasticsearch</option>
-        <option value="neo4j">Neo4j</option>
-      </select>
+      <Select
+        value={driver}
+        onChange={setDriver}
+        label="Driver"
+        options={[
+          { value: "postgres", label: "PostgreSQL" },
+          { value: "mysql", label: "MySQL / MariaDB" },
+          { value: "sqlite", label: "SQLite" },
+          { value: "sqlserver", label: "SQL Server" },
+          { value: "oracle", label: "Oracle" },
+          { value: "clickhouse", label: "ClickHouse" },
+          { value: "mongodb", label: "MongoDB" },
+          { value: "redis", label: "Redis" },
+          { value: "cassandra", label: "Cassandra" },
+          { value: "elasticsearch", label: "Elasticsearch" },
+          { value: "neo4j", label: "Neo4j" },
+        ]}
+      />
       <input
         placeholder={hints[driver]}
         value={dsn}
         onChange={(event) => setDsn(event.target.value)}
         required
       />
-      <label className="checkbox">
-        <input
-          type="checkbox"
-          checked={readOnly}
-          onChange={(event) => setReadOnly(event.target.checked)}
-        />
-        Read-only
-      </label>
-      <button className="primary small" disabled={busy}>
+      <Checkbox checked={readOnly} onChange={setReadOnly} label="Read-only" />
+      <Button className="primary small" disabled={busy}>
         {busy ? "Adding..." : "Add connection"}
-      </button>
+      </Button>
     </form>
   );
 }

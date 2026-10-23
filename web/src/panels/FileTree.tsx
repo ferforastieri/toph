@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { api, type FileEntry, type Project } from "../api";
 import { useApp } from "../store";
+import { Button } from "../ui/Button";
 
 interface Props {
   project: Project;
@@ -42,9 +43,9 @@ export default function FileTree({ project, onOpenFile }: Props) {
     <div className="tree">
       <div className="panel-heading">
         <span>Explorer</span>
-        <button className="icon-button" title="Refresh" onClick={() => setRefresh((n) => n + 1)}>
+        <Button className="icon-button" title="Refresh" onClick={() => setRefresh((n) => n + 1)}>
           <RefreshCw size={14} />
-        </button>
+        </Button>
       </div>
       <div className="tree-root">{project.root}</div>
       {error && <div className="panel-error">{error}</div>}
@@ -98,7 +99,7 @@ function TreeNode({
 
   return (
     <>
-      <button
+      <Button
         className={`tree-item ${entry.dir ? "is-dir" : "is-file"}`}
         style={{ paddingLeft: 10 + depth * 14 }}
         onClick={() => void toggle()}
@@ -123,7 +124,7 @@ function TreeNode({
           <FileCode2 size={15} className="file-icon" />
         )}
         <span className="tree-name">{entry.name}</span>
-      </button>
+      </Button>
       {open && loading && (
         <div className="tree-loading" style={{ paddingLeft: 24 + depth * 14 }}>
           loading...

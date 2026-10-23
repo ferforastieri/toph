@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Boxes, ChevronDown, FolderPlus, Plus } from "lucide-react";
+import { Boxes, FolderPlus, Plus } from "lucide-react";
 import { api, type Project, type SchemaTable, type WebTarget } from "../api";
 import { basename, quoteIdentifier } from "../lib";
 import { useApp, type Sidebar, type Tab } from "../store";
@@ -20,6 +20,8 @@ import DbPanelTab from "../panels/DbPanelTab";
 import AiPanelTab from "../panels/AiPanelTab";
 import WebPanelTab from "../panels/WebPanelTab";
 import TerminalPanel from "../panels/TerminalPanel";
+import { Button } from "../ui/Button";
+import { Select } from "../ui/Select";
 
 export default function Workbench() {
   const projects = useApp((state) => state.projects);
@@ -268,9 +270,9 @@ export default function Workbench() {
           <div className="brand-mark large">T</div>
           <h1>Welcome to Toph</h1>
           <p>Create your first project from a directory on the server.</p>
-          <button className="primary" onClick={() => setShowProjectModal(true)}>
+          <Button className="primary" onClick={() => setShowProjectModal(true)}>
             <FolderPlus size={15} /> Create project
-          </button>
+          </Button>
         </div>
         {showProjectModal && (
           <ProjectModal onClose={() => setShowProjectModal(false)} onCreated={projectCreated} />
@@ -288,21 +290,17 @@ export default function Workbench() {
           <span>Toph</span>
         </div>
         <div className="project-switcher">
-          <select
+          <Select
             value={activeProjectId ?? ""}
-            onChange={(event) => switchProject(event.target.value)}
-            aria-label="Project"
-          >
-            {projects.map((item) => (
-              <option value={item.id} key={item.id}>
-                {item.name}
-              </option>
-            ))}
-          </select>
-          <ChevronDown size={13} className="select-chevron" />
-          <button className="icon-button" title="New project" onClick={() => setShowProjectModal(true)}>
+            options={projects.map((item) => ({ value: item.id, label: item.name }))}
+            onChange={switchProject}
+            label="Project"
+            placeholder="Select project"
+            className="project-select-trigger"
+          />
+          <Button className="icon-button" title="New project" onClick={() => setShowProjectModal(true)}>
             <Plus size={15} />
-          </button>
+          </Button>
         </div>
         <div className="titlebar-spacer" />
         <div className="titlebar-note">
@@ -331,15 +329,15 @@ export default function Workbench() {
                 <h2>{project.name}</h2>
                 <p>{project.root}</p>
                 <div className="welcome-actions">
-                  <button className="ghost" onClick={() => setSidebar("files")}>
+                  <Button className="ghost" onClick={() => setSidebar("files")}>
                     Open Explorer
-                  </button>
-                  <button className="ghost" onClick={() => setSidebar("db")}>
+                  </Button>
+                  <Button className="ghost" onClick={() => setSidebar("db")}>
                     Database
-                  </button>
-                  <button className="ghost" onClick={openAI}>
+                  </Button>
+                  <Button className="ghost" onClick={openAI}>
                     Agent
-                  </button>
+                  </Button>
                 </div>
               </div>
             )}

@@ -1,7 +1,8 @@
 import { FormEvent, useState } from "react";
-import { X } from "lucide-react";
 import { api, ApiError, type Project } from "../api";
 import { useApp } from "../store";
+import { Button } from "../ui/Button";
+import { Modal } from "../ui/Modal";
 
 interface Props {
   onClose: () => void;
@@ -37,42 +38,37 @@ export default function ProjectModal({ onClose, onCreated }: Props) {
   }
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal" onClick={(event) => event.stopPropagation()}>
-        <div className="modal-header">
-          <h2>New project</h2>
-          <button className="icon-button" onClick={onClose}>
-            <X size={16} />
-          </button>
-        </div>
-        <form onSubmit={submit} className="modal-form">
-          <label>
-            Name
-            <input value={name} onChange={(event) => setName(event.target.value)} required autoFocus />
-          </label>
-          <label>
-            Server path
-            <input
-              value={root}
-              onChange={(event) => setRoot(event.target.value)}
-              placeholder="/workspaces/my-project"
-              required
-            />
-          </label>
-          <p className="muted small">
-            The path must exist and be inside one of the folders allowed in Settings → Workspace.
-          </p>
-          {error && <div className="form-error">{error}</div>}
-          <div className="modal-actions">
-            <button type="button" className="ghost" onClick={onClose}>
-              Cancel
-            </button>
-            <button className="primary" disabled={busy}>
-              {busy ? "Creating..." : "Create project"}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+    <Modal
+      title="New project"
+      onClose={onClose}
+      footer={
+        <>
+          <Button type="button" className="ghost" onClick={onClose}>Cancel</Button>
+          <Button type="submit" form="new-project-form" className="primary" disabled={busy}>
+            {busy ? "Creating..." : "Create project"}
+          </Button>
+        </>
+      }
+    >
+      <form id="new-project-form" className="modal-form" onSubmit={submit}>
+        <label>
+          Name
+          <input value={name} onChange={(event) => setName(event.target.value)} required autoFocus />
+        </label>
+        <label>
+          Server path
+          <input
+            value={root}
+            onChange={(event) => setRoot(event.target.value)}
+            placeholder="/srv/repos/my-project"
+            required
+          />
+        </label>
+        <p className="muted small">
+          The path must exist and be inside one of the folders allowed in Settings → Workspace.
+        </p>
+        {error && <div className="form-error">{error}</div>}
+      </form>
+    </Modal>
   );
 }

@@ -1,6 +1,7 @@
 import { FormEvent, useState } from "react";
 import { api, ApiError } from "../api";
 import { useApp } from "../store";
+import { Button } from "../ui/Button";
 
 interface Props {
   onChangeServer?: () => void;
@@ -67,18 +68,18 @@ export default function Login({ onChangeServer }: Props) {
             />
           </label>
           {error && <div className="form-error">{error}</div>}
-          <button className="primary" disabled={busy || !password}>
+          <Button className="primary" disabled={busy || !password}>
             {busy ? "Signing in..." : "Sign in"}
-          </button>
+          </Button>
         </form>
         <p className="login-note">
           Toph is self-hosted. If this is a fresh install, the initial password was printed
           in the server log.
         </p>
         {onChangeServer && (
-          <button type="button" className="ghost small" onClick={onChangeServer}>
+          <Button type="button" className="ghost small" onClick={onChangeServer}>
             Change server
-          </button>
+          </Button>
         )}
       </div>
     </main>

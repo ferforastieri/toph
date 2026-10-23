@@ -3,6 +3,7 @@ import { OpenCode } from "@opencode/client";
 import { Bot, Check, CircleStop, Send, Sparkles, X } from "lucide-react";
 import { openCodeBase, type Project } from "../api";
 import { useApp, type AiMessage, type Tab } from "../store";
+import { Button } from "../ui/Button";
 
 const EMPTY_MESSAGES: AiMessage[] = [];
 
@@ -259,7 +260,7 @@ export default function OpenCodePanelTab({ tab, project }: Props) {
             <pre>{message.text}</pre>
             {message.permissionId && (
               <div className="ai-permission-actions">
-                <button
+                <Button
                   className="ghost small"
                   onClick={() =>
                     void replyPermission(
@@ -270,8 +271,8 @@ export default function OpenCodePanelTab({ tab, project }: Props) {
                   }
                 >
                   <Check size={13} /> Allow once
-                </button>
-                <button
+                </Button>
+                <Button
                   className="ghost small"
                   onClick={() =>
                     void replyPermission(
@@ -282,8 +283,8 @@ export default function OpenCodePanelTab({ tab, project }: Props) {
                   }
                 >
                   <Check size={13} /> Always
-                </button>
-                <button
+                </Button>
+                <Button
                   className="ghost small danger"
                   onClick={() =>
                     void replyPermission(
@@ -294,7 +295,7 @@ export default function OpenCodePanelTab({ tab, project }: Props) {
                   }
                 >
                   <X size={13} /> Reject
-                </button>
+                </Button>
               </div>
             )}
           </div>
@@ -325,13 +326,13 @@ export default function OpenCodePanelTab({ tab, project }: Props) {
         />
         <div className="ai-composer-actions">
           {streaming ? (
-            <button className="ghost small" onClick={() => void stop()}>
+            <Button className="ghost small" onClick={() => void stop()}>
               <CircleStop size={14} /> Stop
-            </button>
+            </Button>
           ) : (
-            <button className="primary small" onClick={() => void send()} disabled={!input.trim()}>
+            <Button className="primary small" onClick={() => void send()} disabled={!input.trim()}>
               <Send size={14} /> Send
-            </button>
+            </Button>
           )}
         </div>
       </div>

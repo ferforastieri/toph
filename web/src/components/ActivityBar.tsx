@@ -8,6 +8,7 @@ import {
   TerminalSquare,
 } from "lucide-react";
 import { useApp, type Sidebar } from "../store";
+import { Button } from "../ui/Button";
 
 const items: Array<{ id: Sidebar; label: string; icon: typeof Files }> = [
   { id: "files", label: "Explorer", icon: Files },
@@ -29,32 +30,32 @@ export default function ActivityBar() {
         {items.map((item) => {
           const Icon = item.icon;
           return (
-            <button
+            <Button
               key={item.id}
               className={`activity-button ${sidebar === item.id ? "active" : ""}`}
               title={item.label}
               onClick={() => setSidebar(item.id)}
             >
               <Icon size={21} strokeWidth={1.7} />
-            </button>
+            </Button>
           );
         })}
-        <button
+        <Button
           className={`activity-button ${terminalOpen ? "active" : ""}`}
           title="Terminal"
           onClick={toggleTerminal}
         >
           <TerminalSquare size={21} strokeWidth={1.7} />
-        </button>
+        </Button>
       </div>
       <div className="activity-bottom">
-        <button
+        <Button
           className={`activity-button ${sidebar === "settings" ? "active" : ""}`}
           title="Settings"
           onClick={() => setSidebar("settings")}
         >
           <Settings size={21} strokeWidth={1.7} />
-        </button>
+        </Button>
       </div>
     </nav>
   );

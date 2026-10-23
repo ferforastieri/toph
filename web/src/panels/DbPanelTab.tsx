@@ -3,6 +3,8 @@ import { Check, Pencil, Play, Square, Timer, Rows3, Trash2, X } from "lucide-rea
 import { api, type DBProfile, type QueryResult } from "../api";
 import { useApp, type Tab } from "../store";
 import CodeEditor from "../components/CodeEditor";
+import { Button } from "../ui/Button";
+import { useConfirm } from "../ui/Confirm";
 
 interface Props {
   tab: Tab;
@@ -11,6 +13,7 @@ interface Props {
 export default function DbPanelTab({ tab }: Props) {
   const updateTab = useApp((state) => state.updateTab);
   const notify = useApp((state) => state.notify);
+  const confirm = useConfirm();
   const [profile, setProfile] = useState<DBProfile | null>(null);
   const [sql, setSql] = useState(tab.sql ?? "");
   const [result, setResult] = useState<QueryResult | null>(null);
@@ -125,7 +128,13 @@ export default function DbPanelTab({ tab }: Props) {
     if (!tab.profileId || !tab.table) return;
     const key = keyForRow(rowIndex);
     if (!key) return;
-    if (!window.confirm("Delete this row?")) return;
+    const ok = await confirm({
+      title: "Delete row?",
+      message: "Delete the selected row from the database?",
+      confirmLabel: "Delete",
+      danger: true,
+    });
+    if (!ok) return;
     setMutationBusy(true);
     try {
       await api.deleteRow(tab.profileId, {
@@ -163,14 +172,14 @@ export default function DbPanelTab({ tab }: Props) {
                     ? "CQL"
                     : "Ctrl/Cmd + Enter"}
           </span>
-          <button className="primary small" onClick={() => void run()} disabled={busy || !sql.trim()}>
+          <Button className="primary small" onClick={() => void run()} disabled={busy || !sql.trim()}>
             {busy ? <Timer size={14} className="spin" /> : <Play size={14} />}
             {busy ? "Running" : "Run"}
-          </button>
+          </Button>
           {busy && (
-            <button className="ghost small" disabled title="Query cancellation is coming next">
+            <Button className="ghost small" disabled title="Query cancellation is coming next">
               <Square size={13} /> Stop
-            </button>
+            </Button>
           )}
         </div>
       </div>
@@ -238,16 +247,16 @@ export default function DbPanelTab({ tab }: Props) {
                         ))}
                         {canEdit && (
                           <td className="row-actions">
-                            <button className="icon-button" title="Edit row" onClick={() => startEdit(rowIndex)}>
+                            <Button className="icon-button" title="Edit row" onClick={() => startEdit(rowIndex)}>
                               <Pencil size={13} />
-                            </button>
-                            <button
+                            </Button>
+                            <Button
                               className="icon-button danger"
                               title="Delete row"
                               onClick={() => void deleteRow(rowIndex)}
                             >
                               <Trash2 size={13} />
-                            </button>
+                            </Button>
                           </td>
                         )}
                       </tr>
@@ -268,9 +277,9 @@ export default function DbPanelTab({ tab }: Props) {
                 <strong>Edit {tab.table.name}</strong>
                 <span>Primary key: {tab.table.primary.join(", ")}</span>
               </div>
-              <button className="icon-button" onClick={() => setEditing(null)}>
+              <Button className="icon-button" onClick={() => setEditing(null)}>
                 <X size={15} />
-              </button>
+              </Button>
             </div>
             <div className="row-editor-fields">
               {result?.columns.map((column) => (
@@ -293,12 +302,12 @@ export default function DbPanelTab({ tab }: Props) {
               ))}
             </div>
             <div className="row-editor-actions">
-              <button className="ghost small" onClick={() => setEditing(null)}>
+              <Button className="ghost small" onClick={() => setEditing(null)}>
                 Cancel
-              </button>
-              <button className="primary small" disabled={mutationBusy} onClick={() => void saveEdit()}>
+              </Button>
+              <Button className="primary small" disabled={mutationBusy} onClick={() => void saveEdit()}>
                 <Check size={14} /> {mutationBusy ? "Saving..." : "Save row"}
-              </button>
+              </Button>
             </div>
           </div>
         </div>

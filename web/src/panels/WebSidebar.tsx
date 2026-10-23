@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { ExternalLink, Globe2, Plus, Trash2 } from "lucide-react";
 import { api, type WebTarget } from "../api";
 import { useApp } from "../store";
+import { Button } from "../ui/Button";
+import { useConfirm } from "../ui/Confirm";
 
 interface Props {
   onOpenWeb: (target: WebTarget) => void;
@@ -11,6 +13,7 @@ export default function WebSidebar({ onOpenWeb }: Props) {
   const [targets, setTargets] = useState<WebTarget[]>([]);
   const [showForm, setShowForm] = useState(false);
   const notify = useApp((state) => state.notify);
+  const confirm = useConfirm();
 
   async function load() {
     try {
@@ -28,32 +31,39 @@ export default function WebSidebar({ onOpenWeb }: Props) {
     <div className="panel">
       <div className="panel-heading">
         <span>Web apps</span>
-        <button className="icon-button" title="Add web app" onClick={() => setShowForm((v) => !v)}>
+        <Button className="icon-button" title="Add web app" onClick={() => setShowForm((v) => !v)}>
           <Plus size={15} />
-        </button>
+        </Button>
       </div>
 
       {showForm && <WebTargetForm onCreated={() => { setShowForm(false); void load(); }} />}
 
       {targets.map((target) => (
         <div className="web-target" key={target.id}>
-          <button className="web-target-main" onClick={() => onOpenWeb(target)}>
+          <Button className="web-target-main" onClick={() => onOpenWeb(target)}>
             <Globe2 size={15} />
             <span>{target.name}</span>
-          </button>
+          </Button>
           <a className="icon-button" href={target.url} target="_blank" rel="noreferrer" title="Open externally">
             <ExternalLink size={13} />
           </a>
-          <button
+          <Button
             className="icon-button danger"
             title="Delete"
-            onClick={() => {
-              if (!window.confirm(`Delete web app "${target.name}"?`)) return;
-              api.deleteWebTarget(target.id).then(() => void load());
+            onClick={async () => {
+              const ok = await confirm({
+                title: "Delete web app?",
+                message: `Delete "${target.name}" from this workspace?`,
+                confirmLabel: "Delete",
+                danger: true,
+              });
+              if (!ok) return;
+              await api.deleteWebTarget(target.id);
+              await load();
             }}
           >
             <Trash2 size={13} />
-          </button>
+          </Button>
         </div>
       ))}
 
@@ -61,9 +71,9 @@ export default function WebSidebar({ onOpenWeb }: Props) {
         <div className="empty-hint">
           <Globe2 size={22} />
           <p>No web apps yet.</p>
-          <button className="ghost" onClick={() => setShowForm(true)}>
+          <Button className="ghost" onClick={() => setShowForm(true)}>
             Add web app
-          </button>
+          </Button>
         </div>
       )}
     </div>
@@ -98,9 +108,9 @@ function WebTargetForm({ onCreated }: { onCreated: () => void }) {
         onChange={(event) => setUrl(event.target.value)}
         required
       />
-      <button className="primary small" disabled={busy}>
+      <Button className="primary small" disabled={busy}>
         {busy ? "Adding..." : "Add web app"}
-      </button>
+      </Button>
     </form>
   );
 }

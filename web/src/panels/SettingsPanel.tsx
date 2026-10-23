@@ -30,6 +30,7 @@ import {
 } from "../settings";
 import AiSettings from "./AiSettings";
 import WorkspaceSettings from "./WorkspaceSettings";
+import { Button } from "../ui/Button";
 
 interface Props {
   version: string;
@@ -114,7 +115,7 @@ function Segmented<T extends string>({
       {options.map((option) => {
         const Icon = option.icon;
         return (
-          <button
+          <Button
             key={option.id}
             type="button"
             className={value === option.id ? "active" : ""}
@@ -122,7 +123,7 @@ function Segmented<T extends string>({
           >
             {Icon && <Icon size={13} />}
             {option.label}
-          </button>
+          </Button>
         );
       })}
     </div>
@@ -174,7 +175,7 @@ function Toggle({
   onChange: (checked: boolean) => void;
 }) {
   return (
-    <button
+    <Button
       type="button"
       className={`settings-toggle ${checked ? "on" : ""}`}
       role="switch"
@@ -183,7 +184,7 @@ function Toggle({
     >
       <span>{label}</span>
       <span className="switch-track"><span className="switch-thumb" /></span>
-    </button>
+    </Button>
   );
 }
 
@@ -236,14 +237,14 @@ export default function SettingsPanel({ version, buildId }: Props) {
         {categories.map((item) => {
           const Icon = item.icon;
           return (
-            <button
+            <Button
               key={item.id}
               className={category === item.id ? "active" : ""}
               onClick={() => setCategory(item.id)}
             >
               <Icon size={14} />
               <span>{item.label}</span>
-            </button>
+            </Button>
           );
         })}
       </nav>
@@ -259,7 +260,7 @@ export default function SettingsPanel({ version, buildId }: Props) {
             <span>Accent color</span>
             <div className="swatches">
               {accents.map((accent) => (
-                <button
+                <Button
                   key={accent.id}
                   type="button"
                   className={`swatch ${accent.id} ${settings.accent === accent.id ? "active" : ""}`}
@@ -268,7 +269,7 @@ export default function SettingsPanel({ version, buildId }: Props) {
                   onClick={() => update({ accent: accent.id })}
                 >
                   {settings.accent === accent.id && <Check size={11} />}
-                </button>
+                </Button>
               ))}
             </div>
           </div>
@@ -282,6 +283,14 @@ export default function SettingsPanel({ version, buildId }: Props) {
           </div>
           <Range label="Corner radius" value={settings.radius} min={0} max={32} suffix="px" onChange={(radius) => update({ radius })} />
           <Toggle label="Animations" checked={settings.motion} onChange={(motion) => update({ motion })} />
+          <Toggle
+            label="Use system reduced transparency"
+            checked={settings.respectReducedTransparency}
+            onChange={(respectReducedTransparency) => update({ respectReducedTransparency })}
+          />
+          <p className="settings-note">
+            When off, Toph keeps the glass effect even if your operating system asks apps to reduce transparency.
+          </p>
         </div>
       )}
 
@@ -336,9 +345,9 @@ export default function SettingsPanel({ version, buildId }: Props) {
                 autoComplete="url"
               />
             </label>
-            <button className="ghost small" disabled={serverBusy || !serverDraft.trim()}>
+            <Button className="ghost small" disabled={serverBusy || !serverDraft.trim()}>
               {serverBusy ? "Checking..." : "Apply and reconnect"}
-            </button>
+            </Button>
           </form>
           <p className="settings-note">
             The URL is stored only in this browser. Changing it signs you out of the current server.
@@ -353,9 +362,9 @@ export default function SettingsPanel({ version, buildId }: Props) {
             <UserRound size={15} />
             <span>{user?.username ?? "unknown"}</span>
           </div>
-          <button className="ghost small" onClick={() => void logout()}>
+          <Button className="ghost small" onClick={() => void logout()}>
             <LogOut size={14} /> Sign out
-          </button>
+          </Button>
         </div>
       )}
 
@@ -366,9 +375,9 @@ export default function SettingsPanel({ version, buildId }: Props) {
           {buildId && <div className="settings-kv"><span>Build</span><b>{buildId}</b></div>}
           <div className="settings-kv"><span>Server</span><b>{getApiBase() || window.location.origin}</b></div>
           <p className="settings-note">Self-hosted workbench. Repositories, sessions and credentials stay on your server.</p>
-          <button className="ghost small" onClick={reset}>
+          <Button className="ghost small" onClick={reset}>
             <RotateCcw size={14} /> Reset appearance
-          </button>
+          </Button>
         </div>
       )}
     </div>

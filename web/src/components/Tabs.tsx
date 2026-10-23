@@ -7,6 +7,8 @@ import {
 } from "lucide-react";
 import { useApp, type Tab } from "../store";
 import { useSettings } from "../settings";
+import { Button } from "../ui/Button";
+import { useConfirm } from "../ui/Confirm";
 
 const icons = {
   editor: FileCode2,
@@ -21,10 +23,17 @@ export default function Tabs() {
   const setActiveTab = useApp((state) => state.setActiveTab);
   const closeTab = useApp((state) => state.closeTab);
   const confirmClose = useSettings((state) => state.confirmClose);
+  const confirm = useConfirm();
 
-  function requestClose(tab: Tab) {
-    if (tab.dirty && confirmClose && !window.confirm(`Close ${tab.title} without saving?`)) {
-      return;
+  async function requestClose(tab: Tab) {
+    if (tab.dirty && confirmClose) {
+      const ok = await confirm({
+        title: "Close tab?",
+        message: `Close ${tab.title} without saving?`,
+        confirmLabel: "Close without saving",
+        danger: true,
+      });
+      if (!ok) return;
     }
     closeTab(tab.id);
   }
@@ -41,23 +50,23 @@ export default function Tabs() {
             aria-selected={tab.id === activeTabId}
             onClick={() => setActiveTab(tab.id)}
             onAuxClick={(event) => {
-              if (event.button === 1) requestClose(tab);
+              if (event.button === 1) void requestClose(tab);
             }}
             title={tab.path ?? tab.url ?? tab.title}
           >
             <Icon size={14} className="tab-icon" />
             <span className="tab-title">{tab.title}</span>
             {tab.dirty && <span className="tab-dirty" />}
-            <button
+            <Button
               className="tab-close"
               onClick={(event) => {
                 event.stopPropagation();
-                requestClose(tab);
+                void requestClose(tab);
               }}
               aria-label={`Close ${tab.title}`}
             >
               <X size={12} />
-            </button>
+            </Button>
           </div>
         );
       })}

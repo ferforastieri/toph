@@ -3,6 +3,7 @@ import { Bot, Plus, Sparkles } from "lucide-react";
 import { providerLabel, useAI } from "../ai";
 import type { Project } from "../api";
 import OpenCodeSidebar from "./OpenCodeSidebar";
+import { Button } from "../ui/Button";
 
 interface Props {
   project: Project;
@@ -28,9 +29,9 @@ export default function AiSidebar({ project, onOpenAI, onOpenSession }: Props) {
     <div className="panel">
       <div className="panel-heading">
         <span>Agent</span>
-        <button className="icon-button" title="New chat" onClick={onOpenAI}>
+        <Button className="icon-button" title="New chat" onClick={onOpenAI}>
           <Plus size={15} />
-        </button>
+        </Button>
       </div>
       <div className="opencode-status online">
         <span className="status-dot" />
@@ -42,9 +43,9 @@ export default function AiSidebar({ project, onOpenAI, onOpenSession }: Props) {
           The selected agent runs through the Toph server with access to <code>{project.root}</code>.
         </p>
       </div>
-      <button className="ghost small agent-new-chat" onClick={onOpenAI}>
+      <Button className="ghost small agent-new-chat" onClick={onOpenAI}>
         <Bot size={14} /> New agent chat
-      </button>
+      </Button>
     </div>
   );
 }

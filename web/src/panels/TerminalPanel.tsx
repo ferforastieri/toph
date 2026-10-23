@@ -5,6 +5,7 @@ import { RefreshCw, X } from "lucide-react";
 import { api, type Project } from "../api";
 import { useApp } from "../store";
 import { useResolvedTheme, useSettings } from "../settings";
+import { Button } from "../ui/Button";
 
 interface Props {
   project: Project;
@@ -159,12 +160,12 @@ export default function TerminalPanel({ project }: Props) {
         </div>
         <div className="terminal-actions">
           <span className={`terminal-status ${status}`}>{status}</span>
-          <button className="icon-button" title="Reconnect" onClick={() => setAttempt((n) => n + 1)}>
+          <Button className="icon-button" title="Reconnect" onClick={() => setAttempt((n) => n + 1)}>
             <RefreshCw size={13} />
-          </button>
-          <button className="icon-button" title="Close" onClick={() => setTerminalOpen(false)}>
+          </Button>
+          <Button className="icon-button" title="Close" onClick={() => setTerminalOpen(false)}>
             <X size={14} />
-          </button>
+          </Button>
         </div>
       </div>
       {error && <div className="terminal-error">{error}</div>}

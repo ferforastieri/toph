@@ -3,6 +3,7 @@ import { OpenCode } from "@opencode/client";
 import { Bot, Plus, Sparkles } from "lucide-react";
 import { openCodeBase, type Project } from "../api";
 import { useApp } from "../store";
+import { Button } from "../ui/Button";
 
 interface Props {
   project: Project;
@@ -48,9 +49,9 @@ export default function OpenCodeSidebar({ project, onOpenAI, onOpenSession }: Pr
     <div className="panel">
       <div className="panel-heading">
         <span>OpenCode</span>
-        <button className="icon-button" title="New session" onClick={onOpenAI}>
+        <Button className="icon-button" title="New session" onClick={onOpenAI}>
           <Plus size={15} />
-        </button>
+        </Button>
       </div>
       <div className={`opencode-status ${status}`}>
         <span className="status-dot" />
@@ -66,7 +67,7 @@ export default function OpenCodeSidebar({ project, onOpenAI, onOpenSession }: Pr
       <div className="ai-session-list">
         {sessions.length > 0 && <div className="ai-list-label">OpenCode history</div>}
         {sessions.map((session) => (
-          <button
+          <Button
             key={session.id}
             className="ai-session-item"
             onClick={() => onOpenSession(session)}
@@ -74,14 +75,14 @@ export default function OpenCodeSidebar({ project, onOpenAI, onOpenSession }: Pr
             <Bot size={15} />
             <span>{session.title ?? session.id.slice(0, 8)}</span>
             <small>saved</small>
-          </button>
+          </Button>
         ))}
         {tabs.filter((tab) => tab.kind === "ai").map((tab) => (
-          <button key={tab.id} className="ai-session-item" onClick={() => setActiveTab(tab.id)}>
+          <Button key={tab.id} className="ai-session-item" onClick={() => setActiveTab(tab.id)}>
             <Bot size={15} />
             <span>{tab.title}</span>
             <small>{tab.sessionId ? tab.sessionId.slice(0, 6) : "new"}</small>
-          </button>
+          </Button>
         ))}
       </div>
     </div>

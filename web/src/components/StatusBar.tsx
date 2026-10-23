@@ -1,6 +1,7 @@
 import { GitBranch, TerminalSquare } from "lucide-react";
 import type { Project } from "../api";
 import { useApp } from "../store";
+import { Button } from "../ui/Button";
 
 interface Props {
   project: Project;
@@ -35,9 +36,9 @@ export default function StatusBar({ project, version, gitStatus }: Props) {
         )}
       </div>
       <div className="status-right">
-        <button className={`status-item status-button ${terminalOpen ? "active" : ""}`} onClick={toggleTerminal}>
+        <Button className={`status-item status-button ${terminalOpen ? "active" : ""}`} onClick={toggleTerminal}>
           <TerminalSquare size={12} /> Terminal
-        </button>
+        </Button>
         <span className="status-item">{project.root}</span>
         <span className="status-item">Toph {version}</span>
       </div>

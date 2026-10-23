@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { RefreshCw, X } from "lucide-react";
 import { api } from "../api";
+import { Button } from "../ui/Button";
 
 export default function UpdateToast() {
   const [available, setAvailable] = useState(false);
@@ -58,12 +59,12 @@ export default function UpdateToast() {
         <strong>New Toph build available</strong>
         <span>The server was updated. Reload to get the new version.</span>
       </div>
-      <button className="primary small" onClick={() => void update()}>
+      <Button className="primary small" onClick={() => void update()}>
         <RefreshCw size={13} /> Update
-      </button>
-      <button className="icon-button" aria-label="Dismiss" onClick={() => setAvailable(false)}>
+      </Button>
+      <Button className="icon-button" aria-label="Dismiss" onClick={() => setAvailable(false)}>
         <X size={14} />
-      </button>
+      </Button>
     </div>
   );
 }

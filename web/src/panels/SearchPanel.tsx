@@ -2,6 +2,7 @@ import { FormEvent, useState } from "react";
 import { Search } from "lucide-react";
 import { api, type Project, type SearchMatch } from "../api";
 import { useApp } from "../store";
+import { Button } from "../ui/Button";
 
 interface Props {
   project: Project;
@@ -54,7 +55,7 @@ export default function SearchPanel({ project, onOpenFile }: Props) {
       )}
       <div className="search-results">
         {matches.map((match) => (
-          <button
+          <Button
             className="search-result"
             key={`${match.path}:${match.line}:${match.preview}`}
             onClick={() => onOpenFile(match.path, match.line)}
@@ -65,7 +66,7 @@ export default function SearchPanel({ project, onOpenFile }: Props) {
               <span className="search-line">:{match.line}</span>
             </span>
             <span className="search-preview">{match.preview}</span>
-          </button>
+          </Button>
         ))}
       </div>
     </div>

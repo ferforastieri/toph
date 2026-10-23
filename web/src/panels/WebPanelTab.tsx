@@ -1,6 +1,7 @@
 import { ExternalLink, RefreshCw } from "lucide-react";
 import { useState } from "react";
 import type { Tab } from "../store";
+import { Button } from "../ui/Button";
 
 interface Props {
   tab: Tab;
@@ -21,9 +22,9 @@ export default function WebPanelTab({ tab }: Props) {
         <span className="web-url" title={tab.url}>
           {tab.url}
         </span>
-        <button className="icon-button" title="Reload" onClick={() => setNonce((n) => n + 1)}>
+        <Button className="icon-button" title="Reload" onClick={() => setNonce((n) => n + 1)}>
           <RefreshCw size={14} />
-        </button>
+        </Button>
         <a className="icon-button" href={tab.url} target="_blank" rel="noreferrer" title="Open in browser">
           <ExternalLink size={14} />
         </a>

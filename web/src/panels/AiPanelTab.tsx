@@ -5,6 +5,8 @@ import { providerLabel, useAI } from "../ai";
 import { useApp, type AiMessage, type Tab } from "../store";
 import type { Project } from "../api";
 import OpenCodePanelTab from "./OpenCodePanelTab";
+import { useConfirm } from "../ui/Confirm";
+import { Button } from "../ui/Button";
 
 const EMPTY_MESSAGES: AiMessage[] = [];
 
@@ -26,6 +28,7 @@ function GenericAiPanel({ tab, project, config }: Props & { config: AIConfig }) 
   const [error, setError] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
   const label = providerLabel(config.provider);
+  const confirm = useConfirm();
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -63,8 +66,14 @@ function GenericAiPanel({ tab, project, config }: Props & { config: AIConfig }) 
     }
   }
 
-  function clear() {
-    if (!window.confirm("Clear this agent conversation?")) return;
+  async function clear() {
+    const ok = await confirm({
+      title: "Clear conversation?",
+      message: "All messages in this agent tab will be removed.",
+      confirmLabel: "Clear",
+      danger: true,
+    });
+    if (!ok) return;
     setMessages(tab.id, []);
     setError("");
   }
@@ -115,10 +124,10 @@ function GenericAiPanel({ tab, project, config }: Props & { config: AIConfig }) 
           rows={3}
         />
         <div className="ai-composer-actions">
-          {messages.length > 0 && <button className="ghost small" onClick={clear}><CircleStop size={14} /> Clear</button>}
-          <button className="primary small" onClick={() => void send()} disabled={!input.trim() || streaming}>
+          {messages.length > 0 && <Button className="ghost small" onClick={() => void clear()}><CircleStop size={14} /> Clear</Button>}
+          <Button className="primary small" onClick={() => void send()} disabled={!input.trim() || streaming}>
             <Send size={14} /> Send
-          </button>
+          </Button>
         </div>
       </div>
     </div>

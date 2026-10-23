@@ -25,6 +25,7 @@ export interface AppearanceSettings {
   confirmClose: boolean;
   wordWrap: boolean;
   minimap: boolean;
+  respectReducedTransparency: boolean;
 }
 
 export interface SettingsState extends AppearanceSettings {
@@ -51,6 +52,7 @@ export const defaultSettings: AppearanceSettings = {
   confirmClose: true,
   wordWrap: false,
   minimap: false,
+  respectReducedTransparency: false,
 };
 
 const themes: ThemePreference[] = ["auto", "dark", "light"];
@@ -92,6 +94,7 @@ function readSettings(): AppearanceSettings {
       confirmClose: value.confirmClose !== false,
       wordWrap: value.wordWrap === true,
       minimap: value.minimap === true,
+      respectReducedTransparency: value.respectReducedTransparency === true,
     };
   } catch {
     return defaultSettings;
@@ -120,6 +123,7 @@ export function applyAppearance(settings: AppearanceSettings): void {
   root.dataset.tabs = settings.tabs;
   root.dataset.motion = settings.motion ? "on" : "off";
   root.dataset.status = settings.statusBar ? "on" : "off";
+  root.dataset.reducedTransparency = settings.respectReducedTransparency ? "on" : "off";
   root.style.setProperty("--radius", `${settings.radius}px`);
   root.style.setProperty("--sidebar-width", `${settings.sidebarWidth}px`);
   root.style.setProperty("--editor-font-size", `${settings.editorFontSize}px`);
@@ -153,6 +157,7 @@ export const useSettings = create<SettingsState>((set, get) => ({
       confirmClose: next.confirmClose,
       wordWrap: next.wordWrap,
       minimap: next.minimap,
+      respectReducedTransparency: next.respectReducedTransparency,
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
     applyAppearance(settings);
