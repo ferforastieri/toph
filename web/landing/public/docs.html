@@ -343,14 +343,15 @@ Neo4j         MATCH (n:User) RETURN n LIMIT 100;</code></pre>
       </ul>
 
       <h2>Development</h2>
-      <pre><code>go test ./...
+      <pre><code>cd backend
+go test ./...
 go vet ./...
 
 cd web
 npm test
 npm run build
 
-cd ../android
+cd ../mobile
 ./gradlew testDebugUnitTest assembleDebug</code></pre>
       <p>
         GitHub Actions runs Go, web and Android jobs on every push to <code>main</code>.

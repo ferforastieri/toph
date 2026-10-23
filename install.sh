@@ -121,7 +121,6 @@ IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
 echo
 echo "Toph ${VERSION} is running."
 echo "  App:  http://${IP:-SERVER_IP}:${PORT}/app"
-echo "  Docs: http://${IP:-SERVER_IP}:${PORT}/docs.html"
 echo "  Data: ${DATA_DIR}"
 echo "  Workspaces: ${WORKSPACES}"
 echo "  Service: systemctl status toph"
