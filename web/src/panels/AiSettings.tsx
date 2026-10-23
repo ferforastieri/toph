@@ -136,9 +136,14 @@ export default function AiSettings() {
             type="password"
             value={form.apiKey}
             onChange={(event) => patch({ apiKey: event.target.value })}
-            placeholder={config?.hasKey ? "Leave blank to keep current key" : "Optional for local providers"}
+            placeholder={config?.hasKey ? "Leave blank to keep current key" : form.provider === "opencode" ? "Basic <base64>" : "Optional for local providers"}
             autoComplete="off"
           />
+          {form.provider === "opencode" && (
+            <small className="settings-hint">
+              OpenCode uses Basic auth: <code>Basic base64("opencode:" + server password)</code>.
+            </small>
+          )}
         </label>
         {config?.hasKey && (
           <Checkbox

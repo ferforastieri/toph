@@ -3581,3 +3581,5 @@ a.icon-button {
   min-width: var(--control-height);
   min-height: var(--control-height);
 }
+.settings-hint { color: var(--muted-2); font-size: 9.5px; line-height: 1.45; }
+.settings-hint code { color: var(--text-soft); font-size: 9px; }

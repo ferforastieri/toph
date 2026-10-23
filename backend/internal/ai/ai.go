@@ -197,7 +197,9 @@ func (s *Service) Test(ctx context.Context) error {
 	}
 	switch cfg.Provider {
 	case "opencode":
-		return s.check(ctx, cfg.BaseURL+"/api/info", nil)
+		return s.check(ctx, cfg.BaseURL+"/api/info", map[string]string{
+			"Authorization": cfg.APIKey,
+		})
 	case "claude", "anthropic":
 		return s.check(ctx, endpoint(cfg.BaseURL, "/models"), map[string]string{
 			"x-api-key": cfg.APIKey, "anthropic-version": "2023-06-01",
@@ -260,6 +262,9 @@ func (s *Service) completeOpenCode(ctx context.Context, cfg Config, prompt strin
 	}
 	var out struct {
 		Text string `json:"text"`
+		Data struct {
+			Text string `json:"text"`
+		} `json:"data"`
 	}
 	headers := map[string]string{}
 	if cfg.APIKey != "" {
@@ -274,7 +279,10 @@ func (s *Service) completeOpenCode(ctx context.Context, cfg Config, prompt strin
 	if err := s.postJSON(ctx, strings.TrimRight(cfg.BaseURL, "/")+"/api/experimental/generate", headers, body, &out); err != nil {
 		return "", err
 	}
-	return out.Text, nil
+	if out.Text != "" {
+		return out.Text, nil
+	}
+	return out.Data.Text, nil
 }
 
 func (s *Service) chatOpenAI(ctx context.Context, cfg Config, messages []Message) (string, error) {
