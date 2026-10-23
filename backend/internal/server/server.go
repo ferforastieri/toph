@@ -19,7 +19,7 @@ import (
 	"github.com/ferforastieri/toph/internal/workspace"
 )
 
-const Version = "0.5.2"
+const Version = "0.5.3"
 
 type Server struct {
 	cfg          config.Config
@@ -52,6 +52,9 @@ func New(
 		clientIP:     newClientIPResolver(cfg.TrustedProxies),
 		loginLimiter: newLoginLimiter(10, 5*time.Minute),
 		apiLimiter:   newLoginLimiter(300, time.Minute),
+	}
+	if cfgAI, err := aiService.Load(context.Background()); err == nil && cfgAI.Provider == "opencode" && cfgAI.BaseURL != "" {
+		_ = oc.SetConfig(cfgAI.BaseURL, cfgAI.APIKey)
 	}
 	s.web = s.staticHandler()
 	return s
