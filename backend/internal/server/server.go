@@ -9,6 +9,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 
+	"github.com/ferforastieri/toph/internal/ai"
 	"github.com/ferforastieri/toph/internal/auth"
 	"github.com/ferforastieri/toph/internal/config"
 	"github.com/ferforastieri/toph/internal/database"
@@ -18,7 +19,7 @@ import (
 	"github.com/ferforastieri/toph/internal/workspace"
 )
 
-const Version = "0.3.1"
+const Version = "0.4.0"
 
 type Server struct {
 	cfg          config.Config
@@ -28,6 +29,7 @@ type Server struct {
 	terminals    *terminal.Manager
 	db           *database.Service
 	opencode     *opencode.Proxy
+	ai           *ai.Service
 	web          http.Handler
 	clientIP     clientIPResolver
 	loginLimiter *loginLimiter
@@ -42,10 +44,11 @@ func New(
 	terminals *terminal.Manager,
 	db *database.Service,
 	oc *opencode.Proxy,
+	aiService *ai.Service,
 ) *Server {
 	s := &Server{
 		cfg: cfg, store: st, auth: authManager, workspace: ws,
-		terminals: terminals, db: db, opencode: oc,
+		terminals: terminals, db: db, opencode: oc, ai: aiService,
 		clientIP:     newClientIPResolver(cfg.TrustedProxies),
 		loginLimiter: newLoginLimiter(10, 5*time.Minute),
 		apiLimiter:   newLoginLimiter(300, time.Minute),
@@ -91,6 +94,16 @@ func (s *Server) Handler() http.Handler {
 		})
 
 		r.Get("/api/terminals/{terminalID}/ws", s.terminalWS)
+
+		r.Get("/api/workspaces/roots", s.listWorkspaceRoots)
+		r.Post("/api/workspaces/roots", s.addWorkspaceRoot)
+		r.Delete("/api/workspaces/roots", s.removeWorkspaceRoot)
+
+		r.Get("/api/ai/config", s.getAIConfig)
+		r.Put("/api/ai/config", s.saveAIConfig)
+		r.Post("/api/ai/test", s.testAI)
+		r.Post("/api/ai/chat", s.chatAI)
+		r.Post("/api/ai/complete", s.completeAI)
 
 		r.Route("/api/db/profiles", func(r chi.Router) {
 			r.Get("/", s.listDBProfiles)

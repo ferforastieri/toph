@@ -25,7 +25,7 @@ export default function ProjectModal({ onClose, onCreated }: Props) {
     } catch (err) {
       const message =
         err instanceof ApiError && err.status === 403
-          ? "That path is outside TOPH_WORKSPACES."
+          ? "That path is outside the allowed workspace folders."
           : err instanceof Error
             ? err.message
             : "Could not create project.";
@@ -60,7 +60,7 @@ export default function ProjectModal({ onClose, onCreated }: Props) {
             />
           </label>
           <p className="muted small">
-            The path must exist and be inside one of the server's allowed workspace roots.
+            The path must exist and be inside one of the folders allowed in Settings → Workspace.
           </p>
           {error && <div className="form-error">{error}</div>}
           <div className="modal-actions">

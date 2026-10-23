@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -32,6 +33,7 @@ var ignoredDirs = map[string]bool{
 }
 
 type Service struct {
+	mu    sync.RWMutex
 	roots []string
 }
 
@@ -59,29 +61,92 @@ type Match struct {
 }
 
 func New(roots []string) (*Service, error) {
-	resolved := make([]string, 0, len(roots))
-	for _, root := range roots {
-		abs, err := filepath.Abs(root)
-		if err != nil {
-			return nil, err
-		}
-		real, err := filepath.EvalSymlinks(abs)
-		if err != nil {
-			return nil, fmt.Errorf("workspace root %q: %w", root, err)
-		}
-		info, err := os.Stat(real)
-		if err != nil {
-			return nil, err
-		}
-		if !info.IsDir() {
-			return nil, fmt.Errorf("workspace root %q is not a directory", root)
-		}
-		resolved = append(resolved, filepath.Clean(real))
+	resolved, err := resolveRoots(roots)
+	if err != nil {
+		return nil, err
 	}
 	return &Service{roots: resolved}, nil
 }
 
-func (s *Service) Roots() []string { return append([]string(nil), s.roots...) }
+func (s *Service) Roots() []string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return append([]string(nil), s.roots...)
+}
+
+func (s *Service) SetRoots(roots []string) error {
+	resolved, err := resolveRoots(roots)
+	if err != nil {
+		return err
+	}
+	s.mu.Lock()
+	s.roots = resolved
+	s.mu.Unlock()
+	return nil
+}
+
+func (s *Service) AddRoot(root string) (string, error) {
+	resolved, err := resolveRoot(root)
+	if err != nil {
+		return "", err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, existing := range s.roots {
+		if existing == resolved {
+			return resolved, nil
+		}
+	}
+	s.roots = append(s.roots, resolved)
+	return resolved, nil
+}
+
+func (s *Service) RemoveRoot(root string) error {
+	resolved, err := resolveRoot(root)
+	if err != nil {
+		return err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i, existing := range s.roots {
+		if existing == resolved {
+			s.roots = append(s.roots[:i], s.roots[i+1:]...)
+			return nil
+		}
+	}
+	return ErrForbidden
+}
+
+func resolveRoots(roots []string) ([]string, error) {
+	resolved := make([]string, 0, len(roots))
+	for _, root := range roots {
+		real, err := resolveRoot(root)
+		if err != nil {
+			return nil, err
+		}
+		resolved = append(resolved, real)
+	}
+	return resolved, nil
+}
+
+func resolveRoot(root string) (string, error) {
+	abs, err := filepath.Abs(root)
+	if err != nil {
+		return "", err
+	}
+	real, err := filepath.EvalSymlinks(abs)
+	if err != nil {
+		return "", fmt.Errorf("workspace root %q: %w", root, err)
+	}
+	info, err := os.Stat(real)
+	if err != nil {
+		return "", err
+	}
+	if !info.IsDir() {
+		return "", fmt.Errorf("workspace root %q is not a directory", root)
+	}
+	return filepath.Clean(real), nil
+}
 
 func (s *Service) ValidateRoot(root string) (string, error) {
 	abs, err := filepath.Abs(root)
@@ -93,7 +158,10 @@ func (s *Service) ValidateRoot(root string) (string, error) {
 		return "", err
 	}
 	real = filepath.Clean(real)
-	for _, allowed := range s.roots {
+	s.mu.RLock()
+	roots := append([]string(nil), s.roots...)
+	s.mu.RUnlock()
+	for _, allowed := range roots {
 		if real == allowed || strings.HasPrefix(real, allowed+string(os.PathSeparator)) {
 			info, err := os.Stat(real)
 			if err != nil {

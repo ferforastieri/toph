@@ -36,6 +36,35 @@ export interface SearchMatch {
   preview: string;
 }
 
+
+export interface AIConfig {
+  provider: string;
+  baseUrl: string;
+  model: string;
+  maxTokens: number;
+  temperature: number;
+  autocomplete: boolean;
+  systemPrompt: string;
+  hasKey: boolean;
+}
+
+export interface AIConfigInput {
+  provider: string;
+  baseUrl: string;
+  apiKey?: string;
+  clearKey?: boolean;
+  model: string;
+  maxTokens: number;
+  temperature: number;
+  autocomplete: boolean;
+  systemPrompt: string;
+}
+
+export interface AIMessage {
+  role: "system" | "user" | "assistant";
+  content: string;
+}
+
 export interface DBProfile {
   id: string;
   name: string;
@@ -363,6 +392,73 @@ export const api = {
 
   async deleteWebTarget(id: string): Promise<void> {
     await request(`/web-targets/${encodeURIComponent(id)}`, { method: "DELETE" });
+  },
+  async workspaceRoots(): Promise<{ roots: string[] }> {
+    return request<{ roots: string[] }>("/workspaces/roots");
+  },
+
+  async addWorkspaceRoot(path: string): Promise<{ roots: string[] }> {
+    return request<{ roots: string[] }>("/workspaces/roots", {
+      method: "POST",
+      ...json({ path }),
+    });
+  },
+
+  async removeWorkspaceRoot(path: string): Promise<{ roots: string[] }> {
+    return request<{ roots: string[] }>(`/workspaces/roots?path=${encodeURIComponent(path)}`, {
+      method: "DELETE",
+    });
+  },
+
+  async aiConfig(): Promise<AIConfig> {
+    return request<AIConfig>("/ai/config");
+  },
+
+  async saveAIConfig(input: AIConfigInput): Promise<AIConfig> {
+    return request<AIConfig>("/ai/config", {
+      method: "PUT",
+      ...json(input),
+    });
+  },
+
+  async testAI(): Promise<{ ok: boolean }> {
+    return request<{ ok: boolean }>("/ai/test", { method: "POST", ...json({}) });
+  },
+
+  async aiChat(messages: AIMessage[]): Promise<{ text: string }> {
+    return request<{ text: string }>("/ai/chat", {
+      method: "POST",
+      ...json({ messages }),
+    });
+  },
+
+  async aiComplete(input: {
+    path: string;
+    language: string;
+    prefix: string;
+    suffix: string;
+  }, signal?: AbortSignal): Promise<{ completion: string }> {
+    const response = await fetch(`${apiBase}${API_BASE}/ai/complete`, {
+      method: "POST",
+      credentials: "include",
+      signal,
+      headers: {
+        "Content-Type": "application/json",
+        ...(csrfToken() ? { "X-Toph-CSRF": csrfToken() } : {}),
+      },
+      body: JSON.stringify(input),
+    });
+    if (!response.ok) {
+      let message = response.statusText;
+      try {
+        const body = (await response.json()) as { error?: string };
+        message = body.error ?? message;
+      } catch {
+        // Keep status text.
+      }
+      throw new ApiError(response.status, message);
+    }
+    return (await response.json()) as { completion: string };
   },
 };
 

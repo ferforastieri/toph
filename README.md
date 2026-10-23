@@ -17,7 +17,10 @@ The installed server does not serve the landing page or documentation. The landi
 - Run a real terminal attached to the server.
 - Edit SQL table rows with primary-key safety.
 - Connect to PostgreSQL, MySQL/MariaDB, SQLite, SQL Server, Oracle, ClickHouse, Cassandra, MongoDB, Redis, Elasticsearch and Neo4j, inspect schemas, run queries and inspect results.
-- Talk to an OpenCode server without leaving the workbench, with saved session history.
+- Talk to OpenCode, OpenAI-compatible endpoints, Codex, Claude or Ollama from the Agent tab without leaving the workbench.
+- Configure the AI URL, API key and model in Settings → AI; API keys are encrypted at rest.
+- Enable editor autocomplete backed by the configured AI provider.
+- Add server folders as workspace roots in Settings → Workspace, without Docker bind mounts.
 - Keep web apps from the homelab in their own tabs.
 - Switch between projects without losing the state of the current one.
 - Use the same backend from the browser and from the Android app.
@@ -151,8 +154,8 @@ It connects to the Toph server URL configured during onboarding. Use LAN, VPN or
 | `TOPH_ADMIN_PASSWORD` | generated on first run | Initial admin password |
 | `TOPH_SECURE_COOKIES` | `false` | Require HTTPS for browser sessions; the installer sets `true` |
 | `TOPH_TRUSTED_PROXIES` | empty | Comma-separated proxy IPs/CIDRs allowed to supply `X-Forwarded-For` |
-| `TOPH_OPENCODE_URL` | `http://127.0.0.1:3005` | OpenCode server |
-| `TOPH_OPENCODE_AUTH` | empty | Raw `Authorization` value for OpenCode |
+| `TOPH_OPENCODE_URL` | `http://127.0.0.1:3005` | Fallback OpenCode server; Settings → AI overrides it |
+| `TOPH_OPENCODE_AUTH` | empty | Fallback raw `Authorization` value for OpenCode |
 | `TOPH_WEB_DIR` | embedded build | Serve a web build from disk in development |
 
 ## Security

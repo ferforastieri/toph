@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/ferforastieri/toph/internal/ai"
 	"github.com/ferforastieri/toph/internal/auth"
 	"github.com/ferforastieri/toph/internal/config"
 	"github.com/ferforastieri/toph/internal/database"
@@ -66,8 +67,15 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("opencode proxy: %w", err)
 	}
+	aiService, err := ai.New(st, cfg.MasterKeyFile)
+	if err != nil {
+		return fmt.Errorf("AI service: %w", err)
+	}
 
-	app := server.New(cfg, st, authManager, ws, terminals, db, oc)
+	app := server.New(cfg, st, authManager, ws, terminals, db, oc, aiService)
+	if err := app.LoadWorkspaceRoots(context.Background()); err != nil {
+		slog.Warn("could not load workspace roots", "error", err)
+	}
 	if err := app.EnsureDefaultProject(context.Background()); err != nil {
 		slog.Warn("could not seed default project", "error", err)
 	}

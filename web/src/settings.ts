@@ -192,3 +192,12 @@ export function useResolvedTheme(): "dark" | "light" {
   }, [preference]);
   return resolved;
 }
+
+export const accentPalette: Record<Accent, { cursor: string; selectionDark: string; selectionLight: string }> = {
+  jade: { cursor: "#A8C66C", selectionDark: "#33421F", selectionLight: "#CFE3B8" },
+  ocean: { cursor: "#58B6D3", selectionDark: "#1D4652", selectionLight: "#BEE3EF" },
+  violet: { cursor: "#B18DFF", selectionDark: "#3D3056", selectionLight: "#DED2FA" },
+  amber: { cursor: "#E1B15C", selectionDark: "#4A3A1C", selectionLight: "#F0DDBB" },
+  rose: { cursor: "#EE8FA2", selectionDark: "#4D2834", selectionLight: "#F4CDD5" },
+  graphite: { cursor: "#C0C8B9", selectionDark: "#343B30", selectionLight: "#D7DDD3" },
+};

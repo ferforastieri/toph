@@ -1,7 +1,9 @@
 import Editor, { type Monaco, type OnMount } from "@monaco-editor/react";
-import { useEffect, useRef } from "react";
-import type { editor } from "monaco-editor";
-import { useResolvedTheme, useSettings } from "../settings";
+import { useEffect, useRef, useState } from "react";
+import type { CancellationToken, IPosition, editor, languages } from "monaco-editor";
+import { accentPalette, useResolvedTheme, useSettings } from "../settings";
+import { useAI } from "../ai";
+import { api } from "../api";
 
 interface Props {
   path: string;
@@ -95,21 +97,39 @@ export default function CodeEditor({
   onRun,
 }: Props) {
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
+  const monacoRef = useRef<Monaco | null>(null);
+  const [monacoReady, setMonacoReady] = useState(false);
   const settings = useSettings();
+  const accent = settings.accent;
   const resolved = useResolvedTheme();
+  const aiConfig = useAI((state) => state.config);
+  const loadAI = useAI((state) => state.load);
   const themeName = resolved === "light" ? "toph-light" : "toph-dark";
   const saveRef = useRef(onSave);
   saveRef.current = onSave;
   const runRef = useRef(onRun);
   runRef.current = onRun;
 
+  const themed = (base: editor.IStandaloneThemeData, dark: boolean) => ({
+    ...base,
+    colors: {
+      ...base.colors,
+      "editorCursor.foreground": accentPalette[accent].cursor,
+      "editor.selectionBackground": dark
+        ? accentPalette[accent].selectionDark
+        : accentPalette[accent].selectionLight,
+    },
+  });
+
   const beforeMount = (monaco: Monaco) => {
-    monaco.editor.defineTheme("toph-dark", darkTheme);
-    monaco.editor.defineTheme("toph-light", lightTheme);
+    monaco.editor.defineTheme("toph-dark", themed(darkTheme, true));
+    monaco.editor.defineTheme("toph-light", themed(lightTheme, false));
   };
 
   const onMount: OnMount = (instance, monaco) => {
     editorRef.current = instance;
+    monacoRef.current = monaco;
+    setMonacoReady(true);
     instance.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
       saveRef.current?.();
     });
@@ -129,6 +149,67 @@ export default function CodeEditor({
       editorRef.current.setPosition({ lineNumber: line, column: 1 });
     }
   }, [line]);
+
+  useEffect(() => {
+    const monaco = monacoRef.current;
+    if (!monaco) return;
+    monaco.editor.defineTheme("toph-dark", themed(darkTheme, true));
+    monaco.editor.defineTheme("toph-light", themed(lightTheme, false));
+    monaco.editor.setTheme(themeName);
+  }, [accent, resolved, themeName]);
+
+  useEffect(() => {
+    if (!aiConfig) void loadAI();
+  }, [aiConfig, loadAI]);
+
+  useEffect(() => {
+    const monaco = monacoRef.current;
+    if (!monaco || !monacoReady || !aiConfig?.autocomplete || aiConfig.provider === "opencode") return;
+    const provider = monaco.languages.registerInlineCompletionsProvider("*", {
+      async provideInlineCompletions(
+        model: editor.ITextModel,
+        position: IPosition,
+        _context: languages.InlineCompletionContext,
+        token: CancellationToken,
+      ) {
+        await new Promise((resolve) => window.setTimeout(resolve, 280));
+        if (token.isCancellationRequested) return { items: [] };
+        const text = model.getValue();
+        const offset = model.getOffsetAt(position);
+        const prefix = text.slice(Math.max(0, offset - 6000), offset);
+        const suffix = text.slice(offset, offset + 1500);
+        if (prefix.trim().length < 12) return { items: [] };
+        const controller = new AbortController();
+        const cancel = () => controller.abort();
+        token.onCancellationRequested(cancel);
+        try {
+          const result = await api.aiComplete(
+            { path: path ?? "", language, prefix, suffix },
+            controller.signal,
+          );
+          const completion = result.completion.trimEnd();
+          if (!completion || token.isCancellationRequested) return { items: [] };
+          return {
+            items: [{
+              insertText: completion,
+              range: new monaco.Range(
+                position.lineNumber,
+                position.column,
+                position.lineNumber,
+                position.column,
+              ),
+            }],
+          };
+        } catch {
+          return { items: [] };
+        }
+      },
+      disposeInlineCompletions() {
+        // No resources are held between requests.
+      },
+    });
+    return () => provider.dispose();
+  }, [aiConfig?.autocomplete, aiConfig?.provider, language, monacoReady, path]);
 
   return (
     <Editor

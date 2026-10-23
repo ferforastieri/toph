@@ -3,6 +3,7 @@ import { Boxes, ChevronDown, FolderPlus, Plus } from "lucide-react";
 import { api, type Project, type SchemaTable, type WebTarget } from "../api";
 import { basename, quoteIdentifier } from "../lib";
 import { useApp, type Sidebar, type Tab } from "../store";
+import { providerLabel, useAI } from "../ai";
 import ActivityBar from "./ActivityBar";
 import Tabs from "./Tabs";
 import StatusBar from "./StatusBar";
@@ -34,6 +35,8 @@ export default function Workbench() {
   const terminalOpen = useApp((state) => state.terminalOpen);
   const setTerminalOpen = useApp((state) => state.setTerminalOpen);
   const notify = useApp((state) => state.notify);
+  const loadAI = useAI((state) => state.load);
+  const aiProvider = useAI((state) => state.config?.provider);
 
   const [showProjectModal, setShowProjectModal] = useState(false);
   const [version, setVersion] = useState("0.1.0");
@@ -43,6 +46,10 @@ export default function Workbench() {
 
   const project = projects.find((item) => item.id === activeProjectId) ?? null;
   const activeTab = tabs.find((tab) => tab.id === activeTabId) ?? null;
+
+  useEffect(() => {
+    void loadAI();
+  }, [loadAI]);
 
   useEffect(() => {
     api
@@ -221,7 +228,7 @@ export default function Workbench() {
     openTab({
       id: `ai:${project.id}:${crypto.randomUUID()}`,
       kind: "ai",
-      title: "OpenCode",
+      title: providerLabel(aiProvider),
       projectId: project.id,
     });
   }
@@ -231,7 +238,7 @@ export default function Workbench() {
     openTab({
       id: `ai:${project.id}:${session.id}`,
       kind: "ai",
-      title: session.title ?? "OpenCode",
+      title: session.title ?? providerLabel(aiProvider),
       projectId: project.id,
       sessionId: session.id,
     });

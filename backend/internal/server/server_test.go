@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/ferforastieri/toph/internal/ai"
 	"github.com/ferforastieri/toph/internal/auth"
 	"github.com/ferforastieri/toph/internal/config"
 	"github.com/ferforastieri/toph/internal/database"
@@ -58,11 +59,15 @@ func newTestServer(t *testing.T) (*testClient, string) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	aiService, err := ai.New(st, filepath.Join(dir, "master.key"))
+	if err != nil {
+		t.Fatal(err)
+	}
 	cfg := config.Config{
 		DataDir: dir, WorkspaceRoots: []string{root},
 		OpenCodeURL: "http://127.0.0.1:1",
 	}
-	app := New(cfg, st, authManager, ws, terminal.NewManager("/bin/sh"), db, oc)
+	app := New(cfg, st, authManager, ws, terminal.NewManager("/bin/sh"), db, oc, aiService)
 	ts := httptest.NewServer(app.Handler())
 	t.Cleanup(ts.Close)
 	jar, _ := cookiejar.New(nil)

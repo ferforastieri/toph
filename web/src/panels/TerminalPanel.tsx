@@ -19,6 +19,7 @@ export default function TerminalPanel({ project }: Props) {
   const [error, setError] = useState("");
   const terminalFontSize = useSettings((state) => state.terminalFontSize);
   const terminalHeight = useSettings((state) => state.terminalHeight);
+  const accent = useSettings((state) => state.accent);
   const resolved = useResolvedTheme();
 
   useEffect(() => {
@@ -26,6 +27,7 @@ export default function TerminalPanel({ project }: Props) {
     let disposed = false;
     let socket: WebSocket | null = null;
     let resizeObserver: ResizeObserver | null = null;
+    const primary = getComputedStyle(document.documentElement).getPropertyValue("--primary").trim() || "#A8C66C";
     const term = new Terminal({
       convertEol: true,
       cursorBlink: true,
@@ -37,7 +39,7 @@ export default function TerminalPanel({ project }: Props) {
         ? {
             background: "#F7F8F5",
             foreground: "#22251F",
-            cursor: "#4F7A2E",
+            cursor: primary,
             selectionBackground: "#CFE3B8",
             black: "#22251F",
             red: "#B64B40",
@@ -59,7 +61,7 @@ export default function TerminalPanel({ project }: Props) {
         : {
             background: "#0F120D",
             foreground: "#EEF1E8",
-            cursor: "#A8C66C",
+            cursor: primary,
             selectionBackground: "#33421F",
             black: "#0F120D",
             red: "#D96C5F",
@@ -147,7 +149,7 @@ export default function TerminalPanel({ project }: Props) {
       socket?.close();
       term.dispose();
     };
-  }, [attempt, project.id, setTerminalId, terminalFontSize, resolved]);
+  }, [accent, attempt, project.id, setTerminalId, terminalFontSize, resolved]);
 
   return (
     <section className="terminal-panel" style={{ height: terminalHeight }}>
