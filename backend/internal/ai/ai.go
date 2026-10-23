@@ -241,7 +241,7 @@ func (s *Service) Complete(ctx context.Context, input CompleteInput) (string, er
 		return "", err
 	}
 	if cfg.Provider == "opencode" {
-		return "", ErrOpenCodeAgent
+		return s.completeOpenCode(ctx, cfg, prompt)
 	}
 	messages := []Message{{Role: "user", Content: prompt}}
 	if cfg.SystemPrompt != "" {
@@ -252,6 +252,29 @@ func (s *Service) Complete(ctx context.Context, input CompleteInput) (string, er
 		return "", err
 	}
 	return cleanCompletion(text), nil
+}
+
+func (s *Service) completeOpenCode(ctx context.Context, cfg Config, prompt string) (string, error) {
+	if cfg.BaseURL == "" {
+		return "", errors.New("OpenCode base URL is required")
+	}
+	var out struct {
+		Text string `json:"text"`
+	}
+	headers := map[string]string{}
+	if cfg.APIKey != "" {
+		headers["Authorization"] = cfg.APIKey
+	}
+	body := map[string]any{"prompt": prompt}
+	if cfg.Model != "" {
+		if parts := strings.SplitN(cfg.Model, "/", 2); len(parts) == 2 {
+			body["model"] = map[string]string{"providerID": parts[0], "id": parts[1]}
+		}
+	}
+	if err := s.postJSON(ctx, strings.TrimRight(cfg.BaseURL, "/")+"/api/experimental/generate", headers, body, &out); err != nil {
+		return "", err
+	}
+	return out.Text, nil
 }
 
 func (s *Service) chatOpenAI(ctx context.Context, cfg Config, messages []Message) (string, error) {

@@ -164,7 +164,7 @@ export default function CodeEditor({
 
   useEffect(() => {
     const monaco = monacoRef.current;
-    if (!monaco || !monacoReady || !aiConfig?.autocomplete || aiConfig.provider === "opencode") return;
+    if (!monaco || !monacoReady || !aiConfig?.autocomplete) return;
     const provider = monaco.languages.registerInlineCompletionsProvider("*", {
       async provideInlineCompletions(
         model: editor.ITextModel,
@@ -209,7 +209,7 @@ export default function CodeEditor({
       },
     });
     return () => provider.dispose();
-  }, [aiConfig?.autocomplete, aiConfig?.provider, language, monacoReady, path]);
+  }, [aiConfig?.autocomplete, language, monacoReady, path]);
 
   return (
     <Editor

@@ -64,7 +64,7 @@ export default function AiSettings() {
     patch({
       provider,
       baseUrl: provider === "custom" ? form.baseUrl : (preset?.base ?? ""),
-      autocomplete: provider === "opencode" ? false : form.autocomplete,
+      autocomplete: form.autocomplete,
     });
   }
 
@@ -123,7 +123,7 @@ export default function AiSettings() {
           <input
             value={form.model}
             onChange={(event) => patch({ model: event.target.value })}
-            placeholder={form.provider === "claude" ? "claude-sonnet-4" : "gpt-4.1-mini"}
+            placeholder={form.provider === "opencode" ? "provider/model (optional)" : form.provider === "claude" ? "claude-sonnet-4" : "gpt-4.1-mini"}
           />
         </label>
         <label>
@@ -181,18 +181,13 @@ export default function AiSettings() {
         <div className={`settings-toggle ${form.autocomplete ? "on" : ""}`}>
           <span>
             Editor autocomplete
-            <small>
-              {form.provider === "opencode"
-                ? "Not available with OpenCode; use an OpenAI-compatible, Claude or Ollama endpoint."
-                : "Uses the configured provider and model."}
-            </small>
+            <small>Uses the configured provider and model.</small>
           </span>
           <button
             type="button"
             className="switch-track"
             role="switch"
             aria-checked={form.autocomplete}
-            disabled={form.provider === "opencode"}
             onClick={() => patch({ autocomplete: !form.autocomplete })}
           >
             <span className="switch-thumb" />
