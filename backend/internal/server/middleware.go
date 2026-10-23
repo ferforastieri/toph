@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"crypto/subtle"
 	"net/http"
 	"strings"
 
@@ -37,7 +38,8 @@ func (s *Server) authenticate(next http.Handler) http.Handler {
 		}
 		if fromCookie && isUnsafe(r.Method) {
 			csrf := cookieValue(r, csrfCookie)
-			if csrf == "" || r.Header.Get(csrfHeader) != csrf {
+			provided := r.Header.Get(csrfHeader)
+			if csrf == "" || provided == "" || subtle.ConstantTimeCompare([]byte(csrf), []byte(provided)) != 1 {
 				writeError(w, http.StatusForbidden, "invalid csrf token")
 				return
 			}
@@ -65,8 +67,10 @@ func sessionToken(r *http.Request) (string, bool) {
 	if strings.HasPrefix(header, "Bearer ") {
 		return strings.TrimSpace(strings.TrimPrefix(header, "Bearer ")), false
 	}
-	if token := r.URL.Query().Get("token"); token != "" {
-		return token, false
+	if strings.HasPrefix(r.URL.Path, "/api/terminals/") && strings.HasSuffix(r.URL.Path, "/ws") {
+		if token := r.URL.Query().Get("token"); token != "" {
+			return token, false
+		}
 	}
 	if cookie, err := r.Cookie(sessionCookie); err == nil && cookie.Value != "" {
 		return cookie.Value, true
@@ -80,6 +84,25 @@ func cookieValue(r *http.Request, name string) string {
 		return ""
 	}
 	return cookie.Value
+}
+
+func (s *Server) apiRateLimit(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !strings.HasPrefix(r.URL.Path, "/api/") ||
+			r.URL.Path == "/api/health" ||
+			r.URL.Path == "/api/version" ||
+			r.Method == http.MethodOptions {
+			next.ServeHTTP(w, r)
+			return
+		}
+		key := s.clientIP.resolve(r)
+		if !s.apiLimiter.allow(key) {
+			w.Header().Set("Retry-After", "60")
+			writeError(w, http.StatusTooManyRequests, "too many requests")
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 func isUnsafe(method string) bool {

@@ -17,7 +17,7 @@ func TestLoginLimiter(t *testing.T) {
 	if !limiter.allow("127.0.0.1") {
 		t.Fatal("expected reset to allow a new attempt")
 	}
-	if key := clientKey("192.0.2.1:1234"); key != "192.0.2.1" {
+	if key := parseRemoteAddrString("192.0.2.1:1234"); key != "192.0.2.1" {
 		t.Fatalf("unexpected key: %q", key)
 	}
 }

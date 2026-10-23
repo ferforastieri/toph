@@ -54,6 +54,16 @@ Browser (React)                     Android (Kotlin/Compose)
 
 The Go server is the only component that touches repositories, database credentials and shells. Clients are thin: they render tabs and stream data. The browser build is embedded in the Go binary; the Android app connects to the same API.
 
+## Security
+
+- Passwords use Argon2id; sessions are stored as token hashes.
+- Browser sessions use `HttpOnly`, `Secure` and `SameSite=Strict` cookies when `TOPH_SECURE_COOKIES=true`.
+- Cookie-authenticated mutations require a double-submit CSRF token.
+- Login and API endpoints have per-client rate limits.
+- `X-Forwarded-For` is only trusted from loopback or the CIDRs in `TOPH_TRUSTED_PROXIES`.
+- The OpenCode proxy drops browser cookies and authorization headers before forwarding.
+- API responses use `Cache-Control: no-store` and responses are protected against framing.
+
 ## Run it
 
 ### Requirements
@@ -138,7 +148,8 @@ It connects to the Toph server URL configured during onboarding. Use LAN, VPN or
 | `TOPH_DATA_DIR` | `./data` | SQLite, master key and runtime data |
 | `TOPH_WORKSPACES` | `/workspaces` | Colon-separated roots that projects may use |
 | `TOPH_ADMIN_PASSWORD` | generated on first run | Initial admin password |
-| `TOPH_SECURE_COOKIES` | `false` | Require HTTPS for browser sessions |
+| `TOPH_SECURE_COOKIES` | `false` | Require HTTPS for browser sessions; the installer sets `true` |
+| `TOPH_TRUSTED_PROXIES` | empty | Comma-separated proxy IPs/CIDRs allowed to supply `X-Forwarded-For` |
 | `TOPH_OPENCODE_URL` | `http://127.0.0.1:3005` | OpenCode server |
 | `TOPH_OPENCODE_AUTH` | empty | Raw `Authorization` value for OpenCode |
 | `TOPH_WEB_DIR` | embedded build | Serve a web build from disk in development |

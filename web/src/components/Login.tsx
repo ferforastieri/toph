@@ -23,8 +23,12 @@ export default function Login({ onChangeServer }: Props) {
       setUser(result.user);
     } catch (err) {
       const message =
-        err instanceof ApiError && err.status === 401
-          ? "Invalid username or password."
+        err instanceof ApiError
+          ? err.status === 401
+            ? "Invalid username or password."
+            : err.status === 429
+              ? "Too many attempts. Wait a minute and try again."
+              : err.message
           : "Could not reach the Toph server.";
       setError(message);
       notify("error", message);

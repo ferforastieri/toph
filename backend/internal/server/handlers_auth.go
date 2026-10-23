@@ -21,7 +21,7 @@ type loginResponse struct {
 }
 
 func (s *Server) login(w http.ResponseWriter, r *http.Request) {
-	key := clientKey(r.RemoteAddr)
+	key := s.clientIP.resolve(r)
 	if !s.loginLimiter.allow(key) {
 		w.Header().Set("Retry-After", "60")
 		writeError(w, http.StatusTooManyRequests, "too many login attempts")
@@ -51,13 +51,18 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.loginLimiter.reset(key)
-	setAuthCookies(w, result.Token, result.CSRFToken, s.auth.SecureCookies())
-	writeJSON(w, http.StatusOK, loginResponse{
-		Token:     result.Token,
+	if req.Kind == "web" {
+		setAuthCookies(w, result.Token, result.CSRFToken, s.auth.SecureCookies())
+	}
+	response := loginResponse{
 		CSRFToken: result.CSRFToken,
 		ExpiresAt: result.Session.ExpiresAt,
 		User:      result.User,
-	})
+	}
+	if req.Kind == "mobile" {
+		response.Token = result.Token
+	}
+	writeJSON(w, http.StatusOK, response)
 }
 
 func (s *Server) me(w http.ResponseWriter, r *http.Request) {
@@ -78,7 +83,7 @@ func (s *Server) logout(w http.ResponseWriter, r *http.Request) {
 
 func setAuthCookies(w http.ResponseWriter, token, csrf string, secure bool) {
 	maxAge := int((30 * 24 * time.Hour).Seconds())
-	sameSite := http.SameSiteLaxMode
+	sameSite := http.SameSiteStrictMode
 	http.SetCookie(w, &http.Cookie{
 		Name: sessionCookie, Value: token, Path: "/", MaxAge: maxAge,
 		HttpOnly: true, Secure: secure, SameSite: sameSite,
@@ -93,7 +98,7 @@ func clearAuthCookies(w http.ResponseWriter, secure bool) {
 	for _, name := range []string{sessionCookie, csrfCookie} {
 		http.SetCookie(w, &http.Cookie{
 			Name: name, Value: "", Path: "/", MaxAge: -1,
-			HttpOnly: name == sessionCookie, Secure: secure, SameSite: http.SameSiteLaxMode,
+			HttpOnly: name == sessionCookie, Secure: secure, SameSite: http.SameSiteStrictMode,
 		})
 	}
 }

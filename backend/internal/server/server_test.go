@@ -227,3 +227,58 @@ func TestWebTargets(t *testing.T) {
 		t.Fatalf("expected one target, got %d", len(targets))
 	}
 }
+
+func TestWebLoginHidesBearerTokenAndHardensCookies(t *testing.T) {
+	c, _ := newTestServer(t)
+	var login loginResponse
+	res := c.request(http.MethodPost, "/api/auth/login", loginRequest{Username: "admin", Password: "secret", Kind: "web"}, &login)
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("login status %d", res.StatusCode)
+	}
+	if login.Token != "" {
+		t.Fatal("web login must not expose the bearer token in JSON")
+	}
+	if login.CSRFToken == "" {
+		t.Fatal("expected csrf token in login response")
+	}
+	cookies := res.Cookies()
+	var session, csrf *http.Cookie
+	for _, cookie := range cookies {
+		switch cookie.Name {
+		case sessionCookie:
+			session = cookie
+		case csrfCookie:
+			csrf = cookie
+		}
+	}
+	if session == nil || !session.HttpOnly || session.SameSite != http.SameSiteStrictMode {
+		t.Fatalf("unexpected session cookie: %+v", session)
+	}
+	if csrf == nil || csrf.HttpOnly || csrf.SameSite != http.SameSiteStrictMode {
+		t.Fatalf("unexpected csrf cookie: %+v", csrf)
+	}
+	if got := res.Header.Get("Cache-Control"); got != "no-store" {
+		t.Fatalf("expected no-store, got %q", got)
+	}
+}
+
+func TestQueryTokenIsOnlyAcceptedForTerminalWebSocket(t *testing.T) {
+	c, _ := newTestServer(t)
+	var login loginResponse
+	res := c.request(http.MethodPost, "/api/auth/login", loginRequest{Username: "admin", Password: "secret", Kind: "mobile"}, &login)
+	if res.StatusCode != http.StatusOK || login.Token == "" {
+		t.Fatalf("mobile login failed: %d %+v", res.StatusCode, login)
+	}
+	req, err := http.NewRequest(http.MethodGet, c.base+"/api/projects?token="+login.Token, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err = c.client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("expected query token to be rejected for API, got %d", res.StatusCode)
+	}
+}

@@ -40,6 +40,9 @@ func (p *Proxy) Handler(prefix string) http.Handler {
 		r.URL.Path = p.base.Path + rest
 		r.URL.RawPath = ""
 		r.Host = p.base.Host
+		r.Header.Del("Cookie")
+		r.Header.Del("Authorization")
+		r.Header.Del("X-Toph-CSRF")
 		if p.auth != "" {
 			r.Header.Set("Authorization", p.auth)
 		}

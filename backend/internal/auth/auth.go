@@ -31,6 +31,7 @@ type Manager struct {
 	store         *store.Store
 	sessionTTL    time.Duration
 	secureCookies bool
+	dummyHash     string
 }
 
 type LoginResult struct {
@@ -41,10 +42,12 @@ type LoginResult struct {
 }
 
 func New(st *store.Store, secureCookies bool) *Manager {
+	dummyHash, _ := HashPassword("toph-invalid-password-placeholder")
 	return &Manager{
 		store:         st,
 		sessionTTL:    30 * 24 * time.Hour,
 		secureCookies: secureCookies,
+		dummyHash:     dummyHash,
 	}
 }
 
@@ -83,6 +86,7 @@ func (m *Manager) Bootstrap(ctx context.Context, configuredPassword string) (str
 func (m *Manager) Login(ctx context.Context, username, password, kind string) (LoginResult, error) {
 	user, err := m.store.UserByUsername(ctx, username)
 	if err != nil {
+		_ = VerifyPassword(m.dummyHash, password)
 		return LoginResult{}, ErrInvalidCredentials
 	}
 	if !VerifyPassword(user.PasswordHash, password) {

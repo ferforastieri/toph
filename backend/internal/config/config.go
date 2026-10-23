@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"strings"
@@ -16,6 +17,7 @@ type Config struct {
 	WorkspaceRoots []string
 	AdminPassword  string
 	SecureCookies  bool
+	TrustedProxies []netip.Prefix
 	OpenCodeURL    string
 	OpenCodeAuth   string
 	WebDir         string
@@ -44,6 +46,7 @@ func Load() (Config, error) {
 		WorkspaceRoots: roots,
 		AdminPassword:  os.Getenv("TOPH_ADMIN_PASSWORD"),
 		SecureCookies:  envBool("TOPH_SECURE_COOKIES", false),
+		TrustedProxies: trustedProxies(),
 		OpenCodeURL:    strings.TrimRight(env("TOPH_OPENCODE_URL", "http://127.0.0.1:3005"), "/"),
 		OpenCodeAuth:   os.Getenv("TOPH_OPENCODE_AUTH"),
 		WebDir:         os.Getenv("TOPH_WEB_DIR"),
@@ -79,6 +82,31 @@ func env(key, fallback string) string {
 		return value
 	}
 	return fallback
+}
+
+func trustedProxies() []netip.Prefix {
+	raw := strings.TrimSpace(os.Getenv("TOPH_TRUSTED_PROXIES"))
+	if raw == "" {
+		return nil
+	}
+	var prefixes []netip.Prefix
+	for _, part := range strings.Split(raw, ",") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		if strings.Contains(part, "/") {
+			prefix, err := netip.ParsePrefix(part)
+			if err == nil {
+				prefixes = append(prefixes, prefix.Masked())
+			}
+			continue
+		}
+		if addr, err := netip.ParseAddr(part); err == nil {
+			prefixes = append(prefixes, netip.PrefixFrom(addr, addr.BitLen()))
+		}
+	}
+	return prefixes
 }
 
 func envBool(key string, fallback bool) bool {

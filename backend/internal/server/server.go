@@ -18,7 +18,7 @@ import (
 	"github.com/ferforastieri/toph/internal/workspace"
 )
 
-const Version = "0.1.9"
+const Version = "0.2.0"
 
 type Server struct {
 	cfg          config.Config
@@ -29,7 +29,9 @@ type Server struct {
 	db           *database.Service
 	opencode     *opencode.Proxy
 	web          http.Handler
+	clientIP     clientIPResolver
 	loginLimiter *loginLimiter
+	apiLimiter   *loginLimiter
 }
 
 func New(
@@ -44,7 +46,9 @@ func New(
 	s := &Server{
 		cfg: cfg, store: st, auth: authManager, workspace: ws,
 		terminals: terminals, db: db, opencode: oc,
+		clientIP:     newClientIPResolver(cfg.TrustedProxies),
 		loginLimiter: newLoginLimiter(10, 5*time.Minute),
+		apiLimiter:   newLoginLimiter(300, time.Minute),
 	}
 	s.web = s.staticHandler()
 	return s
@@ -53,10 +57,10 @@ func New(
 func (s *Server) Handler() http.Handler {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
-	r.Use(middleware.RealIP)
 	r.Use(s.recoverer)
 	r.Use(s.securityHeaders)
 	r.Use(s.accessLog)
+	r.Use(s.apiRateLimit)
 
 	r.Get("/api/health", s.health)
 	r.Get("/api/version", s.version)
@@ -133,6 +137,7 @@ func (s *Server) accessLog(next http.Handler) http.Handler {
 		slog.Info("http",
 			"method", r.Method,
 			"path", r.URL.Path,
+			"ip", s.clientIP.resolve(r),
 			"status", ww.Status(),
 			"bytes", ww.BytesWritten(),
 			"duration_ms", time.Since(start).Milliseconds(),
@@ -157,6 +162,8 @@ func (s *Server) securityHeaders(next http.Handler) http.Handler {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("Referrer-Policy", "same-origin")
 		w.Header().Set("X-Frame-Options", "DENY")
+		w.Header().Set("Content-Security-Policy", "frame-ancestors 'none'")
+		w.Header().Set("X-Permitted-Cross-Domain-Policies", "none")
 		w.Header().Set("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
 		next.ServeHTTP(w, r)
 	})

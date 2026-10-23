@@ -1,7 +1,6 @@
 package server
 
 import (
-	"net"
 	"sync"
 	"time"
 )
@@ -32,6 +31,13 @@ func (l *loginLimiter) allow(key string) bool {
 	now := time.Now()
 	entry, ok := l.entries[key]
 	if !ok || now.After(entry.reset) {
+		if len(l.entries) > 4096 {
+			for existing, stale := range l.entries {
+				if now.After(stale.reset) {
+					delete(l.entries, existing)
+				}
+			}
+		}
 		l.entries[key] = &loginEntry{count: 1, reset: now.Add(l.window)}
 		return true
 	}
@@ -46,12 +52,4 @@ func (l *loginLimiter) reset(key string) {
 	l.mu.Lock()
 	delete(l.entries, key)
 	l.mu.Unlock()
-}
-
-func clientKey(addr string) string {
-	host, _, err := net.SplitHostPort(addr)
-	if err != nil {
-		return addr
-	}
-	return host
 }
