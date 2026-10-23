@@ -2636,7 +2636,7 @@ a:focus-visible {
   border: 1px solid transparent;
   border-left: 1px solid transparent;
   border-radius: calc(var(--radius) * 0.66);
-  color: color-mix(in srgb, var(--text) 52%, transparent);
+  color: color-mix(in srgb, var(--text) 60%, transparent);
   transition:
     color 0.28s var(--ease-spring),
     background 0.28s var(--ease-spring),
@@ -2670,7 +2670,9 @@ a:focus-visible {
 }
 
 .editor-column {
-  background: var(--editor-bg);
+  background:
+    radial-gradient(ellipse at 50% 0%, color-mix(in srgb, var(--primary) 5%, transparent), transparent 58%),
+    var(--editor-bg);
   border-left: 1px solid var(--border-soft);
 }
 
