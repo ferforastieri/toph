@@ -108,19 +108,21 @@ class TophViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             try {
                 val result = TophApi.login(baseUrl, username, password)
-                session.save(baseUrl, result.token, result.user.username)
                 token = result.token
                 api = TophApi(baseUrl, result.token)
                 _state.update {
                     it.copy(user = result.user, baseUrl = baseUrl, busy = false, error = null)
                 }
+                runCatching { session.save(baseUrl, result.token, result.user.username) }
                 loadProjects()
                 checkForUpdates()
             } catch (error: Exception) {
+                val detail = error.message?.takeIf { it.isNotBlank() }
+                    ?: error::class.java.simpleName
                 _state.update {
                     it.copy(
                         busy = false,
-                        error = error.message ?: "Could not sign in.",
+                        error = detail,
                     )
                 }
             }
