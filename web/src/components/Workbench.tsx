@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Boxes, FolderPlus, Plus } from "lucide-react";
+import { Bot, Boxes, FolderPlus, GitBranch, Plus, TerminalSquare } from "lucide-react";
 import { api, type Project, type SchemaTable, type WebTarget } from "../api";
 import { basename, quoteIdentifier } from "../lib";
 import { useApp, type Sidebar, type Tab } from "../store";
@@ -36,7 +36,12 @@ export default function Workbench() {
   const setSidebar = useApp((state) => state.setSidebar);
   const terminalOpen = useApp((state) => state.terminalOpen);
   const setTerminalOpen = useApp((state) => state.setTerminalOpen);
+  const toggleTerminal = useApp((state) => state.toggleTerminal);
   const notify = useApp((state) => state.notify);
+  const aiPanelOpen = useApp((state) => state.aiPanelOpen);
+  const setAiPanelOpen = useApp((state) => state.setAiPanelOpen);
+  const aiDockTab = useApp((state) => state.aiDockTab);
+  const setAiDockTab = useApp((state) => state.setAiDockTab);
   const loadAI = useAI((state) => state.load);
   const loadModels = useAI((state) => state.loadModels);
   const aiProvider = useAI((state) => state.config?.provider);
@@ -48,6 +53,7 @@ export default function Workbench() {
   const loadedProject = useRef<string | null>(null);
 
   const project = projects.find((item) => item.id === activeProjectId) ?? null;
+  const branch = gitStatus.split("\n")[0]?.replace(/^##\s*/, "").split("...")[0] ?? "";
   const activeTab = tabs.find((tab) => tab.id === activeTabId) ?? null;
 
   useEffect(() => {
@@ -88,7 +94,7 @@ export default function Workbench() {
           (tab) =>
             tab &&
             typeof tab.id === "string" &&
-            ["editor", "db", "ai", "web"].includes(tab.kind),
+            ["editor", "db", "web"].includes(tab.kind),
         );
         setTabs(
           restored.map((tab) => ({ ...tab, projectId: activeProjectId })),
@@ -118,6 +124,24 @@ export default function Workbench() {
       .then(setGitStatus)
       .catch(() => setGitStatus(""));
   }, [activeProjectId, tabs.length]);
+
+  useEffect(() => {
+    if (!project) {
+      setAiDockTab(null);
+      return;
+    }
+    const current = useApp.getState().aiDockTab;
+    const next: Tab = {
+      id: `ai:dock:${project.id}`,
+      kind: "ai",
+      title: providerLabel(aiProvider),
+      projectId: project.id,
+      sessionId: current?.projectId === project.id ? current.sessionId : undefined,
+    };
+    if (!current || current.projectId !== project.id || current.title !== next.title) {
+      setAiDockTab(next);
+    }
+  }, [aiProvider, project?.id, setAiDockTab]);
 
   const layoutTabs = useMemo(
     () =>
@@ -228,23 +252,36 @@ export default function Workbench() {
 
   function openAI() {
     if (!project) return;
-    openTab({
-      id: `ai:${project.id}:${crypto.randomUUID()}`,
-      kind: "ai",
-      title: providerLabel(aiProvider),
-      projectId: project.id,
-    });
+    const current = useApp.getState().aiDockTab;
+    if (!current || current.projectId !== project.id) {
+      setAiDockTab({
+        id: `ai:dock:${project.id}`,
+        kind: "ai",
+        title: providerLabel(aiProvider),
+        projectId: project.id,
+      });
+    }
+    setAiPanelOpen(true);
+  }
+
+  function toggleAI() {
+    if (aiPanelOpen) {
+      setAiPanelOpen(false);
+    } else {
+      openAI();
+    }
   }
 
   function openAiSession(session: { id: string; title?: string }) {
     if (!project) return;
-    openTab({
-      id: `ai:${project.id}:${session.id}`,
+    setAiDockTab({
+      id: `ai:dock:${project.id}`,
       kind: "ai",
       title: session.title ?? providerLabel(aiProvider),
       projectId: project.id,
       sessionId: session.id,
     });
+    setAiPanelOpen(true);
   }
 
   function openWeb(target: WebTarget) {
@@ -304,14 +341,26 @@ export default function Workbench() {
           </Button>
         </div>
         <div className="titlebar-spacer" />
+        <div className="titlebar-meta">
+          {branch && (
+            <span className="titlebar-chip"><GitBranch size={12} /> {branch}</span>
+          )}
+          <Button className={`titlebar-chip ${aiPanelOpen ? "active" : ""}`} onClick={toggleAI} title="Toggle agent">
+            <Bot size={13} /> {providerLabel(aiProvider)}
+          </Button>
+          <Button className="titlebar-chip" onClick={toggleTerminal} title="Toggle terminal">
+            <TerminalSquare size={13} /> Terminal
+          </Button>
+          <span className="titlebar-version">v{version}</span>
+        </div>
         <div className="titlebar-note">
           <Boxes size={13} />
           <span>{project?.root}</span>
         </div>
       </header>
 
-      <div className="workbench-body">
-        <ActivityBar />
+      <div className={`workbench-body ${aiPanelOpen && project ? "ai-open" : ""}`}>
+        <ActivityBar onOpenAI={toggleAI} />
         <aside className="sidebar">
           {project && sidebar === "files" && <FileTree project={project} onOpenFile={openFile} />}
           {project && sidebar === "search" && <SearchPanel project={project} onOpenFile={openFile} />}
@@ -353,6 +402,16 @@ export default function Workbench() {
           </div>
           {terminalOpen && project && <TerminalPanel project={project} />}
         </main>
+
+        {project && aiDockTab && aiPanelOpen && (
+          <aside className="ai-dock">
+            <AiPanelTab
+              tab={aiDockTab}
+              project={project}
+              onClose={() => setAiPanelOpen(false)}
+            />
+          </aside>
+        )}
       </div>
 
       {project && (

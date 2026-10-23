@@ -12,9 +12,10 @@ const EMPTY_MESSAGES: AiMessage[] = [];
 interface Props {
   tab: Tab;
   project: Project;
+  onClose?: () => void;
 }
 
-export default function OpenCodePanelTab({ tab, project }: Props) {
+export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
   const updateTab = useApp((state) => state.updateTab);
   const addMessage = useApp((state) => state.addAiMessage);
   const appendText = useApp((state) => state.appendAiText);
@@ -311,6 +312,7 @@ export default function OpenCodePanelTab({ tab, project }: Props) {
         <span className="ai-session">
           {tab.sessionId ? `session ${tab.sessionId.slice(0, 8)}` : "new session"}
         </span>
+        {onClose && <Button className="icon-button" title="Close agent" onClick={onClose}><X size={15} /></Button>}
       </div>
 
       <div className="ai-messages">

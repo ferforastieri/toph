@@ -18,11 +18,12 @@ const items: Array<{ id: Sidebar; label: string; icon: typeof Files }> = [
   { id: "web", label: "Web apps", icon: Globe2 },
 ];
 
-export default function ActivityBar() {
+export default function ActivityBar({ onOpenAI }: { onOpenAI: () => void }) {
   const sidebar = useApp((state) => state.sidebar);
   const setSidebar = useApp((state) => state.setSidebar);
   const toggleTerminal = useApp((state) => state.toggleTerminal);
   const terminalOpen = useApp((state) => state.terminalOpen);
+  const aiPanelOpen = useApp((state) => state.aiPanelOpen);
 
   return (
     <nav className="activity-bar" aria-label="Primary">
@@ -32,9 +33,12 @@ export default function ActivityBar() {
           return (
             <Button
               key={item.id}
-              className={`activity-button ${sidebar === item.id ? "active" : ""}`}
+              className={`activity-button ${(item.id === "ai" ? aiPanelOpen : sidebar === item.id) ? "active" : ""}`}
               title={item.label}
-              onClick={() => setSidebar(item.id)}
+              onClick={() => {
+                if (item.id === "ai") onOpenAI();
+                else setSidebar(item.id);
+              }}
             >
               <Icon size={21} strokeWidth={1.7} />
             </Button>

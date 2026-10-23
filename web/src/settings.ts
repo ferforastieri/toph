@@ -26,6 +26,8 @@ export interface AppearanceSettings {
   wordWrap: boolean;
   minimap: boolean;
   respectReducedTransparency: boolean;
+  aiPanelWidth: number;
+  settingsVersion?: number;
 }
 
 export interface SettingsState extends AppearanceSettings {
@@ -48,11 +50,13 @@ export const defaultSettings: AppearanceSettings = {
   terminalFontSize: 12.5,
   terminalHeight: 280,
   motion: true,
-  statusBar: true,
+  statusBar: false,
   confirmClose: true,
   wordWrap: false,
   minimap: false,
   respectReducedTransparency: false,
+  aiPanelWidth: 390,
+  settingsVersion: 2,
 };
 
 const themes: ThemePreference[] = ["auto", "dark", "light"];
@@ -90,11 +94,13 @@ function readSettings(): AppearanceSettings {
       terminalFontSize: numberIn(value.terminalFontSize, 10, 18, defaultSettings.terminalFontSize),
       terminalHeight: numberIn(value.terminalHeight, 180, 520, defaultSettings.terminalHeight),
       motion: value.motion !== false,
-      statusBar: value.statusBar !== false,
       confirmClose: value.confirmClose !== false,
       wordWrap: value.wordWrap === true,
       minimap: value.minimap === true,
       respectReducedTransparency: value.respectReducedTransparency === true,
+      aiPanelWidth: numberIn(value.aiPanelWidth, 300, 620, defaultSettings.aiPanelWidth),
+      settingsVersion: 2,
+      statusBar: value.settingsVersion === 2 ? value.statusBar === true : false,
     };
   } catch {
     return defaultSettings;
@@ -129,6 +135,7 @@ export function applyAppearance(settings: AppearanceSettings): void {
   root.style.setProperty("--editor-font-size", `${settings.editorFontSize}px`);
   root.style.setProperty("--terminal-font-size", `${settings.terminalFontSize}px`);
   root.style.setProperty("--terminal-height", `${settings.terminalHeight}px`);
+  root.style.setProperty("--ai-panel-width", `${settings.aiPanelWidth}px`);
   const glass = glassStyles[settings.glass];
   const lightBoost = root.dataset.theme === "light" ? 0.12 : 0;
   root.style.setProperty("--glass-blur", `${glass.blur}px`);
@@ -158,6 +165,8 @@ export const useSettings = create<SettingsState>((set, get) => ({
       wordWrap: next.wordWrap,
       minimap: next.minimap,
       respectReducedTransparency: next.respectReducedTransparency,
+      aiPanelWidth: next.aiPanelWidth,
+      settingsVersion: 2,
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
     applyAppearance(settings);

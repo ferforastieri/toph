@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { Bot } from "lucide-react";
+import { Bot, X } from "lucide-react";
 import { api, type AIConfig } from "../api";
 import { providerLabel, useAI } from "../ai";
 import { useApp, type AiMessage, type Tab } from "../store";
 import type { Project } from "../api";
 import OpenCodePanelTab from "./OpenCodePanelTab";
+import { Button } from "../ui/Button";
 import { AgentComposer } from "../ui/AgentComposer";
 
 const EMPTY_MESSAGES: AiMessage[] = [];
@@ -12,10 +13,11 @@ const EMPTY_MESSAGES: AiMessage[] = [];
 interface Props {
   tab: Tab;
   project: Project;
+  onClose?: () => void;
 }
 
 
-function GenericAiPanel({ tab, project, config }: Props & { config: AIConfig }) {
+function GenericAiPanel({ tab, project, config, onClose }: Props & { config: AIConfig }) {
   const updateTab = useApp((state) => state.updateTab);
   const addMessage = useApp((state) => state.addAiMessage);
   const setStreaming = useApp((state) => state.setAiStreaming);
@@ -83,6 +85,7 @@ function GenericAiPanel({ tab, project, config }: Props & { config: AIConfig }) 
           <span className="ai-project">{config.model || "default model"}</span>
         </div>
         <span className="ai-session">{project.name}</span>
+        {onClose && <Button className="icon-button" title="Close agent" onClick={onClose}><X size={15} /></Button>}
       </div>
       <div className="ai-messages">
         {messages.length === 0 && (
@@ -126,7 +129,7 @@ function GenericAiPanel({ tab, project, config }: Props & { config: AIConfig }) 
   );
 }
 
-export default function AiPanelTab({ tab, project }: Props) {
+export default function AiPanelTab({ tab, project, onClose }: Props) {
   const config = useAI((state) => state.config);
   const load = useAI((state) => state.load);
   const loading = useAI((state) => state.loading);
@@ -138,6 +141,6 @@ export default function AiPanelTab({ tab, project }: Props) {
   if (!config) {
     return <div className="editor-loading">{loading ? "Loading agent configuration..." : "AI is not configured. Open Settings → AI."}</div>;
   }
-  if (config.provider === "opencode") return <OpenCodePanelTab tab={tab} project={project} />;
-  return <GenericAiPanel tab={tab} project={project} config={config} />;
+  if (config.provider === "opencode") return <OpenCodePanelTab tab={tab} project={project} onClose={onClose} />;
+  return <GenericAiPanel tab={tab} project={project} config={config} onClose={onClose} />;
 }

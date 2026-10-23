@@ -298,6 +298,7 @@ export default function SettingsPanel({ version, buildId }: Props) {
         <div className="settings-page">
           <PageTitle icon={LayoutPanelLeft}>Layout</PageTitle>
           <Range label="Sidebar width" value={settings.sidebarWidth} min={220} max={460} step={4} suffix="px" onChange={(sidebarWidth) => update({ sidebarWidth })} />
+          <Range label="AI panel width" value={settings.aiPanelWidth} min={300} max={620} step={10} suffix="px" onChange={(aiPanelWidth) => update({ aiPanelWidth })} />
           <div className="settings-field">
             <span>Density</span>
             <Segmented value={settings.density} options={densityOptions} onChange={(density) => update({ density })} />
@@ -306,7 +307,7 @@ export default function SettingsPanel({ version, buildId }: Props) {
             <span>Tab style</span>
             <Segmented value={settings.tabs} options={tabOptions} onChange={(tabs) => update({ tabs })} />
           </div>
-          <Toggle label="Status bar" checked={settings.statusBar} onChange={(statusBar) => update({ statusBar })} />
+          <Toggle label="Show footer status bar" checked={settings.statusBar} onChange={(statusBar) => update({ statusBar })} />
           <Toggle label="Confirm closing dirty tabs" checked={settings.confirmClose} onChange={(confirmClose) => update({ confirmClose })} />
         </div>
       )}

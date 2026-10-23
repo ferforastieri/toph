@@ -50,6 +50,8 @@ interface AppState {
   activeTabId: string | null;
   sidebar: Sidebar;
   terminalOpen: boolean;
+  aiPanelOpen: boolean;
+  aiDockTab: Tab | null;
   terminalIds: Record<string, string>;
   aiMessages: Record<string, AiMessage[]>;
   aiStreaming: Record<string, boolean>;
@@ -65,6 +67,9 @@ interface AppState {
   setTabs: (tabs: Tab[], activeTabId?: string | null) => void;
   setSidebar: (sidebar: Sidebar) => void;
   setTerminalOpen: (open: boolean) => void;
+  setAiPanelOpen: (open: boolean) => void;
+  toggleAiPanel: () => void;
+  setAiDockTab: (tab: Tab | null) => void;
   toggleTerminal: () => void;
   setTerminalId: (projectId: string, terminalId: string) => void;
   addAiMessage: (tabId: string, message: AiMessage) => void;
@@ -85,6 +90,8 @@ export const useApp = create<AppState>((set, get) => ({
   activeTabId: null,
   sidebar: "files",
   terminalOpen: false,
+  aiPanelOpen: false,
+  aiDockTab: null,
   terminalIds: {},
   aiMessages: {},
   aiStreaming: {},
@@ -124,6 +131,8 @@ export const useApp = create<AppState>((set, get) => ({
   updateTab: (id, patch) =>
     set((state) => ({
       tabs: state.tabs.map((tab) => (tab.id === id ? { ...tab, ...patch } : tab)),
+      aiDockTab:
+        state.aiDockTab?.id === id ? { ...state.aiDockTab, ...patch } : state.aiDockTab,
     })),
   setTabs: (tabs, activeTabId) =>
     set({
@@ -135,6 +144,9 @@ export const useApp = create<AppState>((set, get) => ({
     }),
   setSidebar: (sidebar) => set({ sidebar }),
   setTerminalOpen: (terminalOpen) => set({ terminalOpen }),
+  setAiPanelOpen: (aiPanelOpen) => set({ aiPanelOpen }),
+  toggleAiPanel: () => set((state) => ({ aiPanelOpen: !state.aiPanelOpen })),
+  setAiDockTab: (aiDockTab) => set({ aiDockTab }),
   toggleTerminal: () => set((state) => ({ terminalOpen: !state.terminalOpen })),
   setTerminalId: (projectId, terminalId) =>
     set((state) => ({ terminalIds: { ...state.terminalIds, [projectId]: terminalId } })),
