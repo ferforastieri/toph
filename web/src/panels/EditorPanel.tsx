@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, ApiError, type GitBlameLine, type Project } from "../api";
-import { languageFor, relativeTime } from "../lib";
+import { languageFor } from "../lib";
 import { useApp, type Tab } from "../store";
 import CodeEditor from "../components/CodeEditor";
 
@@ -13,7 +13,6 @@ export default function EditorPanel({ tab, project }: Props) {
   const updateTab = useApp((state) => state.updateTab);
   const notify = useApp((state) => state.notify);
   const [blame, setBlame] = useState<GitBlameLine[]>([]);
-  const [cursorLine, setCursorLine] = useState(1);
 
   useEffect(() => {
     if (tab.content !== undefined || !tab.path) return;
@@ -71,8 +70,6 @@ export default function EditorPanel({ tab, project }: Props) {
     return <div className="editor-loading">Opening {tab.path}...</div>;
   }
 
-  const currentBlame = blame.find((item) => item.line === cursorLine);
-
   return (
     <div className="editor-panel">
       <div className="editor-breadcrumb">
@@ -87,19 +84,12 @@ export default function EditorPanel({ tab, project }: Props) {
           value={tab.content}
           language={languageFor(tab.path ?? tab.title)}
           line={tab.line}
-          onCursorLine={setCursorLine}
+          blame={blame}
           onChange={(content) => updateTab(tab.id, { content, dirty: true })}
           onSave={() => void save()}
         />
       </div>
-      {currentBlame && (
-        <div className="blame-bar" title={`${currentBlame.commit.slice(0, 8)} · ${currentBlame.summary}`}>
-          <span className="blame-author">{currentBlame.author}</span>
-          <span>{relativeTime(currentBlame.authorTime)}</span>
-          <span className="blame-summary">{currentBlame.summary}</span>
-          <span className="blame-line">Ln {cursorLine}</span>
-        </div>
-      )}
+
     </div>
   );
 }

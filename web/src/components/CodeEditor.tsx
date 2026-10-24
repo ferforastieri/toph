@@ -2,8 +2,9 @@ import Editor, { type Monaco, type OnMount } from "@monaco-editor/react";
 import { useEffect, useRef, useState } from "react";
 import type { CancellationToken, IPosition, editor, languages } from "monaco-editor";
 import { accentPalette, useResolvedTheme, useSettings } from "../settings";
+import { relativeTime } from "../lib";
 import { useAI } from "../ai";
-import { api } from "../api";
+import { api, type GitBlameLine } from "../api";
 
 interface Props {
   path: string;
@@ -11,6 +12,7 @@ interface Props {
   language: string;
   readOnly?: boolean;
   line?: number;
+  blame?: GitBlameLine[];
   onCursorLine?: (line: number) => void;
   onChange: (value: string) => void;
   onSave?: () => void;
@@ -88,10 +90,22 @@ const lightTheme: editor.IStandaloneThemeData = {
 };
 
 const brandTheme: editor.IStandaloneThemeData = {
-  ...darkTheme,
+  base: "vs-dark",
+  inherit: false,
+  rules: [
+    { token: "comment", foreground: "67748F", fontStyle: "italic" },
+    { token: "keyword", foreground: "7C9BFF" },
+    { token: "string", foreground: "7BD88F" },
+    { token: "number", foreground: "FFC857" },
+    { token: "constant", foreground: "FFC857" },
+    { token: "type", foreground: "58C4FF" },
+    { token: "function", foreground: "98B0FF" },
+    { token: "variable", foreground: "DCE4F7" },
+    { token: "variable.parameter", foreground: "B7C4E2" },
+    { token: "entity.other.attribute-name", foreground: "A9B8FF" },
+  ],
   colors: {
-    ...darkTheme.colors,
-    "editor.background": "#080B12",
+      "editor.background": "#080B12",
     "editor.foreground": "#DCE4F7",
     "editorLineNumber.foreground": "#4D5870",
     "editorLineNumber.activeForeground": "#8D9BB8",
@@ -158,6 +172,7 @@ export default function CodeEditor({
   language,
   readOnly = false,
   line,
+  blame,
   onCursorLine,
   onChange,
   onSave,
@@ -165,7 +180,9 @@ export default function CodeEditor({
 }: Props) {
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<Monaco | null>(null);
+  const blameIds = useRef<string[]>([]);
   const [monacoReady, setMonacoReady] = useState(false);
+  const [cursorLine, setCursorLine] = useState(1);
   const settings = useSettings();
   const accent = settings.accent;
   const resolved = useResolvedTheme();
@@ -205,8 +222,13 @@ export default function CodeEditor({
     editorRef.current = instance;
     monacoRef.current = monaco;
     setMonacoReady(true);
-    onCursorLine?.(instance.getPosition()?.lineNumber ?? 1);
-    instance.onDidChangeCursorPosition((event) => onCursorLine?.(event.position.lineNumber));
+    const initialLine = instance.getPosition()?.lineNumber ?? 1;
+    setCursorLine(initialLine);
+    onCursorLine?.(initialLine);
+    instance.onDidChangeCursorPosition((event) => {
+      setCursorLine(event.position.lineNumber);
+      onCursorLine?.(event.position.lineNumber);
+    });
     instance.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
       saveRef.current?.();
     });
@@ -236,6 +258,28 @@ export default function CodeEditor({
     monaco.editor.defineTheme("toph-nightwolf", nightwolfTheme);
     monaco.editor.setTheme(themeName);
   }, [accent, resolved, themeName]);
+
+  useEffect(() => {
+    const monaco = monacoRef.current;
+    const instance = editorRef.current;
+    if (!monaco || !instance || !monacoReady) return;
+    const current = blame?.find((item) => item.line === cursorLine);
+    const decorations = current
+      ? [{
+          range: new monaco.Range(cursorLine, 1, cursorLine, 1),
+          options: {
+            after: {
+              content: `  ${current.author} · ${relativeTime(current.authorTime)} · ${current.summary}`,
+              inlineClassName: "blame-inline",
+            },
+            hoverMessage: {
+              value: `**${current.author}** · ${relativeTime(current.authorTime)}\n\n${current.summary}\n\n\`${current.commit.slice(0, 8)}\``,
+            },
+          },
+        }]
+      : [];
+    blameIds.current = instance.deltaDecorations(blameIds.current, decorations);
+  }, [blame, cursorLine, monacoReady]);
 
   useEffect(() => {
     if (!aiConfig) void loadAI();

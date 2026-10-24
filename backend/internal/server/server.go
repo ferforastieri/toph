@@ -19,7 +19,7 @@ import (
 	"github.com/ferforastieri/toph/internal/workspace"
 )
 
-const Version = "0.7.8"
+const Version = "0.8.0"
 
 type Server struct {
 	cfg          config.Config
@@ -87,6 +87,7 @@ func (s *Server) Handler() http.Handler {
 				r.Delete("/", s.deleteProject)
 				r.Get("/tree", s.tree)
 				r.Get("/file", s.readFile)
+				r.Get("/files", s.files)
 				r.Put("/file", s.writeFile)
 				r.Post("/search", s.search)
 				r.Get("/git/status", s.gitStatus)

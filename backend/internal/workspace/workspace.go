@@ -478,3 +478,32 @@ func hashBytes(data []byte) string {
 	sum := sha256.Sum256(data)
 	return hex.EncodeToString(sum[:])
 }
+
+// Files returns project-relative file paths for the quick-open palette.
+func (s *Service) Files(ctx context.Context, root, query string, limit int) ([]string, error) {
+	if limit <= 0 || limit > 200 {
+		limit = 80
+	}
+	needle := strings.ToLower(strings.TrimSpace(query))
+	cmd := exec.CommandContext(ctx, "rg", "--files", "--hidden", "--glob", "!.git/**", "--glob", "!node_modules/**", "--glob", "!dist/**", "--glob", "!build/**")
+	cmd.Dir = root
+	out, err := cmd.Output()
+	if err != nil {
+		return []string{}, nil
+	}
+	files := make([]string, 0, limit)
+	for _, line := range strings.Split(string(out), "\n") {
+		path := strings.TrimSpace(line)
+		if path == "" {
+			continue
+		}
+		if needle != "" && !strings.Contains(strings.ToLower(path), needle) {
+			continue
+		}
+		files = append(files, filepath.ToSlash(path))
+		if len(files) >= limit {
+			break
+		}
+	}
+	return files, nil
+}

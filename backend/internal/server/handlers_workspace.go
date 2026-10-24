@@ -19,6 +19,15 @@ func (s *Server) tree(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, entries)
 }
 
+func (s *Server) files(w http.ResponseWriter, r *http.Request) {
+	files, err := s.workspace.Files(r.Context(), currentProject(r).Root, r.URL.Query().Get("q"), 80)
+	if err != nil {
+		apiError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"files": files})
+}
+
 func (s *Server) readFile(w http.ResponseWriter, r *http.Request) {
 	project := currentProject(r)
 	file, err := s.workspace.Read(project.Root, r.URL.Query().Get("path"))

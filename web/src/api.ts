@@ -301,6 +301,14 @@ export const api = {
     return response.repos;
   },
 
+  async files(projectId: string, query = ""): Promise<string[]> {
+    const suffix = query.trim() ? `?q=${encodeURIComponent(query.trim())}` : "";
+    const response = await request<{ files: string[] }>(
+      `/projects/${encodeURIComponent(projectId)}/files${suffix}`,
+    );
+    return response.files;
+  },
+
   async tree(projectId: string, path = ""): Promise<FileEntry[]> {
     return request<FileEntry[]>(
       `/projects/${encodeURIComponent(projectId)}/tree?path=${encodeURIComponent(path)}`,

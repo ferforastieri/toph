@@ -1,6 +1,5 @@
 import { FormEvent, useState, type ReactNode } from "react";
 import {
-  Check,
   GitBranch,
   HardDrive,
   Info,
@@ -115,34 +114,6 @@ const tabOptions: Array<{ id: TabStyle; label: string }> = [
   { id: "compact", label: "Compact" },
 ];
 
-function Segmented<T extends string>({
-  value,
-  options,
-  onChange,
-}: {
-  value: T;
-  options: Array<{ id: T; label: string; icon?: typeof Sun }>;
-  onChange: (value: T) => void;
-}) {
-  return (
-    <div className="segmented">
-      {options.map((option) => {
-        const Icon = option.icon;
-        return (
-          <Button
-            key={option.id}
-            type="button"
-            className={value === option.id ? "active" : ""}
-            onClick={() => onChange(option.id)}
-          >
-            {Icon && <Icon size={13} />}
-            {option.label}
-          </Button>
-        );
-      })}
-    </div>
-  );
-}
 
 function Range({
   label,
@@ -277,33 +248,24 @@ export default function SettingsPanel({ version, buildId }: Props) {
           </div>
           <div className="settings-field">
             <span>Accent color</span>
-            <div className="swatches" style={{ opacity: settings.theme === "brand" || settings.theme === "nightwolf" ? 0.45 : 1 }}>
-              {accents.map((accent) => (
-                <Button
-                  key={accent.id}
-                  type="button"
-                  className={`swatch ${accent.id} ${settings.accent === accent.id ? "active" : ""}`}
-                  title={accent.label}
-                  aria-label={accent.label}
-                  disabled={settings.theme === "brand" || settings.theme === "nightwolf"}
-                  onClick={() => update({ accent: accent.id })}
-                >
-                  {settings.accent === accent.id && <Check size={11} />}
-                </Button>
-              ))}
-            </div>
+            <Select
+              value={settings.accent}
+              options={accents.map((accent) => ({ value: accent.id, label: accent.label }))}
+              onChange={(accent) => update({ accent })}
+              label="Accent color"
+            />
           </div>
           <div className="settings-field">
             <span>Liquid glass</span>
-            <Segmented value={settings.glass} options={glassOptions} onChange={(glass) => update({ glass })} />
+            <Select value={settings.glass} options={glassOptions.map((item) => ({ value: item.id, label: item.label }))} onChange={(glass) => update({ glass })} label="Liquid glass" />
           </div>
           <div className="settings-field">
             <span>Background</span>
-            <Segmented value={settings.background} options={backgroundOptions} onChange={(background) => update({ background })} />
+            <Select value={settings.background} options={backgroundOptions.map((item) => ({ value: item.id, label: item.label }))} onChange={(background) => update({ background })} label="Background" />
           </div>
           <div className="settings-field">
             <span>File icons</span>
-            <Segmented value={settings.iconTheme} options={iconOptions} onChange={(iconTheme) => update({ iconTheme })} />
+            <Select value={settings.iconTheme} options={iconOptions.map((item) => ({ value: item.id, label: item.label }))} onChange={(iconTheme) => update({ iconTheme })} label="File icons" />
           </div>
           <Range label="Corner radius" value={settings.radius} min={0} max={32} suffix="px" onChange={(radius) => update({ radius })} />
           <Toggle label="Animations" checked={settings.motion} onChange={(motion) => update({ motion })} />
@@ -325,11 +287,11 @@ export default function SettingsPanel({ version, buildId }: Props) {
           <Range label="AI panel width" value={settings.aiPanelWidth} min={300} max={620} step={10} suffix="px" onChange={(aiPanelWidth) => update({ aiPanelWidth })} />
           <div className="settings-field">
             <span>Density</span>
-            <Segmented value={settings.density} options={densityOptions} onChange={(density) => update({ density })} />
+            <Select value={settings.density} options={densityOptions.map((item) => ({ value: item.id, label: item.label }))} onChange={(density) => update({ density })} label="Density" />
           </div>
           <div className="settings-field">
             <span>Tab style</span>
-            <Segmented value={settings.tabs} options={tabOptions} onChange={(tabs) => update({ tabs })} />
+            <Select value={settings.tabs} options={tabOptions.map((item) => ({ value: item.id, label: item.label }))} onChange={(tabs) => update({ tabs })} label="Tab style" />
           </div>
           <Toggle label="Confirm closing dirty tabs" checked={settings.confirmClose} onChange={(confirmClose) => update({ confirmClose })} />
         </div>

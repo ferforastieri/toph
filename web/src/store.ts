@@ -29,8 +29,10 @@ export interface Tab {
 
 export interface AiMessage {
   id: string;
-  role: "user" | "assistant" | "tool" | "error";
+  role: "user" | "assistant" | "tool" | "error" | "reasoning" | "step" | "subagent";
   text: string;
+  detail?: string;
+  status?: "running" | "complete" | "error";
   createdAt: number;
   title?: string;
   permissionId?: string;

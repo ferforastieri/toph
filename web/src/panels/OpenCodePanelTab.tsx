@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { OpenCode } from "@opencode/client";
-import { Bot, Check, Sparkles, X } from "lucide-react";
+import { Bot, Check, ChevronDown, Wrench, X } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { openCodeBase, type Project } from "../api";
 import { useAI } from "../ai";
 import { useApp, type AiMessage, type Tab } from "../store";
@@ -13,6 +15,19 @@ interface Props {
   tab: Tab;
   project: Project;
   onClose?: () => void;
+}
+
+function toolContent(value: unknown): string {
+  if (!value) return "";
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) {
+    return value.map((part) => {
+      if (typeof part === "string") return part;
+      if (part && typeof part === "object" && "text" in part) return String((part as { text?: unknown }).text ?? "");
+      return JSON.stringify(part, null, 2);
+    }).join("\n");
+  }
+  return JSON.stringify(value, null, 2);
 }
 
 export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
@@ -33,9 +48,11 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
   const [model, setModel] = useState(aiConfig?.model ?? "");
   const [effort, setEffort] = useState("");
   const [yolo, setYolo] = useState(false);
+  const [usage, setUsage] = useState<{ cost?: number; tokens?: unknown } | null>(null);
   const yoloRef = useRef(yolo);
   yoloRef.current = yolo;
   const bottomRef = useRef<HTMLDivElement>(null);
+  const subagents = useRef(new Map<string, string>());
   const client = useMemo(() => {
     const csrf = document.cookie.match(/(?:^|;\s*)toph_csrf=([^;]+)/)?.[1] ?? "";
     return OpenCode.make({
@@ -83,17 +100,37 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
             }];
           }
           if (message.type === "assistant") {
-            const text = (message.content ?? [])
-              .filter((part: Record<string, unknown>) => part.type === "text")
-              .map((part: Record<string, unknown>) => String(part.text ?? ""))
-              .join("\n");
-            if (!text) return [];
-            return [{
-              id: `history-assistant-${message.id}`,
-              role: "assistant",
-              text,
-              createdAt: Number(message.time?.created ?? Date.now()),
-            }];
+            const parts = (message.content ?? []) as Array<Record<string, any>>;
+            return parts.flatMap<AiMessage>((part) => {
+              if (part.type === "text" && part.text) {
+                return [{
+                  id: `history-assistant-${message.id}-${part.ordinal ?? part.text}`,
+                  role: "assistant",
+                  text: String(part.text),
+                  createdAt: Number(message.time?.created ?? Date.now()),
+                }];
+              }
+              if (part.type === "reasoning" && part.text) {
+                return [{
+                  id: `history-reasoning-${message.id}-${part.ordinal ?? part.text}`,
+                  role: "reasoning",
+                  text: String(part.text),
+                  createdAt: Number(message.time?.created ?? Date.now()),
+                }];
+              }
+              if (part.type === "tool") {
+                return [{
+                  id: `history-tool-${message.id}-${part.id ?? part.name}`,
+                  role: "tool",
+                  title: `Tool · ${String(part.name ?? "call")}`,
+                  text: toolContent(part.input),
+                  detail: toolContent(part.content ?? part.output),
+                  status: part.state === "error" ? "error" : "complete",
+                  createdAt: Number(message.time?.created ?? Date.now()),
+                }];
+              }
+              return [];
+            });
           }
           return [];
         });
@@ -112,40 +149,192 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
       try {
         for await (const event of client.event.subscribe({ signal: controller.signal })) {
           const data = (event as { data?: Record<string, unknown> }).data;
-          if (!data || data.sessionID !== sessionId) continue;
+          if (!data) continue;
+
+          if (event.type === "session.created") {
+            if (String(data.parentID ?? "") === sessionId && data.sessionID) {
+              const childID = String(data.sessionID);
+              const title = String(data.title ?? data.slug ?? "subagent");
+              subagents.current.set(childID, title);
+              addMessage(tab.id, {
+                id: `subagent-${childID}`,
+                role: "step",
+                title: "Subagent",
+                text: `Subagent started: ${title}`,
+                status: "running",
+                createdAt: Date.now(),
+              });
+            }
+            continue;
+          }
+
+          const sid = String(data.sessionID ?? "");
+          if (!sid || (sid !== sessionId && !subagents.current.has(sid))) continue;
+          const isSubagent = sid !== sessionId;
+          const subagentTitle = isSubagent ? subagents.current.get(sid) ?? "subagent" : "";
+          const prefix = isSubagent ? `sub-${sid.slice(0, 8)}-` : "";
+          const assistantID = String(data.assistantMessageID ?? "");
+          const messageID = (kind: string, id = assistantID) => `${prefix}${kind}-${id || Date.now()}`;
+
           switch (event.type) {
             case "session.text.started": {
-              const messageId = `assistant-${String(data.assistantMessageID)}`;
               addMessage(tab.id, {
-                id: messageId,
-                role: "assistant",
+                id: messageID("assistant"),
+                role: isSubagent ? "subagent" : "assistant",
+                title: subagentTitle,
                 text: "",
+                status: "running",
                 createdAt: Date.now(),
               });
               break;
             }
             case "session.text.delta": {
-              const messageId = `assistant-${String(data.assistantMessageID)}`;
-              const existing = useApp
-                .getState()
-                .aiMessages[tab.id]?.some((message) => message.id === messageId);
+              const id = messageID("assistant");
+              const existing = useApp.getState().aiMessages[tab.id]?.some((message) => message.id === id);
               if (!existing) {
                 addMessage(tab.id, {
-                  id: messageId,
-                  role: "assistant",
+                  id,
+                  role: isSubagent ? "subagent" : "assistant",
+                  title: subagentTitle,
                   text: "",
+                  status: "running",
                   createdAt: Date.now(),
                 });
               }
-              appendText(tab.id, messageId, String(data.delta ?? ""));
+              appendText(tab.id, id, String(data.delta ?? ""));
+              break;
+            }
+            case "session.text.ended": {
+              updateMessage(tab.id, messageID("assistant"), { text: String(data.text ?? ""), status: "complete" });
+              break;
+            }
+            case "session.reasoning.started": {
+              addMessage(tab.id, {
+                id: messageID("reasoning"),
+                role: "reasoning",
+                title: isSubagent ? `Reasoning · ${subagentTitle}` : "Reasoning",
+                text: "",
+                status: "running",
+                createdAt: Date.now(),
+              });
+              break;
+            }
+            case "session.reasoning.delta": {
+              const id = messageID("reasoning");
+              const existing = useApp.getState().aiMessages[tab.id]?.some((message) => message.id === id);
+              if (!existing) {
+                addMessage(tab.id, {
+                  id,
+                  role: "reasoning",
+                  title: isSubagent ? `Reasoning · ${subagentTitle}` : "Reasoning",
+                  text: "",
+                  status: "running",
+                  createdAt: Date.now(),
+                });
+              }
+              appendText(tab.id, id, String(data.delta ?? ""));
+              break;
+            }
+            case "session.reasoning.ended": {
+              updateMessage(tab.id, messageID("reasoning"), { text: String(data.text ?? ""), status: "complete" });
+              break;
+            }
+            case "session.tool.input.started": {
+              addMessage(tab.id, {
+                id: messageID("tool", String(data.id ?? "")),
+                role: "tool",
+                title: `Tool · ${String(data.name ?? "call")}`,
+                text: "",
+                detail: "",
+                status: "running",
+                createdAt: Date.now(),
+              });
+              break;
+            }
+            case "session.tool.input.delta": {
+              const id = messageID("tool", String(data.id ?? ""));
+              appendText(tab.id, id, String(data.delta ?? ""));
+              break;
+            }
+            case "session.tool.input.ended": {
+              updateMessage(tab.id, messageID("tool", String(data.id ?? "")), {
+                text: String(data.text ?? ""),
+                status: "running",
+              });
               break;
             }
             case "session.tool.called": {
+              const id = messageID("tool", String(data.id ?? ""));
+              const existing = useApp.getState().aiMessages[tab.id]?.some((message) => message.id === id);
+              if (existing) {
+                updateMessage(tab.id, id, { text: toolContent(data.input), status: "running" });
+              } else {
+                addMessage(tab.id, {
+                  id,
+                  role: "tool",
+                  title: "Tool",
+                  text: toolContent(data.input),
+                  detail: "",
+                  status: "running",
+                  createdAt: Date.now(),
+                });
+              }
+              break;
+            }
+            case "session.tool.success": {
+              updateMessage(tab.id, messageID("tool", String(data.id ?? "")), {
+                detail: toolContent(data.content ?? data.metadata),
+                status: "complete",
+              });
+              break;
+            }
+            case "session.tool.failed": {
+              updateMessage(tab.id, messageID("tool", String(data.id ?? "")), {
+                detail: toolContent(data.error ?? data.content),
+                status: "error",
+              });
+              break;
+            }
+            case "session.step.started": {
               addMessage(tab.id, {
-                id: `tool-${String(data.id)}-${Date.now()}`,
-                role: "tool",
-                text: JSON.stringify(data.input ?? {}, null, 2),
-                title: "Tool call",
+                id: messageID("step"),
+                role: "step",
+                title: "Agent",
+                text: `Step started · ${String(data.agent ?? "agent")}`,
+                status: "running",
+                createdAt: Date.now(),
+              });
+              break;
+            }
+            case "session.step.ended": {
+              setUsage({ cost: Number(data.cost ?? 0), tokens: data.tokens });
+              break;
+            }
+            case "session.usage.updated": {
+              setUsage({ cost: Number(data.cost ?? 0), tokens: data.tokens });
+              break;
+            }
+            case "session.synthetic":
+            case "session.skill.activated":
+            case "session.compaction.started":
+            case "session.compaction.ended": {
+              addMessage(tab.id, {
+                id: `step-${String(event.type)}-${Date.now()}`,
+                role: "step",
+                title: "Agent",
+                text: String(event.type).replace("session.", "").replaceAll(".", " "),
+                status: "complete",
+                createdAt: Date.now(),
+              });
+              break;
+            }
+            case "session.retry.scheduled": {
+              addMessage(tab.id, {
+                id: `retry-${Date.now()}`,
+                role: "step",
+                title: "Retry",
+                text: `Retry scheduled (#${String(data.attempt ?? "")})`,
+                status: "running",
                 createdAt: Date.now(),
               });
               break;
@@ -193,7 +382,7 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
       }
     })();
     return () => controller.abort();
-  }, [addMessage, appendText, client, setStreaming, tab.id, tab.sessionId]);
+  }, [addMessage, appendText, client, setMessages, setStreaming, tab.id, tab.sessionId, updateMessage]);
 
   async function applyModel(sessionID: string, nextModel = model, nextEffort = effort) {
     if (!nextModel) return;
@@ -308,10 +497,10 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
   }
 
   return (
-    <div className="ai-tab">
+    <div className="ai-tab opencode-tab">
       <div className="ai-toolbar">
         <div className="ai-title">
-          <Sparkles size={16} />
+          <Bot size={16} />
           <strong>OpenCode</strong>
           <span className="ai-project">{project.name}</span>
         </div>
@@ -331,71 +520,68 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
             </span>
           </div>
         )}
-        {messages.map((message) => (
-          <div className={`ai-message ${message.role}`} key={message.id}>
-            <div className="ai-message-role">
-              {message.role === "user"
-                ? "You"
-                : message.role === "assistant"
-                  ? "OpenCode"
-                  : message.role === "tool"
-                    ? message.title ?? "Tool"
-                    : "Error"}
-            </div>
-            <pre>{message.text}</pre>
-            {message.permissionId && (
-              <div className="ai-permission-actions">
-                <Button
-                  className="ghost small"
-                  onClick={() =>
-                    void replyPermission(
-                      message.id,
-                      message.permissionId!,
-                      "once",
-                    )
-                  }
-                >
-                  <Check size={13} /> Allow once
-                </Button>
-                <Button
-                  className="ghost small"
-                  onClick={() =>
-                    void replyPermission(
-                      message.id,
-                      message.permissionId!,
-                      "always",
-                    )
-                  }
-                >
-                  <Check size={13} /> Always
-                </Button>
-                <Button
-                  className="ghost small danger"
-                  onClick={() =>
-                    void replyPermission(
-                      message.id,
-                      message.permissionId!,
-                      "reject",
-                    )
-                  }
-                >
-                  <X size={13} /> Reject
-                </Button>
+        {messages.map((message) => {
+          if (message.role === "reasoning") {
+            return (
+              <details className="ai-reasoning" key={message.id}>
+                <summary><ChevronDown size={12} /> {message.title ?? "Reasoning"}</summary>
+                <pre>{message.text}</pre>
+              </details>
+            );
+          }
+          if (message.role === "step") {
+            return <div className={`ai-step ${message.status ?? ""}`} key={message.id}>{message.text}</div>;
+          }
+          if (message.role === "tool") {
+            return (
+              <div className="ai-tool-card" key={message.id}>
+                <div className="ai-tool-head">
+                  <Wrench size={13} />
+                  <span>{message.title ?? "Tool"}</span>
+                  {message.status && <b className={message.status}>{message.status}</b>}
+                </div>
+                {message.text && <pre>{message.text}</pre>}
+                {message.detail && <pre className="ai-tool-output">{message.detail}</pre>}
+                {message.permissionId && (
+                  <div className="ai-permission-actions">
+                    <Button className="ghost small" onClick={() => void replyPermission(message.id, message.permissionId!, "once")}>Allow once</Button>
+                    <Button className="ghost small" onClick={() => void replyPermission(message.id, message.permissionId!, "always")}><Check size={13} /> Always</Button>
+                    <Button className="ghost small danger" onClick={() => void replyPermission(message.id, message.permissionId!, "reject")}><X size={13} /> Reject</Button>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-        ))}
-        {streaming && (
-          <div className="ai-thinking">
-            <span className="pulse" />
-            Working...
-          </div>
-        )}
+            );
+          }
+          return (
+            <div className={`ai-message ${message.role}`} key={message.id}>
+              <div className="ai-message-role">
+                {message.role === "user" ? "You" : message.role === "assistant" ? "OpenCode" : message.role === "subagent" ? `Subagent · ${message.title ?? ""}` : "Error"}
+              </div>
+              {message.role === "user" || message.role === "assistant" || message.role === "subagent" ? (
+                <div className="ai-markdown">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.text}</ReactMarkdown>
+                </div>
+              ) : <pre>{message.text}</pre>}
+              {message.permissionId && (
+                <div className="ai-permission-actions">
+                  <Button className="ghost small" onClick={() => void replyPermission(message.id, message.permissionId!, "once")}>Allow once</Button>
+                  <Button className="ghost small" onClick={() => void replyPermission(message.id, message.permissionId!, "always")}><Check size={13} /> Always</Button>
+                  <Button className="ghost small danger" onClick={() => void replyPermission(message.id, message.permissionId!, "reject")}><X size={13} /> Reject</Button>
+                </div>
+              )}
+            </div>
+          );
+        })}
+        {streaming && <div className="ai-thinking"><span className="pulse" /> Working...</div>}
         <div ref={bottomRef} />
       </div>
-
       {error && <div className="ai-error">{error}</div>}
-
+      {usage && (
+        <div className="ai-usage">
+          {usage.cost !== undefined && <span>${Number(usage.cost).toFixed(4)}</span>}
+          {usage.tokens ? <span>{JSON.stringify(usage.tokens)}</span> : null}
+        </div>
+      )}
       <AgentComposer
         value={input}
         onChange={setInput}
@@ -411,6 +597,7 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
         yolo={yolo}
         onYoloChange={setYolo}
         placeholder="Pergunte ao OpenCode... (/ comandos, @ contexto, ! shell)"
+        allowAttachments
       />
     </div>
   );

@@ -8,6 +8,7 @@ import ActivityBar from "./ActivityBar";
 import Tabs from "./Tabs";
 import Toasts from "./Toasts";
 import RepoPicker from "./RepoPicker";
+import QuickOpen from "./QuickOpen";
 import FileTree from "../panels/FileTree";
 import SearchPanel from "../panels/SearchPanel";
 import SourceControlPanel from "../panels/SourceControlPanel";
@@ -508,6 +509,7 @@ export default function Workbench() {
       {showRepoPicker && (
         <RepoPicker onClose={() => setShowRepoPicker(false)} onOpen={openRepo} />
       )}
+      {project && <QuickOpen project={project} onOpenFile={openFile} />}
       <Toasts />
     </div>
   );
