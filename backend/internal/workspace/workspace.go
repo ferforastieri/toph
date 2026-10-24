@@ -488,22 +488,51 @@ func (s *Service) Files(ctx context.Context, root, query string, limit int) ([]s
 	cmd := exec.CommandContext(ctx, "rg", "--files", "--hidden", "--glob", "!.git/**", "--glob", "!node_modules/**", "--glob", "!dist/**", "--glob", "!build/**")
 	cmd.Dir = root
 	out, err := cmd.Output()
-	if err != nil {
-		return []string{}, nil
-	}
 	files := make([]string, 0, limit)
-	for _, line := range strings.Split(string(out), "\n") {
-		path := strings.TrimSpace(line)
-		if path == "" {
-			continue
-		}
-		if needle != "" && !strings.Contains(strings.ToLower(path), needle) {
-			continue
-		}
-		files = append(files, filepath.ToSlash(path))
-		if len(files) >= limit {
-			break
+	if err == nil {
+		for _, line := range strings.Split(string(out), "\n") {
+			path := strings.TrimSpace(line)
+			if path == "" {
+				continue
+			}
+			if needle != "" && !strings.Contains(strings.ToLower(path), needle) {
+				continue
+			}
+			files = append(files, filepath.ToSlash(path))
+			if len(files) >= limit {
+				break
+			}
 		}
 	}
+	if len(files) > 0 {
+		return files, nil
+	}
+	_ = filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return nil
+		}
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		if entry.IsDir() {
+			if path != root && ignoredDirs[entry.Name()] {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
+			return nil
+		}
+		rel = filepath.ToSlash(rel)
+		if needle != "" && !strings.Contains(strings.ToLower(rel), needle) {
+			return nil
+		}
+		files = append(files, rel)
+		if len(files) >= limit {
+			return io.EOF
+		}
+		return nil
+	})
 	return files, nil
 }

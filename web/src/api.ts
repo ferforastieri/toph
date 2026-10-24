@@ -91,6 +91,7 @@ export interface AIMessage {
 export interface DBProfile {
   id: string;
   name: string;
+  folder: string;
   driver: string;
   readOnly: boolean;
   createdAt: string;
@@ -99,6 +100,7 @@ export interface DBProfile {
 
 export interface DBProfileInput {
   name: string;
+  folder: string;
   driver: string;
   dsn: string;
   readOnly: boolean;

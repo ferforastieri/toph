@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import {
   ChevronDown,
   ChevronRight,
   Database,
+  Folder,
   Play,
   Plus,
   RefreshCw,
@@ -87,8 +88,22 @@ export default function DatabasesPanel({ onOpenQuery, onOpenTable }: Props) {
       {busy && <div className="panel-muted">Loading...</div>}
       {error && <div className="panel-error">{error}</div>}
 
-      {profiles.map((profile) => (
-        <div className="db-profile" key={profile.id}>
+      {(() => {
+        let lastFolder = "";
+        return profiles.map((profile) => {
+          const folder = profile.folder?.trim() || "Ungrouped";
+          const showFolder = folder !== lastFolder;
+          lastFolder = folder;
+          return (
+            <Fragment key={profile.id}>
+              {showFolder && (
+                <div className="db-folder-heading">
+                  <Folder size={13} />
+                  <span>{folder}</span>
+                  <b>{profiles.filter((item) => (item.folder?.trim() || "Ungrouped") === folder).length}</b>
+                </div>
+              )}
+        <div className="db-profile">
           <div className="db-profile-row">
             <Button className="db-profile-name" onClick={() => void toggle(profile)}>
               {expanded[profile.id] ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
@@ -161,7 +176,10 @@ export default function DatabasesPanel({ onOpenQuery, onOpenTable }: Props) {
             </div>
           )}
         </div>
-      ))}
+            </Fragment>
+          );
+        });
+      })()}
 
       {!busy && profiles.length === 0 && !showForm && (
         <div className="empty-hint">
@@ -179,6 +197,7 @@ export default function DatabasesPanel({ onOpenQuery, onOpenTable }: Props) {
 function ConnectionForm({ onCreated }: { onCreated: () => void }) {
   const notify = useApp((state) => state.notify);
   const [name, setName] = useState("");
+  const [folder, setFolder] = useState("");
   const [driver, setDriver] = useState("postgres");
   const [dsn, setDsn] = useState("");
   const [readOnly, setReadOnly] = useState(true);
@@ -188,7 +207,7 @@ function ConnectionForm({ onCreated }: { onCreated: () => void }) {
     event.preventDefault();
     setBusy(true);
     try {
-      await api.createDBProfile({ name, driver, dsn, readOnly });
+      await api.createDBProfile({ name, folder, driver, dsn, readOnly });
       notify("success", "Connection added.");
       onCreated();
     } catch (err) {
@@ -219,6 +238,11 @@ function ConnectionForm({ onCreated }: { onCreated: () => void }) {
         value={name}
         onChange={(event) => setName(event.target.value)}
         required
+      />
+      <input
+        placeholder="Folder (optional)"
+        value={folder}
+        onChange={(event) => setFolder(event.target.value)}
       />
       <Select
         value={driver}

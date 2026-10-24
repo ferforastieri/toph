@@ -51,6 +51,7 @@ type Project struct {
 type DBProfile struct {
 	ID           string `json:"id"`
 	Name         string `json:"name"`
+	Folder       string `json:"folder"`
 	Driver       string `json:"driver"`
 	DSNEncrypted string `json:"-"`
 	ReadOnly     bool   `json:"readOnly"`
@@ -86,6 +87,8 @@ func Open(path string) (*Store, error) {
 		db.Close()
 		return nil, err
 	}
+	// Existing installations predate DB profile folders.
+	_, _ = db.Exec(`ALTER TABLE db_profiles ADD COLUMN folder TEXT NOT NULL DEFAULT ''`)
 	return &Store{db: db}, nil
 }
 
@@ -277,7 +280,7 @@ func (s *Store) SaveWorkspaceLayout(ctx context.Context, userID int64, projectID
 
 func (s *Store) ListDBProfiles(ctx context.Context) ([]DBProfile, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT id, name, driver, dsn_encrypted, read_only, created_at, updated_at FROM db_profiles ORDER BY name`)
+		`SELECT id, name, folder, driver, dsn_encrypted, read_only, created_at, updated_at FROM db_profiles ORDER BY folder, name`)
 	if err != nil {
 		return nil, err
 	}
@@ -285,7 +288,7 @@ func (s *Store) ListDBProfiles(ctx context.Context) ([]DBProfile, error) {
 	var out []DBProfile
 	for rows.Next() {
 		var p DBProfile
-		if err := rows.Scan(&p.ID, &p.Name, &p.Driver, &p.DSNEncrypted, &p.ReadOnly, &p.CreatedAt, &p.UpdatedAt); err != nil {
+		if err := rows.Scan(&p.ID, &p.Name, &p.Folder, &p.Driver, &p.DSNEncrypted, &p.ReadOnly, &p.CreatedAt, &p.UpdatedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, p)
@@ -296,8 +299,8 @@ func (s *Store) ListDBProfiles(ctx context.Context) ([]DBProfile, error) {
 func (s *Store) DBProfile(ctx context.Context, id string) (DBProfile, error) {
 	var p DBProfile
 	err := s.db.QueryRowContext(ctx,
-		`SELECT id, name, driver, dsn_encrypted, read_only, created_at, updated_at FROM db_profiles WHERE id = ?`, id,
-	).Scan(&p.ID, &p.Name, &p.Driver, &p.DSNEncrypted, &p.ReadOnly, &p.CreatedAt, &p.UpdatedAt)
+		`SELECT id, name, folder, driver, dsn_encrypted, read_only, created_at, updated_at FROM db_profiles WHERE id = ?`, id,
+	).Scan(&p.ID, &p.Name, &p.Folder, &p.Driver, &p.DSNEncrypted, &p.ReadOnly, &p.CreatedAt, &p.UpdatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return DBProfile{}, ErrNotFound
 	}
@@ -307,9 +310,9 @@ func (s *Store) DBProfile(ctx context.Context, id string) (DBProfile, error) {
 func (s *Store) CreateDBProfile(ctx context.Context, p DBProfile) (DBProfile, error) {
 	created := now()
 	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO db_profiles (id, name, driver, dsn_encrypted, read_only, created_at, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		p.ID, p.Name, p.Driver, p.DSNEncrypted, p.ReadOnly, created, created,
+		`INSERT INTO db_profiles (id, name, folder, driver, dsn_encrypted, read_only, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		p.ID, p.Name, p.Folder, p.Driver, p.DSNEncrypted, p.ReadOnly, created, created,
 	)
 	if err != nil {
 		return DBProfile{}, err

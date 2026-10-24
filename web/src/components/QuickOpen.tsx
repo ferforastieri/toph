@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Search } from "lucide-react";
 import { api, type Project } from "../api";
 import { basename } from "../lib";
 import { useSettings } from "../settings";
 import FileIcon from "../ui/FileIcon";
 import { Button } from "../ui/Button";
-import { Modal } from "../ui/Modal";
 
 interface Props {
   project: Project;
@@ -25,10 +25,12 @@ export default function QuickOpen({ project, onOpenFile }: Props) {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "p") {
         event.preventDefault();
         setOpen(true);
+      } else if (event.key === "Escape") {
+        setOpen(false);
       }
     };
-    window.addEventListener("keydown", key);
-    return () => window.removeEventListener("keydown", key);
+    document.addEventListener("keydown", key, true);
+    return () => document.removeEventListener("keydown", key, true);
   }, []);
 
   useEffect(() => {
@@ -54,22 +56,24 @@ export default function QuickOpen({ project, onOpenFile }: Props) {
   }, [open, project.id, query]);
 
   useEffect(() => {
-    if (open) window.setTimeout(() => inputRef.current?.focus(), 0);
+    if (open) {
+      setQuery("");
+      window.setTimeout(() => inputRef.current?.focus(), 0);
+    }
   }, [open]);
 
   function choose(path: string) {
     onOpenFile(path);
     setOpen(false);
-    setQuery("");
   }
 
   if (!open) return null;
 
-  return (
-    <Modal title="Go to file" onClose={() => setOpen(false)} width={620}>
-      <div className="quick-open">
-        <label className="input-with-icon">
-          <Search size={14} />
+  return createPortal(
+    <div className="quick-open-overlay" onMouseDown={() => setOpen(false)}>
+      <div className="quick-open-palette" onMouseDown={(event) => event.stopPropagation()}>
+        <label className="quick-open-input">
+          <Search size={16} />
           <input
             ref={inputRef}
             value={query}
@@ -88,24 +92,28 @@ export default function QuickOpen({ project, onOpenFile }: Props) {
             }}
             placeholder="Search files by name..."
             aria-label="Search files"
+            spellCheck={false}
           />
         </label>
-        <div className="quick-open-results">
-          {files.map((path, i) => (
-            <Button
-              key={path}
-              className={`quick-open-result ${i === index ? "active" : ""}`}
-              onMouseEnter={() => setIndex(i)}
-              onClick={() => choose(path)}
-              title={path}
-            >
-              <FileIcon name={basename(path)} iconTheme={iconTheme} size={14} />
-              <span>{path}</span>
-            </Button>
-          ))}
-          {files.length === 0 && <div className="repo-empty">No files found.</div>}
-        </div>
+        {files.length > 0 && (
+          <div className="quick-open-results" role="listbox" aria-label="Files">
+            {files.map((path, i) => (
+              <Button
+                key={path}
+                className={`quick-open-result ${i === index ? "active" : ""}`}
+                onMouseEnter={() => setIndex(i)}
+                onClick={() => choose(path)}
+                title={path}
+              >
+                <FileIcon name={basename(path)} iconTheme={iconTheme} size={14} />
+                <span>{path}</span>
+              </Button>
+            ))}
+          </div>
+        )}
+        {files.length === 0 && <div className="quick-open-empty">No files found.</div>}
       </div>
-    </Modal>
+    </div>,
+    document.body,
   );
 }

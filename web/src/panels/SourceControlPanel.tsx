@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Check, GitBranch, Minus, Plus, RefreshCw, Sparkles, Trash2 } from "lucide-react";
+import { Check, GitBranch, Minus, Plus, RefreshCw, Sparkles, Trash2, Undo2 } from "lucide-react";
 import { api, type Project } from "../api";
 import { expandGitPattern, sanitizeBranchName } from "../lib";
 import { suggestGitChanges } from "../gitAi";
@@ -168,6 +168,29 @@ export default function SourceControlPanel({ project, onOpenDiff }: Props) {
     }
   }
 
+  async function discardAll() {
+    const paths = [...new Set([...staged, ...unstaged].map((change) => change.path))];
+    if (!paths.length) return;
+    const ok = await confirm({
+      title: "Discard all changes?",
+      message: `Discard all ${paths.length} changed file${paths.length === 1 ? "" : "s"}? This cannot be undone.`,
+      confirmLabel: "Discard all",
+      danger: true,
+    });
+    if (!ok) return;
+    setBusy("discard");
+    try {
+      await api.gitDiscard(project.id, paths, true);
+      await api.gitDiscard(project.id, paths, false);
+      await load();
+      notify("success", "All changes discarded.");
+    } catch (err) {
+      notify("error", err instanceof Error ? err.message : "Could not discard changes.");
+    } finally {
+      setBusy("");
+    }
+  }
+
   async function createBranch() {
     setBusy("branch");
     try {
@@ -237,6 +260,15 @@ export default function SourceControlPanel({ project, onOpenDiff }: Props) {
         <b>{parsed.changes.length}</b>
         <Button
           className="icon-button scm-branch-button"
+          title="Discard all changes"
+          aria-label="Discard all changes"
+          disabled={Boolean(busy) || parsed.changes.length === 0}
+          onClick={() => void discardAll()}
+        >
+          <Undo2 size={13} />
+        </Button>
+        <Button
+          className="icon-button scm-branch-button"
           title="Create branch from pattern"
           aria-label="Create branch from pattern"
           disabled={Boolean(busy)}
@@ -250,32 +282,33 @@ export default function SourceControlPanel({ project, onOpenDiff }: Props) {
       {error && <div className="panel-error">{error}</div>}
 
       <div className="scm-commit">
-        <textarea
-          value={message}
-          onChange={(event) => setMessage(event.target.value)}
-          placeholder="Message (Ctrl+Enter to commit)"
-          aria-label="Commit message"
-          onKeyDown={(event) => {
-            if ((event.ctrlKey || event.metaKey) && event.key === "Enter") void commit();
-          }}
-        />
-        <div className="scm-commit-actions">
+        <div className="scm-commit-input">
+          <textarea
+            value={message}
+            onChange={(event) => setMessage(event.target.value)}
+            placeholder="Message (Ctrl+Enter to commit)"
+            aria-label="Commit message"
+            onKeyDown={(event) => {
+              if ((event.ctrlKey || event.metaKey) && event.key === "Enter") void commit();
+            }}
+          />
           <Button
-            className="ghost scm-generate"
+            className="icon-button scm-generate"
             title="Generate message from pattern"
+            aria-label="Generate message from pattern"
             disabled={Boolean(busy)}
             onClick={() => void generateMessage()}
           >
             <Sparkles size={13} />
           </Button>
-          <Button
-            className="primary scm-commit-button"
-            disabled={staged.length === 0 || Boolean(busy)}
-            onClick={() => void commit()}
-          >
-            <Check size={13} /> Commit
-          </Button>
         </div>
+        <Button
+          className="primary scm-commit-button"
+          disabled={staged.length === 0 || Boolean(busy)}
+          onClick={() => void commit()}
+        >
+          <Check size={13} /> Commit
+        </Button>
       </div>
 
       <div className="scm-sections">
