@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: backend
+        working-directory: services/toph
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -22,25 +22,20 @@ jobs:
 
   web:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: web
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
           cache: npm
-          cache-dependency-path: web/package-lock.json
+          cache-dependency-path: package-lock.json
       - run: npm ci
       - run: npm test
-      - run: npm run build
+      - run: npm run build:web
+      - run: npm run build:landing
 
   android:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: desktop
     steps:
       - uses: actions/checkout@v4
 
@@ -48,7 +43,7 @@ jobs:
         with:
           node-version: "22"
           cache: npm
-          cache-dependency-path: desktop/package-lock.json
+          cache-dependency-path: package-lock.json
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -67,19 +62,21 @@ jobs:
         run: sdkmanager "platforms;android-36" "build-tools;36.0.0" "ndk;28.2.13676358"
 
       - run: npm ci
-      - run: npm run sync-brand
       - name: Initialize Tauri Android project
         run: |
           export NDK_HOME="${ANDROID_HOME:-$ANDROID_SDK_ROOT}/ndk/28.2.13676358"
-          npx tauri android init
+          cd apps/desktop
+          npm run sync-brand
+          npm run tauri -- android init
 
       - name: Build Tauri Android debug APK
         run: |
           export NDK_HOME="${ANDROID_HOME:-$ANDROID_SDK_ROOT}/ndk/28.2.13676358"
-          npx tauri android build --debug --apk --target aarch64
+          cd apps/desktop
+          npm run tauri -- android build --debug --apk --target aarch64
 
       - uses: actions/upload-artifact@v4
         with:
           name: toph-android-debug
-          path: desktop/src-tauri/gen/android/app/build/outputs/apk/**/*.apk
+          path: apps/desktop/src-tauri/gen/android/app/build/outputs/apk/**/*.apk
           if-no-files-found: error

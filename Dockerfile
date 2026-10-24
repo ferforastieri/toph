@@ -1,19 +1,25 @@
 # syntax=docker/dockerfile:1
 
 FROM node:22-bookworm-slim AS web
-WORKDIR /src/web
-COPY web/package.json web/package-lock.json ./
+WORKDIR /src
+COPY package.json package-lock.json ./
+COPY apps/web/package.json apps/web/package.json
+COPY apps/landing/package.json apps/landing/package.json
+COPY apps/desktop/package.json apps/desktop/package.json
+COPY packages/brand/package.json packages/brand/package.json
+COPY packages/ui/package.json packages/ui/package.json
 RUN npm ci
-COPY brand/ /src/brand/
-COPY web/ ./
-RUN npm run build:app
+COPY packages/brand ./packages/brand
+COPY packages/ui ./packages/ui
+COPY apps/web ./apps/web
+RUN npm run build:web
 
 FROM golang:1.26-bookworm AS build
-WORKDIR /src/backend
-COPY backend/go.mod backend/go.sum ./
+WORKDIR /src/services/toph
+COPY services/toph/go.mod services/toph/go.sum ./
 RUN go mod download
-COPY backend/ ./
-COPY --from=web /src/web/dist/app ./internal/webui/dist
+COPY services/toph/ ./
+COPY --from=web /src/apps/web/dist ./internal/webui/dist
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/toph ./cmd/toph
 
 FROM debian:bookworm-slim

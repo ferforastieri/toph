@@ -38,13 +38,13 @@ jobs:
         with:
           node-version: "22"
           cache: npm
-          cache-dependency-path: desktop/package-lock.json
+          cache-dependency-path: package-lock.json
 
       - uses: actions/setup-go@v5
         with:
           go-version: "1.26"
           cache: true
-          cache-dependency-path: backend/go.sum
+          cache-dependency-path: services/toph/go.sum
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -54,28 +54,27 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libxdo-dev
 
+      - name: Install JavaScript dependencies
+        run: npm ci
+
       - name: Build local Toph backend
         shell: bash
         run: |
           set -euo pipefail
-          npm ci --prefix web
-          npm run build:app --prefix web
-          rm -rf backend/internal/webui/dist
-          mkdir -p backend/internal/webui/dist
-          cp -R web/dist/app/. backend/internal/webui/dist/
-          touch backend/internal/webui/dist/.keep
+          npm run build:web
+          rm -rf services/toph/internal/webui/dist
+          mkdir -p services/toph/internal/webui/dist
+          cp -R apps/web/dist/. services/toph/internal/webui/dist/
+          touch services/toph/internal/webui/dist/.keep
           mkdir -p bin
-          cd backend
+          cd services/toph
           CGO_ENABLED=0 GOOS=${{ matrix.goos }} GOARCH=amd64 \
-            go build -trimpath -ldflags="-s -w" -o ../bin/${{ matrix.sidecar }} ./cmd/toph
-
-      - name: Install frontend dependencies
-        working-directory: desktop
-        run: npm ci
+            go build -trimpath -ldflags="-s -w" -o ../../bin/${{ matrix.sidecar }} ./cmd/toph
 
       - name: Resolve desktop version
         id: version
         shell: bash
+        working-directory: apps/desktop
         env:
           REQUESTED_VERSION: ${{ inputs.version }}
         run: |
@@ -90,13 +89,12 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - name: Build desktop
-        working-directory: desktop
-        run: npm run sync-brand && npx tauri build --config '{"version":"${{ steps.version.outputs.version }}"}'
+        working-directory: apps/desktop
+        run: npm run sync-brand && npm run tauri -- build --config '{"version":"${{ steps.version.outputs.version }}"}'
 
       - name: Upload installers
         uses: actions/upload-artifact@v4
         with:
           name: toph-desktop-${{ matrix.platform }}
-          path: |
-            desktop/src-tauri/target/release/bundle/**/*
+          path: apps/desktop/src-tauri/target/release/bundle/**/*
           if-no-files-found: error
