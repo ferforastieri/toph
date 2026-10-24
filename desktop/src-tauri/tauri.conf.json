@@ -1,0 +1,41 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Toph",
+  "version": "0.1.0",
+  "identifier": "br.com.ferforastieri.toph",
+  "build": {
+    "beforeDevCommand": "npm run sync-brand && npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run sync-brand && npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Toph",
+        "width": 1120,
+        "height": 760,
+        "minWidth": 900,
+        "minHeight": 620,
+        "resizable": true,
+        "center": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.ico"
+    ],
+    "shortDescription": "Toph self-hosted workbench",
+    "longDescription": "Toph desktop client for self-hosted Toph servers and local workspaces."
+  }
+}

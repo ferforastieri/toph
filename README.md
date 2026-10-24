@@ -175,3 +175,7 @@ Toph can read files, open shells and reach databases. Treat it as a remote admin
 ## License
 
 MIT.
+
+## Desktop
+
+The desktop client lives in `desktop/` and uses Tauri 2. The same project builds Windows and Linux installers. Server mode accepts any Toph server URL; local mode currently reports that the platform backend is not available.
