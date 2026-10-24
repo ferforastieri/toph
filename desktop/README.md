@@ -7,7 +7,7 @@ Desktop shell for Toph, built with Tauri 2.
 - **Server:** asks only for a Toph server URL, validates `/api/health`, then opens the normal Toph web app in a native window.
 - **Local:** reserved for a bundled/local Toph backend. Currently reports that the local backend is not available in this build.
 
-The same project builds the Windows and Linux installers. The remote page runs inside the system webview (WebView2 on Windows, WebKitGTK on Linux); it does not receive Tauri IPC capabilities.
+The same project builds the Windows and Linux installers with a system WebView and a size-optimized release profile. The remote page runs inside the system webview (WebView2 on Windows, WebKitGTK on Linux); it does not receive Tauri IPC capabilities.
 
 ## Development
 
