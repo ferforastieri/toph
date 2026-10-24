@@ -180,7 +180,7 @@ export default function CodeEditor({
 }: Props) {
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<Monaco | null>(null);
-  const blameIds = useRef<string[]>([]);
+  const blameWidget = useRef<{ editor: editor.IStandaloneCodeEditor; widget: editor.IContentWidget } | null>(null);
   const [monacoReady, setMonacoReady] = useState(false);
   const [cursorLine, setCursorLine] = useState(1);
   const settings = useSettings();
@@ -263,23 +263,40 @@ export default function CodeEditor({
     const monaco = monacoRef.current;
     const instance = editorRef.current;
     if (!monaco || !instance || !monacoReady) return;
+    if (blameWidget.current) {
+      blameWidget.current.editor.removeContentWidget(blameWidget.current.widget);
+      blameWidget.current = null;
+    }
     const current = blame?.find((item) => item.line === cursorLine);
-    const decorations = current
-      ? [{
-          range: new monaco.Range(cursorLine, 1, cursorLine, 1),
-          options: {
-            after: {
-              content: `  ${current.author} · ${relativeTime(current.authorTime)} · ${current.summary}`,
-              inlineClassName: "blame-inline",
-            },
-            hoverMessage: {
-              value: `**${current.author}** · ${relativeTime(current.authorTime)}\n\n${current.summary}\n\n\`${current.commit.slice(0, 8)}\``,
-            },
-          },
-        }]
-      : [];
-    blameIds.current = instance.deltaDecorations(blameIds.current, decorations);
+    const model = instance.getModel();
+    if (!current || !model) return;
+    const dom = document.createElement("span");
+    dom.className = "blame-inline-widget";
+    dom.textContent = `${current.author} · ${relativeTime(current.authorTime)} · ${current.summary}`;
+    dom.title = `${current.commit.slice(0, 8)} · ${current.summary}`;
+    const widget: editor.IContentWidget = {
+      getId: () => "toph-blame-widget",
+      getDomNode: () => dom,
+      getPosition: () => ({
+        position: {
+          lineNumber: cursorLine,
+          column: Math.max(1, model.getLineMaxColumn(cursorLine)),
+        },
+        preference: [monaco.editor.ContentWidgetPositionPreference.EXACT],
+      }),
+      allowEditorOverflow: true,
+    };
+    instance.addContentWidget(widget);
+    instance.layoutContentWidget(widget);
+    blameWidget.current = { editor: instance, widget };
   }, [blame, cursorLine, monacoReady]);
+
+  useEffect(() => () => {
+    if (blameWidget.current) {
+      blameWidget.current.editor.removeContentWidget(blameWidget.current.widget);
+      blameWidget.current = null;
+    }
+  }, []);
 
   useEffect(() => {
     if (!aiConfig) void loadAI();

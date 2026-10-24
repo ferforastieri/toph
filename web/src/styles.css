@@ -4169,3 +4169,4 @@ body.resize-active * {
 .ai-tool-card pre { max-height: 190px; margin: 0; padding: 7px 9px; border-top: 1px solid var(--border-soft); color: var(--muted); white-space: pre-wrap; overflow: auto; font-size: 9.5px; }
 .ai-tool-card .ai-tool-output { color: var(--text-soft); background: color-mix(in srgb, var(--bg) 40%, transparent); }
 .ai-usage { flex: none; display: flex; justify-content: flex-end; gap: 10px; padding: 2px 12px 4px; color: var(--muted-3); font-family: var(--font-mono); font-size: 8.5px; }
+.blame-inline-widget { margin-left: 18px; color: var(--muted-2); font-family: var(--font-mono); font-size: 9.5px; font-style: italic; white-space: nowrap; opacity: .78; pointer-events: none; }
