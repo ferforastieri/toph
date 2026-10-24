@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
 use std::time::Duration;
-use tauri::{Manager, RunEvent, State, WebviewUrl, WebviewWindowBuilder, WindowEvent};
+use tauri::{Manager, RunEvent, State};
 use url::Url;
 
 #[derive(Debug, Serialize)]
@@ -111,67 +111,28 @@ async fn validate_server(url: String) -> Result<ServerInfo, String> {
     })
 }
 
-fn show_main(app: &tauri::AppHandle) {
-    if let Some(main) = app.get_webview_window("main") {
-        let _ = main.show();
-        let _ = main.set_focus();
-    }
-}
-
-fn open_remote_window(
-    app: &tauri::AppHandle,
-    url: Url,
-    title: &str,
-    initialization_script: Option<String>,
-) -> Result<(), String> {
-    if let Some(existing) = app.get_webview_window("server") {
-        let _ = existing.close();
-    }
+fn navigate_main(app: &tauri::AppHandle, url: Url) -> Result<(), String> {
     let main = app
         .get_webview_window("main")
-        .ok_or_else(|| "Janela inicial não encontrada.".to_string())?;
-    let mut builder = WebviewWindowBuilder::new(app, "server", WebviewUrl::External(url))
-        .title(title)
-        .inner_size(1440.0, 900.0)
-        .min_inner_size(960.0, 640.0)
-        .resizable(true);
-    if let Some(script) = initialization_script {
-        builder = builder.initialization_script(script);
-    }
-    let remote = builder
-        .build()
-        .map_err(|err| format!("Não foi possível abrir o servidor: {err}"))?;
-    let _ = main.hide();
-    let app_handle = app.clone();
-    remote.on_window_event(move |event| {
-        if matches!(
-            event,
-            WindowEvent::Destroyed | WindowEvent::CloseRequested { .. }
-        ) {
-            if let Some(state) = app_handle.try_state::<LocalState>() {
-                if let Ok(mut child) = state.child.lock() {
-                    if let Some(mut process) = child.take() {
-                        kill_child(&mut process);
-                    }
-                }
-            }
-            show_main(&app_handle);
-        }
-    });
-    Ok(())
+        .ok_or_else(|| "Janela principal não encontrada.".to_string())?;
+    main.navigate(url)
+        .map_err(|err| format!("Não foi possível abrir o servidor: {err}"))
 }
 
 #[tauri::command]
 fn open_server(app: tauri::AppHandle, url: String) -> Result<(), String> {
     let base = normalize_server(&url)?;
-    let target = endpoint(&base, "app/")?;
-    match open_remote_window(&app, target.clone(), "Toph", None) {
+    let mut target = endpoint(&base, "app/")?;
+    target
+        .query_pairs_mut()
+        .append_pair("server", base.as_str());
+    match navigate_main(&app, target.clone()) {
         Ok(()) => {
-            eprintln!("toph: opened server window {target}");
+            eprintln!("toph: navigating to server {target}");
             Ok(())
         }
         Err(err) => {
-            eprintln!("toph: could not open server window {target}: {err}");
+            eprintln!("toph: could not navigate to server {target}: {err}");
             Err(err)
         }
     }
@@ -478,15 +439,11 @@ async fn start_local_server(
         *slot = Some(child);
     }
 
-    let cookie_script = format!(
-        "document.cookie='toph_session={session}; Path=/; SameSite=Strict'; document.cookie='toph_csrf={csrf}; Path=/; SameSite=Strict';"
-    );
-    if let Err(err) = open_remote_window(
-        &app,
-        endpoint(&base, "app/")?,
-        "Toph Local",
-        Some(cookie_script),
-    ) {
+    let mut target = endpoint(&base, "app/")?;
+    target
+        .query_pairs_mut()
+        .append_pair("server", base.as_str());
+    if let Err(err) = navigate_main(&app, target) {
         if let Ok(mut slot) = state.child.lock() {
             if let Some(mut process) = slot.take() {
                 kill_child(&mut process);
@@ -494,7 +451,7 @@ async fn start_local_server(
         }
         return Err(err);
     }
-    if let Some(window) = app.get_webview_window("server") {
+    if let Some(window) = app.get_webview_window("main") {
         let fallback = format!(
             "if (!document.cookie.includes('toph_session={session}')) {{ \
                  document.cookie='toph_session={session}; Path=/; SameSite=Strict'; \
@@ -503,7 +460,7 @@ async fn start_local_server(
              }}"
         );
         std::thread::spawn(move || {
-            std::thread::sleep(Duration::from_millis(1500));
+            std::thread::sleep(Duration::from_millis(1200));
             let _ = window.eval(&fallback);
         });
     }

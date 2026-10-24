@@ -10,6 +10,10 @@ import { initAppearance } from "./settings";
 import { ConfirmProvider } from "@toph/ui";
 import App from "./App";
 
+if (new URLSearchParams(window.location.search).get("mobile") === "1") {
+  document.documentElement.classList.add("mobile-client");
+}
+
 initAppearance();
 
 ReactDOM.createRoot(document.getElementById("root")!).render(

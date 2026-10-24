@@ -3619,3 +3619,271 @@ body.resize-active * {
 .update-toast > div { flex: 1; display: grid; gap: 2px; }
 .update-toast strong { font-size: 11.5px; color: var(--text); }
 .update-toast span { font-size: 10.5px; color: var(--muted); }
+
+/* --------------------------------------------------------------------------
+   Mobile Tauri client. Everything here is scoped to ?mobile=1 so the desktop
+   browser and remote desktop window keep the existing layout untouched.
+   -------------------------------------------------------------------------- */
+html.mobile-client {
+  --mobile-nav-height: 58px;
+  --mobile-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --mobile-safe-top: env(safe-area-inset-top, 0px);
+  height: 100dvh;
+  overflow: hidden;
+}
+html.mobile-client body {
+  height: 100dvh;
+  min-width: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+html.mobile-client #root { height: 100dvh; }
+html.mobile-client .workbench {
+  height: 100dvh;
+  grid-template-rows: auto minmax(0, 1fr);
+  padding: 0;
+  gap: 0;
+}
+html.mobile-client .titlebar {
+  min-height: 48px;
+  height: auto;
+  padding: calc(5px + var(--mobile-safe-top)) 7px 5px;
+  gap: 5px;
+  flex-wrap: nowrap;
+}
+html.mobile-client .titlebar-brand,
+html.mobile-client .titlebar-spacer,
+html.mobile-client .titlebar-meta,
+html.mobile-client .titlebar-note { display: none; }
+html.mobile-client .project-switcher {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+html.mobile-client .project-tabs {
+  max-width: none;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+html.mobile-client .project-tabs::-webkit-scrollbar { display: none; }
+html.mobile-client .project-tab { flex: 0 0 auto; }
+html.mobile-client .project-switcher > .icon-button { flex: none; }
+html.mobile-client .workbench-body {
+  display: block;
+  position: relative;
+  min-height: 0;
+  height: 100%;
+  padding-bottom: calc(var(--mobile-nav-height) + var(--mobile-safe-bottom));
+  overflow: hidden;
+}
+html.mobile-client .activity-bar { display: none; }
+html.mobile-client .sidebar-resize,
+html.mobile-client .ai-resize { display: none; }
+html.mobile-client .editor-column {
+  height: 100%;
+  width: 100%;
+  min-height: 0;
+  border-left: 0;
+}
+html.mobile-client .tab-strip {
+  height: 44px;
+  padding: 5px 5px;
+  gap: 4px;
+}
+html.mobile-client .tab {
+  height: 34px;
+  min-width: 126px;
+  max-width: 72vw;
+}
+html.mobile-client .editor-host { min-height: 0; }
+html.mobile-client .sidebar {
+  position: fixed;
+  z-index: 95;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: min(91vw, 390px);
+  padding-top: var(--mobile-safe-top);
+  border-radius: 0 18px 18px 0;
+  transform: translateX(-105%);
+  transition: transform 0.22s var(--ease-spring);
+  pointer-events: none;
+}
+html.mobile-client .sidebar.mobile-open {
+  transform: translateX(0);
+  pointer-events: auto;
+  box-shadow: 24px 0 70px rgba(0, 0, 0, 0.55);
+}
+html.mobile-client .mobile-panel-head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 8px 4px 15px;
+  border-bottom: 1px solid var(--border-soft);
+  background: var(--glass-bg-strong);
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  backdrop-filter: blur(var(--glass-blur));
+  color: var(--text);
+  font-size: 12px;
+}
+html.mobile-client .mobile-backdrop {
+  position: fixed;
+  z-index: 90;
+  inset: 0;
+  border: 0;
+  background: rgba(0, 0, 0, 0.58);
+}
+html.mobile-client .mobile-nav {
+  position: fixed;
+  z-index: 100;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: calc(var(--mobile-nav-height) + var(--mobile-safe-bottom));
+  padding: 4px 5px calc(4px + var(--mobile-safe-bottom));
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  border-top: 1px solid var(--glass-border);
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  -webkit-backdrop-filter: blur(24px) saturate(1.5);
+  backdrop-filter: blur(24px) saturate(1.5);
+  box-shadow: 0 -10px 35px rgba(0, 0, 0, 0.28);
+}
+html.mobile-client .mobile-nav button {
+  flex: 1;
+  min-width: 0;
+  min-height: 46px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 2px 1px;
+  border-radius: 10px;
+  color: var(--muted);
+  font-size: 8px;
+  line-height: 1;
+  transition: color 0.15s, background 0.15s, transform 0.15s;
+}
+html.mobile-client .mobile-nav button span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+html.mobile-client .mobile-nav button.active {
+  color: var(--primary);
+  background: var(--primary-soft);
+}
+html.mobile-client .mobile-nav button:active { transform: scale(0.94); }
+html.mobile-client .ai-dock {
+  position: fixed;
+  z-index: 85;
+  top: 0;
+  right: 0;
+  bottom: calc(var(--mobile-nav-height) + var(--mobile-safe-bottom));
+  left: 0;
+  width: 100%;
+  border: 0;
+  border-radius: 0;
+  padding-top: var(--mobile-safe-top);
+}
+html.mobile-client .terminal-panel {
+  position: fixed;
+  z-index: 85;
+  left: 0;
+  right: 0;
+  bottom: calc(var(--mobile-nav-height) + var(--mobile-safe-bottom));
+  height: min(55dvh, 440px);
+  margin: 0;
+  border-radius: 16px 16px 0 0;
+  border-bottom: 0;
+  box-shadow: 0 -20px 60px rgba(0, 0, 0, 0.4);
+}
+html.mobile-client .toasts {
+  bottom: calc(var(--mobile-nav-height) + var(--mobile-safe-bottom) + 8px);
+}
+html.mobile-client .update-toast {
+  bottom: calc(var(--mobile-nav-height) + var(--mobile-safe-bottom) + 8px);
+  width: calc(100vw - 20px);
+}
+html.mobile-client .welcome { padding: 24px 16px; }
+html.mobile-client .welcome-actions { flex-wrap: wrap; }
+html.mobile-client .empty-workbench { padding: 16px; }
+html.mobile-client .welcome-card {
+  width: 100%;
+  max-width: 420px;
+  padding: 22px;
+}
+html.mobile-client .login {
+  min-height: 100dvh;
+  padding: calc(16px + var(--mobile-safe-top)) 14px calc(16px + var(--mobile-safe-bottom));
+  place-items: start center;
+}
+html.mobile-client .login-panel {
+  width: 100%;
+  max-width: 430px;
+  margin-top: max(8dvh, 24px);
+  padding: 22px;
+  border-radius: 18px;
+}
+html.mobile-client .login-panel input,
+html.mobile-client .modal input,
+html.mobile-client .modal select,
+html.mobile-client .modal textarea { font-size: 16px; }
+html.mobile-client .modal-backdrop {
+  z-index: 110;
+  align-items: flex-end;
+  padding: 10px;
+  padding-bottom: calc(10px + var(--mobile-safe-bottom));
+}
+html.mobile-client .modal {
+  width: 100%;
+  max-width: 100%;
+  max-height: calc(100dvh - var(--mobile-safe-top) - 20px);
+  border-radius: 18px;
+}
+html.mobile-client .modal-header { padding: 14px 16px; }
+html.mobile-client .modal-form { padding: 0 16px 14px; }
+html.mobile-client .modal-actions { padding: 0 16px 16px; }
+html.mobile-client .repo-picker { gap: 8px; }
+html.mobile-client .repo-search input { font-size: 16px; }
+html.mobile-client .quick-open-overlay {
+  z-index: 110;
+  padding: 10px;
+  padding-top: calc(10px + var(--mobile-safe-top));
+  align-items: flex-start;
+}
+html.mobile-client .quick-open-palette {
+  width: 100%;
+  max-width: 100%;
+  max-height: calc(100dvh - var(--mobile-safe-top) - 20px);
+}
+html.mobile-client .quick-open-input input { font-size: 16px; }
+html.mobile-client .db-table-scroll,
+html.mobile-client .schema-scroll,
+html.mobile-client .result-scroll { overscroll-behavior-x: contain; }
+html.mobile-client .settings-form-grid { grid-template-columns: 1fr; }
+html.mobile-client .settings-inline-form { flex-wrap: wrap; }
+html.mobile-client .settings-inline-form input { flex: 1 1 100%; }
+html.mobile-client .settings-inline-form .ghost { flex: 0 0 auto; }
+html.mobile-client .agent-composer textarea { font-size: 16px; }
+html.mobile-client .resize-handle { display: none; }
+
+@media (max-width: 370px) {
+  html.mobile-client .mobile-nav button span { display: none; }
+  html.mobile-client .mobile-nav button { min-height: 44px; }
+  html.mobile-client .titlebar { gap: 3px; }
+}
+@media (orientation: landscape) and (max-height: 520px) {
+  html.mobile-client .titlebar { min-height: 42px; }
+  html.mobile-client .sidebar { width: min(60vw, 380px); }
+  html.mobile-client .mobile-nav { --mobile-nav-height: 50px; }
+  html.mobile-client .terminal-panel { height: 70dvh; }
+}

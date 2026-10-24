@@ -107,3 +107,115 @@ footer { position: absolute; bottom: 14px; z-index: 1; color: rgba(141, 155, 184
   .recent { gap: 4px; }
   .primary { min-height: 44px; }
 }
+
+@media (max-width: 720px) {
+  html,
+  body,
+  #root {
+    height: 100dvh;
+  }
+  body {
+    min-width: 0;
+    overflow: hidden;
+  }
+  .shell {
+    min-height: 100dvh;
+    overflow-y: auto;
+    align-items: center;
+    padding:
+      calc(16px + env(safe-area-inset-top, 0px))
+      14px
+      calc(16px + env(safe-area-inset-bottom, 0px));
+  }
+  .launcher {
+    width: 100%;
+    max-width: 440px;
+    margin: auto;
+    padding: 20px;
+    border-radius: 18px;
+  }
+  .brand {
+    margin-bottom: 22px;
+  }
+  .url-field input {
+    height: 48px;
+    padding: 0 14px;
+    font-size: 16px;
+  }
+  .primary,
+  .secondary {
+    min-height: 48px;
+  }
+  .recent {
+    gap: 6px;
+  }
+  .recent > span {
+    flex-basis: 100%;
+    margin: 0;
+    font-size: 10px;
+  }
+  .recent-item {
+    padding: 8px 11px;
+    font-size: 11px;
+  }
+  .status,
+  .error {
+    font-size: 12px;
+    padding: 11px 12px;
+  }
+  .local-card,
+  .divider,
+  footer {
+    display: none;
+  }
+}
+
+@media (max-width: 380px) {
+  .shell {
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+  .launcher {
+    padding: 16px;
+    border-radius: 16px;
+  }
+  .brand img {
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+  }
+  h1 {
+    font-size: 20px;
+  }
+  .brand p {
+    font-size: 10.5px;
+  }
+  .mode-heading p,
+  .local-card p {
+    font-size: 11px;
+  }
+}
+
+@media (orientation: landscape) and (max-height: 520px) {
+  .shell {
+    align-items: flex-start;
+    padding-top: calc(10px + env(safe-area-inset-top, 0px));
+  }
+  .launcher {
+    max-width: 560px;
+    padding: 16px;
+  }
+  .brand {
+    margin-bottom: 14px;
+  }
+  .brand img {
+    width: 42px;
+    height: 42px;
+  }
+  .mode-card {
+    gap: 10px;
+  }
+  .url-field input {
+    height: 42px;
+  }
+}

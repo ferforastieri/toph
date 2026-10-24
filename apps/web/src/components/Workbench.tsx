@@ -5,6 +5,7 @@ import { basename, quoteIdentifier } from "../lib";
 import { useApp, type Sidebar, type Tab } from "../store";
 import { providerLabel, useAI } from "../ai";
 import ActivityBar from "./ActivityBar";
+import MobileNav from "./MobileNav";
 import Tabs from "./Tabs";
 import Toasts from "./Toasts";
 import RepoPicker from "./RepoPicker";
@@ -58,7 +59,9 @@ export default function Workbench() {
   const [version, setVersion] = useState("0.1.0");
   const [buildId, setBuildId] = useState("");
   const [gitStatus, setGitStatus] = useState("");
+  const [mobilePanelOpen, setMobilePanelOpen] = useState(false);
   const loadedProject = useRef<string | null>(null);
+  const mobile = document.documentElement.classList.contains("mobile-client");
 
   const project = projects.find((item) => item.id === activeProjectId) ?? null;
   const branch = gitStatus.split("\n")[0]?.replace(/^##\s*/, "").split("...")[0] ?? "";
@@ -67,6 +70,18 @@ export default function Workbench() {
   useEffect(() => {
     void loadAI().then(() => loadModels());
   }, [loadAI, loadModels]);
+
+  useEffect(() => {
+    if (!mobile) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setMobilePanelOpen(false);
+      setAiPanelOpen(false);
+      setTerminalOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [mobile, setAiPanelOpen, setTerminalOpen]);
 
   useEffect(() => {
     api
@@ -180,6 +195,7 @@ export default function Workbench() {
 
   function switchProject(next: string) {
     if (next === activeProjectId) return;
+    if (mobile) setMobilePanelOpen(false);
     if (project && loadedProject.current === project.id) {
       void api.saveLayout(project.id, {
         tabs: layoutTabs,
@@ -192,8 +208,33 @@ export default function Workbench() {
     setActiveProject(next);
   }
 
+  function openMobileSidebar(next: Sidebar) {
+    if (mobilePanelOpen && sidebar === next) {
+      setMobilePanelOpen(false);
+      return;
+    }
+    setSidebar(next);
+    setMobilePanelOpen(true);
+    setAiPanelOpen(false);
+    setTerminalOpen(false);
+  }
+
+  function openMobileAI() {
+    setMobilePanelOpen(false);
+    setTerminalOpen(false);
+    if (aiPanelOpen) setAiPanelOpen(false);
+    else openAI();
+  }
+
+  function openMobileTerminal() {
+    setMobilePanelOpen(false);
+    setAiPanelOpen(false);
+    setTerminalOpen(!terminalOpen);
+  }
+
   function openFile(path: string, line?: number) {
     if (!project) return;
+    if (mobile) setMobilePanelOpen(false);
     openTab({
       id: `editor:${project.id}:${path}`,
       kind: "editor",
@@ -206,6 +247,7 @@ export default function Workbench() {
 
   function openQuery(profileId: string, sql: string) {
     if (!project) return;
+    if (mobile) setMobilePanelOpen(false);
     openTab({
       id: `db:${project.id}:${crypto.randomUUID()}`,
       kind: "db",
@@ -218,6 +260,7 @@ export default function Workbench() {
 
   function openDiff(path: string, staged: boolean) {
     if (!project) return;
+    if (mobile) setMobilePanelOpen(false);
     openTab({
       id: `diff:${project.id}:${staged ? "staged" : "worktree"}:${path}`,
       kind: "diff",
@@ -230,6 +273,7 @@ export default function Workbench() {
 
   function openTable(profileId: string, table: SchemaTable, driver: string) {
     if (!project) return;
+    if (mobile) setMobilePanelOpen(false);
     const schema = table.schema;
     let sql = "";
     if (driver === "mongodb") {
@@ -296,6 +340,7 @@ export default function Workbench() {
 
   function openAiSession(session: { id: string; title?: string }) {
     if (!project) return;
+    if (mobile) setMobilePanelOpen(false);
     setAiDockTab({
       id: `ai:dock:${project.id}`,
       kind: "ai",
@@ -308,6 +353,7 @@ export default function Workbench() {
 
   function openWeb(target: WebTarget) {
     if (!project) return;
+    if (mobile) setMobilePanelOpen(false);
     openTab({
       id: `web:${project.id}:${target.id}`,
       kind: "web",
@@ -318,6 +364,7 @@ export default function Workbench() {
   }
 
   async function openRepo(repo: Repository) {
+    if (mobile) setMobilePanelOpen(false);
     const existing = projects.find((item) => item.root === repo.path);
     if (existing) {
       switchProject(existing.id);
@@ -437,7 +484,25 @@ export default function Workbench() {
           onChange={(width) => document.documentElement.style.setProperty("--sidebar-width", `${width}px`)}
           onCommit={(width) => updateSettings({ sidebarWidth: width })}
         />
-        <aside className="sidebar">
+        {mobile && mobilePanelOpen && (
+          <button
+            type="button"
+            className="mobile-backdrop"
+            aria-label="Fechar painel"
+            onClick={() => setMobilePanelOpen(false)}
+          />
+        )}
+        <aside className={`sidebar ${mobile && mobilePanelOpen ? "mobile-open" : ""}`}>
+          {mobile && mobilePanelOpen && (
+            <div className="mobile-panel-head">
+              <strong>
+                {sidebar === "settings" ? "Configurações" : sidebar === "files" ? "Arquivos" : sidebar === "search" ? "Busca" : sidebar === "scm" ? "Git" : sidebar === "db" ? "Bancos" : sidebar === "ai" ? "Agente" : "Web"}
+              </strong>
+              <Button className="icon-button" onClick={() => setMobilePanelOpen(false)} aria-label="Fechar painel">
+                <X size={16} />
+              </Button>
+            </div>
+          )}
           {project && sidebar === "files" && <FileTree project={project} onOpenFile={openFile} />}
           {project && sidebar === "search" && <SearchPanel project={project} onOpenFile={openFile} />}
           {project && sidebar === "scm" && <SourceControlPanel project={project} onOpenDiff={openDiff} />}
@@ -507,6 +572,18 @@ export default function Workbench() {
         )}
       </div>
 
+      {mobile && (
+        <MobileNav
+          sidebar={sidebar}
+          panelOpen={mobilePanelOpen}
+          terminalOpen={terminalOpen}
+          aiPanelOpen={aiPanelOpen}
+          onSidebar={openMobileSidebar}
+          onAI={openMobileAI}
+          onTerminal={openMobileTerminal}
+          onSettings={() => openMobileSidebar("settings")}
+        />
+      )}
       {showRepoPicker && (
         <RepoPicker onClose={() => setShowRepoPicker(false)} onOpen={openRepo} />
       )}
