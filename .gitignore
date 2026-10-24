@@ -13,16 +13,17 @@ NOTES.local.md
 *.iml
 .vscode/
 
-web/node_modules/
-web/dist/
-web/.vite/
-web/app/public/monaco/
+node_modules/
+apps/*/dist/
+apps/web/.vite/
 
-backend/internal/webui/dist/*
-!backend/internal/webui/dist/.keep
+services/toph/internal/webui/dist/*
+!services/toph/internal/webui/dist/.keep
+
+apps/web/public/monaco/
+apps/web/public/brand/
+apps/landing/public/brand/
+apps/web/public/material-icons/
 
 *.jks
 *.keystore
-web/app/public/brand/
-web/landing/public/brand/
-web/app/public/material-icons/
