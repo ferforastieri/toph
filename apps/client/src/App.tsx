@@ -48,7 +48,10 @@ export default function App() {
       setStatus(`${info.name} ${info.version} encontrado. Abrindo...`);
       remember(info.baseUrl);
       if (mobile) {
-        window.location.assign(`${info.baseUrl.replace(/\/$/, "")}/app/`);
+        const target = new URL(`${info.baseUrl.replace(/\/$/, "")}/app/`);
+        target.searchParams.set("mobile", "1");
+        target.searchParams.set("server", info.baseUrl);
+        window.location.assign(target.toString());
         return;
       }
       await invoke("open_server", { url: info.baseUrl });
