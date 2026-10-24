@@ -2,6 +2,18 @@ name: Desktop
 
 on:
   workflow_dispatch:
+    inputs:
+      version:
+        description: "Installer version (without v)"
+        required: false
+        default: "0.1.0"
+  workflow_call:
+    inputs:
+      version:
+        description: "Installer version (without v)"
+        required: false
+        type: string
+        default: ""
   push:
     tags:
       - "desktop-v*"
@@ -61,9 +73,25 @@ jobs:
         working-directory: desktop
         run: npm ci
 
+      - name: Resolve desktop version
+        id: version
+        shell: bash
+        env:
+          REQUESTED_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          version="${REQUESTED_VERSION#v}"
+          if [ -z "$version" ]; then
+            case "$GITHUB_REF_NAME" in
+              desktop-v*) version="${GITHUB_REF_NAME#desktop-v}" ;;
+              *) version="0.1.0" ;;
+            esac
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
       - name: Build desktop
         working-directory: desktop
-        run: npm run sync-brand && npm run tauri build
+        run: npm run sync-brand && npx tauri build --config '{"version":"${{ steps.version.outputs.version }}"}'
 
       - name: Upload installers
         uses: actions/upload-artifact@v4
