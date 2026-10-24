@@ -5,8 +5,8 @@ const root = resolve(import.meta.dirname, "../../..");
 const source = resolve(root, "packages/brand/assets");
 const webBrand = resolve(root, "apps/web/public/brand");
 const landingBrand = resolve(root, "apps/landing/public/brand");
-const desktopPublic = resolve(root, "apps/desktop/public");
-const desktopIcons = resolve(root, "apps/desktop/src-tauri/icons");
+const desktopPublic = resolve(root, "apps/client/public");
+const desktopIcons = resolve(root, "apps/client/src-tauri/icons");
 
 const brandTargets = [webBrand, landingBrand];
 for (const target of brandTargets) {
