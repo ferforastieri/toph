@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Check, Pencil, Play, Square, Timer, Rows3, Trash2, X } from "lucide-react";
 import { api, type DBProfile, type QueryResult } from "../api";
 import { useApp, type Tab } from "../store";
@@ -21,6 +21,7 @@ export default function DbPanelTab({ tab }: Props) {
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState<{ rowIndex: number; values: Record<string, string> } | null>(null);
   const [mutationBusy, setMutationBusy] = useState(false);
+  const autoRan = useRef(false);
   const canEdit = Boolean(
     tab.table &&
       tab.table.primary.length > 0 &&
@@ -50,6 +51,12 @@ export default function DbPanelTab({ tab }: Props) {
   useEffect(() => {
     setSql(tab.sql ?? "");
   }, [tab.id, tab.sql]);
+
+  useEffect(() => {
+    if (autoRan.current || !tab.autoRun || !tab.profileId || !sql.trim()) return;
+    autoRan.current = true;
+    void run();
+  }, [sql, tab.autoRun, tab.profileId]);
 
   async function run() {
     if (!tab.profileId || !sql.trim()) return;

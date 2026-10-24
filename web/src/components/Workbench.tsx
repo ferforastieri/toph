@@ -153,7 +153,7 @@ export default function Workbench() {
 
   const layoutTabs = useMemo(
     () =>
-      tabs.map(({ content: _content, hash: _hash, dirty: _dirty, ...rest }) => rest),
+      tabs.map(({ content: _content, hash: _hash, dirty: _dirty, autoRun: _autoRun, ...rest }) => rest),
     [tabs],
   );
   const layoutKey = JSON.stringify({
@@ -261,6 +261,7 @@ export default function Workbench() {
       projectId: project.id,
       profileId,
       sql,
+      autoRun: true,
       table: editable
         ? {
             schema,

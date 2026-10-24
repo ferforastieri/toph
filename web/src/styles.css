@@ -4243,3 +4243,49 @@ body.resize-active * {
   background: var(--surface);
 }
 .scm-commit-button { width: 100%; justify-content: center; }
+
+.db-schema-heading {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 12px 2px;
+  color: var(--muted-2);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+.db-schema-heading svg { color: var(--info); }
+.db-table-node { min-width: 0; }
+.db-table-row { display: flex; align-items: center; }
+.db-table-expand {
+  width: 18px;
+  height: 27px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  color: var(--muted-3);
+}
+.db-table-expand:hover { color: var(--primary); }
+.db-table-row .db-table { flex: 1; min-width: 0; }
+.db-columns { display: grid; gap: 1px; padding: 1px 6px 5px 29px; }
+.db-column-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 21px;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+}
+.db-column-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.db-column-type { color: var(--muted-3); font-size: 8.5px; }
+.db-column-row em {
+  padding: 0 3px;
+  border-radius: 3px;
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-size: 7.5px;
+  font-style: normal;
+}
+.db-column-row small { margin-left: auto; color: var(--muted-3); font-size: 8px; }

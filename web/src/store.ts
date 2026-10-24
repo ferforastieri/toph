@@ -15,6 +15,7 @@ export interface Tab {
   dirty?: boolean;
   profileId?: string;
   sql?: string;
+  autoRun?: boolean;
   url?: string;
   diff?: string;
   staged?: boolean;

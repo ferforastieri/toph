@@ -28,6 +28,7 @@ export default function DatabasesPanel({ onOpenQuery, onOpenTable }: Props) {
   const [showForm, setShowForm] = useState(false);
   const [schemas, setSchemas] = useState<Record<string, SchemaTable[] | undefined>>({});
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [expandedTables, setExpandedTables] = useState<Record<string, boolean>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const notify = useApp((state) => state.notify);
@@ -161,18 +162,57 @@ export default function DatabasesPanel({ onOpenQuery, onOpenTable }: Props) {
             <div className="db-schema">
               {schemas[profile.id] === undefined && <div className="panel-muted">Reading schema...</div>}
               {schemas[profile.id]?.length === 0 && <div className="panel-muted">No tables.</div>}
-              {schemas[profile.id]?.map((table) => (
-                <Button
-                  key={`${table.schema}.${table.name}`}
-                  className="db-table"
-                  onClick={() => onOpenTable(profile.id, table, profile.driver)}
-                  title={`${table.schema}.${table.name}`}
-                >
-                  <Table2 size={14} />
-                  <span>{table.name}</span>
-                  <span className="db-column-count">{table.columns.length}</span>
-                </Button>
-              ))}
+              {(() => {
+                let lastSchema = "";
+                return schemas[profile.id]?.map((table) => {
+                  const key = `${profile.id}:${table.schema}.${table.name}`;
+                  const open = Boolean(expandedTables[key]);
+                  const showSchema = table.schema !== lastSchema;
+                  lastSchema = table.schema;
+                  return (
+                    <Fragment key={key}>
+                      {showSchema && (
+                        <div className="db-schema-heading">
+                          <Database size={11} />
+                          <span>{table.schema || "default"}</span>
+                        </div>
+                      )}
+                      <div className="db-table-node">
+                        <div className="db-table-row">
+                          <Button
+                            className="db-table-expand"
+                            title={open ? "Hide columns" : "Show columns"}
+                            onClick={() => setExpandedTables((value) => ({ ...value, [key]: !open }))}
+                          >
+                            {open ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                          </Button>
+                          <Button
+                            className="db-table"
+                            onClick={() => onOpenTable(profile.id, table, profile.driver)}
+                            title={`Open ${table.schema}.${table.name}`}
+                          >
+                            <Table2 size={14} />
+                            <span>{table.name}</span>
+                            <span className="db-column-count">{table.columns.length}</span>
+                          </Button>
+                        </div>
+                        {open && (
+                          <div className="db-columns">
+                            {table.columns.map((column) => (
+                              <div className="db-column-row" key={`${key}:${column.name}`}>
+                                <span className="db-column-name">{column.name}</span>
+                                <span className="db-column-type">{column.type}</span>
+                                {column.primary && <em>PK</em>}
+                                {column.nullable && <small>NULL</small>}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </Fragment>
+                  );
+                });
+              })()}
             </div>
           )}
         </div>
