@@ -2,11 +2,11 @@
 .github
 data
 bin
-web/node_modules
-web/dist
-web/app/public/monaco
-backend/internal/webui/dist
-mobile
+node_modules
+apps/*/node_modules
+apps/*/dist
+apps/web/public/monaco
+services/toph/internal/webui/dist
 NOTES.local.md
 *.db
 *.db-shm

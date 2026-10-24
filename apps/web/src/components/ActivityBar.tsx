@@ -1,0 +1,68 @@
+import {
+  Database,
+  Files,
+  GitBranch,
+  Globe2,
+  Search,
+  Settings,
+  Sparkles,
+  TerminalSquare,
+} from "lucide-react";
+import { useApp, type Sidebar } from "../store";
+import { Button } from "@toph/ui";
+
+const items: Array<{ id: Sidebar; label: string; icon: typeof Files }> = [
+  { id: "files", label: "Explorer", icon: Files },
+  { id: "search", label: "Search", icon: Search },
+  { id: "scm", label: "Source Control", icon: GitBranch },
+  { id: "db", label: "Databases", icon: Database },
+  { id: "ai", label: "Agent", icon: Sparkles },
+  { id: "web", label: "Web apps", icon: Globe2 },
+];
+
+export default function ActivityBar({ onOpenAI }: { onOpenAI: () => void }) {
+  const sidebar = useApp((state) => state.sidebar);
+  const setSidebar = useApp((state) => state.setSidebar);
+  const toggleTerminal = useApp((state) => state.toggleTerminal);
+  const terminalOpen = useApp((state) => state.terminalOpen);
+  const aiPanelOpen = useApp((state) => state.aiPanelOpen);
+
+  return (
+    <nav className="activity-bar" aria-label="Primary">
+      <div className="activity-top">
+        {items.map((item) => {
+          const Icon = item.icon;
+          return (
+            <Button
+              key={item.id}
+              className={`activity-button ${(item.id === "ai" ? aiPanelOpen : sidebar === item.id) ? "active" : ""}`}
+              title={item.label}
+              onClick={() => {
+                if (item.id === "ai") onOpenAI();
+                else setSidebar(item.id);
+              }}
+            >
+              <Icon size={21} strokeWidth={1.7} />
+            </Button>
+          );
+        })}
+        <Button
+          className={`activity-button ${terminalOpen ? "active" : ""}`}
+          title="Terminal"
+          onClick={toggleTerminal}
+        >
+          <TerminalSquare size={21} strokeWidth={1.7} />
+        </Button>
+      </div>
+      <div className="activity-bottom">
+        <Button
+          className={`activity-button ${sidebar === "settings" ? "active" : ""}`}
+          title="Settings"
+          onClick={() => setSidebar("settings")}
+        >
+          <Settings size={21} strokeWidth={1.7} />
+        </Button>
+      </div>
+    </nav>
+  );
+}

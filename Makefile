@@ -1,39 +1,40 @@
 .PHONY: dev web web-landing build run test fmt mobile docker
 
 web:
-	cd web && npm install
-	cd web && npm run build:app
-	rm -rf backend/internal/webui/dist
-	mkdir -p backend/internal/webui/dist
-	cp -R web/dist/app/. backend/internal/webui/dist/
-	touch backend/internal/webui/dist/.keep
+	npm install
+	npm run build:web
+	rm -rf services/toph/internal/webui/dist
+	mkdir -p services/toph/internal/webui/dist
+	cp -R apps/web/dist/. services/toph/internal/webui/dist/
+	touch services/toph/internal/webui/dist/.keep
 
 web-landing:
-	cd web && npm install
-	cd web && npm run build:landing
+	npm install
+	npm run build:landing
 
 build: web
 	mkdir -p bin
-	cd backend && go build -trimpath -o ../bin/toph ./cmd/toph
+	cd services/toph && go build -trimpath -o ../../bin/toph ./cmd/toph
 
 run:
-	cd backend && go run ./cmd/toph
+	cd services/toph && go run ./cmd/toph
 
 dev:
-	@echo "API:     cd backend && go run ./cmd/toph"
-	@echo "App:     cd web && npm run dev:app"
-	@echo "Landing: cd web && npm run dev:landing"
+	@echo "API:     cd services/toph && go run ./cmd/toph"
+	@echo "App:     npm run dev:web"
+	@echo "Landing: npm run dev:landing"
 
 test:
-	cd backend && go test ./...
-	cd web && npm test
+	cd services/toph && go test ./...
+	npm test
 
 fmt:
-	cd backend && gofmt -w $$(find . -name '*.go')
+	cd services/toph && gofmt -w $$(find . -name '*.go')
 
 mobile:
-	cd desktop && npm ci && npx tauri android init
-	cd desktop && npx tauri android build --debug --apk --target aarch64
+	npm ci
+	cd apps/desktop && npm run tauri -- android init
+	cd apps/desktop && npm run tauri -- android build --debug --apk --target aarch64
 
 docker:
 	docker compose -f deploy/compose.yaml up --build
