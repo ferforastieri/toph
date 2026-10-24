@@ -8,10 +8,12 @@
     "build": "vite build",
     "preview": "vite preview",
     "tauri": "tauri",
-    "sync-brand": "node scripts/sync-brand.mjs"
+    "sync-brand": "node scripts/sync-brand.mjs",
+    "prepare-local": "node scripts/prepare-local.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.8.0",
+    "@tauri-apps/plugin-dialog": "^2.8.3",
     "react": "^19.3.1",
     "react-dom": "^19.3.1"
   },

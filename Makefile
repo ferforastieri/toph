@@ -1,4 +1,4 @@
-.PHONY: dev web web-landing build run test fmt mobile mobile-editor docker
+.PHONY: dev web web-landing build run test fmt mobile docker
 
 web:
 	cd web && npm install
@@ -31,11 +31,9 @@ test:
 fmt:
 	cd backend && gofmt -w $$(find . -name '*.go')
 
-mobile-editor:
-	cd mobile/editor && npm install && npm run build
-
-mobile: mobile-editor
-	cd mobile && ./gradlew testDebugUnitTest assembleDebug
+mobile:
+	cd desktop && npm ci && npx tauri android init
+	cd desktop && npx tauri android build --debug --apk --target aarch64
 
 docker:
 	docker compose -f deploy/compose.yaml up --build

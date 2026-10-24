@@ -9,18 +9,19 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"os/exec"
-	"strconv"
-	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/coder/websocket"
-	"github.com/creack/pty"
 )
 
 const ringSize = 128 << 10
+
+type terminalPTY interface {
+	io.ReadWriteCloser
+	Resize(cols, rows uint16) error
+	Kill()
+}
 
 type Manager struct {
 	mu       sync.Mutex
@@ -31,8 +32,7 @@ type Manager struct {
 type Session struct {
 	ID        string
 	ProjectID string
-	cmd       *exec.Cmd
-	pty       *os.File
+	pty       terminalPTY
 
 	mu      sync.Mutex
 	buffer  []byte
@@ -49,36 +49,21 @@ type resizeMessage struct {
 
 func NewManager(shell string) *Manager {
 	if shell == "" {
-		shell = os.Getenv("SHELL")
-	}
-	if shell == "" {
-		shell = "/bin/bash"
-	}
-	if _, err := os.Stat(shell); err != nil {
-		shell = "/bin/sh"
+		shell = defaultShell()
 	}
 	return &Manager{sessions: make(map[string]*Session), shell: shell}
 }
 
 func (m *Manager) Create(projectID, dir string) (*Session, error) {
-	cmd := exec.Command(m.shell, "-l")
-	cmd.Dir = dir
-	cmd.Env = append(os.Environ(), "TERM=xterm-256color", "COLORTERM=truecolor")
-
-	file, err := pty.Start(cmd)
+	env := append(os.Environ(), "TERM=xterm-256color", "COLORTERM=truecolor")
+	file, err := startPTY(m.shell, shellArgs(m.shell), dir, env, 80, 24)
 	if err != nil {
-		return nil, err
-	}
-	if err := pty.Setsize(file, &pty.Winsize{Rows: 24, Cols: 80}); err != nil {
-		_ = cmd.Process.Kill()
-		file.Close()
 		return nil, err
 	}
 
 	s := &Session{
 		ID:        newID(),
 		ProjectID: projectID,
-		cmd:       cmd,
 		pty:       file,
 		clients:   make(map[chan []byte]struct{}),
 		done:      make(chan struct{}),
@@ -224,7 +209,7 @@ func (s *Session) Resize(cols, rows uint16) error {
 	if cols == 0 || rows == 0 {
 		return nil
 	}
-	return pty.Setsize(s.pty, &pty.Winsize{Cols: cols, Rows: rows})
+	return s.pty.Resize(cols, rows)
 }
 
 func (s *Session) Close() {
@@ -236,14 +221,7 @@ func (s *Session) Close() {
 	s.closed = true
 	s.closeClientsLocked()
 	s.mu.Unlock()
-	if s.cmd.Process != nil {
-		// pty.Start makes the shell a session leader. Interactive job control
-		// gives foreground jobs their own process group, so kill the whole
-		// session rather than only the shell's group.
-		killSession(s.cmd.Process.Pid)
-		_ = syscall.Kill(-s.cmd.Process.Pid, syscall.SIGKILL)
-		_ = s.cmd.Process.Kill()
-	}
+	s.pty.Kill()
 	_ = s.pty.Close()
 	// Do not let a stuck PTY reader hold the HTTP request open forever.
 	select {
@@ -312,39 +290,6 @@ func (s *Session) Serve(w http.ResponseWriter, r *http.Request) error {
 			if err := json.Unmarshal(data, &msg); err == nil && msg.Type == "resize" {
 				_ = s.Resize(msg.Cols, msg.Rows)
 			}
-		}
-	}
-}
-
-func killSession(sessionID int) {
-	entries, err := os.ReadDir("/proc")
-	if err != nil {
-		return
-	}
-	for _, entry := range entries {
-		pid, err := strconv.Atoi(entry.Name())
-		if err != nil || pid <= 1 {
-			continue
-		}
-		data, err := os.ReadFile("/proc/" + entry.Name() + "/stat")
-		if err != nil {
-			continue
-		}
-		text := string(data)
-		end := strings.LastIndex(text, ")")
-		if end < 0 {
-			continue
-		}
-		fields := strings.Fields(text[end+1:])
-		if len(fields) < 4 {
-			continue
-		}
-		sid, err := strconv.Atoi(fields[3])
-		if err != nil {
-			continue
-		}
-		if sid == sessionID {
-			_ = syscall.Kill(pid, syscall.SIGKILL)
 		}
 	}
 }

@@ -41,6 +41,10 @@ jobs:
           CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o ../toph-linux-amd64 ./cmd/toph
           CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags="-s -w" -o ../toph-linux-arm64 ./cmd/toph
 
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -50,29 +54,37 @@ jobs:
         with:
           packages: "platform-tools"
 
-      - name: Install Android SDK
-        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
+      - name: Install Android SDK/NDK
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0" "ndk;28.2.13676358"
 
-      - name: Build APK
-        working-directory: mobile
+      - name: Build Tauri Android APK
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          TOPH_VERSION_NAME: ${{ github.ref_name }}
+          TOPH_VERSION_CODE: ${{ 10000 + github.run_number }}
         run: |
+          set -euo pipefail
           if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then
             echo "::error::ANDROID_KEYSTORE_BASE64 is required. Debug APKs are not published."
             exit 1
           fi
-          export TOPH_VERSION_NAME="${GITHUB_REF_NAME#v}"
-          export TOPH_VERSION_CODE="$((10000 + GITHUB_RUN_NUMBER))"
-          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/toph-release.jks"
+          export TOPH_VERSION_NAME="${TOPH_VERSION_NAME#v}"
           export ANDROID_KEYSTORE_PATH="$RUNNER_TEMP/toph-release.jks"
-          ./gradlew clean assembleRelease
-          BUILD_TOOLS="$ANDROID_HOME/build-tools/36.0.0"
-          "$BUILD_TOOLS/apksigner" verify --print-certs app/build/outputs/apk/release/app-release.apk
-          cp app/build/outputs/apk/release/app-release.apk "../toph-${GITHUB_REF_NAME}.apk"
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$ANDROID_KEYSTORE_PATH"
+          export NDK_HOME="${ANDROID_HOME:-$ANDROID_SDK_ROOT}/ndk/28.2.13676358"
+          (cd desktop
+           npm ci
+           npm run sync-brand
+           npx tauri android init
+           node scripts/configure-android-signing.mjs
+           npx tauri android build --apk --target aarch64 --config "{\"version\":\"${GITHUB_REF_NAME#v}\"}"
+           APK=$(find src-tauri/gen/android/app/build/outputs/apk -name 'app-universal-release.apk' -print -quit)
+           cp "$APK" "../toph-${GITHUB_REF_NAME}.apk"
+           "${ANDROID_HOME:-$ANDROID_SDK_ROOT}/build-tools/36.0.0/apksigner" verify "../toph-${GITHUB_REF_NAME}.apk"
+          )
 
       - name: Publish release
         uses: softprops/action-gh-release@v2

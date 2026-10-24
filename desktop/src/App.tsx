@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { open as openDialog } from "@tauri-apps/plugin-dialog";
 
 interface ServerInfo {
   baseUrl: string;
@@ -9,6 +10,7 @@ interface ServerInfo {
 }
 
 const RECENT_KEY = "toph_desktop_recent_servers";
+const LOCAL_WORKSPACE_KEY = "toph_desktop_local_workspace";
 
 export default function App() {
   const [url, setUrl] = useState("");
@@ -16,8 +18,10 @@ export default function App() {
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
+  const [mobile, setMobile] = useState(() => /Android|iPhone|iPad|iPod/i.test(navigator.userAgent));
 
   useEffect(() => {
+    invoke<boolean>("is_mobile").then(setMobile).catch(() => undefined);
     try {
       const raw = localStorage.getItem(RECENT_KEY);
       if (raw) setRecent(JSON.parse(raw).filter((item: unknown) => typeof item === "string"));
@@ -43,6 +47,10 @@ export default function App() {
       const info = await invoke<ServerInfo>("validate_server", { url: value });
       setStatus(`${info.name} ${info.version} encontrado. Abrindo...`);
       remember(info.baseUrl);
+      if (mobile) {
+        window.location.assign(`${info.baseUrl.replace(/\/$/, "")}/app/`);
+        return;
+      }
       await invoke("open_server", { url: info.baseUrl });
       setStatus("");
     } catch (err) {
@@ -54,11 +62,33 @@ export default function App() {
   }
 
   async function localMode() {
+    if (busy) return;
     setBusy(true);
     setError("");
+    let workspace: string | null = null;
+    try {
+      const selected = await openDialog({
+        directory: true,
+        multiple: false,
+        title: "Escolha a pasta do workspace local",
+        defaultPath: localStorage.getItem(LOCAL_WORKSPACE_KEY) ?? undefined,
+      });
+      workspace = Array.isArray(selected) ? selected[0] ?? null : selected;
+    } catch (err) {
+      setBusy(false);
+      setError(err instanceof Error ? err.message : String(err));
+      return;
+    }
+    if (!workspace) {
+      setBusy(false);
+      return;
+    }
+
+    localStorage.setItem(LOCAL_WORKSPACE_KEY, workspace);
     setStatus("Preparando modo local...");
     try {
-      await invoke("start_local_server");
+      await invoke("start_local_server", { workspace });
+      setStatus("");
     } catch (err) {
       setStatus("");
       setError(err instanceof Error ? err.message : String(err));
@@ -76,7 +106,7 @@ export default function App() {
           <img src="/toph-mark.png" alt="" />
           <div>
             <h1>Toph</h1>
-            <p>Seu workbench, no servidor ou neste computador.</p>
+            <p>{mobile ? "Seu workbench, no seu servidor." : "Seu workbench, no servidor ou neste computador."}</p>
           </div>
         </header>
 
@@ -88,7 +118,7 @@ export default function App() {
           </div>
           <form onSubmit={connect}>
             <label className="url-field">
-              <span>Server URL</span>
+              <span>URL do servidor</span>
               <input
                 value={url}
                 onChange={(event) => setUrl(event.target.value)}
@@ -106,7 +136,7 @@ export default function App() {
             <div className="recent">
               <span>Recentes</span>
               {recent.map((item) => (
-                <button key={item} className="recent-item" onClick={() => setUrl(item)}>
+                <button key={item} type="button" className="recent-item" onClick={() => setUrl(item)}>
                   {item.replace(/^https?:\/\//, "")}
                 </button>
               ))}
@@ -114,18 +144,23 @@ export default function App() {
           )}
         </div>
 
-        <div className="divider"><span>ou</span></div>
-
-        <div className="local-card">
-          <div>
-            <span className="eyebrow">Este computador</span>
-            <h2>Usar um workspace local</h2>
-            <p>Arquivos, terminal e projetos na própria máquina.</p>
-          </div>
-          <button className="secondary" disabled={busy} onClick={() => void localMode()}>
-            Usar este computador
-          </button>
-        </div>
+        {!mobile && (
+          <>
+            <div className="divider">
+              <span>ou</span>
+            </div>
+            <div className="local-card">
+              <div>
+                <span className="eyebrow">Este computador</span>
+                <h2>Usar um workspace local</h2>
+                <p>Arquivos, terminal e projetos na própria máquina, sem servidor.</p>
+              </div>
+              <button className="secondary" type="button" disabled={busy} onClick={() => void localMode()}>
+                Escolher pasta e abrir
+              </button>
+            </div>
+          </>
+        )}
 
         {status && <div className="status">{status}</div>}
         {error && <div className="error">{error}</div>}

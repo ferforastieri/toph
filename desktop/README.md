@@ -1,13 +1,17 @@
 # Toph Desktop
 
-Desktop shell for Toph, built with Tauri 2.
+Tauri 2 client for Toph. The same source builds the Windows and Linux desktop apps and the remote-only Android app.
 
 ## Modes
 
 - **Server:** asks only for a Toph server URL, validates `/api/health`, then opens the normal Toph web app in a native window.
-- **Local:** reserved for a bundled/local Toph backend. Currently reports that the local backend is not available in this build.
+- **Local (desktop only):** asks for a workspace folder, starts the bundled Toph Go backend on loopback, authenticates the embedded WebView, and opens the local workbench. Closing the workspace window stops the backend and its terminal sessions.
 
-The same project builds the Windows and Linux installers with a system WebView and a size-optimized release profile. The remote page runs inside the system webview (WebView2 on Windows, WebKitGTK on Linux); it does not receive Tauri IPC capabilities.
+The local backend stores SQLite, the generated local admin password and master key under the app data directory. It does not use or expose a remote server. The workspace folder is passed as `TOPH_WORKSPACES`, so its projects are the local working set.
+
+On Windows the backend uses ConPTY for terminals; on Linux it uses a Unix PTY. The remote server page runs inside the system WebView (WebView2 on Windows, WebKitGTK on Linux) and receives no Tauri IPC capability.
+
+Android is remote-only. Tauri mobile cannot run an external sidecar, so the Android app hides local mode and connects to a Toph server URL.
 
 ## Development
 
@@ -16,14 +20,22 @@ npm install
 npm run tauri dev
 ```
 
+For local mode during development, build the Go sidecar at the repository root with `make build`; the launcher can then pick a folder and start it.
+
 ## Build
 
 ```bash
 npm run tauri build
 ```
 
-Linux requires WebKitGTK/GTK development packages. Windows requires WebView2 and the MSVC Rust toolchain.
+Linux requires WebKitGTK/GTK development packages. Windows requires WebView2 and the MSVC Rust toolchain. The Linux and Windows CI jobs build the matching Go sidecar before Tauri and bundle it as a resource.
 
-## Local backend roadmap
+## Android
 
-Local mode needs a sidecar Toph binary plus a platform terminal adapter (ConPTY on Windows, PTY on Linux), local data directory and local authentication/bootstrap. It is intentionally not faked by opening a localhost URL.
+```bash
+npm ci
+npx tauri android init
+npx tauri android build --debug --apk --target aarch64
+```
+
+Requires JDK 21, Android SDK 36 and NDK 28.2. The generated `src-tauri/gen/android` project is intentionally not committed; `tauri android init` recreates it. The Android client is remote-only.

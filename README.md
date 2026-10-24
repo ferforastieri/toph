@@ -1,6 +1,6 @@
 # Toph
 
-**Toph** is a self-hosted workbench for your homelab. It brings code, databases, AI sessions and web apps into one place, with a workspace that feels close to VS Code and runs in your browser or as an Android app.
+**Toph** is a self-hosted workbench for machines you control. It brings code, databases, AI sessions and web apps into one place, with a workspace that feels close to VS Code and runs in your browser, on the desktop, or as a remote Android client.
 
 Toph is built for people who keep their own services, repositories and data on machines they control. There is no hosted account, no vendor backend and no telemetry.
 
@@ -26,17 +26,17 @@ The installed server does not serve the landing page or documentation. The landi
 - Configure the AI URL, API key and model in Settings → AI; API keys are encrypted at rest.
 - Enable editor autocomplete backed by the configured AI provider.
 - Add server folders as workspace roots in Settings → Workspace, without Docker bind mounts.
-- Keep web apps from the homelab in their own tabs.
+- Keep self-hosted web apps in their own tabs.
 - Switch between projects without losing the state of the current one.
-- Use the same backend from the browser and from the Android app.
-- Get an in-app toast when a new web build or Android release is available.
+- Use the same backend from the browser, desktop app and Tauri Android client.
+- Get an in-app toast when a new web or desktop build is available.
 - Personalize the web app with light/dark/auto themes, the Toph brand palette, Night Wolf Black, accents, liquid-glass intensity, backgrounds, radius, density, sidebar width, editor and terminal typography, tab styles, and file icon themes. Drag the sidebar, agent dock and terminal edges to resize them.
 
 ## Repository layout
 
 ```text
 backend/   Go API, workspace, terminals, databases, OpenCode proxy
-mobile/    Android app (Kotlin/Compose)
+desktop/   Tauri 2 desktop and mobile client
 web/       web application plus landing source (separate builds)
 deploy/    Docker Compose
 ```
@@ -46,7 +46,7 @@ The backend embeds only the application. The landing page is never installed, em
 ## Architecture
 
 ```text
-Browser (React)                     Android (Kotlin/Compose)
+Browser (React)                     Tauri (desktop + Android)
         │                                    │
         └──────────── HTTPS / WSS ───────────┘
                           │
@@ -61,7 +61,7 @@ Browser (React)                     Android (Kotlin/Compose)
         repositories · PostgreSQL · SQLite · MySQL · OpenCode
 ```
 
-The Go server is the only component that touches repositories, database credentials and shells. Clients are thin: they render tabs and stream data. The browser build is embedded in the Go binary; the Android app connects to the same API.
+The Go server is the only component that touches repositories, database credentials and shells. Clients are thin: they render tabs and stream data. The browser build is embedded in the Go binary; desktop and Android clients use the same API. Desktop local mode starts that same binary as a bundled sidecar on the user's machine.
 
 ## Security
 
@@ -128,6 +128,12 @@ curl -fsSL https://github.com/ferforastieri/toph/releases/latest/download/instal
 The installer creates the `toph` user, installs the binary, creates a systemd
 service, generates the first password and starts Toph on port `8787`.
 
+### Desktop
+
+Install the Windows or Linux package from the [desktop workflow](https://github.com/ferforastieri/toph/actions/workflows/desktop.yml) artifacts. Desktop local mode bundles the Toph server and asks for a workspace folder; server mode asks only for a URL. The local backend uses the app data directory for SQLite and its generated admin password.
+
+The desktop and Android builds share `desktop/`; Android is remote-only because Tauri mobile cannot run an external sidecar.
+
 ### Docker
 
 ```sh
@@ -136,18 +142,22 @@ TOPH_WORKSPACES_HOST=/srv/workspaces docker compose -f deploy/compose.yaml up --
 
 Mount the repositories you want to expose under `/workspaces` and keep `TOPH_DATA_DIR` on a persistent volume. The container runs as UID 1000; make sure the mounted workspace is writable by that user, or adjust the Compose `user:` setting.
 
-### Android
+### Desktop and Android
 
-Download the signed APK from [GitHub Releases](https://github.com/ferforastieri/toph/releases). Debug APKs are not published.
+Signed Android APKs are published on [GitHub Releases](https://github.com/ferforastieri/toph/releases). They are remote-only.
 
-For development, the mobile client lives in `mobile/`. It needs JDK 17+, Android SDK 36 and either `ANDROID_HOME` or `mobile/local.properties` pointing at the SDK. A local debug build is only for development:
+The Tauri client lives in `desktop/` and builds the Windows and Linux installers from the same source. On the desktop it can connect to a Toph server or run a bundled local Toph backend. On Android it is a remote-only client: the WebView connects to the Toph server URL configured on the launcher, and no local server or terminal runs on the phone.
+
+For Android development, install JDK 21, Android SDK 36 and NDK 28.2, then:
 
 ```sh
-cd mobile
-./gradlew assembleDebug
+cd desktop
+npm ci
+npx tauri android init
+npx tauri android build --debug --apk --target aarch64
 ```
 
-It connects to the Toph server URL configured during onboarding. Use LAN, VPN or Tailscale; do not expose the server directly to the internet.
+The generated Android project is not committed; `tauri android init` recreates it. Use LAN, VPN or Tailscale for the server URL; do not expose the server directly to the internet.
 
 ## Configuration
 
@@ -178,4 +188,4 @@ MIT.
 
 ## Desktop
 
-The desktop client lives in `desktop/` and uses Tauri 2. The same project builds Windows and Linux installers. Server mode accepts any Toph server URL; local mode currently reports that the platform backend is not available.
+The client lives in `desktop/` and uses Tauri 2. The same project builds Windows and Linux installers, with a Tauri Android target for mobile. Server mode accepts any Toph server URL; local mode bundles the Go backend, asks for a workspace folder, starts the server on loopback, and shuts it down when the workspace window closes. Windows local terminals use ConPTY; Linux uses a PTY.

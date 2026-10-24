@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"path/filepath"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -215,13 +216,9 @@ func (s *Server) EnsureDefaultProject(ctx context.Context) error {
 }
 
 func baseName(path string) string {
-	for i := len(path) - 1; i >= 0; i-- {
-		if path[i] == '/' {
-			if i == len(path)-1 {
-				return "workspace"
-			}
-			return path[i+1:]
-		}
+	name := filepath.Base(filepath.Clean(path))
+	if name == "." || name == string(filepath.Separator) {
+		return "workspace"
 	}
-	return path
+	return name
 }

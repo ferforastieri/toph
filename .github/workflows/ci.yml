@@ -40,21 +40,46 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: mobile
+        working-directory: desktop
     steps:
       - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: desktop/package-lock.json
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "21"
+
       - uses: android-actions/setup-android@v4
         with:
           packages: "platform-tools"
-      - run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
-      - uses: actions/cache@v4
+
+      - name: Install Android SDK/NDK
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0" "ndk;28.2.13676358"
+
+      - run: npm ci
+      - run: npm run sync-brand
+      - name: Initialize Tauri Android project
+        run: |
+          export NDK_HOME="${ANDROID_HOME:-$ANDROID_SDK_ROOT}/ndk/28.2.13676358"
+          npx tauri android init
+
+      - name: Build Tauri Android debug APK
+        run: |
+          export NDK_HOME="${ANDROID_HOME:-$ANDROID_SDK_ROOT}/ndk/28.2.13676358"
+          npx tauri android build --debug --apk --target aarch64
+
+      - uses: actions/upload-artifact@v4
         with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: gradle-${{ hashFiles('mobile/**/*.gradle.kts', 'mobile/gradle/wrapper/gradle-wrapper.properties') }}
-      - run: ./gradlew testDebugUnitTest assembleRelease
+          name: toph-android-debug
+          path: desktop/src-tauri/gen/android/app/build/outputs/apk/**/*.apk
+          if-no-files-found: error

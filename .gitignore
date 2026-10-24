@@ -21,13 +21,6 @@ web/app/public/monaco/
 backend/internal/webui/dist/*
 !backend/internal/webui/dist/.keep
 
-mobile/.gradle/
-mobile/.kotlin/
-mobile/build/
-mobile/app/build/
-mobile/local.properties
-mobile/editor/node_modules/
-mobile/captures/
 *.jks
 *.keystore
 web/app/public/brand/
