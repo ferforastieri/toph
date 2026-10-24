@@ -284,7 +284,6 @@ export default function CodeEditor({
         },
         preference: [monaco.editor.ContentWidgetPositionPreference.EXACT],
       }),
-      allowEditorOverflow: true,
     };
     instance.addContentWidget(widget);
     instance.layoutContentWidget(widget);
