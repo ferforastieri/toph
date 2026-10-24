@@ -65,18 +65,18 @@ jobs:
       - name: Initialize Tauri Android project
         run: |
           export NDK_HOME="${ANDROID_HOME:-$ANDROID_SDK_ROOT}/ndk/28.2.13676358"
-          cd apps/desktop
+          cd apps/client
           npm run sync-brand
           npm run tauri -- android init
 
       - name: Build Tauri Android debug APK
         run: |
           export NDK_HOME="${ANDROID_HOME:-$ANDROID_SDK_ROOT}/ndk/28.2.13676358"
-          cd apps/desktop
+          cd apps/client
           npm run tauri -- android build --debug --apk --target aarch64
 
       - uses: actions/upload-artifact@v4
         with:
           name: toph-android-debug
-          path: apps/desktop/src-tauri/gen/android/app/build/outputs/apk/**/*.apk
+          path: apps/client/src-tauri/gen/android/app/build/outputs/apk/**/*.apk
           if-no-files-found: error

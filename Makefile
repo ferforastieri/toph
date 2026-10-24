@@ -33,8 +33,8 @@ fmt:
 
 mobile:
 	npm ci
-	cd apps/desktop && npm run tauri -- android init
-	cd apps/desktop && npm run tauri -- android build --debug --apk --target aarch64
+	cd apps/client && npm run tauri -- android init
+	cd apps/client && npm run tauri -- android build --debug --apk --target aarch64
 
 docker:
 	docker compose -f deploy/compose.yaml up --build

@@ -165,7 +165,7 @@ export default function App() {
         {status && <div className="status">{status}</div>}
         {error && <div className="error">{error}</div>}
       </section>
-      <footer>Toph Desktop · cliente self-hosted</footer>
+      <footer>Toph Client · cliente self-hosted</footer>
     </main>
   );
 }

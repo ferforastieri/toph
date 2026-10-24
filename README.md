@@ -37,7 +37,7 @@ The installed server does not serve the landing page or documentation. The landi
 ```text
 apps/web/        React workbench application
 apps/landing/    public landing page
-apps/desktop/    Tauri desktop and Android client
+apps/client/    Tauri desktop and Android client
 services/toph/   Go API, workspace, terminals, databases, OpenCode proxy
 packages/brand/  shared brand assets and BrandMark
 packages/ui/     shared React UI primitives
@@ -133,7 +133,7 @@ service, generates the first password and starts Toph on port `8787`.
 
 Install the Windows or Linux package from the [latest release](https://github.com/ferforastieri/toph/releases/latest). Desktop local mode bundles the Toph server and asks for a workspace folder; server mode asks only for a URL. The local backend uses the app data directory for SQLite and its generated admin password.
 
-The desktop and Android builds share `apps/desktop/`; Android is remote-only because Tauri mobile cannot run an external sidecar.
+The desktop and Android builds share `apps/client/`; Android is remote-only because Tauri mobile cannot run an external sidecar.
 
 ### Docker
 
@@ -147,13 +147,13 @@ Mount the repositories you want to expose under `/workspaces` and keep `TOPH_DAT
 
 Signed Android APKs are published on [GitHub Releases](https://github.com/ferforastieri/toph/releases). They are remote-only.
 
-The Tauri client lives in `apps/desktop/` and builds the Windows and Linux installers from the same source. On the desktop it can connect to a Toph server or run a bundled local Toph backend. On Android it is a remote-only client: the WebView connects to the Toph server URL configured on the launcher, and no local server or terminal runs on the phone.
+The Tauri client lives in `apps/client/` and builds the Windows and Linux installers from the same source. On the desktop it can connect to a Toph server or run a bundled local Toph backend. On Android it is a remote-only client: the WebView connects to the Toph server URL configured on the launcher, and no local server or terminal runs on the phone.
 
 For Android development, install JDK 21, Android SDK 36 and NDK 28.2, then:
 
 ```sh
 npm ci
-cd apps/desktop
+cd apps/client
 npm run tauri -- android init
 npm run tauri -- android build --debug --apk --target aarch64
 ```
@@ -189,4 +189,4 @@ MIT.
 
 ## Desktop
 
-The client lives in `apps/desktop/` and uses Tauri 2. The same project builds Windows and Linux installers, with a Tauri Android target for mobile. Server mode accepts any Toph server URL; local mode bundles the Go backend, asks for a workspace folder, starts the server on loopback, and shuts it down when the workspace window closes. Windows local terminals use ConPTY; Linux uses a PTY.
+The client lives in `apps/client/` and uses Tauri 2. The same project builds Windows and Linux installers, with a Tauri Android target for mobile. Server mode accepts any Toph server URL; local mode bundles the Go backend, asks for a workspace folder, starts the server on loopback, and shuts it down when the workspace window closes. Windows local terminals use ConPTY; Linux uses a PTY.
