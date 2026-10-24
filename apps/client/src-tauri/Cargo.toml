@@ -1,13 +1,13 @@
 [package]
-name = "toph-desktop"
+name = "toph-client"
 version = "0.1.0"
-description = "Toph Desktop"
+description = "Toph Client"
 authors = ["Toph"]
 edition = "2021"
 rust-version = "1.77"
 
 [lib]
-name = "toph_desktop_lib"
+name = "toph_client_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

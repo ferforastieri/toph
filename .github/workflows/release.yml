@@ -95,7 +95,7 @@ jobs:
           export ANDROID_KEYSTORE_PATH="$RUNNER_TEMP/toph-release.jks"
           echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$ANDROID_KEYSTORE_PATH"
           export NDK_HOME="${ANDROID_HOME:-$ANDROID_SDK_ROOT}/ndk/28.2.13676358"
-          cd apps/desktop
+          cd apps/client
           npm run sync-brand
           npm run tauri -- android init
           node scripts/configure-android-signing.mjs
@@ -133,8 +133,8 @@ jobs:
           cp artifacts/server/toph-linux-amd64 release/
           cp artifacts/server/toph-linux-arm64 release/
           find artifacts/android -name '*.apk' -exec cp {} release/ \;
-          find artifacts/toph-desktop-ubuntu-24.04 -type f \( -name '*.AppImage' -o -name '*.deb' -o -name '*.rpm' \) -exec cp {} release/ \;
-          find artifacts/toph-desktop-windows-latest -type f \( -name '*.msi' -o -name '*-setup.exe' \) -exec cp {} release/ \;
+          find artifacts/toph-client-desktop-ubuntu-24.04 -type f \( -name '*.AppImage' -o -name '*.deb' -o -name '*.rpm' \) -exec cp {} release/ \;
+          find artifacts/toph-client-desktop-windows-latest -type f \( -name '*.msi' -o -name '*-setup.exe' \) -exec cp {} release/ \;
           ls -lh release
 
       - name: Publish release

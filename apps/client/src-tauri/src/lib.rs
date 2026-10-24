@@ -527,7 +527,7 @@ pub fn run() {
             is_mobile
         ])
         .build(tauri::generate_context!())
-        .expect("error while building Toph Desktop");
+        .expect("error while building Toph Client");
 
     app.run(|app_handle, event| {
         if let RunEvent::Exit = event {

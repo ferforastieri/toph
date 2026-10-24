@@ -1,6 +1,6 @@
-# Toph Desktop
+# Toph Client
 
-Tauri 2 client for Toph. The same source builds the Windows and Linux desktop apps and the remote-only Android app.
+Tauri 2 client for Toph. This project contains both the Windows/Linux desktop app and the remote-only Android target.
 
 ## Modes
 
@@ -20,7 +20,7 @@ From the repository root:
 ```bash
 npm install
 make build
-cd apps/desktop
+cd apps/client
 npm run tauri dev
 ```
 
@@ -29,7 +29,7 @@ For local mode, `make build` creates `bin/toph`; the launcher can then pick a fo
 ## Build
 
 ```bash
-cd apps/desktop
+cd apps/client
 npm run tauri -- build
 ```
 
@@ -41,7 +41,7 @@ From the repository root:
 
 ```bash
 npm ci
-cd apps/desktop
+cd apps/client
 npm run tauri -- android init
 npm run tauri -- android build --debug --apk --target aarch64
 ```

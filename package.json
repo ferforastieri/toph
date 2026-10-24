@@ -1,11 +1,11 @@
 {
   "name": "toph",
   "private": true,
-  "version": "0.8.8",
+  "version": "0.8.9",
   "workspaces": [
     "apps/web",
     "apps/landing",
-    "apps/desktop",
+    "apps/client",
     "packages/brand",
     "packages/ui"
   ],
@@ -14,7 +14,7 @@
     "dev:landing": "npm run dev --workspace @toph/landing",
     "build:web": "npm run build --workspace @toph/web",
     "build:landing": "npm run build --workspace @toph/landing",
-    "build:desktop": "npm run build --workspace @toph/desktop",
+    "build:client": "npm run build --workspace @toph/client",
     "test": "npm run test --workspace @toph/web",
     "sync-brand": "npm run sync --workspace @toph/brand"
   },
