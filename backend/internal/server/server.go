@@ -19,7 +19,7 @@ import (
 	"github.com/ferforastieri/toph/internal/workspace"
 )
 
-const Version = "0.8.5"
+const Version = "0.8.6"
 
 type Server struct {
 	cfg          config.Config

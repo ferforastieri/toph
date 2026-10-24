@@ -3775,11 +3775,11 @@ html[data-theme="nightwolf"] {
 }
 .segmented button { white-space: nowrap; }
 html[data-theme="nightwolf"] {
-  --ambient-1: transparent;
-  --ambient-2: transparent;
-  --ambient-3: transparent;
-  --glass-border: #282828;
-  --glass-highlight: rgba(255, 255, 255, 0.14);
+  --ambient-1: rgba(255, 80, 255, 0.22);
+  --ambient-2: rgba(0, 177, 255, 0.15);
+  --ambient-3: rgba(100, 180, 250, 0.11);
+  --glass-border: rgba(255, 80, 255, 0.24);
+  --glass-highlight: rgba(255, 255, 255, 0.2);
 }
 
 /* VS Code-style resize handles */
