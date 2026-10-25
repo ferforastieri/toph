@@ -11,7 +11,7 @@ import {
   Trash2,
   Wifi,
 } from "lucide-react";
-import { api, type DBProfile, type SchemaTable } from "../api";
+import { api, type DBProfile, type Project, type SchemaTable } from "../api";
 import { useApp } from "../store";
 import { Button } from "@toph/ui";
 import { Checkbox } from "@toph/ui";
@@ -19,11 +19,12 @@ import { Select } from "@toph/ui";
 import { useConfirm } from "@toph/ui";
 
 interface Props {
+  project: Project;
   onOpenQuery: (profileId: string, sql: string) => void;
   onOpenTable: (profileId: string, table: SchemaTable, driver: string) => void;
 }
 
-export default function DatabasesPanel({ onOpenQuery, onOpenTable }: Props) {
+export default function DatabasesPanel({ project, onOpenQuery, onOpenTable }: Props) {
   const [profiles, setProfiles] = useState<DBProfile[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [schemas, setSchemas] = useState<Record<string, SchemaTable[] | undefined>>({});
@@ -37,7 +38,7 @@ export default function DatabasesPanel({ onOpenQuery, onOpenTable }: Props) {
   async function load() {
     setBusy(true);
     try {
-      setProfiles(await api.dbProfiles());
+      setProfiles(await api.dbProfiles(project.root));
       setError("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load connections.");
@@ -48,7 +49,7 @@ export default function DatabasesPanel({ onOpenQuery, onOpenTable }: Props) {
 
   useEffect(() => {
     void load();
-  }, []);
+  }, [project.root]);
 
   async function toggle(profile: DBProfile) {
     const next = !expanded[profile.id];
@@ -79,6 +80,7 @@ export default function DatabasesPanel({ onOpenQuery, onOpenTable }: Props) {
 
       {showForm && (
         <ConnectionForm
+          projectRoot={project.root}
           onCreated={() => {
             setShowForm(false);
             void load();
@@ -234,7 +236,7 @@ export default function DatabasesPanel({ onOpenQuery, onOpenTable }: Props) {
   );
 }
 
-function ConnectionForm({ onCreated }: { onCreated: () => void }) {
+function ConnectionForm({ projectRoot, onCreated }: { projectRoot: string; onCreated: () => void }) {
   const notify = useApp((state) => state.notify);
   const [name, setName] = useState("");
   const [folder, setFolder] = useState("");
@@ -247,7 +249,7 @@ function ConnectionForm({ onCreated }: { onCreated: () => void }) {
     event.preventDefault();
     setBusy(true);
     try {
-      await api.createDBProfile({ name, folder, driver, dsn, readOnly });
+      await api.createDBProfile({ name, folder, projectRoot, driver, dsn, readOnly });
       notify("success", "Connection added.");
       onCreated();
     } catch (err) {

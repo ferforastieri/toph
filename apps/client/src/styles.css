@@ -202,3 +202,27 @@ footer { position: absolute; bottom: 14px; z-index: 1; color: rgba(127, 179, 163
     height: 42px;
   }
 }
+
+.boot-shell { min-height: 100dvh; }
+.boot-card {
+  position: relative;
+  z-index: 1;
+  width: min(360px, calc(100vw - 40px));
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  padding: 30px 24px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: var(--surface-strong);
+  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.45);
+  text-align: center;
+}
+.boot-card img { width: 58px; height: 58px; border-radius: 16px; }
+.boot-card h1 { font-size: 24px; }
+.boot-card p { color: var(--muted); font-size: 12px; }
+.boot-pulse { width: 8px; height: 8px; border-radius: 50%; background: var(--primary); box-shadow: 0 0 14px var(--primary); animation: boot-pulse 1s ease-in-out infinite; }
+@keyframes boot-pulse { 0%, 100% { opacity: .35; transform: scale(.8); } 50% { opacity: 1; transform: scale(1.15); } }
+@media (max-width: 720px) {
+  .boot-shell { padding: calc(24px + env(safe-area-inset-top, 0px)) 16px calc(24px + env(safe-area-inset-bottom, 0px)); }
+}

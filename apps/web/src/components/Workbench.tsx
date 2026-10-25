@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Boxes, Check, ChevronDown, FolderPlus, GitBranch, Plus, Settings2, X } from "lucide-react";
+import { Boxes, Check, ChevronDown, FolderPlus, GitBranch, Globe2, Plus, Search, Settings2, TerminalSquare, X } from "lucide-react";
 import { api, type Repository, type SchemaTable, type WebTarget } from "../api";
 import { basename, quoteIdentifier } from "../lib";
 import { useApp, type Sidebar, type Tab } from "../store";
@@ -61,6 +61,7 @@ export default function Workbench() {
   const [gitStatus, setGitStatus] = useState("");
   const [mobilePanelOpen, setMobilePanelOpen] = useState(false);
   const [projectsSheetOpen, setProjectsSheetOpen] = useState(false);
+  const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
   const loadedProject = useRef<string | null>(null);
   const mobile = document.documentElement.classList.contains("mobile-client");
 
@@ -78,6 +79,7 @@ export default function Workbench() {
       if (event.key !== "Escape") return;
       setMobilePanelOpen(false);
       setProjectsSheetOpen(false);
+      setMobileMoreOpen(false);
       setAiPanelOpen(false);
       setTerminalOpen(false);
     };
@@ -538,7 +540,7 @@ export default function Workbench() {
           {project && sidebar === "files" && <FileTree project={project} onOpenFile={openFile} />}
           {project && sidebar === "search" && <SearchPanel project={project} onOpenFile={openFile} />}
           {project && sidebar === "scm" && <SourceControlPanel project={project} onOpenDiff={openDiff} />}
-          {project && sidebar === "db" && <DatabasesPanel onOpenQuery={openQuery} onOpenTable={openTable} />}
+          {project && sidebar === "db" && <DatabasesPanel project={project} onOpenQuery={openQuery} onOpenTable={openTable} />}
           {project && sidebar === "ai" && <AiSidebar project={project} onNewSession={newAiSession} onOpenSession={openAiSession} />}
           {project && sidebar === "web" && <WebSidebar onOpenWeb={openWeb} />}
           {sidebar === "settings" && <SettingsPanel version={version} buildId={buildId} />}
@@ -684,6 +686,50 @@ export default function Workbench() {
           </section>
         </>
       )}
+      {mobile && mobileMoreOpen && (
+        <>
+          <button
+            type="button"
+            className="mobile-sheet-backdrop"
+            aria-label="Fechar mais opções"
+            onClick={() => setMobileMoreOpen(false)}
+          />
+          <section className="mobile-sheet mobile-more-sheet" role="dialog" aria-modal="true" aria-label="Mais opções">
+            <div className="mobile-sheet-handle" aria-hidden="true"><span /></div>
+            <div className="mobile-sheet-title">
+              <div>
+                <span className="eyebrow">Navegação</span>
+                <strong>Mais opções</strong>
+              </div>
+              <Button className="icon-button" aria-label="Fechar" onClick={() => setMobileMoreOpen(false)}>
+                <X size={16} />
+              </Button>
+            </div>
+            <div className="mobile-more-list">
+              <button type="button" onClick={() => { setMobileMoreOpen(false); openMobileSidebar("search"); }}>
+                <span className="mobile-more-icon"><Search size={18} /></span>
+                <span><strong>Busca</strong><small>Procurar no projeto</small></span>
+              </button>
+              <button type="button" onClick={() => { setMobileMoreOpen(false); openMobileSidebar("scm"); }}>
+                <span className="mobile-more-icon"><GitBranch size={18} /></span>
+                <span><strong>Git</strong><small>Diff, stage e commits</small></span>
+              </button>
+              <button type="button" onClick={() => { setMobileMoreOpen(false); openMobileSidebar("web"); }}>
+                <span className="mobile-more-icon"><Globe2 size={18} /></span>
+                <span><strong>Web apps</strong><small>Aplicativos do servidor</small></span>
+              </button>
+              <button type="button" onClick={() => { setMobileMoreOpen(false); openMobileTerminal(); }}>
+                <span className="mobile-more-icon"><TerminalSquare size={18} /></span>
+                <span><strong>Terminal</strong><small>Shell do projeto</small></span>
+              </button>
+              <button type="button" onClick={() => { setMobileMoreOpen(false); openMobileSidebar("settings"); }}>
+                <span className="mobile-more-icon"><Settings2 size={18} /></span>
+                <span><strong>Configurações</strong><small>Preferências e servidor</small></span>
+              </button>
+            </div>
+          </section>
+        </>
+      )}
       {mobile && (
         <MobileNav
           sidebar={sidebar}
@@ -692,8 +738,7 @@ export default function Workbench() {
           aiPanelOpen={aiPanelOpen}
           onSidebar={openMobileSidebar}
           onAI={openMobileAI}
-          onTerminal={openMobileTerminal}
-          onSettings={() => openMobileSidebar("settings")}
+          onMore={() => setMobileMoreOpen(true)}
         />
       )}
       {showRepoPicker && (

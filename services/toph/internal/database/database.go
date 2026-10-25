@@ -36,11 +36,12 @@ type Service struct {
 }
 
 type ProfileInput struct {
-	Name     string `json:"name"`
-	Folder   string `json:"folder"`
-	Driver   string `json:"driver"`
-	DSN      string `json:"dsn"`
-	ReadOnly bool   `json:"readOnly"`
+	Name        string `json:"name"`
+	Folder      string `json:"folder"`
+	ProjectRoot string `json:"projectRoot"`
+	Driver      string `json:"driver"`
+	DSN         string `json:"dsn"`
+	ReadOnly    bool   `json:"readOnly"`
 }
 
 type Column struct {
@@ -115,6 +116,7 @@ func (s *Service) Create(ctx context.Context, input ProfileInput) (store.DBProfi
 		ID:           newID(),
 		Name:         input.Name,
 		Folder:       strings.TrimSpace(input.Folder),
+		ProjectRoot:  strings.TrimSpace(input.ProjectRoot),
 		Driver:       input.Driver,
 		DSNEncrypted: encrypted,
 		ReadOnly:     input.ReadOnly,

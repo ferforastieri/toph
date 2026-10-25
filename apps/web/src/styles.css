@@ -3677,8 +3677,8 @@ body.resize-active * {
    -------------------------------------------------------------------------- */
 html.mobile-client {
   --mobile-nav-height: 58px;
-  --mobile-safe-bottom: env(safe-area-inset-bottom, 0px);
-  --mobile-safe-top: env(safe-area-inset-top, 0px);
+  --mobile-safe-bottom: max(env(safe-area-inset-bottom, 0px), 8px);
+  --mobile-safe-top: max(env(safe-area-inset-top, 0px), 20px);
   height: 100dvh;
   overflow: hidden;
 }
@@ -3726,6 +3726,8 @@ html.mobile-client .workbench-body {
   height: 100%;
   padding-bottom: calc(var(--mobile-nav-height) + var(--mobile-safe-bottom));
   overflow: hidden;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
 }
 html.mobile-client .activity-bar { display: none; }
 html.mobile-client .sidebar-resize,
@@ -3750,12 +3752,15 @@ html.mobile-client .editor-host { min-height: 0; }
 html.mobile-client .sidebar {
   position: fixed;
   z-index: 95;
-  top: 0;
-  bottom: 0;
-  left: 0;
+  inset: 0 auto 0 0;
   width: min(91vw, 390px);
+  height: 100dvh;
   padding-top: var(--mobile-safe-top);
-  border-radius: 0 18px 18px 0;
+  border: 0;
+  border-radius: 0;
+  background: var(--surface);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
   transform: translateX(-105%);
   transition: transform 0.22s var(--ease-spring);
   pointer-events: none;
@@ -3776,9 +3781,7 @@ html.mobile-client .mobile-panel-head {
   gap: 8px;
   padding: 4px 8px 4px 15px;
   border-bottom: 1px solid var(--border-soft);
-  background: var(--glass-bg-strong);
-  -webkit-backdrop-filter: blur(var(--glass-blur));
-  backdrop-filter: blur(var(--glass-blur));
+  background: var(--surface);
   color: var(--text);
   font-size: 12px;
 }
@@ -4140,8 +4143,7 @@ html.mobile-client .resize-handle { display: none; }
   inset: 0;
   z-index: 125;
   border: 0;
-  background: rgba(0, 0, 0, 0.62);
-  backdrop-filter: blur(2px);
+  background: rgba(0, 0, 0, 0.68);
 }
 .mobile-sheet {
   position: fixed;
@@ -4252,3 +4254,10 @@ html.mobile-client .mobile-project-trigger > svg { flex: none; color: var(--mute
   background: transparent;
   box-shadow: none;
 }
+.mobile-more-list { display: grid; gap: 2px; overflow-y: auto; min-height: 0; padding: 2px 0; }
+.mobile-more-list > button { width: 100%; display: flex; align-items: center; gap: 11px; padding: 9px 7px; border-radius: 10px; text-align: left; color: var(--text); }
+.mobile-more-list > button:hover { background: var(--surface-hover); }
+.mobile-more-icon { width: 34px; height: 34px; flex: none; display: grid; place-items: center; border-radius: 9px; background: var(--surface-2); color: var(--primary); }
+.mobile-more-list > button > span:last-child { display: grid; gap: 2px; min-width: 0; }
+.mobile-more-list strong { font-size: 12.5px; font-weight: 650; }
+.mobile-more-list small { color: var(--muted-2); font-size: 9.5px; }
