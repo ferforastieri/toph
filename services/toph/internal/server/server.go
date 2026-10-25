@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -20,21 +21,25 @@ import (
 	"github.com/ferforastieri/toph/internal/workspace"
 )
 
-const Version = "0.8.10"
+var Version = "dev"
 
 type Server struct {
-	cfg          config.Config
-	store        *store.Store
-	auth         *auth.Manager
-	workspace    *workspace.Service
-	terminals    *terminal.Manager
-	db           *database.Service
-	opencode     *opencode.Proxy
-	ai           *ai.Service
-	web          http.Handler
-	clientIP     clientIPResolver
-	loginLimiter *loginLimiter
-	apiLimiter   *loginLimiter
+	cfg           config.Config
+	store         *store.Store
+	auth          *auth.Manager
+	workspace     *workspace.Service
+	terminals     *terminal.Manager
+	db            *database.Service
+	opencode      *opencode.Proxy
+	ai            *ai.Service
+	web           http.Handler
+	clientIP      clientIPResolver
+	loginLimiter  *loginLimiter
+	apiLimiter    *loginLimiter
+	updateMu      sync.Mutex
+	updateLatest  string
+	updateChecked time.Time
+	updateErr     string
 }
 
 func New(
@@ -77,6 +82,8 @@ func (s *Server) Handler() http.Handler {
 		r.Use(s.authenticate)
 		r.Get("/api/auth/me", s.me)
 		r.Post("/api/auth/logout", s.logout)
+		r.Get("/api/update", s.updateStatus)
+		r.Post("/api/update", s.startUpdate)
 
 		r.Route("/api/projects", func(r chi.Router) {
 			r.Get("/", s.listProjects)

@@ -1,18 +1,48 @@
 name: Release
 
 on:
-  push:
-    tags:
-      - "v*"
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
 
 permissions:
   contents: write
 
+concurrency:
+  group: release-main
+  cancel-in-progress: false
+
 jobs:
+  prepare:
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
+    runs-on: ubuntu-latest
+    outputs:
+      release: ${{ steps.version.outputs.release }}
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+      bump: ${{ steps.version.outputs.bump }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+
+      - name: Fetch tags and determine next version
+        id: version
+        run: |
+          set -euo pipefail
+          git fetch --tags --force
+          node scripts/next-version.mjs
+
   server:
+    needs: prepare
+    if: needs.prepare.outputs.release == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
 
       - uses: actions/setup-go@v5
         with:
@@ -29,14 +59,21 @@ jobs:
       - run: npm run build:web
 
       - name: Embed web and build server binaries
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
         run: |
+          set -euo pipefail
           rm -rf services/toph/internal/webui/dist
           mkdir -p services/toph/internal/webui/dist
           cp -R apps/web/dist/. services/toph/internal/webui/dist/
           touch services/toph/internal/webui/dist/.keep
           cd services/toph
-          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o ../../toph-linux-amd64 ./cmd/toph
-          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags="-s -w" -o ../../toph-linux-arm64 ./cmd/toph
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+            go build -trimpath -ldflags="-s -w -X github.com/ferforastieri/toph/internal/server.Version=${VERSION}" \
+            -o ../../toph-linux-amd64 ./cmd/toph
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 \
+            go build -trimpath -ldflags="-s -w -X github.com/ferforastieri/toph/internal/server.Version=${VERSION}" \
+            -o ../../toph-linux-arm64 ./cmd/toph
 
       - name: Upload server binaries
         uses: actions/upload-artifact@v4
@@ -49,9 +86,13 @@ jobs:
           if-no-files-found: error
 
   android:
+    needs: prepare
+    if: needs.prepare.outputs.release == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
 
       - uses: actions/setup-node@v4
         with:
@@ -83,14 +124,13 @@ jobs:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-          TOPH_VERSION_NAME: ${{ github.ref_name }}
+          TOPH_VERSION_NAME: ${{ needs.prepare.outputs.version }}
         run: |
           set -euo pipefail
           if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then
             echo "::error::ANDROID_KEYSTORE_BASE64 is required. Debug APKs are not published."
             exit 1
           fi
-          export TOPH_VERSION_NAME="${TOPH_VERSION_NAME#v}"
           export TOPH_VERSION_CODE="$((10000 + GITHUB_RUN_NUMBER))"
           export ANDROID_KEYSTORE_PATH="$RUNNER_TEMP/toph-release.jks"
           echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$ANDROID_KEYSTORE_PATH"
@@ -100,25 +140,29 @@ jobs:
           npm run tauri -- android init
           npm run icons
           node scripts/configure-android-signing.mjs
-          npm run tauri -- android build --apk --target aarch64 --config "{\"version\":\"${GITHUB_REF_NAME#v}\"}"
+          npm run tauri -- android build --apk --target aarch64 --config "{\"version\":\"${TOPH_VERSION_NAME}\"}"
           APK=$(find src-tauri/gen/android/app/build/outputs/apk -name 'app-universal-release.apk' -print -quit)
-          cp "$APK" "../../toph-${GITHUB_REF_NAME}.apk"
-          "${ANDROID_HOME:-$ANDROID_SDK_ROOT}/build-tools/36.0.0/apksigner" verify "../../toph-${GITHUB_REF_NAME}.apk"
+          cp "$APK" "../../toph-v${TOPH_VERSION_NAME}.apk"
+          "${ANDROID_HOME:-$ANDROID_SDK_ROOT}/build-tools/36.0.0/apksigner" verify "../../toph-v${TOPH_VERSION_NAME}.apk"
 
       - name: Upload Android APK
         uses: actions/upload-artifact@v4
         with:
           name: android
-          path: toph-${{ github.ref_name }}.apk
+          path: toph-v${{ needs.prepare.outputs.version }}.apk
           if-no-files-found: error
 
   desktop:
+    needs: prepare
+    if: needs.prepare.outputs.release == 'true'
     uses: ./.github/workflows/desktop.yml
     with:
-      version: ${{ github.ref_name }}
+      version: ${{ needs.prepare.outputs.version }}
+      ref: ${{ github.event.workflow_run.head_sha }}
 
   publish:
-    needs: [server, android, desktop]
+    needs: [prepare, server, android, desktop]
+    if: needs.prepare.outputs.release == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -141,5 +185,8 @@ jobs:
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ needs.prepare.outputs.tag }}
+          target_commitish: ${{ github.event.workflow_run.head_sha }}
+          name: Toph ${{ needs.prepare.outputs.tag }}
           generate_release_notes: true
           files: release/*
