@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Boxes, FolderPlus, GitBranch, Plus, X } from "lucide-react";
+import { Boxes, Check, ChevronDown, FolderPlus, GitBranch, Plus, Settings2, X } from "lucide-react";
 import { api, type Repository, type SchemaTable, type WebTarget } from "../api";
 import { basename, quoteIdentifier } from "../lib";
 import { useApp, type Sidebar, type Tab } from "../store";
@@ -60,6 +60,7 @@ export default function Workbench() {
   const [buildId, setBuildId] = useState("");
   const [gitStatus, setGitStatus] = useState("");
   const [mobilePanelOpen, setMobilePanelOpen] = useState(false);
+  const [projectsSheetOpen, setProjectsSheetOpen] = useState(false);
   const loadedProject = useRef<string | null>(null);
   const mobile = document.documentElement.classList.contains("mobile-client");
 
@@ -76,6 +77,7 @@ export default function Workbench() {
     const onKey = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       setMobilePanelOpen(false);
+      setProjectsSheetOpen(false);
       setAiPanelOpen(false);
       setTerminalOpen(false);
     };
@@ -330,6 +332,18 @@ export default function Workbench() {
     setAiPanelOpen(true);
   }
 
+  function newAiSession() {
+    if (!project) return;
+    if (mobile) setMobilePanelOpen(false);
+    setAiDockTab({
+      id: `ai:dock:${project.id}`,
+      kind: "ai",
+      title: providerLabel(aiProvider),
+      projectId: project.id,
+    });
+    setAiPanelOpen(true);
+  }
+
   function toggleAI() {
     if (aiPanelOpen) {
       setAiPanelOpen(false);
@@ -422,42 +436,60 @@ export default function Workbench() {
           <BrandMark size="small" />
         </div>
         <div className="project-switcher">
-          <div className="project-tabs" role="tablist" aria-label="Open projects">
-            {openProjectIds.map((id) => {
-              const item = projects.find((projectItem) => projectItem.id === id);
-              if (!item) return null;
-              return (
-                <div
-                  key={item.id}
-                  className={`project-tab ${item.id === activeProjectId ? "active" : ""}`}
-                  role="tab"
-                  aria-selected={item.id === activeProjectId}
-                >
-                  <Button
-                    className="project-tab-main"
-                    title={item.root}
-                    onClick={() => switchProject(item.id)}
-                  >
-                    {item.name}
-                  </Button>
-                  <Button
-                    className="project-tab-close"
-                    title={`Close ${item.name}`}
-                    aria-label={`Close ${item.name}`}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      void closeProject(item.id);
-                    }}
-                  >
-                    <X size={11} />
-                  </Button>
-                </div>
-              );
-            })}
-          </div>
-          <Button className="icon-button" title="Open repository" onClick={() => setShowRepoPicker(true)}>
-            <Plus size={15} />
-          </Button>
+          {mobile ? (
+            <button
+              type="button"
+              className="mobile-project-trigger"
+              onClick={() => setProjectsSheetOpen(true)}
+              aria-label="Abrir projetos"
+            >
+              <span className="mobile-project-avatar" style={{ background: project?.color ?? "var(--primary)" }}>
+                {(project?.name ?? "T").slice(0, 1).toUpperCase()}
+              </span>
+              <span className="mobile-project-name">{project?.name ?? "Toph"}</span>
+              <span className="mobile-project-count">{openProjectIds.length}</span>
+              <ChevronDown size={16} />
+            </button>
+          ) : (
+            <>
+              <div className="project-tabs" role="tablist" aria-label="Open projects">
+                {openProjectIds.map((id) => {
+                  const item = projects.find((projectItem) => projectItem.id === id);
+                  if (!item) return null;
+                  return (
+                    <div
+                      key={item.id}
+                      className={`project-tab ${item.id === activeProjectId ? "active" : ""}`}
+                      role="tab"
+                      aria-selected={item.id === activeProjectId}
+                    >
+                      <Button
+                        className="project-tab-main"
+                        title={item.root}
+                        onClick={() => switchProject(item.id)}
+                      >
+                        {item.name}
+                      </Button>
+                      <Button
+                        className="project-tab-close"
+                        title={`Close ${item.name}`}
+                        aria-label={`Close ${item.name}`}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          void closeProject(item.id);
+                        }}
+                      >
+                        <X size={11} />
+                      </Button>
+                    </div>
+                  );
+                })}
+              </div>
+              <Button className="icon-button" title="Open repository" onClick={() => setShowRepoPicker(true)}>
+                <Plus size={15} />
+              </Button>
+            </>
+          )}
         </div>
         <div className="titlebar-spacer" />
         <div className="titlebar-meta">
@@ -507,7 +539,7 @@ export default function Workbench() {
           {project && sidebar === "search" && <SearchPanel project={project} onOpenFile={openFile} />}
           {project && sidebar === "scm" && <SourceControlPanel project={project} onOpenDiff={openDiff} />}
           {project && sidebar === "db" && <DatabasesPanel onOpenQuery={openQuery} onOpenTable={openTable} />}
-          {project && sidebar === "ai" && <AiSidebar project={project} onOpenAI={openAI} onOpenSession={openAiSession} />}
+          {project && sidebar === "ai" && <AiSidebar project={project} onNewSession={newAiSession} onOpenSession={openAiSession} />}
           {project && sidebar === "web" && <WebSidebar onOpenWeb={openWeb} />}
           {sidebar === "settings" && <SettingsPanel version={version} buildId={buildId} />}
         </aside>
@@ -572,6 +604,86 @@ export default function Workbench() {
         )}
       </div>
 
+      {mobile && projectsSheetOpen && (
+        <>
+          <button
+            type="button"
+            className="mobile-sheet-backdrop"
+            aria-label="Fechar projetos"
+            onClick={() => setProjectsSheetOpen(false)}
+          />
+          <section className="mobile-sheet projects-sheet" role="dialog" aria-modal="true" aria-label="Projetos abertos">
+            <div className="mobile-sheet-handle" aria-hidden="true"><span /></div>
+            <div className="mobile-sheet-title">
+              <div>
+                <span className="eyebrow">Workspace</span>
+                <strong>Projetos abertos</strong>
+              </div>
+              <Button className="icon-button" aria-label="Fechar" onClick={() => setProjectsSheetOpen(false)}>
+                <X size={16} />
+              </Button>
+            </div>
+            <div className="mobile-project-list">
+              {openProjectIds.map((id) => {
+                const item = projects.find((projectItem) => projectItem.id === id);
+                if (!item) return null;
+                const active = item.id === activeProjectId;
+                return (
+                  <div className={`mobile-project-row ${active ? "active" : ""}`} key={item.id}>
+                    <button
+                      type="button"
+                      className="mobile-project-main"
+                      onClick={() => {
+                        setProjectsSheetOpen(false);
+                        switchProject(item.id);
+                      }}
+                    >
+                      <span className="mobile-project-avatar" style={{ background: item.color }}>
+                        {item.name.slice(0, 1).toUpperCase()}
+                      </span>
+                      <span className="mobile-project-copy">
+                        <strong>{item.name}</strong>
+                        <small>{item.root}</small>
+                      </span>
+                      {active && <Check size={16} className="mobile-project-check" />}
+                    </button>
+                    <Button
+                      className="icon-button"
+                      aria-label={`Fechar ${item.name}`}
+                      onClick={() => void closeProject(item.id)}
+                    >
+                      <X size={15} />
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+            <button
+              type="button"
+              className="mobile-sheet-action"
+              onClick={() => {
+                setProjectsSheetOpen(false);
+                setShowRepoPicker(true);
+              }}
+            >
+              <span><Plus size={17} /> Abrir projeto</span>
+              <span className="mobile-sheet-action-hint">repositório</span>
+            </button>
+            <div className="mobile-sheet-footer">
+              <button
+                type="button"
+                onClick={() => {
+                  setProjectsSheetOpen(false);
+                  openMobileSidebar("settings");
+                }}
+              >
+                <Settings2 size={16} /> Configurações
+              </button>
+              <span>Toph · {version}</span>
+            </div>
+          </section>
+        </>
+      )}
       {mobile && (
         <MobileNav
           sidebar={sidebar}

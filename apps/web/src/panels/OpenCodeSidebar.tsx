@@ -1,44 +1,41 @@
 import { useEffect, useState } from "react";
-import { OpenCode } from "@opencode/client";
 import { Bot, Plus, Sparkles } from "lucide-react";
-import { openCodeBase, type Project } from "../api";
+import type { Project } from "../api";
+import { listOpenCodeSessions, type OpenCodeSessionSummary } from "../opencodeSessions";
 import { useApp } from "../store";
 import { Button } from "@toph/ui";
 
 interface Props {
   project: Project;
-  onOpenAI: () => void;
+  onNewSession: () => void;
   onOpenSession: (session: { id: string; title?: string }) => void;
 }
 
-export default function OpenCodeSidebar({ project, onOpenAI, onOpenSession }: Props) {
+export default function OpenCodeSidebar({ project, onNewSession, onOpenSession }: Props) {
   const tabs = useApp((state) => state.tabs);
   const setActiveTab = useApp((state) => state.setActiveTab);
   const [status, setStatus] = useState<"checking" | "online" | "offline">("checking");
-  const [sessions, setSessions] = useState<Array<{ id: string; title?: string }>>([]);
+  const [sessions, setSessions] = useState<OpenCodeSessionSummary[]>([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   useEffect(() => {
     let cancelled = false;
-    const client = OpenCode.make({ baseUrl: openCodeBase() });
-    client.server
-      .info()
-      .then(() => {
-        if (!cancelled) {
-          setStatus("online");
-          void client.session
-            .list({ directory: project.root, limit: 20, order: "desc" } as never)
-            .then((response) => {
-              if (!cancelled) setSessions(response.data);
-            })
-            .catch(() => undefined);
-        }
+    setLoading(true);
+    setError("");
+    listOpenCodeSessions(project.root, 50)
+      .then((items) => {
+        if (cancelled) return;
+        setStatus("online");
+        setSessions(items);
       })
       .catch((err) => {
-        if (!cancelled) {
-          setStatus("offline");
-          setError(err instanceof Error ? err.message : "OpenCode unavailable.");
-        }
+        if (cancelled) return;
+        setStatus("offline");
+        setError(err instanceof Error ? err.message : "OpenCode unavailable.");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
       });
     return () => {
       cancelled = true;
@@ -49,7 +46,7 @@ export default function OpenCodeSidebar({ project, onOpenAI, onOpenSession }: Pr
     <div className="panel">
       <div className="panel-heading">
         <span>OpenCode</span>
-        <Button className="icon-button" title="New session" onClick={onOpenAI}>
+        <Button className="icon-button" title="New session" onClick={onNewSession}>
           <Plus size={15} />
         </Button>
       </div>
@@ -65,6 +62,7 @@ export default function OpenCodeSidebar({ project, onOpenAI, onOpenSession }: Pr
         </p>
       </div>
       <div className="ai-session-list">
+        {loading && <div className="panel-muted">Loading sessions...</div>}
         {sessions.length > 0 && <div className="ai-list-label">OpenCode history</div>}
         {sessions.map((session) => (
           <Button
@@ -77,6 +75,7 @@ export default function OpenCodeSidebar({ project, onOpenAI, onOpenSession }: Pr
             <small>saved</small>
           </Button>
         ))}
+        {!loading && !error && sessions.length === 0 && <div className="panel-muted">No saved sessions yet.</div>}
         {tabs.filter((tab) => tab.kind === "ai").map((tab) => (
           <Button key={tab.id} className="ai-session-item" onClick={() => setActiveTab(tab.id)}>
             <Bot size={15} />

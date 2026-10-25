@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { OpenCode } from "@opencode/client";
-import { Bot, Check, ChevronDown, Wrench, X } from "lucide-react";
+import { Bot, Check, ChevronDown, History, Wrench, X } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { openCodeBase, type Project } from "../api";
@@ -8,6 +8,8 @@ import { useAI } from "../ai";
 import { useApp, type AiMessage, type Tab } from "../store";
 import { Button } from "@toph/ui";
 import { AgentComposer, type AgentAttachment } from "../ui/AgentComposer";
+import AgentSessionsSheet from "../components/AgentSessionsSheet";
+import type { OpenCodeSessionSummary } from "../opencodeSessions";
 
 const EMPTY_MESSAGES: AiMessage[] = [];
 
@@ -48,6 +50,7 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
   const [model, setModel] = useState(aiConfig?.model ?? "");
   const [effort, setEffort] = useState("");
   const [yolo, setYolo] = useState(false);
+  const [sessionsOpen, setSessionsOpen] = useState(false);
   const [usage, setUsage] = useState<{ cost?: number; tokens?: unknown } | null>(null);
   const yoloRef = useRef(yolo);
   yoloRef.current = yolo;
@@ -82,6 +85,12 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length, streaming]);
+
+  useEffect(() => {
+    if (!streaming) return;
+    const timer = window.setTimeout(() => setStreaming(tab.id, false), 15 * 60_000);
+    return () => window.clearTimeout(timer);
+  }, [setStreaming, streaming, tab.id]);
 
   useEffect(() => {
     if (!tab.sessionId || messages.length > 0 || loadedHistory.current === tab.sessionId) return;
@@ -358,6 +367,15 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
               }
               break;
             }
+            case "session.execution.started": {
+              setStreaming(tab.id, true);
+              break;
+            }
+            case "session.execution.succeeded":
+            case "session.execution.interrupted": {
+              setStreaming(tab.id, false);
+              break;
+            }
             case "session.execution.failed": {
               addMessage(tab.id, {
                 id: `error-${Date.now()}`,
@@ -366,6 +384,12 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
                 createdAt: Date.now(),
               });
               setStreaming(tab.id, false);
+              break;
+            }
+            case "session.status": {
+              const nextStatus = (data.status as { type?: string } | undefined)?.type;
+              if (nextStatus === "idle") setStreaming(tab.id, false);
+              else if (nextStatus === "busy") setStreaming(tab.id, true);
               break;
             }
             case "session.idle": {
@@ -383,6 +407,22 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
     })();
     return () => controller.abort();
   }, [addMessage, appendText, client, setMessages, setStreaming, tab.id, tab.sessionId, updateMessage]);
+
+  function selectSession(session: OpenCodeSessionSummary) {
+    setMessages(tab.id, []);
+    setStreaming(tab.id, false);
+    loadedHistory.current = null;
+    updateTab(tab.id, { sessionId: session.id, title: session.title ?? "OpenCode" });
+    setSessionsOpen(false);
+  }
+
+  function newSession() {
+    setMessages(tab.id, []);
+    setStreaming(tab.id, false);
+    loadedHistory.current = null;
+    updateTab(tab.id, { sessionId: undefined, title: "OpenCode" });
+    setSessionsOpen(false);
+  }
 
   async function applyModel(sessionID: string, nextModel = model, nextEffort = effort) {
     if (!nextModel) return;
@@ -406,7 +446,10 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
     const session = await client.session.create({
       location: { directory: project.root },
     } as never);
-    updateTab(tab.id, { sessionId: session.id });
+    updateTab(tab.id, {
+      sessionId: session.id,
+      title: (session as { title?: string }).title ?? "OpenCode",
+    });
     await applyModel(session.id).catch(() => undefined);
     return session.id;
   }
@@ -504,10 +547,19 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
           <strong>OpenCode</strong>
           <span className="ai-project">{project.name}</span>
         </div>
-        <span className="ai-session">
-          {tab.sessionId ? `session ${tab.sessionId.slice(0, 8)}` : "new session"}
-        </span>
-        {onClose && <Button className="icon-button" title="Close agent" onClick={onClose}><X size={15} /></Button>}
+        <div className="ai-toolbar-actions">
+          <button
+            type="button"
+            className="ai-session-trigger"
+            onClick={() => setSessionsOpen(true)}
+            aria-label="Abrir sessões"
+          >
+            <History size={14} />
+            <span>{tab.sessionId ? tab.title || `Sessão ${tab.sessionId.slice(0, 8)}` : "Nova sessão"}</span>
+            <ChevronDown size={13} />
+          </button>
+          {onClose && <Button className="icon-button" title="Close agent" onClick={onClose}><X size={15} /></Button>}
+        </div>
       </div>
 
       <div className="ai-messages">
@@ -598,6 +650,14 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
         onYoloChange={setYolo}
         placeholder="Pergunte ao OpenCode... (/ comandos, @ contexto, ! shell)"
         allowAttachments
+      />
+      <AgentSessionsSheet
+        open={sessionsOpen}
+        project={project}
+        activeSessionId={tab.sessionId}
+        onClose={() => setSessionsOpen(false)}
+        onSelect={selectSession}
+        onNew={newSession}
       />
     </div>
   );

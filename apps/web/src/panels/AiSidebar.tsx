@@ -7,12 +7,12 @@ import { Button } from "@toph/ui";
 
 interface Props {
   project: Project;
-  onOpenAI: () => void;
+  onNewSession: () => void;
   onOpenSession: (session: { id: string; title?: string }) => void;
 }
 
 
-export default function AiSidebar({ project, onOpenAI, onOpenSession }: Props) {
+export default function AiSidebar({ project, onNewSession, onOpenSession }: Props) {
   const config = useAI((state) => state.config);
   const load = useAI((state) => state.load);
 
@@ -21,7 +21,7 @@ export default function AiSidebar({ project, onOpenAI, onOpenSession }: Props) {
   }, [config, load]);
 
   if (config?.provider === "opencode") {
-    return <OpenCodeSidebar project={project} onOpenAI={onOpenAI} onOpenSession={onOpenSession} />;
+    return <OpenCodeSidebar project={project} onNewSession={onNewSession} onOpenSession={onOpenSession} />;
   }
 
   const label = config ? providerLabel(config.provider) : "Agent";
@@ -29,7 +29,7 @@ export default function AiSidebar({ project, onOpenAI, onOpenSession }: Props) {
     <div className="panel">
       <div className="panel-heading">
         <span>Agent</span>
-        <Button className="icon-button" title="New chat" onClick={onOpenAI}>
+        <Button className="icon-button" title="New chat" onClick={onNewSession}>
           <Plus size={15} />
         </Button>
       </div>
@@ -43,7 +43,7 @@ export default function AiSidebar({ project, onOpenAI, onOpenSession }: Props) {
           The selected agent runs through the Toph server with access to <code>{project.root}</code>.
         </p>
       </div>
-      <Button className="ghost small agent-new-chat" onClick={onOpenAI}>
+      <Button className="ghost small agent-new-chat" onClick={onNewSession}>
         <Bot size={14} /> New agent chat
       </Button>
     </div>

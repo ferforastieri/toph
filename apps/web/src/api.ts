@@ -156,6 +156,7 @@ export interface VersionInfo {
 export interface UpdateStatus {
   currentVersion: string;
   latestVersion: string;
+  apkUrl?: string;
   available: boolean;
   supported: boolean;
   busy: boolean;

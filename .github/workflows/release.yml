@@ -139,6 +139,7 @@ jobs:
           npm run sync-brand
           npm run tauri -- android init
           npm run icons
+          npm run android:patch
           node scripts/configure-android-signing.mjs
           npm run tauri -- android build --apk --target aarch64 --config "{\"version\":\"${TOPH_VERSION_NAME}\"}"
           APK=$(find src-tauri/gen/android/app/build/outputs/apk -name 'app-universal-release.apk' -print -quit)

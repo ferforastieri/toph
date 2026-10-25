@@ -69,6 +69,7 @@ jobs:
           npm run sync-brand
           npm run tauri -- android init
           npm run icons
+          npm run android:patch
 
       - name: Build Tauri Android debug APK
         run: |
