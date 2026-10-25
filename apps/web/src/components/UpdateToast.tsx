@@ -61,7 +61,7 @@ export default function UpdateToast() {
     } catch (err) {
       // A dropped response can mean the service is already restarting. Only
       // stop immediately for an explicit API rejection.
-      if (err instanceof ApiError && err.status < 500) {
+      if (err instanceof ApiError) {
         setPhase("error");
         setError(err.message);
         return;
