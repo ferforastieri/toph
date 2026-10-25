@@ -6,6 +6,8 @@ use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
 use std::time::Duration;
+#[cfg(desktop)]
+use tauri::menu::{MenuBuilder, MenuItemBuilder, SubmenuBuilder};
 use tauri::{Manager, RunEvent, State};
 use url::Url;
 
@@ -21,6 +23,7 @@ struct ServerInfo {
 #[derive(Default)]
 struct LocalState {
     child: Mutex<Option<Child>>,
+    launcher_url: Mutex<Option<Url>>,
 }
 
 fn normalize_server(raw: &str) -> Result<Url, String> {
@@ -117,6 +120,27 @@ fn navigate_main(app: &tauri::AppHandle, url: Url) -> Result<(), String> {
         .ok_or_else(|| "Janela principal não encontrada.".to_string())?;
     main.navigate(url)
         .map_err(|err| format!("Não foi possível abrir o servidor: {err}"))
+}
+
+#[cfg(desktop)]
+fn show_launcher(app: &tauri::AppHandle) -> Result<(), String> {
+    let state = app
+        .try_state::<LocalState>()
+        .ok_or_else(|| "Estado do cliente não encontrado.".to_string())?;
+    if let Ok(mut child) = state.child.lock() {
+        if let Some(mut process) = child.take() {
+            kill_child(&mut process);
+        }
+    }
+    let launcher = state
+        .launcher_url
+        .lock()
+        .ok()
+        .and_then(|url| url.clone())
+        .ok_or_else(|| "Endereço do launcher não encontrado.".to_string())?;
+    let mut launcher = launcher;
+    launcher.query_pairs_mut().append_pair("change", "1");
+    navigate_main(app, launcher)
 }
 
 #[tauri::command]
@@ -474,15 +498,61 @@ fn is_mobile() -> bool {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let app = tauri::Builder::default()
+    let builder = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .manage(LocalState::default())
+        .setup(|app| {
+            if let Some(main) = app.get_webview_window("main") {
+                if let Ok(url) = main.url() {
+                    if let Some(state) = app.try_state::<LocalState>() {
+                        if let Ok(mut slot) = state.launcher_url.lock() {
+                            *slot = Some(url);
+                        }
+                    }
+                }
+            }
+
+            #[cfg(desktop)]
+            {
+                let change_server = MenuItemBuilder::with_id("change-server", "Trocar servidor")
+                    .accelerator("CmdOrCtrl+Shift+L")
+                    .build(app)?;
+                let quit = MenuItemBuilder::with_id("quit", "Sair")
+                    .accelerator("CmdOrCtrl+Q")
+                    .build(app)?;
+                let menu = MenuBuilder::new(app)
+                    .item(
+                        &SubmenuBuilder::new(app, "Toph")
+                            .item(&change_server)
+                            .separator()
+                            .item(&quit)
+                            .build()?,
+                    )
+                    .build()?;
+                app.set_menu(menu)?;
+            }
+
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             validate_server,
             open_server,
             start_local_server,
             is_mobile
-        ])
+        ]);
+
+    #[cfg(desktop)]
+    let builder = builder.on_menu_event(|app, event| {
+        if event.id() == "change-server" {
+            if let Err(err) = show_launcher(app) {
+                eprintln!("toph: could not show launcher: {err}");
+            }
+        } else if event.id() == "quit" {
+            app.exit(0);
+        }
+    });
+
+    let app = builder
         .build(tauri::generate_context!())
         .expect("error while building Toph Client");
 

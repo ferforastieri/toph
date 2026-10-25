@@ -1,5 +1,6 @@
 import { FormEvent, useState, type ReactNode } from "react";
 import {
+  Gem,
   GitBranch,
   HardDrive,
   Info,
@@ -78,6 +79,7 @@ const themes: Array<{ id: ThemePreference; label: string; icon: typeof Sun }> = 
   { id: "dark", label: "Dark", icon: Moon },
   { id: "light", label: "Light", icon: Sun },
   { id: "brand", label: "Brand", icon: Palette },
+  { id: "emerald", label: "Emerald", icon: Gem },
   { id: "nightwolf", label: "Night Wolf", icon: Moon },
 ];
 

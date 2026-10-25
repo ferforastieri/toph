@@ -84,6 +84,29 @@ export default function TerminalPanel({ project }: Props) {
             brightCyan: "#8AD8FF",
             brightWhite: "#FFFFFF",
           }
+        : resolved === "emerald"
+        ? {
+            background: "#041310",
+            foreground: "#E7FFF7",
+            cursor: primary,
+            selectionBackground: "#174035",
+            black: "#041310",
+            red: "#FF7D8A",
+            green: "#43E6A0",
+            yellow: "#F6C96B",
+            blue: "#2DD4BF",
+            magenta: "#C4B5FD",
+            cyan: "#67E8F9",
+            white: "#E7FFF7",
+            brightBlack: "#426B60",
+            brightRed: "#FF9AA4",
+            brightGreen: "#6CF2B7",
+            brightYellow: "#FFD98A",
+            brightBlue: "#5EEAD4",
+            brightMagenta: "#DDD6FE",
+            brightCyan: "#A5F3FC",
+            brightWhite: "#FFFFFF",
+          }
         : resolved === "nightwolf"
         ? {
             background: "#000000",

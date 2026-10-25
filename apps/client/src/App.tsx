@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 
@@ -9,32 +9,103 @@ interface ServerInfo {
   buildId?: string;
 }
 
-const RECENT_KEY = "toph_desktop_recent_servers";
+const SERVER_KEY = "toph_desktop_server";
+const LEGACY_RECENT_KEY = "toph_desktop_recent_servers";
 const LOCAL_WORKSPACE_KEY = "toph_desktop_local_workspace";
+
+function mobileUserAgent(): boolean {
+  return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+}
+
+function readSavedServer(): string {
+  try {
+    const saved = localStorage.getItem(SERVER_KEY)?.trim();
+    if (saved) {
+      localStorage.removeItem(LEGACY_RECENT_KEY);
+      return saved;
+    }
+    const legacy = localStorage.getItem(LEGACY_RECENT_KEY);
+    if (legacy) {
+      const parsed = JSON.parse(legacy) as unknown;
+      const first = Array.isArray(parsed)
+        ? parsed.find((item): item is string => typeof item === "string" && item.trim().length > 0)
+        : null;
+      localStorage.removeItem(LEGACY_RECENT_KEY);
+      if (first) {
+        localStorage.setItem(SERVER_KEY, first);
+        return first;
+      }
+    }
+  } catch {
+    // Ignore malformed local state.
+  }
+  return "";
+}
+
+function mobileTarget(baseUrl: string): string {
+  const target = new URL(`${baseUrl.replace(/\/$/, "")}/app/`);
+  target.searchParams.set("mobile", "1");
+  target.searchParams.set("server", baseUrl);
+  return target.toString();
+}
 
 export default function App() {
   const [url, setUrl] = useState("");
-  const [recent, setRecent] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
-  const [mobile, setMobile] = useState(() => /Android|iPhone|iPad|iPod/i.test(navigator.userAgent));
+  const [mobile, setMobile] = useState(mobileUserAgent);
+  const bootStarted = useRef(false);
 
   useEffect(() => {
-    invoke<boolean>("is_mobile").then(setMobile).catch(() => undefined);
-    try {
-      const raw = localStorage.getItem(RECENT_KEY);
-      if (raw) setRecent(JSON.parse(raw).filter((item: unknown) => typeof item === "string"));
-    } catch {
-      // Ignore malformed local state.
-    }
-  }, []);
+    if (bootStarted.current) return;
+    bootStarted.current = true;
 
-  function remember(baseUrl: string) {
-    const next = [baseUrl, ...recent.filter((item) => item !== baseUrl)].slice(0, 5);
-    setRecent(next);
-    localStorage.setItem(RECENT_KEY, JSON.stringify(next));
-  }
+    void (async () => {
+      const isMobile = await invoke<boolean>("is_mobile").catch(() => mobileUserAgent());
+      setMobile(isMobile);
+
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("change") === "1") {
+        localStorage.removeItem(SERVER_KEY);
+        localStorage.removeItem(LEGACY_RECENT_KEY);
+        params.delete("change");
+        const query = params.toString();
+        window.history.replaceState(
+          null,
+          "",
+          `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`,
+        );
+        return;
+      }
+
+      const saved = readSavedServer();
+      if (!saved) return;
+      setUrl(saved);
+      const navigationType = (
+        performance.getEntriesByType?.("navigation")[0] as PerformanceNavigationTiming | undefined
+      )?.type;
+      if (navigationType === "back_forward") return;
+      setBusy(true);
+      setStatus("Reconectando ao último servidor...");
+      try {
+        const info = await invoke<ServerInfo>("validate_server", { url: saved });
+        localStorage.setItem(SERVER_KEY, info.baseUrl);
+        setStatus(`${info.name} ${info.version} encontrado. Abrindo...`);
+        if (isMobile) {
+          window.location.assign(mobileTarget(info.baseUrl));
+          return;
+        }
+        await invoke("open_server", { url: info.baseUrl });
+        setStatus("");
+      } catch (err) {
+        setStatus("");
+        setError(err instanceof Error ? err.message : String(err));
+      } finally {
+        setBusy(false);
+      }
+    })();
+  }, []);
 
   async function connect(event: FormEvent) {
     event.preventDefault();
@@ -45,13 +116,10 @@ export default function App() {
     setStatus("Verificando servidor...");
     try {
       const info = await invoke<ServerInfo>("validate_server", { url: value });
+      localStorage.setItem(SERVER_KEY, info.baseUrl);
       setStatus(`${info.name} ${info.version} encontrado. Abrindo...`);
-      remember(info.baseUrl);
       if (mobile) {
-        const target = new URL(`${info.baseUrl.replace(/\/$/, "")}/app/`);
-        target.searchParams.set("mobile", "1");
-        target.searchParams.set("server", info.baseUrl);
-        window.location.assign(target.toString());
+        window.location.assign(mobileTarget(info.baseUrl));
         return;
       }
       await invoke("open_server", { url: info.baseUrl });
@@ -88,6 +156,10 @@ export default function App() {
     }
 
     localStorage.setItem(LOCAL_WORKSPACE_KEY, workspace);
+    // A local workspace gets an ephemeral loopback port. Starting the app again
+    // should show the launcher instead of trying to reconnect to an old port.
+    localStorage.removeItem(SERVER_KEY);
+    localStorage.removeItem(LEGACY_RECENT_KEY);
     setStatus("Preparando modo local...");
     try {
       await invoke("start_local_server", { workspace });
@@ -106,7 +178,7 @@ export default function App() {
       <div className="ambient ambient-two" />
       <section className="launcher">
         <header className="brand">
-          <img src="/toph-mark.png" alt="" />
+          <img src="/toph-app-icon.png" alt="" />
           <div>
             <h1>Toph</h1>
             <p>{mobile ? "Seu workbench, no seu servidor." : "Seu workbench, no servidor ou neste computador."}</p>
@@ -135,16 +207,6 @@ export default function App() {
               {busy ? "Conectando..." : "Conectar"}
             </button>
           </form>
-          {recent.length > 0 && (
-            <div className="recent">
-              <span>Recentes</span>
-              {recent.map((item) => (
-                <button key={item} type="button" className="recent-item" onClick={() => setUrl(item)}>
-                  {item.replace(/^https?:\/\//, "")}
-                </button>
-              ))}
-            </div>
-          )}
         </div>
 
         {!mobile && (

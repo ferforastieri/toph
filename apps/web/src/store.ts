@@ -46,6 +46,39 @@ export interface Toast {
   message: string;
 }
 
+const PROJECT_STATE_KEY = "toph_workbench_projects";
+
+interface PersistedProjectState {
+  activeProjectId: string | null;
+  openProjectIds: string[];
+}
+
+function readProjectState(): PersistedProjectState {
+  try {
+    const raw = localStorage.getItem(PROJECT_STATE_KEY);
+    if (!raw) return { activeProjectId: null, openProjectIds: [] };
+    const value = JSON.parse(raw) as Partial<PersistedProjectState>;
+    return {
+      activeProjectId: typeof value.activeProjectId === "string" ? value.activeProjectId : null,
+      openProjectIds: Array.isArray(value.openProjectIds)
+        ? value.openProjectIds.filter((id): id is string => typeof id === "string")
+        : [],
+    };
+  } catch {
+    return { activeProjectId: null, openProjectIds: [] };
+  }
+}
+
+function persistProjectState(activeProjectId: string | null, openProjectIds: string[]): void {
+  try {
+    localStorage.setItem(PROJECT_STATE_KEY, JSON.stringify({ activeProjectId, openProjectIds }));
+  } catch {
+    // Storage can be unavailable in hardened browser contexts.
+  }
+}
+
+const initialProjectState = readProjectState();
+
 interface AppState {
   user: User | null;
   authReady: boolean;
@@ -92,8 +125,8 @@ export const useApp = create<AppState>((set, get) => ({
   user: null,
   authReady: false,
   projects: [],
-  activeProjectId: null,
-  openProjectIds: [],
+  activeProjectId: initialProjectState.activeProjectId,
+  openProjectIds: initialProjectState.openProjectIds,
   tabs: [],
   activeTabId: null,
   sidebar: "files",
@@ -119,16 +152,18 @@ export const useApp = create<AppState>((set, get) => ({
       if (activeProjectId && !openProjectIds.includes(activeProjectId)) {
         openProjectIds.push(activeProjectId);
       }
+      persistProjectState(activeProjectId, openProjectIds);
       return { projects, activeProjectId, openProjectIds };
     }),
   setActiveProject: (activeProjectId) =>
-    set((state) => ({
-      activeProjectId,
-      openProjectIds:
+    set((state) => {
+      const openProjectIds =
         activeProjectId && !state.openProjectIds.includes(activeProjectId)
           ? [...state.openProjectIds, activeProjectId]
-          : state.openProjectIds,
-    })),
+          : state.openProjectIds;
+      persistProjectState(activeProjectId, openProjectIds);
+      return { activeProjectId, openProjectIds };
+    }),
   closeProjectTab: (id) =>
     set((state) => {
       const index = state.openProjectIds.indexOf(id);
@@ -140,6 +175,7 @@ export const useApp = create<AppState>((set, get) => ({
       }
       const terminalIds = { ...state.terminalIds };
       delete terminalIds[id];
+      persistProjectState(activeProjectId, openProjectIds);
       return { openProjectIds, activeProjectId, terminalIds };
     }),
   openTab: (tab) =>

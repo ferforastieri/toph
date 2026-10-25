@@ -8,7 +8,6 @@ import {
   MonitorSmartphone,
   TerminalSquare,
 } from "lucide-react";
-import BrandMark from "@toph/brand";
 
 const features = [
   {
@@ -48,7 +47,7 @@ export default function Landing() {
     <main className="landing">
       <nav className="landing-nav">
         <a className="landing-brand" href="/">
-          <BrandMark size="small" />
+          <img className="landing-logo" src={`${import.meta.env.BASE_URL}brand/toph-logo-horizontal.png`} alt="Toph" />
         </a>
         <div className="landing-links">
           <a href="#features">Features</a>

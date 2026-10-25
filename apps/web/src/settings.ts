@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { create } from "zustand";
 
-export type ThemePreference = "auto" | "dark" | "light" | "brand" | "nightwolf";
-export type ResolvedTheme = "dark" | "light" | "brand" | "nightwolf";
+export type ThemePreference = "auto" | "dark" | "light" | "brand" | "emerald" | "nightwolf";
+export type ResolvedTheme = "dark" | "light" | "brand" | "emerald" | "nightwolf";
 export type IconTheme = "toph" | "material" | "outline" | "vivid";
 export type Accent = "jade" | "ocean" | "violet" | "amber" | "rose" | "graphite";
 export type GlassLevel = "off" | "subtle" | "regular" | "strong";
@@ -41,7 +41,7 @@ export interface SettingsState extends AppearanceSettings {
 const STORAGE_KEY = "toph_appearance";
 
 export const defaultSettings: AppearanceSettings = {
-  theme: "brand",
+  theme: "emerald",
   accent: "jade",
   glass: "regular",
   background: "aurora",
@@ -63,7 +63,7 @@ export const defaultSettings: AppearanceSettings = {
   gitCommitPattern: "{task} {summary}",
 };
 
-const themes: ThemePreference[] = ["auto", "dark", "light", "brand", "nightwolf"];
+const themes: ThemePreference[] = ["auto", "dark", "light", "brand", "emerald", "nightwolf"];
 const iconThemes: IconTheme[] = ["toph", "material", "outline", "vivid"];
 const accents: Accent[] = ["jade", "ocean", "violet", "amber", "rose", "graphite"];
 const glassLevels: GlassLevel[] = ["off", "subtle", "regular", "strong"];

@@ -1,10 +1,13 @@
 TOPH — PALETA DE CORES
 
-Background: #080B12
-Surface: #1A1F2E
-Border: #2A3147
-Text: #DCE4F7
-Accent: #7C9BFF
-Accent Dark: #4F46E5
+Background: #041310
+Surface: #0A201B
+Surface 2: #0F2B25
+Border: #174035
+Text: #E7FFF7
+Muted: #7FB3A3
+Accent: #43E6A0
+Accent 2: #2DD4BF
+Accent 3: #22D3EE
 
 Tipografia sugerida: Inter ou Montserrat
