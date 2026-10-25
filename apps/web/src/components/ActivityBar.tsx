@@ -3,12 +3,12 @@ import {
   Files,
   GitBranch,
   Globe2,
-  Settings,
   Sparkles,
   TerminalSquare,
 } from "lucide-react";
 import { useApp, type Sidebar } from "../store";
 import { Button } from "@toph/ui";
+import AvatarMenu from "./AvatarMenu";
 
 const items: Array<{ id: Sidebar; label: string; icon: typeof Files }> = [
   { id: "files", label: "Explorer", icon: Files },
@@ -24,6 +24,7 @@ export default function ActivityBar({ onOpenAI }: { onOpenAI: () => void }) {
   const toggleTerminal = useApp((state) => state.toggleTerminal);
   const terminalOpen = useApp((state) => state.terminalOpen);
   const aiPanelOpen = useApp((state) => state.aiPanelOpen);
+  const user = useApp((state) => state.user);
 
   return (
     <nav className="activity-bar" aria-label="Primary">
@@ -53,13 +54,12 @@ export default function ActivityBar({ onOpenAI }: { onOpenAI: () => void }) {
         </Button>
       </div>
       <div className="activity-bottom">
-        <Button
-          className={`activity-button ${sidebar === "settings" ? "active" : ""}`}
-          title="Settings"
-          onClick={() => setSidebar("settings")}
-        >
-          <Settings size={21} strokeWidth={1.7} />
-        </Button>
+        <AvatarMenu
+          user={user}
+          variant="activity"
+          active={sidebar === "settings"}
+          onSettings={() => setSidebar("settings")}
+        />
       </div>
     </nav>
   );
