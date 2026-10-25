@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Boxes, Check, ChevronDown, FolderPlus, GitBranch, Globe2, Plus, Search, Settings2, TerminalSquare, X } from "lucide-react";
+import { Boxes, Check, ChevronDown, FolderPlus, GitBranch, Globe2, Plus, Settings2, TerminalSquare, X } from "lucide-react";
 import { api, type Repository, type SchemaTable, type WebTarget } from "../api";
 import { basename, quoteIdentifier } from "../lib";
 import { useApp, type Sidebar, type Tab } from "../store";
@@ -9,9 +9,7 @@ import MobileNav from "./MobileNav";
 import Tabs from "./Tabs";
 import Toasts from "./Toasts";
 import RepoPicker from "./RepoPicker";
-import QuickOpen from "./QuickOpen";
 import FileTree from "../panels/FileTree";
-import SearchPanel from "../panels/SearchPanel";
 import SourceControlPanel from "../panels/SourceControlPanel";
 import DatabasesPanel from "../panels/DatabasesPanel";
 import AiSidebar from "../panels/AiSidebar";
@@ -62,6 +60,7 @@ export default function Workbench() {
   const [mobilePanelOpen, setMobilePanelOpen] = useState(false);
   const [projectsSheetOpen, setProjectsSheetOpen] = useState(false);
   const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
+  const [searchFocusToken, setSearchFocusToken] = useState(0);
   const loadedProject = useRef<string | null>(null);
   const mobile = document.documentElement.classList.contains("mobile-client");
 
@@ -74,18 +73,34 @@ export default function Workbench() {
   }, [loadAI, loadModels]);
 
   useEffect(() => {
-    if (!mobile) return;
     const onKey = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "p") {
+        event.preventDefault();
+        setSidebar("scm");
+        if (mobile) {
+          setMobilePanelOpen(true);
+          setProjectsSheetOpen(false);
+          setMobileMoreOpen(false);
+          setAiPanelOpen(false);
+          setTerminalOpen(false);
+        }
+        setSearchFocusToken((current) => current + 1);
+        return;
+      }
+      if (event.key !== "Escape" || !mobile) return;
       setMobilePanelOpen(false);
       setProjectsSheetOpen(false);
       setMobileMoreOpen(false);
       setAiPanelOpen(false);
       setTerminalOpen(false);
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [mobile, setAiPanelOpen, setTerminalOpen]);
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [mobile, setAiPanelOpen, setSidebar, setTerminalOpen]);
+
+  useEffect(() => {
+    setSearchFocusToken(0);
+  }, [activeProjectId]);
 
   useEffect(() => {
     api
@@ -127,7 +142,10 @@ export default function Workbench() {
           restored.map((tab) => ({ ...tab, projectId: activeProjectId })),
           typeof layout.activeTabId === "string" ? layout.activeTabId : null,
         );
-        if (layout.sidebar) setSidebar(layout.sidebar as Sidebar);
+        if (layout.sidebar) {
+          const savedSidebar = layout.sidebar === "search" ? "scm" : layout.sidebar;
+          setSidebar(savedSidebar as Sidebar);
+        }
         setTerminalOpen(Boolean(layout.terminalOpen));
         loadedProject.current = activeProjectId;
       })
@@ -530,7 +548,7 @@ export default function Workbench() {
           {mobile && mobilePanelOpen && (
             <div className="mobile-panel-head">
               <strong>
-                {sidebar === "settings" ? "Configurações" : sidebar === "files" ? "Arquivos" : sidebar === "search" ? "Busca" : sidebar === "scm" ? "Git" : sidebar === "db" ? "Bancos" : sidebar === "ai" ? "Agente" : "Web"}
+                {sidebar === "settings" ? "Configurações" : sidebar === "files" ? "Arquivos" : sidebar === "scm" ? "Git" : sidebar === "db" ? "Bancos" : sidebar === "ai" ? "Agente" : "Web"}
               </strong>
               <Button className="icon-button" onClick={() => setMobilePanelOpen(false)} aria-label="Fechar painel">
                 <X size={16} />
@@ -538,8 +556,14 @@ export default function Workbench() {
             </div>
           )}
           {project && sidebar === "files" && <FileTree project={project} onOpenFile={openFile} />}
-          {project && sidebar === "search" && <SearchPanel project={project} onOpenFile={openFile} />}
-          {project && sidebar === "scm" && <SourceControlPanel project={project} onOpenDiff={openDiff} />}
+          {project && sidebar === "scm" && (
+            <SourceControlPanel
+              project={project}
+              onOpenDiff={openDiff}
+              onOpenFile={openFile}
+              searchFocusToken={searchFocusToken}
+            />
+          )}
           {project && sidebar === "db" && <DatabasesPanel project={project} onOpenQuery={openQuery} onOpenTable={openTable} />}
           {project && sidebar === "ai" && <AiSidebar project={project} onNewSession={newAiSession} onOpenSession={openAiSession} />}
           {project && sidebar === "web" && <WebSidebar onOpenWeb={openWeb} />}
@@ -706,13 +730,9 @@ export default function Workbench() {
               </Button>
             </div>
             <div className="mobile-more-list">
-              <button type="button" onClick={() => { setMobileMoreOpen(false); openMobileSidebar("search"); }}>
-                <span className="mobile-more-icon"><Search size={18} /></span>
-                <span><strong>Busca</strong><small>Procurar no projeto</small></span>
-              </button>
               <button type="button" onClick={() => { setMobileMoreOpen(false); openMobileSidebar("scm"); }}>
                 <span className="mobile-more-icon"><GitBranch size={18} /></span>
-                <span><strong>Git</strong><small>Diff, stage e commits</small></span>
+                <span><strong>Git</strong><small>Busca, diff e commits</small></span>
               </button>
               <button type="button" onClick={() => { setMobileMoreOpen(false); openMobileSidebar("web"); }}>
                 <span className="mobile-more-icon"><Globe2 size={18} /></span>
@@ -744,7 +764,6 @@ export default function Workbench() {
       {showRepoPicker && (
         <RepoPicker onClose={() => setShowRepoPicker(false)} onOpen={openRepo} />
       )}
-      {project && <QuickOpen project={project} onOpenFile={openFile} />}
       <Toasts />
     </div>
   );

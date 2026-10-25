@@ -333,7 +333,12 @@ func (s *Service) Search(ctx context.Context, root, query string, maxResults int
 
 func (s *Service) searchRipgrep(ctx context.Context, root, query string, maxResults int) ([]Match, error) {
 	cmd := exec.CommandContext(ctx, "rg", "-n", "--no-heading", "--color", "never",
-		"--hidden", "--glob", "!.git/**", "--glob", "!node_modules/**",
+		"--hidden",
+		"--glob", "!.git/**", "--glob", "!**/.git/**",
+		"--glob", "!node_modules/**", "--glob", "!**/node_modules/**",
+		"--glob", "!dist/**", "--glob", "!**/dist/**",
+		"--glob", "!build/**", "--glob", "!**/build/**",
+		"--glob", "!target/**", "--glob", "!**/target/**",
 		"--max-count", "20", "--", query)
 	cmd.Dir = root
 	out, err := cmd.Output()
@@ -485,7 +490,12 @@ func (s *Service) Files(ctx context.Context, root, query string, limit int) ([]s
 		limit = 80
 	}
 	needle := strings.ToLower(strings.TrimSpace(query))
-	cmd := exec.CommandContext(ctx, "rg", "--files", "--hidden", "--glob", "!.git/**", "--glob", "!node_modules/**", "--glob", "!dist/**", "--glob", "!build/**")
+	cmd := exec.CommandContext(ctx, "rg", "--files", "--hidden",
+		"--glob", "!.git/**", "--glob", "!**/.git/**",
+		"--glob", "!node_modules/**", "--glob", "!**/node_modules/**",
+		"--glob", "!dist/**", "--glob", "!**/dist/**",
+		"--glob", "!build/**", "--glob", "!**/build/**",
+		"--glob", "!target/**", "--glob", "!**/target/**")
 	cmd.Dir = root
 	out, err := cmd.Output()
 	files := make([]string, 0, limit)

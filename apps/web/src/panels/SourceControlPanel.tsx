@@ -8,11 +8,14 @@ import { useApp } from "../store";
 import { useAI } from "../ai";
 import { Button } from "@toph/ui";
 import FileIcon from "../ui/FileIcon";
+import ProjectSearch from "../components/ProjectSearch";
 import { useConfirm } from "@toph/ui";
 
 interface Props {
   project: Project;
   onOpenDiff: (path: string, staged: boolean) => void;
+  onOpenFile: (path: string, line?: number) => void;
+  searchFocusToken?: number;
 }
 
 interface Change {
@@ -56,7 +59,7 @@ function statusLabel(change: Change): string {
   return change.worktree.trim() || "M";
 }
 
-export default function SourceControlPanel({ project, onOpenDiff }: Props) {
+export default function SourceControlPanel({ project, onOpenDiff, onOpenFile, searchFocusToken }: Props) {
   const notify = useApp((state) => state.notify);
   const user = useApp((state) => state.user);
   const aiConfig = useAI((state) => state.config);
@@ -254,6 +257,11 @@ export default function SourceControlPanel({ project, onOpenDiff }: Props) {
           <RefreshCw size={14} />
         </Button>
       </div>
+      <ProjectSearch
+        project={project}
+        onOpenFile={onOpenFile}
+        focusToken={searchFocusToken}
+      />
       <div className="scm-branch">
         <GitBranch size={13} />
         <span>{parsed.branch || "detached"}</span>

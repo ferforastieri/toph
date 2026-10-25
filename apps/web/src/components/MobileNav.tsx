@@ -26,7 +26,7 @@ export default function MobileNav({
   onMore,
 }: Props) {
   const moreActive =
-    terminalOpen || (panelOpen && ["search", "scm", "web", "settings"].includes(sidebar));
+    terminalOpen || (panelOpen && ["scm", "web", "settings"].includes(sidebar));
   return (
     <nav className="mobile-nav" aria-label="Navegação principal">
       {items.map(({ id, label, icon: Icon }) => {
