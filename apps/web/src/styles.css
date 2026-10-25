@@ -1878,7 +1878,7 @@ a:focus-visible {
     0 8px 20px color-mix(in srgb, var(--primary) 10%, transparent);
 }
 
-.brand-mark.small { width: 28px; height: 28px; border-radius: calc(var(--radius) * 0.45); font-size: 14px; }
+.brand-mark.small { width: 30px; height: 30px; border-radius: calc(var(--radius) * 0.45); font-size: 14px; }
 .brand-mark.large { width: 62px; height: 62px; border-radius: calc(var(--radius) * 0.95); font-size: 33px; }
 
 .project-switcher select {
@@ -2995,6 +2995,9 @@ a.icon-button {
 .brand-mark { padding: 0; overflow: hidden; background: transparent; }
 .brand-mark img { width: 100%; height: 100%; display: block; object-fit: contain; object-position: center; }
 
+.login-panel .brand-mark { width: 46px; height: 46px; }
+.login-panel .brand { gap: 12px; }
+
 /* Brand palette theme */
 html[data-theme="brand"] {
   color-scheme: dark;
@@ -3037,6 +3040,52 @@ html[data-theme="brand"] {
   --surface-rgb: 17, 22, 37;
   --text-rgb: 220, 228, 247;
   --accent-rgb: 124, 155, 255;
+}
+
+/* Emerald — the mint/cyan Toph identity */
+html[data-theme="emerald"] {
+  color-scheme: dark;
+  --bg: #041310;
+  --chrome: rgba(5, 22, 18, 0.82);
+  --surface: #0a201b;
+  --surface-2: #0f2b25;
+  --surface-hover: #14382f;
+  --elevated: #153d33;
+  --input-bg: #041310;
+  --editor-bg: #041310;
+  --border: #174035;
+  --border-soft: #0f2f27;
+  --border-faint: #0b2922;
+  --line: #174035;
+  --line-strong: #2a5b4e;
+  --text: #e7fff7;
+  --text-strong: #f7fffc;
+  --text-soft: #b6e3d5;
+  --muted: #7fb3a3;
+  --muted-2: #5c8b7e;
+  --muted-3: #426b60;
+  --primary: #43e6a0;
+  --primary-hover: #6cf2b7;
+  --primary-pressed: #22c987;
+  --primary-soft: rgba(67, 230, 160, 0.14);
+  --on-primary: #03211a;
+  --secondary: #2dd4bf;
+  --info: #67e8f9;
+  --success: #7bf0a8;
+  --warning: #f6c96b;
+  --error: #ff7d8a;
+  --shadow: 0 24px 70px rgba(0, 0, 0, 0.58);
+  --shadow-soft: 0 8px 28px rgba(0, 0, 0, 0.28);
+  --glass-border: rgba(67, 230, 160, 0.22);
+  --glass-highlight: rgba(231, 255, 247, 0.28);
+  --glass-shadow: 0 24px 70px rgba(0, 0, 0, 0.58);
+  --ambient-1: rgba(67, 230, 160, 0.2);
+  --ambient-2: rgba(34, 211, 238, 0.14);
+  --ambient-3: rgba(45, 212, 191, 0.12);
+  --selection: rgba(67, 230, 160, 0.22);
+  --surface-rgb: 10, 32, 27;
+  --text-rgb: 231, 255, 247;
+  --accent-rgb: 67, 230, 160;
 }
 
 /* Night Wolf Black — colors from MaoSantaella.night-wolf */

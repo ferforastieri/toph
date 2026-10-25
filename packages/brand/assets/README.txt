@@ -1,21 +1,24 @@
 TOPH — BRAND KIT
 ================
 
-Identidade visual baseada no símbolo de lobo escolhido e na estética escura inspirada no Night Wolf Black.
+Identidade visual orbital em verde-menta e ciano, sobre verde profundo.
+O símbolo representa um único ambiente conectando código, dados e agentes.
 
 Pastas:
-- logo/: logo vertical, horizontal e variações monocromáticas em PNG transparente.
-- favicon/: favicons PNG de 16, 32, 48 e 64 px.
+- logo/: símbolo, wordmark, logos horizontal/vertical e variações monocromáticas em PNG transparente.
+- favicon/: favicons PNG de 16, 32, 48 e 64 px e favicon.ico.
 - app-icons/: ícones PNG de 128, 256, 512 e 1024 px.
-- banner/: banners escuros em 1920x1080 e 1500x500.
-- brand/: paleta de cores.
+- banner/: banners 1920x640, 1500x500 e imagem Open Graph 1200x630.
+- generated/: arquivos prontos para sincronização com web, landing e cliente.
 
 Cores:
-Background #080B12
-Surface #1A1F2E
-Border #2A3147
-Text #DCE4F7
-Accent #7C9BFF
-Accent Dark #4F46E5
+Background #041310
+Surface #0A201B
+Border #174035
+Text #E7FFF7
+Accent #43E6A0
+Accent 2 #2DD4BF
+Accent 3 #22D3EE
 
-Observação: os PNGs foram preparados a partir da referência visual enviada; por isso, a origem pequena limita a nitidez do traço em ampliações extremas. Os arquivos estão prontos para uso e podem ser refinados em vetor posteriormente.
+Os ícones de desktop e Android são gerados a partir de apps/client/src-tauri/icons.json
+com `npm run icons --workspace @toph/client`.

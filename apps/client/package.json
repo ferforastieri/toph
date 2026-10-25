@@ -8,6 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "tauri": "tauri",
+    "icons": "tauri icon src-tauri/icons.json",
     "sync-brand": "node ../../packages/brand/scripts/sync.mjs",
     "prepare-local": "node scripts/prepare-local.mjs"
   },

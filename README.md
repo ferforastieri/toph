@@ -1,5 +1,7 @@
 # Toph
 
+![Toph](packages/brand/assets/banner/toph-banner-1500x500.png)
+
 **Toph** is a self-hosted workbench for machines you control. It brings code, databases, AI sessions and web apps into one place, with a workspace that feels close to VS Code and runs in your browser, on the desktop, or as a remote Android client.
 
 Toph is built for people who keep their own services, repositories and data on machines they control. There is no hosted account, no vendor backend and no telemetry.
@@ -30,7 +32,7 @@ The installed server does not serve the landing page or documentation. The landi
 - Switch between projects without losing the state of the current one.
 - Use the same backend from the browser, desktop app and Tauri Android client.
 - Get an in-app toast when a new web or desktop build is available.
-- Personalize the web app with light/dark/auto themes, the Toph brand palette, Night Wolf Black, accents, liquid-glass intensity, backgrounds, radius, density, sidebar width, editor and terminal typography, tab styles, and file icon themes. Drag the sidebar, agent dock and terminal edges to resize them.
+- Personalize the web app with light/dark/auto themes, the Toph brand palette, Emerald, Night Wolf Black, accents, liquid-glass intensity, backgrounds, radius, density, sidebar width, editor and terminal typography, tab styles, and file icon themes. Drag the sidebar, agent dock and terminal edges to resize them.
 
 ## Repository layout
 
@@ -131,9 +133,9 @@ service, generates the first password and starts Toph on port `8787`.
 
 ### Desktop
 
-Install the Windows or Linux package from the [latest release](https://github.com/ferforastieri/toph/releases/latest). Desktop local mode bundles the Toph server and asks for a workspace folder; server mode asks only for a URL. The local backend uses the app data directory for SQLite and its generated admin password.
+Install the Windows or Linux package from the [latest release](https://github.com/ferforastieri/toph/releases/latest). Desktop local mode bundles the Toph server and asks for a workspace folder; server mode asks only for a URL on first use and reconnects to the last server on later launches. The Toph menu opens the launcher again (`Ctrl+Shift+L`). The local backend uses the app data directory for SQLite and its generated admin password.
 
-The desktop and Android builds share `apps/client/`; Android is remote-only because Tauri mobile cannot run an external sidecar.
+The desktop and Android builds share `apps/client/`; Android is remote-only because Tauri mobile cannot run an external sidecar. Windows installers use Toph-branded NSIS and WiX artwork and metadata.
 
 ### Docker
 
@@ -155,6 +157,7 @@ For Android development, install JDK 21, Android SDK 36 and NDK 28.2, then:
 npm ci
 cd apps/client
 npm run tauri -- android init
+npm run icons
 npm run tauri -- android build --debug --apk --target aarch64
 ```
 

@@ -34,6 +34,7 @@ fmt:
 mobile:
 	npm ci
 	cd apps/client && npm run tauri -- android init
+	cd apps/client && npm run icons
 	cd apps/client && npm run tauri -- android build --debug --apk --target aarch64
 
 docker:

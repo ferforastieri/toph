@@ -98,6 +98,7 @@ jobs:
           cd apps/client
           npm run sync-brand
           npm run tauri -- android init
+          npm run icons
           node scripts/configure-android-signing.mjs
           npm run tauri -- android build --apk --target aarch64 --config "{\"version\":\"${GITHUB_REF_NAME#v}\"}"
           APK=$(find src-tauri/gen/android/app/build/outputs/apk -name 'app-universal-release.apk' -print -quit)

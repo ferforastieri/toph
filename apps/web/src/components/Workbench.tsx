@@ -371,7 +371,7 @@ export default function Workbench() {
       setShowRepoPicker(false);
       return;
     }
-    const next = await api.createProject(repo.name, repo.path, "#7C9BFF");
+    const next = await api.createProject(repo.name, repo.path, "#43E6A0");
     setActiveProject(next.id);
     setProjects([...projects, next]);
     setShowRepoPicker(false);

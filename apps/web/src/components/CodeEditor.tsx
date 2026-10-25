@@ -127,6 +127,44 @@ const brandTheme: editor.IStandaloneThemeData = {
   },
 };
 
+const emeraldTheme: editor.IStandaloneThemeData = {
+  base: "vs-dark",
+  inherit: false,
+  rules: [
+    { token: "comment", foreground: "5C8B7E", fontStyle: "italic" },
+    { token: "keyword", foreground: "43E6A0" },
+    { token: "string", foreground: "A7F3D0" },
+    { token: "number", foreground: "F6C96B" },
+    { token: "constant", foreground: "F6C96B" },
+    { token: "type", foreground: "67E8F9" },
+    { token: "function", foreground: "6CF2B7" },
+    { token: "variable", foreground: "E7FFF7" },
+    { token: "variable.parameter", foreground: "B6E3D5" },
+    { token: "entity.other.attribute-name", foreground: "5EEAD4" },
+  ],
+  colors: {
+    "editor.background": "#041310",
+    "editor.foreground": "#E7FFF7",
+    "editorLineNumber.foreground": "#426B60",
+    "editorLineNumber.activeForeground": "#7FB3A3",
+    "editorCursor.foreground": "#43E6A0",
+    "editor.selectionBackground": "#174035",
+    "editor.inactiveSelectionBackground": "#0F2F27",
+    "editor.lineHighlightBackground": "#0A201B",
+    "editorIndentGuide.background1": "#0F2F27",
+    "editorIndentGuide.activeBackground1": "#2A5B4E",
+    "editorWidget.background": "#0F2B25",
+    "editorWidget.border": "#174035",
+    "input.background": "#041310",
+    "input.border": "#174035",
+    "list.hoverBackground": "#0F2B25",
+    "list.activeSelectionBackground": "#14382F",
+    "scrollbarSlider.background": "#17403588",
+    "scrollbarSlider.hoverBackground": "#2A5B4EAA",
+    "minimap.background": "#041310",
+  },
+};
+
 const nightwolfTheme: editor.IStandaloneThemeData = {
   base: "vs-dark",
   inherit: false,
@@ -192,9 +230,11 @@ export default function CodeEditor({
     ? "toph-light"
     : resolved === "brand"
       ? "toph-brand"
-      : resolved === "nightwolf"
-        ? "toph-nightwolf"
-        : "toph-dark";
+      : resolved === "emerald"
+        ? "toph-emerald"
+        : resolved === "nightwolf"
+          ? "toph-nightwolf"
+          : "toph-dark";
   const saveRef = useRef(onSave);
   saveRef.current = onSave;
   const runRef = useRef(onRun);
@@ -215,6 +255,7 @@ export default function CodeEditor({
     monaco.editor.defineTheme("toph-dark", themed(darkTheme, true));
     monaco.editor.defineTheme("toph-light", themed(lightTheme, false));
     monaco.editor.defineTheme("toph-brand", brandTheme);
+    monaco.editor.defineTheme("toph-emerald", emeraldTheme);
     monaco.editor.defineTheme("toph-nightwolf", nightwolfTheme);
   };
 
@@ -255,6 +296,7 @@ export default function CodeEditor({
     monaco.editor.defineTheme("toph-dark", themed(darkTheme, true));
     monaco.editor.defineTheme("toph-light", themed(lightTheme, false));
     monaco.editor.defineTheme("toph-brand", brandTheme);
+    monaco.editor.defineTheme("toph-emerald", emeraldTheme);
     monaco.editor.defineTheme("toph-nightwolf", nightwolfTheme);
     monaco.editor.setTheme(themeName);
   }, [accent, resolved, themeName]);

@@ -1,9 +1,29 @@
 /* Public landing */
 .landing {
+  --bg: #041310;
+  --surface: #0a201b;
+  --surface-2: #0f2b25;
+  --elevated: #153d33;
+  --border: #174035;
+  --line-strong: #2a5b4e;
+  --text: #e7fff7;
+  --text-strong: #f7fffc;
+  --muted: #7fb3a3;
+  --muted-2: #5c8b7e;
+  --primary: #43e6a0;
+  --primary-hover: #6cf2b7;
+  --primary-pressed: #22c987;
+  --primary-soft: rgba(67, 230, 160, 0.14);
+  --on-primary: #03211a;
+  --secondary: #2dd4bf;
+  --info: #67e8f9;
+  --success: #7bf0a8;
+  --warning: #f6c96b;
+  --error: #ff7d8a;
   min-height: 100dvh;
   background:
-    radial-gradient(circle at 15% 0%, rgba(168, 198, 108, 0.12), transparent 30%),
-    radial-gradient(circle at 90% 20%, rgba(212, 162, 76, 0.08), transparent 35%),
+    radial-gradient(circle at 15% 0%, rgba(67, 230, 160, 0.12), transparent 30%),
+    radial-gradient(circle at 90% 20%, rgba(34, 211, 238, 0.08), transparent 35%),
     var(--bg);
   color: var(--text);
   overflow: hidden;
@@ -27,6 +47,12 @@
   text-decoration: none;
   letter-spacing: -0.03em;
   font-size: 16px;
+}
+
+.landing-logo {
+  display: block;
+  height: 30px;
+  width: auto;
 }
 
 .landing-links {

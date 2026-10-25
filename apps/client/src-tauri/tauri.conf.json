@@ -36,6 +36,26 @@
       "icons/icon.ico"
     ],
     "shortDescription": "Toph self-hosted workbench",
-    "longDescription": "Toph desktop client for self-hosted Toph servers and local workspaces."
+    "longDescription": "Toph desktop client for self-hosted Toph servers and local workspaces.",
+    "publisher": "Toph",
+    "copyright": "Copyright © 2026 Toph",
+    "homepage": "https://github.com/ferforastieri/toph",
+    "category": "DeveloperTool",
+    "license": "MIT",
+    "windows": {
+      "nsis": {
+        "installerIcon": "icons/icon.ico",
+        "uninstallerIcon": "icons/icon.ico",
+        "headerImage": "installer/nsis-header.bmp",
+        "uninstallerHeaderImage": "installer/nsis-uninstaller-header.bmp",
+        "sidebarImage": "installer/nsis-sidebar.bmp",
+        "installMode": "currentUser",
+        "startMenuFolder": "Toph"
+      },
+      "wix": {
+        "bannerPath": "installer/wix-banner.bmp",
+        "dialogImagePath": "installer/wix-dialog.bmp"
+      }
+    }
   }
 }
