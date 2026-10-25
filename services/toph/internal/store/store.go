@@ -397,6 +397,38 @@ func (s *Store) SetSetting(ctx context.Context, key, value string) error {
 	return err
 }
 
+func (s *Store) RegisterPushToken(ctx context.Context, token, platform string) error {
+	created := now()
+	_, err := s.db.ExecContext(ctx,
+		`INSERT INTO push_tokens (token, platform, created_at, updated_at) VALUES (?, ?, ?, ?)
+		 ON CONFLICT(token) DO UPDATE SET platform = excluded.platform, updated_at = excluded.updated_at`,
+		token, platform, created, created,
+	)
+	return err
+}
+
+func (s *Store) ListPushTokens(ctx context.Context) ([]string, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT token FROM push_tokens ORDER BY updated_at DESC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var tokens []string
+	for rows.Next() {
+		var token string
+		if err := rows.Scan(&token); err != nil {
+			return nil, err
+		}
+		tokens = append(tokens, token)
+	}
+	return tokens, rows.Err()
+}
+
+func (s *Store) DeletePushToken(ctx context.Context, token string) error {
+	_, err := s.db.ExecContext(ctx, `DELETE FROM push_tokens WHERE token = ?`, token)
+	return err
+}
+
 func isUnique(err error) bool {
 	return err != nil && (strings.Contains(err.Error(), "UNIQUE constraint") ||
 		strings.Contains(err.Error(), "constraint failed"))

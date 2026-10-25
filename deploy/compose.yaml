@@ -21,6 +21,8 @@ services:
       TOPH_BUILD_ID: ${TOPH_BUILD_ID:-}
       TOPH_OPENCODE_URL: ${TOPH_OPENCODE_URL:-http://host.docker.internal:3005}
       TOPH_OPENCODE_AUTH: ${TOPH_OPENCODE_AUTH:-}
+      TOPH_FIREBASE_CREDENTIALS_FILE: ${TOPH_FIREBASE_CREDENTIALS_FILE:-}
+      TOPH_FIREBASE_PROJECT_ID: ${TOPH_FIREBASE_PROJECT_ID:-}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:

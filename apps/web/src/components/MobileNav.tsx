@@ -1,4 +1,4 @@
-import { Database, Files, MoreHorizontal, Sparkles } from "lucide-react";
+import { Database, Files, Globe2, Sparkles, TerminalSquare } from "lucide-react";
 import type { Sidebar } from "../store";
 
 interface Props {
@@ -8,13 +8,9 @@ interface Props {
   aiPanelOpen: boolean;
   onSidebar: (sidebar: Sidebar) => void;
   onAI: () => void;
-  onMore: () => void;
+  onWeb: () => void;
+  onTerminal: () => void;
 }
-
-const items: Array<{ id: Exclude<Sidebar, "settings">; label: string; icon: typeof Files }> = [
-  { id: "files", label: "Arquivos", icon: Files },
-  { id: "db", label: "Bancos", icon: Database },
-];
 
 export default function MobileNav({
   sidebar,
@@ -23,28 +19,31 @@ export default function MobileNav({
   aiPanelOpen,
   onSidebar,
   onAI,
-  onMore,
+  onWeb,
+  onTerminal,
 }: Props) {
-  const moreActive =
-    terminalOpen || (panelOpen && ["scm", "web"].includes(sidebar));
   return (
     <nav className="mobile-nav" aria-label="Navegação principal">
-      {items.map(({ id, label, icon: Icon }) => {
-        const active = panelOpen && sidebar === id;
-        return (
-          <button
-            key={id}
-            type="button"
-            className={active ? "active" : ""}
-            aria-label={label}
-            aria-pressed={active}
-            onClick={() => onSidebar(id)}
-          >
-            <Icon size={21} strokeWidth={1.8} />
-            <span>{label}</span>
-          </button>
-        );
-      })}
+      <button
+        type="button"
+        className={panelOpen && sidebar === "files" ? "active" : ""}
+        aria-label="Arquivos"
+        aria-pressed={panelOpen && sidebar === "files"}
+        onClick={() => onSidebar("files")}
+      >
+        <Files size={21} strokeWidth={1.8} />
+        <span>Arquivos</span>
+      </button>
+      <button
+        type="button"
+        className={panelOpen && sidebar === "db" ? "active" : ""}
+        aria-label="Bancos"
+        aria-pressed={panelOpen && sidebar === "db"}
+        onClick={() => onSidebar("db")}
+      >
+        <Database size={21} strokeWidth={1.8} />
+        <span>Bancos</span>
+      </button>
       <button
         type="button"
         className={aiPanelOpen ? "active" : ""}
@@ -57,13 +56,23 @@ export default function MobileNav({
       </button>
       <button
         type="button"
-        className={moreActive ? "active" : ""}
-        aria-label="Mais opções"
-        aria-pressed={moreActive}
-        onClick={onMore}
+        className={panelOpen && sidebar === "web" ? "active" : ""}
+        aria-label="Web apps"
+        aria-pressed={panelOpen && sidebar === "web"}
+        onClick={onWeb}
       >
-        <MoreHorizontal size={22} strokeWidth={1.8} />
-        <span>Mais</span>
+        <Globe2 size={21} strokeWidth={1.8} />
+        <span>Web</span>
+      </button>
+      <button
+        type="button"
+        className={terminalOpen ? "active" : ""}
+        aria-label="Terminal"
+        aria-pressed={terminalOpen}
+        onClick={onTerminal}
+      >
+        <TerminalSquare size={21} strokeWidth={1.8} />
+        <span>Terminal</span>
       </button>
     </nav>
   );

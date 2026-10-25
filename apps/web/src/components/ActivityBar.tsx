@@ -1,7 +1,6 @@
 import {
   Database,
   Files,
-  GitBranch,
   Globe2,
   Sparkles,
   TerminalSquare,
@@ -9,16 +8,22 @@ import {
 import { useApp, type Sidebar } from "../store";
 import { Button } from "@toph/ui";
 import AvatarMenu from "./AvatarMenu";
+import NotificationBell from "./NotificationBell";
+import type { AppNotification } from "../store";
 
 const items: Array<{ id: Sidebar; label: string; icon: typeof Files }> = [
   { id: "files", label: "Explorer", icon: Files },
-  { id: "scm", label: "Source Control", icon: GitBranch },
   { id: "db", label: "Databases", icon: Database },
   { id: "ai", label: "Agent", icon: Sparkles },
   { id: "web", label: "Web apps", icon: Globe2 },
 ];
 
-export default function ActivityBar({ onOpenAI }: { onOpenAI: () => void }) {
+interface Props {
+  onOpenAI: () => void;
+  onOpenNotification: (notification: AppNotification) => void;
+}
+
+export default function ActivityBar({ onOpenAI, onOpenNotification }: Props) {
   const sidebar = useApp((state) => state.sidebar);
   const setSidebar = useApp((state) => state.setSidebar);
   const toggleTerminal = useApp((state) => state.toggleTerminal);
@@ -54,6 +59,7 @@ export default function ActivityBar({ onOpenAI }: { onOpenAI: () => void }) {
         </Button>
       </div>
       <div className="activity-bottom">
+        <NotificationBell variant="activity" onOpen={onOpenNotification} />
         <AvatarMenu
           user={user}
           variant="activity"

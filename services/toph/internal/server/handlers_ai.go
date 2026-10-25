@@ -62,6 +62,7 @@ func (s *Server) chatAI(w http.ResponseWriter, r *http.Request) {
 		apiError(w, err)
 		return
 	}
+	s.emitAIResponse()
 	writeJSON(w, http.StatusOK, map[string]string{"text": text})
 }
 

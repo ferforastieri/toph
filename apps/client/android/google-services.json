@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "984216780673",
+    "project_id": "toph-app",
+    "storage_bucket": "toph-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:984216780673:android:8433947498836641ff3280",
+        "android_client_info": {
+          "package_name": "br.com.ferforastieri.toph"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC0oajTxERDjIcg6R8m7n-M43CCVZRPqZ0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

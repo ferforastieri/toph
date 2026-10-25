@@ -46,7 +46,22 @@ export interface Toast {
   message: string;
 }
 
+export interface AppNotification {
+  id: string;
+  kind: "ai" | "system";
+  title: string;
+  body: string;
+  createdAt: number;
+  read: boolean;
+  projectId?: string;
+  tabId?: string;
+  sessionId?: string;
+}
+
+export type NewNotification = Omit<AppNotification, "id" | "createdAt" | "read">;
+
 const PROJECT_STATE_KEY = "toph_workbench_projects";
+const NOTIFICATIONS_KEY = "toph_notifications";
 
 interface PersistedProjectState {
   activeProjectId: string | null;
@@ -77,6 +92,30 @@ function persistProjectState(activeProjectId: string | null, openProjectIds: str
   }
 }
 
+function readNotifications(): AppNotification[] {
+  try {
+    const raw = localStorage.getItem(NOTIFICATIONS_KEY);
+    if (!raw) return [];
+    const value = JSON.parse(raw) as unknown;
+    if (!Array.isArray(value)) return [];
+    return value.filter((item): item is AppNotification => {
+      if (!item || typeof item !== "object") return false;
+      const candidate = item as Partial<AppNotification>;
+      return typeof candidate.id === "string" && typeof candidate.title === "string" && typeof candidate.body === "string";
+    }).slice(0, 30);
+  } catch {
+    return [];
+  }
+}
+
+function persistNotifications(items: AppNotification[]): void {
+  try {
+    localStorage.setItem(NOTIFICATIONS_KEY, JSON.stringify(items.slice(0, 30)));
+  } catch {
+    // Notifications are best effort.
+  }
+}
+
 const initialProjectState = readProjectState();
 
 interface AppState {
@@ -95,6 +134,7 @@ interface AppState {
   aiMessages: Record<string, AiMessage[]>;
   aiStreaming: Record<string, boolean>;
   toasts: Toast[];
+  notifications: AppNotification[];
   setUser: (user: User | null) => void;
   setAuthReady: (ready: boolean) => void;
   setProjects: (projects: Project[]) => void;
@@ -119,6 +159,10 @@ interface AppState {
   setAiStreaming: (tabId: string, streaming: boolean) => void;
   notify: (kind: Toast["kind"], message: string) => void;
   dismissToast: (id: number) => void;
+  addNotification: (notification: NewNotification) => void;
+  markNotificationRead: (id: string) => void;
+  markAllNotificationsRead: () => void;
+  clearNotifications: () => void;
 }
 
 export const useApp = create<AppState>((set, get) => ({
@@ -137,6 +181,7 @@ export const useApp = create<AppState>((set, get) => ({
   aiMessages: {},
   aiStreaming: {},
   toasts: [],
+  notifications: readNotifications(),
 
   setUser: (user) => set({ user }),
   setAuthReady: (authReady) => set({ authReady }),
@@ -262,4 +307,45 @@ export const useApp = create<AppState>((set, get) => ({
   },
   dismissToast: (id) =>
     set((state) => ({ toasts: state.toasts.filter((toast) => toast.id !== id) })),
+  addNotification: (notification) =>
+    set((state) => {
+      const duplicate = state.notifications.some(
+        (item) =>
+          item.kind === notification.kind &&
+          item.title === notification.title &&
+          item.body === notification.body &&
+          Date.now() - item.createdAt < 5000,
+      );
+      if (duplicate) return state;
+      const next: AppNotification[] = [
+        {
+          ...notification,
+          id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          createdAt: Date.now(),
+          read: false,
+        },
+        ...state.notifications,
+      ].slice(0, 30);
+      persistNotifications(next);
+      return { notifications: next };
+    }),
+  markNotificationRead: (id) =>
+    set((state) => {
+      const next = state.notifications.map((notification) =>
+        notification.id === id ? { ...notification, read: true } : notification,
+      );
+      persistNotifications(next);
+      return { notifications: next };
+    }),
+  markAllNotificationsRead: () =>
+    set((state) => {
+      const next = state.notifications.map((notification) => ({ ...notification, read: true }));
+      persistNotifications(next);
+      return { notifications: next };
+    }),
+  clearNotifications: () =>
+    set(() => {
+      persistNotifications([]);
+      return { notifications: [] };
+    }),
 }));

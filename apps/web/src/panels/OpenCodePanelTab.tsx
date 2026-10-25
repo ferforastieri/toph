@@ -10,6 +10,7 @@ import { Button } from "@toph/ui";
 import { AgentComposer, type AgentAttachment } from "../ui/AgentComposer";
 import AgentSessionsSheet from "../components/AgentSessionsSheet";
 import type { OpenCodeSessionSummary } from "../opencodeSessions";
+import { notifyAiResponse } from "../aiNotifications";
 
 const EMPTY_MESSAGES: AiMessage[] = [];
 
@@ -56,6 +57,7 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
   yoloRef.current = yolo;
   const bottomRef = useRef<HTMLDivElement>(null);
   const subagents = useRef(new Map<string, string>());
+  const notifyPending = useRef(false);
   const client = useMemo(() => {
     const csrf = document.cookie.match(/(?:^|;\s*)toph_csrf=([^;]+)/)?.[1] ?? "";
     return OpenCode.make({
@@ -154,6 +156,20 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
     if (!tab.sessionId) return;
     const sessionId = tab.sessionId;
     const controller = new AbortController();
+    const notifyCompletion = () => {
+      if (!notifyPending.current) return;
+      notifyPending.current = false;
+      const all = useApp.getState().aiMessages[tab.id] ?? [];
+      const last = [...all]
+        .reverse()
+        .find((message) => message.role === "assistant" && message.text.trim());
+      notifyAiResponse({
+        projectId: project.id,
+        tabId: tab.id,
+        sessionId,
+        text: last?.text,
+      });
+    };
     (async () => {
       try {
         for await (const event of client.event.subscribe({ signal: controller.signal })) {
@@ -368,15 +384,22 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
               break;
             }
             case "session.execution.started": {
+              if (!isSubagent) notifyPending.current = true;
               setStreaming(tab.id, true);
               break;
             }
             case "session.execution.succeeded":
             case "session.execution.interrupted": {
+              if (!isSubagent) {
+                notifyCompletion();
+              }
               setStreaming(tab.id, false);
               break;
             }
             case "session.execution.failed": {
+              if (!isSubagent) {
+                notifyCompletion();
+              }
               addMessage(tab.id, {
                 id: `error-${Date.now()}`,
                 role: "error",
@@ -388,11 +411,16 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
             }
             case "session.status": {
               const nextStatus = (data.status as { type?: string } | undefined)?.type;
-              if (nextStatus === "idle") setStreaming(tab.id, false);
-              else if (nextStatus === "busy") setStreaming(tab.id, true);
+              if (nextStatus === "idle") {
+                if (!isSubagent) notifyCompletion();
+                setStreaming(tab.id, false);
+              } else if (nextStatus === "busy") {
+                setStreaming(tab.id, true);
+              }
               break;
             }
             case "session.idle": {
+              if (!isSubagent) notifyCompletion();
               setStreaming(tab.id, false);
               break;
             }
@@ -406,7 +434,7 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
       }
     })();
     return () => controller.abort();
-  }, [addMessage, appendText, client, setMessages, setStreaming, tab.id, tab.sessionId, updateMessage]);
+  }, [addMessage, appendText, client, project.id, setMessages, setStreaming, tab.id, tab.sessionId, updateMessage]);
 
   function selectSession(session: OpenCodeSessionSummary) {
     setMessages(tab.id, []);
@@ -482,6 +510,7 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
       text: text || attachments.map((file) => file.name).join(", "),
       createdAt: Date.now(),
     });
+    notifyPending.current = true;
     setStreaming(tab.id, true);
     try {
       const sessionId = await ensureSession();
@@ -495,6 +524,7 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
         })),
       } as never);
     } catch (err) {
+      notifyPending.current = false;
       setStreaming(tab.id, false);
       const message = err instanceof Error ? err.message : "Could not reach OpenCode.";
       setError(message);

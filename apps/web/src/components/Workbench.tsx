@@ -1,17 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Boxes, Check, ChevronDown, FolderPlus, GitBranch, Globe2, Plus, Settings2, TerminalSquare, X } from "lucide-react";
-import { api, type Repository, type SchemaTable, type WebTarget } from "../api";
+import { ArrowLeft, Boxes, Check, ChevronDown, FolderPlus, GitBranch, Plus, Settings2, X } from "lucide-react";
+import { api, getApiBase, type Repository, type SchemaTable, type WebTarget } from "../api";
 import { basename, quoteIdentifier } from "../lib";
-import { useApp, type Sidebar, type Tab } from "../store";
+import { useApp, type AppNotification, type Sidebar, type Tab } from "../store";
 import { providerLabel, useAI } from "../ai";
+import { nativePushToken, requestMobileNotificationPermission } from "../notifications";
 import ActivityBar from "./ActivityBar";
 import AvatarMenu from "./AvatarMenu";
 import MobileNav from "./MobileNav";
+import NotificationBell from "./NotificationBell";
 import Tabs from "./Tabs";
 import Toasts from "./Toasts";
 import RepoPicker from "./RepoPicker";
-import FileTree from "../panels/FileTree";
-import SourceControlPanel from "../panels/SourceControlPanel";
+import ExplorerPanel from "../panels/ExplorerPanel";
 import DatabasesPanel from "../panels/DatabasesPanel";
 import AiSidebar from "../panels/AiSidebar";
 import WebSidebar from "../panels/WebSidebar";
@@ -61,7 +62,6 @@ export default function Workbench() {
   const [gitStatus, setGitStatus] = useState("");
   const [mobilePanelOpen, setMobilePanelOpen] = useState(false);
   const [projectsSheetOpen, setProjectsSheetOpen] = useState(false);
-  const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
   const [searchFocusToken, setSearchFocusToken] = useState(0);
   const loadedProject = useRef<string | null>(null);
   const mobile = document.documentElement.classList.contains("mobile-client");
@@ -78,11 +78,10 @@ export default function Workbench() {
     const onKey = (event: KeyboardEvent) => {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "p") {
         event.preventDefault();
-        setSidebar("scm");
+        setSidebar("files");
         if (mobile) {
           setMobilePanelOpen(true);
           setProjectsSheetOpen(false);
-          setMobileMoreOpen(false);
           setAiPanelOpen(false);
           setTerminalOpen(false);
         }
@@ -93,7 +92,6 @@ export default function Workbench() {
       if (document.querySelector(".modal-backdrop, .avatar-menu")) return;
       setMobilePanelOpen(false);
       setProjectsSheetOpen(false);
-      setMobileMoreOpen(false);
       setAiPanelOpen(false);
       setTerminalOpen(false);
     };
@@ -104,6 +102,82 @@ export default function Workbench() {
   useEffect(() => {
     setSearchFocusToken(0);
   }, [activeProjectId]);
+
+  useEffect(() => {
+    const handler = (payload: { title?: string; body?: string }) => {
+      const state = useApp.getState();
+      if (state.aiPanelOpen) return;
+      state.addNotification({
+        kind: "ai",
+        title: payload.title?.trim() || "Resposta da IA",
+        body: payload.body?.trim() || "A IA terminou de responder.",
+        projectId: state.activeProjectId ?? undefined,
+        tabId: state.aiDockTab?.id,
+        sessionId: state.aiDockTab?.sessionId,
+      });
+    };
+    (window as unknown as { __tophPush?: (payload: { title?: string; body?: string }) => void }).__tophPush = handler;
+
+    if (typeof EventSource === "undefined") {
+      return () => {
+        delete (window as unknown as { __tophPush?: (payload: { title?: string; body?: string }) => void }).__tophPush;
+      };
+    }
+    const stream = new EventSource(`${getApiBase()}/api/notifications/stream`, {
+      withCredentials: true,
+    });
+    const onAI = (event: MessageEvent) => {
+      try {
+        const payload = JSON.parse(event.data) as { title?: string; body?: string };
+        handler(payload);
+      } catch {
+        // Ignore malformed notification events.
+      }
+    };
+    stream.addEventListener("ai.done", onAI as EventListener);
+    return () => {
+      stream.removeEventListener("ai.done", onAI as EventListener);
+      stream.close();
+      delete (window as unknown as { __tophPush?: (payload: { title?: string; body?: string }) => void }).__tophPush;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!mobile) return;
+    const timer = window.setTimeout(() => requestMobileNotificationPermission(), 900);
+    let attempts = 0;
+    let stopped = false;
+    const register = async () => {
+      const token = nativePushToken();
+      if (!token || stopped) return false;
+      try {
+        await api.registerPushToken(token, "android");
+      } catch {
+        return false;
+      }
+      return true;
+    };
+    void register();
+    const poll = window.setInterval(() => {
+      attempts += 1;
+      void register().then((registered) => {
+        if ((registered || attempts > 20) && !stopped) {
+          stopped = true;
+          window.clearInterval(poll);
+        }
+      });
+    }, 2500);
+    const onToken = (token: string) => {
+      if (token) void api.registerPushToken(token, "android").catch(() => undefined);
+    };
+    (window as unknown as { __tophPushToken?: (token: string) => void }).__tophPushToken = onToken;
+    return () => {
+      stopped = true;
+      window.clearTimeout(timer);
+      window.clearInterval(poll);
+      delete (window as unknown as { __tophPushToken?: (token: string) => void }).__tophPushToken;
+    };
+  }, [mobile]);
 
   useEffect(() => {
     api
@@ -146,7 +220,10 @@ export default function Workbench() {
           typeof layout.activeTabId === "string" ? layout.activeTabId : null,
         );
         if (layout.sidebar) {
-          const savedSidebar = layout.sidebar === "search" ? "scm" : layout.sidebar;
+          const savedSidebar =
+            layout.sidebar === "search" || layout.sidebar === "scm"
+              ? "files"
+              : layout.sidebar;
           setSidebar(savedSidebar as Sidebar);
         }
         setTerminalOpen(Boolean(layout.terminalOpen));
@@ -395,6 +472,21 @@ export default function Workbench() {
     setAiPanelOpen(true);
   }
 
+  function openNotification(notification: AppNotification) {
+    if (!notification.projectId) return;
+    if (notification.projectId !== activeProjectId) setActiveProject(notification.projectId);
+    setAiDockTab({
+      id: notification.tabId ?? `ai:dock:${notification.projectId}`,
+      kind: "ai",
+      title: providerLabel(aiProvider),
+      projectId: notification.projectId,
+      sessionId: notification.sessionId,
+    });
+    if (mobile) setMobilePanelOpen(false);
+    setTerminalOpen(false);
+    setAiPanelOpen(true);
+  }
+
   function openWeb(target: WebTarget) {
     if (!project) return;
     if (mobile) setMobilePanelOpen(false);
@@ -522,12 +614,15 @@ export default function Workbench() {
           )}
         </div>
         {mobile && (
-          <AvatarMenu
-            user={user}
-            variant="titlebar"
-            active={sidebar === "settings" && mobilePanelOpen}
-            onSettings={openMobileSettings}
-          />
+          <>
+            <NotificationBell variant="titlebar" onOpen={openNotification} />
+            <AvatarMenu
+              user={user}
+              variant="titlebar"
+              active={sidebar === "settings" && mobilePanelOpen}
+              onSettings={openMobileSettings}
+            />
+          </>
         )}
         <div className="titlebar-spacer" />
         <div className="titlebar-meta">
@@ -543,7 +638,7 @@ export default function Workbench() {
       </header>
 
       <div className={`workbench-body ${aiPanelOpen && project ? "ai-open" : ""}`}>
-        <ActivityBar onOpenAI={toggleAI} />
+        <ActivityBar onOpenAI={toggleAI} onOpenNotification={openNotification} />
         <ResizeHandle
           className="sidebar-resize"
           orientation="vertical"
@@ -554,31 +649,27 @@ export default function Workbench() {
           onChange={(width) => document.documentElement.style.setProperty("--sidebar-width", `${width}px`)}
           onCommit={(width) => updateSettings({ sidebarWidth: width })}
         />
-        {mobile && mobilePanelOpen && (
-          <button
-            type="button"
-            className="mobile-backdrop"
-            aria-label="Fechar painel"
-            onClick={() => setMobilePanelOpen(false)}
-          />
-        )}
         <aside className={`sidebar ${mobile && mobilePanelOpen ? "mobile-open" : ""}`}>
           {mobile && mobilePanelOpen && (
             <div className="mobile-panel-head">
-              <strong>
-                {sidebar === "settings" ? "Configurações" : sidebar === "files" ? "Arquivos" : sidebar === "scm" ? "Git" : sidebar === "db" ? "Bancos" : sidebar === "ai" ? "Agente" : "Web"}
-              </strong>
-              <Button className="icon-button" onClick={() => setMobilePanelOpen(false)} aria-label="Fechar painel">
-                <X size={16} />
+              <Button
+                className="icon-button"
+                onClick={() => setMobilePanelOpen(false)}
+                aria-label="Voltar"
+                title="Voltar"
+              >
+                <ArrowLeft size={18} />
               </Button>
+              <strong>
+                {sidebar === "settings" ? "Configurações" : sidebar === "db" ? "Bancos" : sidebar === "web" ? "Web apps" : "Arquivos"}
+              </strong>
             </div>
           )}
-          {project && sidebar === "files" && <FileTree project={project} onOpenFile={openFile} />}
-          {project && sidebar === "scm" && (
-            <SourceControlPanel
+          {project && sidebar === "files" && (
+            <ExplorerPanel
               project={project}
-              onOpenDiff={openDiff}
               onOpenFile={openFile}
+              onOpenDiff={openDiff}
               searchFocusToken={searchFocusToken}
             />
           )}
@@ -728,42 +819,6 @@ export default function Workbench() {
           </section>
         </>
       )}
-      {mobile && mobileMoreOpen && (
-        <>
-          <button
-            type="button"
-            className="mobile-sheet-backdrop"
-            aria-label="Fechar mais opções"
-            onClick={() => setMobileMoreOpen(false)}
-          />
-          <section className="mobile-sheet mobile-more-sheet" role="dialog" aria-modal="true" aria-label="Mais opções">
-            <div className="mobile-sheet-handle" aria-hidden="true"><span /></div>
-            <div className="mobile-sheet-title">
-              <div>
-                <span className="eyebrow">Navegação</span>
-                <strong>Mais opções</strong>
-              </div>
-              <Button className="icon-button" aria-label="Fechar" onClick={() => setMobileMoreOpen(false)}>
-                <X size={16} />
-              </Button>
-            </div>
-            <div className="mobile-more-list">
-              <button type="button" onClick={() => { setMobileMoreOpen(false); openMobileSidebar("scm"); }}>
-                <span className="mobile-more-icon"><GitBranch size={18} /></span>
-                <span><strong>Git</strong><small>Busca, diff e commits</small></span>
-              </button>
-              <button type="button" onClick={() => { setMobileMoreOpen(false); openMobileSidebar("web"); }}>
-                <span className="mobile-more-icon"><Globe2 size={18} /></span>
-                <span><strong>Web apps</strong><small>Aplicativos do servidor</small></span>
-              </button>
-              <button type="button" onClick={() => { setMobileMoreOpen(false); openMobileTerminal(); }}>
-                <span className="mobile-more-icon"><TerminalSquare size={18} /></span>
-                <span><strong>Terminal</strong><small>Shell do projeto</small></span>
-              </button>
-            </div>
-          </section>
-        </>
-      )}
       {mobile && (
         <MobileNav
           sidebar={sidebar}
@@ -772,7 +827,8 @@ export default function Workbench() {
           aiPanelOpen={aiPanelOpen}
           onSidebar={openMobileSidebar}
           onAI={openMobileAI}
-          onMore={() => setMobileMoreOpen(true)}
+          onWeb={() => openMobileSidebar("web")}
+          onTerminal={openMobileTerminal}
         />
       )}
       {showRepoPicker && (

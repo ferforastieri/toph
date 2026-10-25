@@ -1,6 +1,7 @@
 package opencode
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"net/http/httputil"
@@ -12,9 +13,12 @@ import (
 // Proxy forwards Toph's OpenCode routes to the configured OpenCode server.
 // The browser and the Android client never talk to OpenCode directly.
 type Proxy struct {
-	mu   sync.RWMutex
-	base *url.URL
-	auth string
+	mu          sync.RWMutex
+	base        *url.URL
+	auth        string
+	monitorMu   sync.Mutex
+	monitorStop context.CancelFunc
+	onIdle      func()
 }
 
 func New(rawURL, auth string) (*Proxy, error) {
@@ -37,7 +41,24 @@ func (p *Proxy) SetConfig(rawURL, auth string) error {
 	p.base = base
 	p.auth = auth
 	p.mu.Unlock()
+	p.restartMonitor()
 	return nil
+}
+
+func (p *Proxy) SetIdleHandler(handler func()) {
+	p.monitorMu.Lock()
+	p.onIdle = handler
+	p.monitorMu.Unlock()
+	p.restartMonitor()
+}
+
+func (p *Proxy) config() (string, string) {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	if p.base == nil {
+		return "", ""
+	}
+	return strings.TrimRight(p.base.String(), "/"), p.auth
 }
 
 type errInvalidScheme struct{}

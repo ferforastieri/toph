@@ -7,6 +7,7 @@ import type { Project } from "../api";
 import OpenCodePanelTab from "./OpenCodePanelTab";
 import { Button } from "@toph/ui";
 import { AgentComposer } from "../ui/AgentComposer";
+import { notifyAiResponse } from "../aiNotifications";
 
 const EMPTY_MESSAGES: AiMessage[] = [];
 
@@ -65,6 +66,12 @@ function GenericAiPanel({ tab, project, config, onClose }: Props & { config: AIC
         role: "assistant",
         text: result.text || "(empty response)",
         createdAt: Date.now(),
+      });
+      notifyAiResponse({
+        projectId: project.id,
+        tabId: tab.id,
+        sessionId: tab.sessionId,
+        text: result.text,
       });
       if (!tab.sessionId) updateTab(tab.id, { sessionId: `ai-${Date.now()}` });
     } catch (err) {

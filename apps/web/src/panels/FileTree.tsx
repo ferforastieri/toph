@@ -9,9 +9,18 @@ import { Button } from "@toph/ui";
 interface Props {
   project: Project;
   onOpenFile: (path: string) => void;
+  embedded?: boolean;
+  refreshToken?: number;
+  statuses?: Map<string, string>;
 }
 
-export default function FileTree({ project, onOpenFile }: Props) {
+export default function FileTree({
+  project,
+  onOpenFile,
+  embedded = false,
+  refreshToken = 0,
+  statuses,
+}: Props) {
   const [entries, setEntries] = useState<FileEntry[]>([]);
   const [refresh, setRefresh] = useState(0);
   const [error, setError] = useState("");
@@ -32,16 +41,18 @@ export default function FileTree({ project, onOpenFile }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [project.id, refresh]);
+  }, [project.id, refresh, refreshToken]);
 
   return (
-    <div className="tree">
-      <div className="panel-heading">
-        <span>Explorer</span>
-        <Button className="icon-button" title="Refresh" onClick={() => setRefresh((n) => n + 1)}>
-          <RefreshCw size={14} />
-        </Button>
-      </div>
+    <div className={`tree ${embedded ? "explorer-tree" : ""}`}>
+      {!embedded && (
+        <div className="panel-heading">
+          <span>Explorer</span>
+          <Button className="icon-button" title="Refresh" onClick={() => setRefresh((n) => n + 1)}>
+            <RefreshCw size={14} />
+          </Button>
+        </div>
+      )}
       <div className="tree-root">{project.root}</div>
       {error && <div className="panel-error">{error}</div>}
       {entries.map((entry) => (
@@ -51,6 +62,7 @@ export default function FileTree({ project, onOpenFile }: Props) {
           entry={entry}
           depth={0}
           onOpenFile={onOpenFile}
+          statuses={statuses}
         />
       ))}
     </div>
@@ -62,17 +74,23 @@ function TreeNode({
   entry,
   depth,
   onOpenFile,
+  statuses,
 }: {
   project: Project;
   entry: FileEntry;
   depth: number;
   onOpenFile: (path: string) => void;
+  statuses?: Map<string, string>;
 }) {
   const [open, setOpen] = useState(false);
   const [children, setChildren] = useState<FileEntry[] | null>(null);
   const [loading, setLoading] = useState(false);
   const notify = useApp((state) => state.notify);
   const iconTheme = useSettings((state) => state.iconTheme);
+  const fileStatus = !entry.dir ? statuses?.get(entry.path) : undefined;
+  const changedChildren = entry.dir && statuses
+    ? [...statuses.keys()].filter((path) => path.startsWith(`${entry.path}/`)).length
+    : 0;
 
   async function toggle() {
     if (!entry.dir) {
@@ -119,6 +137,8 @@ function TreeNode({
           size={15}
         />
         <span className="tree-name">{entry.name}</span>
+        {fileStatus && <span className={`tree-git-status ${fileStatus}`}>{fileStatus}</span>}
+        {changedChildren > 0 && <span className="tree-git-count">{changedChildren}</span>}
       </Button>
       {open && loading && (
         <div className="tree-loading" style={{ paddingLeft: 24 + depth * 14 }}>
@@ -133,6 +153,7 @@ function TreeNode({
             entry={child}
             depth={depth + 1}
             onOpenFile={onOpenFile}
+            statuses={statuses}
           />
         ))}
     </>

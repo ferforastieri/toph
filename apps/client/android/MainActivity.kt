@@ -1,7 +1,9 @@
 package br.com.ferforastieri.toph
 
+import android.Manifest
 import android.app.DownloadManager
 import android.content.Context
+import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import android.net.Uri
@@ -13,9 +15,12 @@ import android.webkit.WebView
 import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
 import androidx.annotation.Keep
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
+import com.google.firebase.messaging.FirebaseMessaging
 
 class MainActivity : TauriActivity() {
   private data class SafeInsets(
@@ -42,12 +47,35 @@ class MainActivity : TauriActivity() {
       isAppearanceLightStatusBars = false
       isAppearanceLightNavigationBars = false
     }
+    requestNotificationPermission()
+  }
+
+  override fun onResume() {
+    super.onResume()
+    TophPush.foreground = true
+  }
+
+  override fun onPause() {
+    TophPush.foreground = false
+    super.onPause()
   }
 
   override fun onWebViewCreate(webView: WebView) {
     super.onWebViewCreate(webView)
     webView.addJavascriptInterface(SafeAreaBridge(), "TophInsets")
+    webView.addJavascriptInterface(NotificationBridge(), "TophNotifications")
+    TophPush.attach(webView)
     trackSafeArea(webView)
+    try {
+      FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
+        if (!task.isSuccessful) return@addOnCompleteListener
+        val token = task.result ?: return@addOnCompleteListener
+        TophPush.token = token
+        TophPush.deliverToken(token)
+      }
+    } catch (error: Exception) {
+      // Push remains optional; downloads and safe areas must still work.
+    }
     webView.setDownloadListener { url, userAgent, contentDisposition, mimeType, _ ->
       val looksLikeApk =
         url.substringBefore('?').endsWith(".apk", ignoreCase = true) ||
@@ -72,6 +100,18 @@ class MainActivity : TauriActivity() {
         Toast.makeText(this, "Não foi possível baixar o APK.", Toast.LENGTH_LONG).show()
       }
     }
+  }
+
+  private fun requestNotificationPermission() {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
+    if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) {
+      return
+    }
+    ActivityCompat.requestPermissions(
+      this,
+      arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+      NOTIFICATION_PERMISSION_REQUEST,
+    )
   }
 
   private fun trackSafeArea(webView: WebView) {
@@ -114,6 +154,17 @@ class MainActivity : TauriActivity() {
     }
   }
 
+  @Keep
+  private inner class NotificationBridge {
+    @JavascriptInterface
+    fun requestPermission() {
+      runOnUiThread { requestNotificationPermission() }
+    }
+
+    @JavascriptInterface
+    fun token(): String = TophPush.token
+  }
+
   private fun fileName(contentDisposition: String?, url: String): String {
     val fromHeader = contentDisposition
       ?.substringAfter("filename=", "")
@@ -126,5 +177,9 @@ class MainActivity : TauriActivity() {
       .substringAfterLast('/')
       .substringAfterLast('\\')
     return if (candidate.endsWith(".apk", ignoreCase = true)) candidate else "toph-update.apk"
+  }
+
+  companion object {
+    private const val NOTIFICATION_PERMISSION_REQUEST = 1001
   }
 }

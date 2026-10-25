@@ -291,6 +291,13 @@ export const api = {
     return request("/update", { method: "POST", ...json({}) });
   },
 
+  async registerPushToken(token: string, platform: string): Promise<void> {
+    await request("/push/tokens", {
+      method: "POST",
+      ...json({ token, platform }),
+    });
+  },
+
   async login(username: string, password: string): Promise<LoginResponse> {
     return request<LoginResponse>("/auth/login", {
       method: "POST",

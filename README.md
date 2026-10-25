@@ -32,6 +32,7 @@ The installed server does not serve the landing page or documentation. The landi
 - Switch between projects without losing the state of the current one.
 - Use the same backend from the browser, desktop app and Tauri Android client.
 - Get an in-app toast when a new release is available; the button updates the server and reloads connected web clients.
+- Receive in-app AI response notifications and Android push notifications through Firebase Cloud Messaging, including when the app is closed.
 - Personalize the web app with light/dark/auto themes, the Toph brand palette, Emerald, Night Wolf Black, accents, liquid-glass intensity, backgrounds, radius, density, sidebar width, editor and terminal typography, tab styles, and file icon themes. Drag the sidebar, agent dock and terminal edges to resize them.
 
 ## Repository layout
@@ -200,6 +201,8 @@ The generated Android project is not committed; `tauri android init` recreates i
 | `TOPH_TRUSTED_PROXIES` | empty | Comma-separated proxy IPs/CIDRs allowed to supply `X-Forwarded-For` |
 | `TOPH_OPENCODE_URL` | `http://127.0.0.1:3005` | Fallback OpenCode server; Settings → AI overrides it |
 | `TOPH_OPENCODE_AUTH` | empty | Fallback raw `Authorization` value for OpenCode |
+| `TOPH_FIREBASE_CREDENTIALS_FILE` | empty | Firebase service-account JSON used by the server for Android push |
+| `TOPH_FIREBASE_PROJECT_ID` | service-account project | Firebase project ID for Cloud Messaging |
 | `TOPH_WEB_DIR` | embedded build | Serve a web build from disk in development |
 | `TOPH_UPDATE_REPO` | `ferforastieri/toph` | GitHub repository used by the in-app update check |
 
