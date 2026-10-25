@@ -8,6 +8,9 @@ WORKSPACES="${TOPH_WORKSPACES_DIR:-/srv/toph/workspaces}"
 DATA_DIR="${TOPH_DATA_DIR:-/var/lib/toph}"
 ENV_FILE="${TOPH_ENV_FILE:-/etc/toph/toph.env}"
 SERVICE=/etc/systemd/system/toph.service
+UPDATE_HELPER=/usr/local/lib/toph/update.sh
+UPDATE_SERVICE=/etc/systemd/system/toph-update.service
+UPDATE_PATH=/etc/systemd/system/toph-update.path
 SERVICE_USER="${TOPH_SERVICE_USER:-${SUDO_USER:-}}"
 
 if [ "$(id -u)" -ne 0 ]; then
@@ -121,7 +124,10 @@ else
 fi
 
 UNIT_TMP="$(mktemp)"
-trap 'rm -f "$TMP" "$UNIT_TMP"' EXIT
+UPDATE_TMP="$(mktemp)"
+UPDATE_SERVICE_TMP="$(mktemp)"
+UPDATE_PATH_TMP="$(mktemp)"
+trap 'rm -f "$TMP" "$UNIT_TMP" "$UPDATE_TMP" "$UPDATE_SERVICE_TMP" "$UPDATE_PATH_TMP"' EXIT
 cat > "$UNIT_TMP" <<UNIT
 [Unit]
 Description=Toph self-hosted workbench
@@ -146,6 +152,91 @@ LimitNOFILE=65536
 WantedBy=multi-user.target
 UNIT
 install -m 0644 "$UNIT_TMP" "$SERVICE"
+
+# The web UI may request an update. The API writes an authenticated request
+# file; a root-owned systemd path unit runs this helper and applies the same
+# release installer as a manual `sudo bash install.sh`.
+install -d -m 0755 /usr/local/lib/toph
+cat > "$UPDATE_TMP" <<UPDATE
+#!/usr/bin/env bash
+set -euo pipefail
+
+# install.sh replaces this helper while the update is running. Execute from a
+# private copy so replacing the file cannot corrupt the running script.
+if [ "\${TOPH_UPDATER_RUNNING:-}" != "1" ]; then
+  COPY="\$(mktemp)"
+  cp "\$0" "\$COPY"
+  TOPH_UPDATER_RUNNING=1 TOPH_UPDATER_COPY="\$COPY" exec bash "\$COPY"
+fi
+if [ -n "\${TOPH_UPDATER_COPY:-}" ]; then
+  trap 'rm -f "\$TOPH_UPDATER_COPY"' EXIT
+fi
+
+REPO="${REPO}"
+DATA_DIR="${DATA_DIR}"
+SERVICE_USER="${SERVICE_USER}"
+REQUEST="\${DATA_DIR}/update.request"
+STATE="\${DATA_DIR}/update-state.json"
+LOG="\${DATA_DIR}/update.log"
+
+write_state() {
+  status="\$1"
+  version="\$2"
+  printf '{"status":"%s","version":"%s","updatedAt":"%s"}\n' "\$status" "\$version" "\$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "\${STATE}.tmp"
+  chmod 0644 "\${STATE}.tmp"
+  mv "\${STATE}.tmp" "\$STATE"
+}
+
+if [ ! -s "\$REQUEST" ]; then
+  exit 0
+fi
+TAG="\$(head -n 1 "\$REQUEST" | tr -d '[:space:]')"
+rm -f "\$REQUEST"
+if ! [[ "\$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+\$ ]]; then
+  write_state error "\$TAG"
+  exit 1
+fi
+
+INSTALLER="\$(mktemp)"
+trap 'rm -f "\$INSTALLER"' EXIT
+write_state running "\$TAG"
+if ! curl -fL --retry 3 --retry-delay 2 "https://github.com/\${REPO}/releases/download/\${TAG}/install.sh" -o "\$INSTALLER"; then
+  write_state error "\$TAG"
+  exit 1
+fi
+if ! TOPH_REPO="\$REPO" TOPH_VERSION="\$TAG" TOPH_SERVICE_USER="\$SERVICE_USER" TOPH_DATA_DIR="\$DATA_DIR" \
+  bash "\$INSTALLER" >> "\$LOG" 2>&1; then
+  write_state error "\$TAG"
+  exit 1
+fi
+write_state success "\$TAG"
+UPDATE
+install -m 0755 "$UPDATE_TMP" "$UPDATE_HELPER"
+
+cat > "$UPDATE_SERVICE_TMP" <<UNIT
+[Unit]
+Description=Toph updater
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=${UPDATE_HELPER}
+UNIT
+install -m 0644 "$UPDATE_SERVICE_TMP" "$UPDATE_SERVICE"
+
+cat > "$UPDATE_PATH_TMP" <<UNIT
+[Unit]
+Description=Watch for Toph update requests
+
+[Path]
+PathExists=${DATA_DIR}/update.request
+Unit=toph-update.service
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+install -m 0644 "$UPDATE_PATH_TMP" "$UPDATE_PATH"
 
 rollback() {
   echo "Toph did not become healthy; rolling back the binary." >&2
@@ -173,6 +264,7 @@ rollback() {
 
 systemctl daemon-reload
 systemctl enable toph >/dev/null
+systemctl enable --now toph-update.path >/dev/null
 systemctl restart toph
 
 for _ in $(seq 1 30); do

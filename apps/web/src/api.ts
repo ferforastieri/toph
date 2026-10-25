@@ -153,6 +153,20 @@ export interface VersionInfo {
   buildId: string;
 }
 
+export interface UpdateStatus {
+  currentVersion: string;
+  latestVersion: string;
+  available: boolean;
+  supported: boolean;
+  busy: boolean;
+  error?: string;
+}
+
+export interface UpdateStart {
+  status: "started" | "current";
+  version: string;
+}
+
 export interface LoginResponse {
   token: string;
   csrfToken: string;
@@ -264,6 +278,14 @@ export const api = {
 
   async version(): Promise<VersionInfo> {
     return request("/version");
+  },
+
+  async updateStatus(): Promise<UpdateStatus> {
+    return request("/update");
+  },
+
+  async startUpdate(): Promise<UpdateStart> {
+    return request("/update", { method: "POST", ...json({}) });
   },
 
   async login(username: string, password: string): Promise<LoginResponse> {

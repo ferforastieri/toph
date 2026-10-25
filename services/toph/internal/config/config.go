@@ -23,6 +23,11 @@ type Config struct {
 	WebDir         string
 	MasterKeyFile  string
 	BuildID        string
+	UpdateRepo     string
+	UpdateHelper   string
+	UpdatePathUnit string
+	UpdateRequest  string
+	UpdateState    string
 }
 
 func Load() (Config, error) {
@@ -52,6 +57,11 @@ func Load() (Config, error) {
 		WebDir:         os.Getenv("TOPH_WEB_DIR"),
 		MasterKeyFile:  filepath.Join(absData, "master.key"),
 		BuildID:        buildID(),
+		UpdateRepo:     env("TOPH_UPDATE_REPO", "ferforastieri/toph"),
+		UpdateHelper:   env("TOPH_UPDATE_HELPER", "/usr/local/lib/toph/update.sh"),
+		UpdatePathUnit: env("TOPH_UPDATE_PATH_UNIT", "/etc/systemd/system/toph-update.path"),
+		UpdateRequest:  filepath.Join(absData, "update.request"),
+		UpdateState:    filepath.Join(absData, "update-state.json"),
 	}
 	return cfg, nil
 }

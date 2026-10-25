@@ -14,6 +14,11 @@ on:
         required: false
         type: string
         default: ""
+      ref:
+        description: "Git commit to build"
+        required: false
+        type: string
+        default: ""
   push:
     tags:
       - "desktop-v*"
@@ -33,6 +38,8 @@ jobs:
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
 
       - uses: actions/setup-node@v4
         with:
@@ -57,20 +64,6 @@ jobs:
       - name: Install JavaScript dependencies
         run: npm ci
 
-      - name: Build local Toph backend
-        shell: bash
-        run: |
-          set -euo pipefail
-          npm run build:web
-          rm -rf services/toph/internal/webui/dist
-          mkdir -p services/toph/internal/webui/dist
-          cp -R apps/web/dist/. services/toph/internal/webui/dist/
-          touch services/toph/internal/webui/dist/.keep
-          mkdir -p bin
-          cd services/toph
-          CGO_ENABLED=0 GOOS=${{ matrix.goos }} GOARCH=amd64 \
-            go build -trimpath -ldflags="-s -w" -o ../../bin/${{ matrix.sidecar }} ./cmd/toph
-
       - name: Resolve desktop version
         id: version
         shell: bash
@@ -87,6 +80,23 @@ jobs:
             esac
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Build local Toph backend
+        shell: bash
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          npm run build:web
+          rm -rf services/toph/internal/webui/dist
+          mkdir -p services/toph/internal/webui/dist
+          cp -R apps/web/dist/. services/toph/internal/webui/dist/
+          touch services/toph/internal/webui/dist/.keep
+          mkdir -p bin
+          cd services/toph
+          CGO_ENABLED=0 GOOS=${{ matrix.goos }} GOARCH=amd64 \
+            go build -trimpath -ldflags="-s -w -X github.com/ferforastieri/toph/internal/server.Version=${VERSION}" \
+            -o ../../bin/${{ matrix.sidecar }} ./cmd/toph
 
       - name: Build desktop
         working-directory: apps/client

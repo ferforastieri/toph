@@ -31,7 +31,7 @@ The installed server does not serve the landing page or documentation. The landi
 - Keep self-hosted web apps in their own tabs.
 - Switch between projects without losing the state of the current one.
 - Use the same backend from the browser, desktop app and Tauri Android client.
-- Get an in-app toast when a new web or desktop build is available.
+- Get an in-app toast when a new release is available; the button updates the server and reloads connected web clients.
 - Personalize the web app with light/dark/auto themes, the Toph brand palette, Emerald, Night Wolf Black, accents, liquid-glass intensity, backgrounds, radius, density, sidebar width, editor and terminal typography, tab styles, and file icon themes. Drag the sidebar, agent dock and terminal edges to resize them.
 
 ## Repository layout
@@ -129,7 +129,26 @@ curl -fsSL https://github.com/ferforastieri/toph/releases/latest/download/instal
 ```
 
 The installer creates the `toph` user, installs the binary, creates a systemd
-service, generates the first password and starts Toph on port `8787`.
+service, generates the first password and starts Toph on port `8787`. It also
+installs the root-owned update helper used by the in-app update toast.
+
+### Releases
+
+Every successful CI run on `main` publishes the next GitHub release
+automatically. The version bump follows Conventional Commits across the commits
+since the latest release:
+
+- `fix:` — patch (`0.8.10` → `0.8.11`)
+- `feat:` — small feature, minor (`0.8.10` → `0.9.0`)
+- `feat!:` or `BREAKING CHANGE:` — large feature, major (`0.8.10` → `1.0.0`)
+- other commit types — patch
+
+The pipeline creates the tag, builds the server, APK and desktop installers, and
+publishes the release. It never deploys to a server by itself.
+
+Remote servers expose an update toast when a newer release exists. Clicking
+**Update** writes an authenticated update request; the root-owned helper runs
+the same `install.sh` release flow, checks health and rolls back on failure.
 
 ### Desktop
 
@@ -176,6 +195,7 @@ The generated Android project is not committed; `tauri android init` recreates i
 | `TOPH_OPENCODE_URL` | `http://127.0.0.1:3005` | Fallback OpenCode server; Settings → AI overrides it |
 | `TOPH_OPENCODE_AUTH` | empty | Fallback raw `Authorization` value for OpenCode |
 | `TOPH_WEB_DIR` | embedded build | Serve a web build from disk in development |
+| `TOPH_UPDATE_REPO` | `ferforastieri/toph` | GitHub repository used by the in-app update check |
 
 ## Security
 
