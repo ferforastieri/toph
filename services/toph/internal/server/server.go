@@ -16,6 +16,7 @@ import (
 	"github.com/ferforastieri/toph/internal/config"
 	"github.com/ferforastieri/toph/internal/database"
 	"github.com/ferforastieri/toph/internal/opencode"
+	"github.com/ferforastieri/toph/internal/push"
 	"github.com/ferforastieri/toph/internal/store"
 	"github.com/ferforastieri/toph/internal/terminal"
 	"github.com/ferforastieri/toph/internal/workspace"
@@ -32,6 +33,8 @@ type Server struct {
 	db            *database.Service
 	opencode      *opencode.Proxy
 	ai            *ai.Service
+	push          *push.Service
+	notifications *notificationHub
 	web           http.Handler
 	clientIP      clientIPResolver
 	loginLimiter  *loginLimiter
@@ -52,13 +55,19 @@ func New(
 	oc *opencode.Proxy,
 	aiService *ai.Service,
 ) *Server {
+	pushService := push.New(st, cfg.FirebaseFile, cfg.FirebaseProject)
 	s := &Server{
 		cfg: cfg, store: st, auth: authManager, workspace: ws,
 		terminals: terminals, db: db, opencode: oc, ai: aiService,
-		clientIP:     newClientIPResolver(cfg.TrustedProxies),
-		loginLimiter: newLoginLimiter(10, 5*time.Minute),
-		apiLimiter:   newLoginLimiter(300, time.Minute),
+		push:          pushService,
+		notifications: newNotificationHub(),
+		clientIP:      newClientIPResolver(cfg.TrustedProxies),
+		loginLimiter:  newLoginLimiter(10, 5*time.Minute),
+		apiLimiter:    newLoginLimiter(300, time.Minute),
 	}
+	oc.SetIdleHandler(func() {
+		s.emitAIResponse()
+	})
 	if cfgAI, err := aiService.Load(context.Background()); err == nil && cfgAI.Provider == "opencode" && cfgAI.BaseURL != "" {
 		_ = oc.SetConfig(cfgAI.BaseURL, cfgAI.APIKey)
 	}
@@ -84,6 +93,8 @@ func (s *Server) Handler() http.Handler {
 		r.Post("/api/auth/logout", s.logout)
 		r.Get("/api/update", s.updateStatus)
 		r.Post("/api/update", s.startUpdate)
+		r.Post("/api/push/tokens", s.registerPushToken)
+		r.Get("/api/notifications/stream", s.notificationStream)
 
 		r.Route("/api/projects", func(r chi.Router) {
 			r.Get("/", s.listProjects)

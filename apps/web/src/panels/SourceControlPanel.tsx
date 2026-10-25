@@ -1,65 +1,42 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Check, GitBranch, Minus, Plus, RefreshCw, Sparkles, Trash2, Undo2 } from "lucide-react";
+import {
+  Check,
+  ChevronDown,
+  ChevronRight,
+  GitBranch,
+  Minus,
+  Plus,
+  RefreshCw,
+  Sparkles,
+  Trash2,
+  Undo2,
+} from "lucide-react";
 import { api, type Project } from "../api";
 import { expandGitPattern, sanitizeBranchName } from "../lib";
 import { suggestGitChanges } from "../gitAi";
+import { parseGitStatus, statusLabel } from "../gitStatus";
 import { useSettings } from "../settings";
 import { useApp } from "../store";
 import { useAI } from "../ai";
 import { Button } from "@toph/ui";
 import FileIcon from "../ui/FileIcon";
-import ProjectSearch from "../components/ProjectSearch";
 import { useConfirm } from "@toph/ui";
 
 interface Props {
   project: Project;
   onOpenDiff: (path: string, staged: boolean) => void;
-  onOpenFile: (path: string, line?: number) => void;
-  searchFocusToken?: number;
+  embedded?: boolean;
+  refreshToken?: number;
+  onStatusChange?: (status: string) => void;
 }
 
-interface Change {
-  path: string;
-  index: string;
-  worktree: string;
-  staged: boolean;
-  unstaged: boolean;
-}
-
-function parseStatus(raw: string): { branch: string; changes: Change[] } {
-  let branch = "";
-  const changes: Change[] = [];
-  for (const line of raw.split("\n")) {
-    if (!line) continue;
-    if (line.startsWith("## ")) {
-      branch = line.slice(3).split("...")[0].split(" ")[0] ?? "";
-      continue;
-    }
-    if (line.length < 4) continue;
-    const index = line[0];
-    const worktree = line[1];
-    let path = line.slice(3);
-    if (path.includes(" -> ")) path = path.split(" -> ").pop() ?? path;
-    path = path.replace(/^"|"$/g, "");
-    if (!path) continue;
-    changes.push({
-      path,
-      index,
-      worktree,
-      staged: index !== " " && index !== "?",
-      unstaged: worktree !== " " || index === "?",
-    });
-  }
-  return { branch, changes };
-}
-
-function statusLabel(change: Change): string {
-  if (change.index === "?") return "U";
-  if (change.index !== " ") return change.index;
-  return change.worktree.trim() || "M";
-}
-
-export default function SourceControlPanel({ project, onOpenDiff, onOpenFile, searchFocusToken }: Props) {
+export default function SourceControlPanel({
+  project,
+  onOpenDiff,
+  embedded = false,
+  refreshToken = 0,
+  onStatusChange,
+}: Props) {
   const notify = useApp((state) => state.notify);
   const user = useApp((state) => state.user);
   const aiConfig = useAI((state) => state.config);
@@ -70,22 +47,24 @@ export default function SourceControlPanel({ project, onOpenDiff, onOpenFile, se
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
+  const [changesOpen, setChangesOpen] = useState(true);
 
   const load = useCallback(async () => {
     try {
       const next = await api.gitStatus(project.id);
       setStatus(next);
       setError("");
+      onStatusChange?.(next);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not read Git status.");
     }
-  }, [project.id]);
+  }, [onStatusChange, project.id]);
 
   useEffect(() => {
     void load();
-  }, [load]);
+  }, [load, refreshToken]);
 
-  const parsed = useMemo(() => parseStatus(status), [status]);
+  const parsed = useMemo(() => parseGitStatus(status), [status]);
   const staged = parsed.changes.filter((change) => change.staged);
   const unstaged = parsed.changes.filter((change) => change.unstaged);
 
@@ -250,22 +229,28 @@ export default function SourceControlPanel({ project, onOpenDiff, onOpenFile, se
   }
 
   return (
-    <div className="panel scm-panel">
-      <div className="panel-heading">
-        <span>Source Control</span>
-        <Button className="icon-button" title="Refresh" onClick={() => void load()}>
-          <RefreshCw size={14} />
-        </Button>
-      </div>
-      <ProjectSearch
-        project={project}
-        onOpenFile={onOpenFile}
-        focusToken={searchFocusToken}
-      />
+    <div className={embedded ? "scm-embedded" : "panel scm-panel"}>
+      {!embedded && (
+        <div className="panel-heading">
+          <span>Source Control</span>
+          <Button className="icon-button" title="Refresh" onClick={() => void load()}>
+            <RefreshCw size={14} />
+          </Button>
+        </div>
+      )}
       <div className="scm-branch">
         <GitBranch size={13} />
         <span>{parsed.branch || "detached"}</span>
         <b>{parsed.changes.length}</b>
+        <Button
+          className="icon-button scm-collapse"
+          title={changesOpen ? "Recolher alterações" : "Expandir alterações"}
+          aria-label={changesOpen ? "Recolher alterações" : "Expandir alterações"}
+          aria-expanded={changesOpen}
+          onClick={() => setChangesOpen((current) => !current)}
+        >
+          {changesOpen ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+        </Button>
         <Button
           className="icon-button scm-branch-button"
           title="Discard all changes"
@@ -289,37 +274,39 @@ export default function SourceControlPanel({ project, onOpenDiff, onOpenFile, se
 
       {error && <div className="panel-error">{error}</div>}
 
-      <div className="scm-commit">
-        <div className="scm-commit-input">
-          <textarea
-            value={message}
-            onChange={(event) => setMessage(event.target.value)}
-            placeholder="Message (Ctrl+Enter to commit)"
-            aria-label="Commit message"
-            onKeyDown={(event) => {
-              if ((event.ctrlKey || event.metaKey) && event.key === "Enter") void commit();
-            }}
-          />
-          <Button
-            className="icon-button scm-generate"
-            title="Generate message from pattern"
-            aria-label="Generate message from pattern"
-            disabled={Boolean(busy)}
-            onClick={() => void generateMessage()}
-          >
-            <Sparkles size={13} />
-          </Button>
-        </div>
-        <Button
-          className="primary scm-commit-button"
-          disabled={staged.length === 0 || Boolean(busy)}
-          onClick={() => void commit()}
-        >
-          <Check size={13} /> Commit
-        </Button>
-      </div>
+      {changesOpen && (
+        <>
+          <div className="scm-commit">
+            <div className="scm-commit-input">
+              <textarea
+                value={message}
+                onChange={(event) => setMessage(event.target.value)}
+                placeholder="Message (Ctrl+Enter to commit)"
+                aria-label="Commit message"
+                onKeyDown={(event) => {
+                  if ((event.ctrlKey || event.metaKey) && event.key === "Enter") void commit();
+                }}
+              />
+              <Button
+                className="icon-button scm-generate"
+                title="Generate message from pattern"
+                aria-label="Generate message from pattern"
+                disabled={Boolean(busy)}
+                onClick={() => void generateMessage()}
+              >
+                <Sparkles size={13} />
+              </Button>
+            </div>
+            <Button
+              className="primary scm-commit-button"
+              disabled={staged.length === 0 || Boolean(busy)}
+              onClick={() => void commit()}
+            >
+              <Check size={13} /> Commit
+            </Button>
+          </div>
 
-      <div className="scm-sections">
+          <div className={`scm-sections ${embedded ? "embedded" : ""}`}>
         {staged.length > 0 && (
           <section className="scm-section">
             <div className="scm-section-head">
@@ -386,7 +373,9 @@ export default function SourceControlPanel({ project, onOpenDiff, onOpenFile, se
             </div>
           ))}
         </section>
-      </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
