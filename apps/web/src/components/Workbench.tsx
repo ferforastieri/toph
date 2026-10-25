@@ -5,6 +5,7 @@ import { basename, quoteIdentifier } from "../lib";
 import { useApp, type Sidebar, type Tab } from "../store";
 import { providerLabel, useAI } from "../ai";
 import ActivityBar from "./ActivityBar";
+import AvatarMenu from "./AvatarMenu";
 import MobileNav from "./MobileNav";
 import Tabs from "./Tabs";
 import Toasts from "./Toasts";
@@ -28,6 +29,7 @@ import { useSettings } from "../settings";
 
 export default function Workbench() {
   const projects = useApp((state) => state.projects);
+  const user = useApp((state) => state.user);
   const activeProjectId = useApp((state) => state.activeProjectId);
   const setProjects = useApp((state) => state.setProjects);
   const setActiveProject = useApp((state) => state.setActiveProject);
@@ -88,6 +90,7 @@ export default function Workbench() {
         return;
       }
       if (event.key !== "Escape" || !mobile) return;
+      if (document.querySelector(".modal-backdrop, .avatar-menu")) return;
       setMobilePanelOpen(false);
       setProjectsSheetOpen(false);
       setMobileMoreOpen(false);
@@ -236,6 +239,13 @@ export default function Workbench() {
       return;
     }
     setSidebar(next);
+    setMobilePanelOpen(true);
+    setAiPanelOpen(false);
+    setTerminalOpen(false);
+  }
+
+  function openMobileSettings() {
+    setSidebar("settings");
     setMobilePanelOpen(true);
     setAiPanelOpen(false);
     setTerminalOpen(false);
@@ -511,6 +521,14 @@ export default function Workbench() {
             </>
           )}
         </div>
+        {mobile && (
+          <AvatarMenu
+            user={user}
+            variant="titlebar"
+            active={sidebar === "settings" && mobilePanelOpen}
+            onSettings={openMobileSettings}
+          />
+        )}
         <div className="titlebar-spacer" />
         <div className="titlebar-meta">
           {branch && (
@@ -741,10 +759,6 @@ export default function Workbench() {
               <button type="button" onClick={() => { setMobileMoreOpen(false); openMobileTerminal(); }}>
                 <span className="mobile-more-icon"><TerminalSquare size={18} /></span>
                 <span><strong>Terminal</strong><small>Shell do projeto</small></span>
-              </button>
-              <button type="button" onClick={() => { setMobileMoreOpen(false); openMobileSidebar("settings"); }}>
-                <span className="mobile-more-icon"><Settings2 size={18} /></span>
-                <span><strong>Configurações</strong><small>Preferências e servidor</small></span>
               </button>
             </div>
           </section>
