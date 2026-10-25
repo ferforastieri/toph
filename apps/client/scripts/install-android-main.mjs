@@ -10,4 +10,4 @@ const targetDir = resolve(
 const target = resolve(targetDir, "MainActivity.kt");
 await mkdir(targetDir, { recursive: true });
 await copyFile(source, target);
-console.log("Android MainActivity patched for APK downloads.");
+console.log("Android MainActivity patched for APK downloads and safe-area insets.");

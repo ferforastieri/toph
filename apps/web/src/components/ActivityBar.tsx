@@ -3,7 +3,6 @@ import {
   Files,
   GitBranch,
   Globe2,
-  Search,
   Settings,
   Sparkles,
   TerminalSquare,
@@ -13,7 +12,6 @@ import { Button } from "@toph/ui";
 
 const items: Array<{ id: Sidebar; label: string; icon: typeof Files }> = [
   { id: "files", label: "Explorer", icon: Files },
-  { id: "search", label: "Search", icon: Search },
   { id: "scm", label: "Source Control", icon: GitBranch },
   { id: "db", label: "Databases", icon: Database },
   { id: "ai", label: "Agent", icon: Sparkles },

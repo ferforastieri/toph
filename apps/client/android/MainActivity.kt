@@ -2,21 +2,52 @@ package br.com.ferforastieri.toph
 
 import android.app.DownloadManager
 import android.content.Context
+import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.os.Environment
+import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
+import androidx.annotation.Keep
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
 
 class MainActivity : TauriActivity() {
+  private data class SafeInsets(
+    val left: Int,
+    val top: Int,
+    val right: Int,
+    val bottom: Int,
+  )
+
+  @Volatile
+  private var safeInsets = SafeInsets(0, 0, 0, 0)
+
   override fun onCreate(savedInstanceState: Bundle?) {
     enableEdgeToEdge()
     super.onCreate(savedInstanceState)
+    window.setBackgroundDrawable(ColorDrawable(Color.parseColor("#041310")))
+    window.statusBarColor = Color.TRANSPARENT
+    window.navigationBarColor = Color.TRANSPARENT
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+      window.isStatusBarContrastEnforced = false
+      window.isNavigationBarContrastEnforced = false
+    }
+    WindowCompat.getInsetsController(window, window.decorView).apply {
+      isAppearanceLightStatusBars = false
+      isAppearanceLightNavigationBars = false
+    }
   }
 
   override fun onWebViewCreate(webView: WebView) {
     super.onWebViewCreate(webView)
+    webView.addJavascriptInterface(SafeAreaBridge(), "TophInsets")
+    trackSafeArea(webView)
     webView.setDownloadListener { url, userAgent, contentDisposition, mimeType, _ ->
       val looksLikeApk =
         url.substringBefore('?').endsWith(".apk", ignoreCase = true) ||
@@ -40,6 +71,46 @@ class MainActivity : TauriActivity() {
       } catch (error: Exception) {
         Toast.makeText(this, "Não foi possível baixar o APK.", Toast.LENGTH_LONG).show()
       }
+    }
+  }
+
+  private fun trackSafeArea(webView: WebView) {
+    ViewCompat.setOnApplyWindowInsetsListener(webView) { _, insets ->
+      val bars = insets.getInsets(
+        WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout(),
+      )
+      safeInsets = SafeInsets(bars.left, bars.top, bars.right, bars.bottom)
+      webView.evaluateJavascript(insetScript(bars.left, bars.top, bars.right, bars.bottom), null)
+      insets
+    }
+    ViewCompat.requestApplyInsets(webView)
+  }
+
+  private fun insetScript(left: Int, top: Int, right: Int, bottom: Int): String {
+    val script = """
+      (function() {
+        var root = document.documentElement;
+        if (!root) return;
+        root.style.setProperty('--native-safe-top', '${dp(top)}px');
+        root.style.setProperty('--native-safe-bottom', '${dp(bottom)}px');
+        root.style.setProperty('--native-safe-left', '${dp(left)}px');
+        root.style.setProperty('--native-safe-right', '${dp(right)}px');
+      })();
+    """.trimIndent()
+    return script
+  }
+
+  private fun dp(px: Int): Int {
+    val density = resources.displayMetrics.density.takeIf { it > 0f } ?: 1f
+    return Math.round(px / density)
+  }
+
+  @Keep
+  private inner class SafeAreaBridge {
+    @JavascriptInterface
+    fun insets(): String {
+      val current = safeInsets
+      return """{"top":${dp(current.top)},"bottom":${dp(current.bottom)},"left":${dp(current.left)},"right":${dp(current.right)}}"""
     }
   }
 

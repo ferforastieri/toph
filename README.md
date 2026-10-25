@@ -15,13 +15,13 @@ The installed server does not serve the landing page or documentation. The landi
 
 ## What it does
 
-- Browse and edit project files with tabs, a file tree, search and Git status.
+- Browse and edit project files with tabs, a file tree, unified search inside Git and Git status.
 - Run a real terminal attached to the server, with a draggable terminal height and working keyboard input.
 - Open repositories from a searchable repository picker; names are derived automatically.
 - Open projects as top-level tabs. Closing a project tab stops its terminal sessions and child processes without deleting the project.
 - Use the real VS Code Material Icon Theme, a Source Control panel with stage/unstage/discard/commit and branch creation from configurable patterns, side-by-side diff tabs and Git blame for the current editor line.
-- Search runs automatically with debounce, without pressing Enter.
-- Ctrl+P quick-open, inline Git blame and an OpenCode-style conversation view with reasoning, tool cards, subagents and Markdown.
+- Search lives in Source Control and matches both file names and file content automatically with debounce, without pressing Enter.
+- Ctrl+P opens and focuses the same unified search, while inline Git blame and an OpenCode-style conversation view provide reasoning, tool cards, subagents and Markdown.
 - Edit SQL table rows with primary-key safety.
 - Connect to PostgreSQL, MySQL/MariaDB, SQLite, SQL Server, Oracle, ClickHouse, Cassandra, MongoDB, Redis, Elasticsearch and Neo4j, inspect schemas, run queries and inspect results.
 - Talk to OpenCode, OpenAI-compatible endpoints, Codex, Claude or Ollama from the Agent tab without leaving the workbench.
