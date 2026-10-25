@@ -150,6 +150,11 @@ Remote servers expose an update toast when a newer release exists. Clicking
 **Update** writes an authenticated update request; the root-owned helper runs
 the same `install.sh` release flow, checks health and rolls back on failure.
 
+On the Android APK, the same action also asks Android's DownloadManager for the
+latest signed APK. The first APK that contains this downloader must be installed
+manually from the release; subsequent updates can download the next APK from the
+toast. Installing the downloaded APK still requires the normal Android prompt.
+
 ### Desktop
 
 Install the Windows or Linux package from the [latest release](https://github.com/ferforastieri/toph/releases/latest). Desktop local mode bundles the Toph server and asks for a workspace folder; server mode asks only for a URL on first use and reconnects to the last server on later launches. The Toph menu opens the launcher again (`Ctrl+Shift+L`). The local backend uses the app data directory for SQLite and its generated admin password.
@@ -177,6 +182,7 @@ npm ci
 cd apps/client
 npm run tauri -- android init
 npm run icons
+npm run android:patch
 npm run tauri -- android build --debug --apk --target aarch64
 ```
 

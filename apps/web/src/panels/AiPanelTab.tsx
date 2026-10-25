@@ -77,7 +77,7 @@ function GenericAiPanel({ tab, project, config, onClose }: Props & { config: AIC
   }
 
   return (
-    <div className="ai-tab">
+    <div className="ai-tab opencode-tab">
       <div className="ai-toolbar">
         <div className="ai-title">
           <Bot size={16} />

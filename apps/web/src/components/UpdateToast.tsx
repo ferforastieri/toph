@@ -20,6 +20,16 @@ function wait(milliseconds: number) {
   return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
 }
 
+function downloadApk(url: string, version: string) {
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `toph-v${version}.apk`;
+  link.rel = "noopener";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+}
+
 export default function UpdateToast() {
   const [status, setStatus] = useState<UpdateStatus | null>(null);
   const [phase, setPhase] = useState<Phase>("idle");
@@ -54,6 +64,10 @@ export default function UpdateToast() {
   async function update() {
     if (!status || phase === "updating") return;
     const target = status.latestVersion;
+    const mobile = document.documentElement.classList.contains("mobile-client");
+    if (mobile && status.apkUrl) {
+      downloadApk(status.apkUrl, target);
+    }
     setPhase("updating");
     setError("");
     try {
@@ -103,10 +117,14 @@ export default function UpdateToast() {
         </strong>
         <span>
           {updating
-            ? "Updating the server and reloading this client."
+            ? document.documentElement.classList.contains("mobile-client")
+              ? "Updating the server and downloading the new APK."
+              : "Updating the server and reloading this client."
             : failed
               ? error
-              : "Update the server and reload the web clients."}
+              : document.documentElement.classList.contains("mobile-client")
+                ? "Update the server and download the latest APK."
+                : "Update the server and reload the web clients."}
         </span>
       </div>
       <Button className="primary small" disabled={updating} onClick={() => void update()}>

@@ -10,7 +10,8 @@
     "tauri": "tauri",
     "icons": "tauri icon src-tauri/icons.json",
     "sync-brand": "node ../../packages/brand/scripts/sync.mjs",
-    "prepare-local": "node scripts/prepare-local.mjs"
+    "prepare-local": "node scripts/prepare-local.mjs",
+    "android:patch": "node scripts/install-android-main.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.8.0",

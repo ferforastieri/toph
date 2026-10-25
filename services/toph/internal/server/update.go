@@ -27,6 +27,7 @@ type updateState struct {
 type updateStatusResponse struct {
 	CurrentVersion string `json:"currentVersion"`
 	LatestVersion  string `json:"latestVersion"`
+	APKURL         string `json:"apkUrl,omitempty"`
 	Available      bool   `json:"available"`
 	Supported      bool   `json:"supported"`
 	Busy           bool   `json:"busy"`
@@ -165,9 +166,19 @@ func (s *Server) updateStatus(w http.ResponseWriter, r *http.Request) {
 	if hasState && state.Status == "error" {
 		message = "A última atualização não foi concluída."
 	}
+	apkURL := ""
+	if latest != "" {
+		apkURL = fmt.Sprintf(
+			"https://github.com/%s/releases/download/%s/toph-%s.apk",
+			s.cfg.UpdateRepo,
+			latest,
+			latest,
+		)
+	}
 	writeJSON(w, http.StatusOK, updateStatusResponse{
 		CurrentVersion: strings.TrimPrefix(Version, "v"),
 		LatestVersion:  strings.TrimPrefix(latest, "v"),
+		APKURL:         apkURL,
 		Available:      latest != "" && newerRelease(latest, Version),
 		Supported:      supported,
 		Busy:           busy,
