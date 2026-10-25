@@ -1,13 +1,4 @@
-import {
-  Database,
-  Files,
-  GitBranch,
-  Globe2,
-  Search,
-  Settings,
-  Sparkles,
-  TerminalSquare,
-} from "lucide-react";
+import { Database, Files, MoreHorizontal, Sparkles } from "lucide-react";
 import type { Sidebar } from "../store";
 
 interface Props {
@@ -17,16 +8,12 @@ interface Props {
   aiPanelOpen: boolean;
   onSidebar: (sidebar: Sidebar) => void;
   onAI: () => void;
-  onTerminal: () => void;
-  onSettings: () => void;
+  onMore: () => void;
 }
 
 const items: Array<{ id: Exclude<Sidebar, "settings">; label: string; icon: typeof Files }> = [
   { id: "files", label: "Arquivos", icon: Files },
-  { id: "search", label: "Busca", icon: Search },
-  { id: "scm", label: "Git", icon: GitBranch },
   { id: "db", label: "Bancos", icon: Database },
-  { id: "web", label: "Web", icon: Globe2 },
 ];
 
 export default function MobileNav({
@@ -36,9 +23,10 @@ export default function MobileNav({
   aiPanelOpen,
   onSidebar,
   onAI,
-  onTerminal,
-  onSettings,
+  onMore,
 }: Props) {
+  const moreActive =
+    terminalOpen || (panelOpen && ["search", "scm", "web", "settings"].includes(sidebar));
   return (
     <nav className="mobile-nav" aria-label="Navegação principal">
       {items.map(({ id, label, icon: Icon }) => {
@@ -52,7 +40,7 @@ export default function MobileNav({
             aria-pressed={active}
             onClick={() => onSidebar(id)}
           >
-            <Icon size={20} strokeWidth={1.8} />
+            <Icon size={21} strokeWidth={1.8} />
             <span>{label}</span>
           </button>
         );
@@ -64,28 +52,18 @@ export default function MobileNav({
         aria-pressed={aiPanelOpen}
         onClick={onAI}
       >
-        <Sparkles size={20} strokeWidth={1.8} />
+        <Sparkles size={21} strokeWidth={1.8} />
         <span>Agente</span>
       </button>
       <button
         type="button"
-        className={terminalOpen ? "active" : ""}
-        aria-label="Terminal"
-        aria-pressed={terminalOpen}
-        onClick={onTerminal}
+        className={moreActive ? "active" : ""}
+        aria-label="Mais opções"
+        aria-pressed={moreActive}
+        onClick={onMore}
       >
-        <TerminalSquare size={20} strokeWidth={1.8} />
-        <span>Terminal</span>
-      </button>
-      <button
-        type="button"
-        className={panelOpen && sidebar === "settings" ? "active" : ""}
-        aria-label="Configurações"
-        aria-pressed={panelOpen && sidebar === "settings"}
-        onClick={onSettings}
-      >
-        <Settings size={20} strokeWidth={1.8} />
-        <span>Ajustes</span>
+        <MoreHorizontal size={22} strokeWidth={1.8} />
+        <span>Mais</span>
       </button>
     </nav>
   );

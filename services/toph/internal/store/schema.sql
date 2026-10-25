@@ -38,6 +38,7 @@ CREATE TABLE IF NOT EXISTS db_profiles (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
     folder TEXT NOT NULL DEFAULT '',
+    project_root TEXT NOT NULL DEFAULT '',
     driver TEXT NOT NULL,
     dsn_encrypted TEXT NOT NULL,
     read_only INTEGER NOT NULL DEFAULT 1,

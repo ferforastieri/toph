@@ -92,6 +92,7 @@ export interface DBProfile {
   id: string;
   name: string;
   folder: string;
+  projectRoot: string;
   driver: string;
   readOnly: boolean;
   createdAt: string;
@@ -101,6 +102,7 @@ export interface DBProfile {
 export interface DBProfileInput {
   name: string;
   folder: string;
+  projectRoot: string;
   driver: string;
   dsn: string;
   readOnly: boolean;
@@ -453,8 +455,9 @@ export const api = {
     });
   },
 
-  async dbProfiles(): Promise<DBProfile[]> {
-    return request<DBProfile[]>("/db/profiles");
+  async dbProfiles(projectRoot?: string): Promise<DBProfile[]> {
+    const query = projectRoot ? `?projectRoot=${encodeURIComponent(projectRoot)}` : "";
+    return request<DBProfile[]>(`/db/profiles${query}`);
   },
 
   async createDBProfile(input: DBProfileInput): Promise<DBProfile> {

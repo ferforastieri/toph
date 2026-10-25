@@ -15,7 +15,7 @@ type queryRequest struct {
 }
 
 func (s *Server) listDBProfiles(w http.ResponseWriter, r *http.Request) {
-	profiles, err := s.store.ListDBProfiles(r.Context())
+	profiles, err := s.store.ListDBProfiles(r.Context(), r.URL.Query().Get("projectRoot"))
 	if err != nil {
 		apiError(w, err)
 		return

@@ -50,7 +50,12 @@ function mobileTarget(baseUrl: string): string {
 }
 
 export default function App() {
-  const [url, setUrl] = useState("");
+  const [initialServer] = useState(readSavedServer);
+  const [url, setUrl] = useState(initialServer);
+  const [booting, setBooting] = useState(() => {
+    const query = new URLSearchParams(window.location.search);
+    return Boolean(initialServer) && query.get("change") !== "1";
+  });
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
@@ -76,16 +81,23 @@ export default function App() {
           "",
           `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`,
         );
+        setBooting(false);
         return;
       }
 
       const saved = readSavedServer();
-      if (!saved) return;
+      if (!saved) {
+        setBooting(false);
+        return;
+      }
       setUrl(saved);
       const navigationType = (
         performance.getEntriesByType?.("navigation")[0] as PerformanceNavigationTiming | undefined
       )?.type;
-      if (navigationType === "back_forward") return;
+      if (navigationType === "back_forward") {
+        setBooting(false);
+        return;
+      }
       setBusy(true);
       setStatus("Reconectando ao último servidor...");
       try {
@@ -97,10 +109,12 @@ export default function App() {
           return;
         }
         await invoke("open_server", { url: info.baseUrl });
+        setBooting(false);
         setStatus("");
       } catch (err) {
         setStatus("");
         setError(err instanceof Error ? err.message : String(err));
+        setBooting(false);
       } finally {
         setBusy(false);
       }
@@ -170,6 +184,21 @@ export default function App() {
     } finally {
       setBusy(false);
     }
+  }
+
+  if (booting) {
+    return (
+      <main className="shell boot-shell">
+        <div className="ambient ambient-one" />
+        <div className="ambient ambient-two" />
+        <section className="boot-card">
+          <img src="/toph-app-icon.png" alt="" />
+          <h1>Toph</h1>
+          <p>Conectando ao servidor...</p>
+          <span className="boot-pulse" />
+        </section>
+      </main>
+    );
   }
 
   return (
