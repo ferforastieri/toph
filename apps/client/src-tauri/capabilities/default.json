@@ -7,6 +7,10 @@
   ],
   "permissions": [
     "core:default",
-    "dialog:default"
+    "dialog:default",
+    "allow-validate-server",
+    "allow-open-server",
+    "allow-start-local-server",
+    "allow-is-mobile"
   ]
 }

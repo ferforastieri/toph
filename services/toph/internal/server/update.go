@@ -24,14 +24,30 @@ type updateState struct {
 	UpdatedAt string `json:"updatedAt"`
 }
 
+type releaseAsset struct {
+	Name   string `json:"name"`
+	URL    string `json:"browser_download_url"`
+	Size   int64  `json:"size"`
+	Digest string `json:"digest"`
+}
+
+type updateAsset struct {
+	Kind   string `json:"kind"`
+	Name   string `json:"name"`
+	URL    string `json:"url"`
+	SHA256 string `json:"sha256,omitempty"`
+	Size   int64  `json:"size,omitempty"`
+}
+
 type updateStatusResponse struct {
-	CurrentVersion string `json:"currentVersion"`
-	LatestVersion  string `json:"latestVersion"`
-	APKURL         string `json:"apkUrl,omitempty"`
-	Available      bool   `json:"available"`
-	Supported      bool   `json:"supported"`
-	Busy           bool   `json:"busy"`
-	Error          string `json:"error,omitempty"`
+	CurrentVersion string        `json:"currentVersion"`
+	LatestVersion  string        `json:"latestVersion"`
+	APKURL         string        `json:"apkUrl,omitempty"`
+	Installers     []updateAsset `json:"installers,omitempty"`
+	Available      bool          `json:"available"`
+	Supported      bool          `json:"supported"`
+	Busy           bool          `json:"busy"`
+	Error          string        `json:"error,omitempty"`
 }
 
 func parseReleaseVersion(value string) ([3]int, bool) {
@@ -110,9 +126,10 @@ func (s *Server) latestRelease(ctx context.Context) (string, error) {
 		return "", errors.New(s.updateErr)
 	}
 	var release struct {
-		TagName    string `json:"tag_name"`
-		Draft      bool   `json:"draft"`
-		Prerelease bool   `json:"prerelease"`
+		TagName    string         `json:"tag_name"`
+		Draft      bool           `json:"draft"`
+		Prerelease bool           `json:"prerelease"`
+		Assets     []releaseAsset `json:"assets"`
 	}
 	if err := json.NewDecoder(response.Body).Decode(&release); err != nil {
 		s.updateChecked = time.Now()
@@ -130,9 +147,46 @@ func (s *Server) latestRelease(ctx context.Context) (string, error) {
 		return "", errors.New(s.updateErr)
 	}
 	s.updateLatest = release.TagName
+	s.updateAssets = installerAssets(release.Assets)
 	s.updateChecked = time.Now()
 	s.updateErr = ""
 	return s.updateLatest, nil
+}
+
+func installerAssets(assets []releaseAsset) []updateAsset {
+	var result []updateAsset
+	for _, asset := range assets {
+		kind := ""
+		switch {
+		case strings.HasSuffix(asset.Name, "-setup.exe"):
+			kind = "windows-nsis"
+		case strings.HasSuffix(asset.Name, ".msi"):
+			kind = "windows-msi"
+		case strings.HasSuffix(asset.Name, ".AppImage"):
+			kind = "linux-appimage"
+		case strings.HasSuffix(asset.Name, ".deb"):
+			kind = "linux-deb"
+		case strings.HasSuffix(asset.Name, ".rpm"):
+			kind = "linux-rpm"
+		}
+		if kind == "" {
+			continue
+		}
+		result = append(result, updateAsset{
+			Kind:   kind,
+			Name:   asset.Name,
+			URL:    asset.URL,
+			SHA256: strings.TrimPrefix(asset.Digest, "sha256:"),
+			Size:   asset.Size,
+		})
+	}
+	return result
+}
+
+func (s *Server) currentInstallers() []updateAsset {
+	s.updateMu.Lock()
+	defer s.updateMu.Unlock()
+	return append([]updateAsset(nil), s.updateAssets...)
 }
 
 func fileExists(path string) bool {
@@ -159,6 +213,7 @@ func (s *Server) updateStatus(w http.ResponseWriter, r *http.Request) {
 	state, hasState := s.readUpdateState()
 	supported := fileExists(s.cfg.UpdateHelper) && fileExists(s.cfg.UpdatePathUnit)
 	busy := fileExists(s.cfg.UpdateRequest) || (hasState && state.Status == "running")
+	installers := s.currentInstallers()
 	message := ""
 	if latestErr != nil {
 		message = latestErr.Error()
@@ -179,6 +234,7 @@ func (s *Server) updateStatus(w http.ResponseWriter, r *http.Request) {
 		CurrentVersion: strings.TrimPrefix(Version, "v"),
 		LatestVersion:  strings.TrimPrefix(latest, "v"),
 		APKURL:         apkURL,
+		Installers:     installers,
 		Available:      latest != "" && newerRelease(latest, Version),
 		Supported:      supported,
 		Busy:           busy,

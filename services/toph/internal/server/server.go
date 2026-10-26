@@ -41,6 +41,7 @@ type Server struct {
 	apiLimiter    *loginLimiter
 	updateMu      sync.Mutex
 	updateLatest  string
+	updateAssets  []updateAsset
 	updateChecked time.Time
 	updateErr     string
 }

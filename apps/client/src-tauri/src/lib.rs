@@ -1,4 +1,5 @@
 use serde::Serialize;
+use sha2::{Digest, Sha256};
 use std::fs;
 use std::io::Write;
 use std::net::TcpListener;
@@ -85,8 +86,36 @@ async fn health(base: &Url) -> Result<serde_json::Value, String> {
     Ok(value)
 }
 
+fn is_local_window(window: &tauri::WebviewWindow) -> bool {
+    let Ok(url) = window.url() else {
+        return false;
+    };
+    match url.scheme() {
+        "tauri" => true,
+        "http" | "https" => url
+            .host_str()
+            .map(|host| {
+                host == "localhost"
+                    || host == "127.0.0.1"
+                    || host == "::1"
+                    || host.ends_with(".localhost")
+            })
+            .unwrap_or(false),
+        _ => false,
+    }
+}
+
+fn require_local(window: &tauri::WebviewWindow) -> Result<(), String> {
+    if is_local_window(window) {
+        Ok(())
+    } else {
+        Err("Esta operação só está disponível no launcher local.".into())
+    }
+}
+
 #[tauri::command]
-async fn validate_server(url: String) -> Result<ServerInfo, String> {
+async fn validate_server(window: tauri::WebviewWindow, url: String) -> Result<ServerInfo, String> {
+    require_local(&window)?;
     let base = normalize_server(&url)?;
     let value = match health(&base).await {
         Ok(value) => value,
@@ -144,7 +173,8 @@ fn show_launcher(app: &tauri::AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn open_server(app: tauri::AppHandle, url: String) -> Result<(), String> {
+fn open_server(window: tauri::WebviewWindow, app: tauri::AppHandle, url: String) -> Result<(), String> {
+    require_local(&window)?;
     let base = normalize_server(&url)?;
     let mut target = endpoint(&base, "app/")?;
     target
@@ -368,10 +398,12 @@ fn random_password() -> String {
 
 #[tauri::command]
 async fn start_local_server(
+    window: tauri::WebviewWindow,
     app: tauri::AppHandle,
     state: State<'_, LocalState>,
     workspace: Option<String>,
 ) -> Result<(), String> {
+    require_local(&window)?;
     let binary = local_binary(&app)?;
     if let Ok(mut slot) = state.child.lock() {
         if let Some(mut old) = slot.take() {
@@ -496,6 +528,89 @@ fn is_mobile() -> bool {
     cfg!(mobile)
 }
 
+#[tauri::command]
+async fn download_update(
+    app: tauri::AppHandle,
+    url: String,
+    filename: String,
+    sha256: Option<String>,
+) -> Result<String, String> {
+    let parsed = Url::parse(&url).map_err(|_| "URL de atualização inválida.".to_string())?;
+    if parsed.scheme() != "https" {
+        return Err("O instalador precisa usar HTTPS.".into());
+    }
+    if !matches!(
+        parsed.host_str(),
+        Some("github.com") | Some("objects.githubusercontent.com") | Some("github-releases.githubusercontent.com")
+    ) {
+        return Err("Origem de atualização não permitida.".into());
+    }
+    let name = filename
+        .rsplit(|character| character == '/' || character == '\\')
+        .next()
+        .unwrap_or("")
+        .trim();
+    if !matches!(
+        PathBuf::from(name).extension().and_then(|value| value.to_str()),
+        Some("exe") | Some("msi") | Some("AppImage") | Some("deb") | Some("rpm")
+    ) {
+        return Err("Nome de instalador inválido.".into());
+    }
+
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(300))
+        .build()
+        .map_err(|err| err.to_string())?;
+    let response = client
+        .get(parsed)
+        .send()
+        .await
+        .map_err(|err| format!("Não foi possível baixar o instalador: {err}"))?;
+    if !response.status().is_success() {
+        return Err(format!("O download respondeu HTTP {}.", response.status()));
+    }
+    let bytes = response
+        .bytes()
+        .await
+        .map_err(|err| format!("Falha ao ler o instalador: {err}"))?;
+    if let Some(expected) = sha256.filter(|value| !value.trim().is_empty()) {
+        let actual = format!("{:x}", Sha256::digest(&bytes));
+        if !actual.eq_ignore_ascii_case(expected.trim()) {
+            return Err("O instalador baixado não corresponde ao checksum publicado.".into());
+        }
+    }
+
+    let dir = app
+        .path()
+        .download_dir()
+        .or_else(|_| app.path().home_dir().map(|home| home.join("Downloads")))
+        .map_err(|err| err.to_string())?;
+    fs::create_dir_all(&dir).map_err(|err| err.to_string())?;
+    let mut target = dir.join(name);
+    let stem = target
+        .file_stem()
+        .and_then(|value| value.to_str())
+        .unwrap_or("toph-update")
+        .to_string();
+    let extension = target
+        .extension()
+        .and_then(|value| value.to_str())
+        .unwrap_or("")
+        .to_string();
+    let mut counter = 1;
+    while target.exists() {
+        let candidate = if extension.is_empty() {
+            format!("{stem} ({counter})")
+        } else {
+            format!("{stem} ({counter}).{extension}")
+        };
+        target = dir.join(candidate);
+        counter += 1;
+    }
+    fs::write(&target, &bytes).map_err(|err| format!("Não foi possível salvar o instalador: {err}"))?;
+    Ok(target.display().to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = tauri::Builder::default()
@@ -538,7 +653,8 @@ pub fn run() {
             validate_server,
             open_server,
             start_local_server,
-            is_mobile
+            is_mobile,
+            download_update
         ]);
 
     #[cfg(desktop)]
