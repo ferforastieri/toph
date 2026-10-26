@@ -60,8 +60,8 @@ jobs:
       - name: Install Linux dependencies
         if: matrix.platform == 'ubuntu-24.04'
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libxdo-dev
+          sudo timeout 600 apt-get -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 -o Acquire::Retries=3 update
+          sudo DEBIAN_FRONTEND=noninteractive timeout 600 apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libxdo-dev
 
       - name: Install JavaScript dependencies
         run: npm ci
