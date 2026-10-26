@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Bot, Plus, Sparkles } from "lucide-react";
+import { Bot, Plus, Sparkles } from "@toph/icons";
 import { providerLabel, useAI } from "../ai";
 import type { Project } from "../api";
 import OpenCodeSidebar from "./OpenCodeSidebar";

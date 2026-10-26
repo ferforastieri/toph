@@ -4,6 +4,7 @@ import "@fontsource-variable/inter";
 import "@fontsource/ibm-plex-mono";
 import "@xterm/xterm/css/xterm.css";
 import "./monaco";
+import "@toph/icons/styles.css";
 import "@toph/ui/styles/base.css";
 import "./styles.css";
 import { initAppearance } from "./settings";

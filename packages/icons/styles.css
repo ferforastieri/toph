@@ -1,0 +1,33 @@
+@import "material-symbols/rounded.css";
+@import "@phosphor-icons/web/fill";
+@import "remixicon/fonts/remixicon.css";
+
+.toph-icon {
+  width: 1em;
+  height: 1em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  line-height: 1;
+  vertical-align: -0.125em;
+}
+
+.toph-icon > * {
+  display: none;
+  font-size: 1em !important;
+  line-height: 1;
+}
+
+html[data-icon-theme="material"] .toph-icon-material,
+html:not([data-icon-theme]) .toph-icon-material {
+  display: inline-block;
+}
+
+html[data-icon-theme="phosphor"] .toph-icon-phosphor {
+  display: inline-block;
+}
+
+html[data-icon-theme="remix"] .toph-icon-remix {
+  display: inline-block;
+}

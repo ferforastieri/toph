@@ -8,7 +8,7 @@ import {
   Square,
   TerminalSquare,
   X,
-} from "lucide-react";
+} from "@toph/icons";
 import type { AIModel } from "../api";
 import { Button, IconButton } from "@toph/ui";
 import { Select } from "@toph/ui";

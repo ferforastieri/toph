@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ExternalLink, Globe2, Plus, Trash2 } from "lucide-react";
+import { ExternalLink, Globe2, Plus, Trash2 } from "@toph/icons";
 import { api, type WebTarget } from "../api";
 import { useApp } from "../store";
 import { Button } from "@toph/ui";

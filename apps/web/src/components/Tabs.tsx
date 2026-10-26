@@ -5,7 +5,7 @@ import {
   FileDiff,
   Globe2,
   X,
-} from "lucide-react";
+} from "@toph/icons";
 import { useApp, type Tab } from "../store";
 import { useSettings } from "../settings";
 import { Button } from "@toph/ui";

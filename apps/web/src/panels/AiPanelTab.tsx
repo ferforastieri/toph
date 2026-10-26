@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Bot, X } from "lucide-react";
+import { Bot, X } from "@toph/icons";
 import { api, type AIConfig } from "../api";
 import { providerLabel, useAI } from "../ai";
 import { useApp, type AiMessage, type Tab } from "../store";

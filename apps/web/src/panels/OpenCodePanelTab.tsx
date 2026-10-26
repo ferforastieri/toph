@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { OpenCode } from "@opencode/client";
-import { Bot, Check, ChevronDown, History, Wrench, X } from "lucide-react";
+import { Bot, Check, ChevronDown, History, Wrench, X } from "@toph/icons";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { openCodeBase, type Project } from "../api";

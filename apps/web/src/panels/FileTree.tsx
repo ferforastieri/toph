@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ChevronDown, ChevronRight, RefreshCw } from "lucide-react";
+import { ChevronDown, ChevronRight, RefreshCw } from "@toph/icons";
 import { api, type FileEntry, type Project } from "../api";
 import { useApp } from "../store";
 import { useSettings } from "../settings";

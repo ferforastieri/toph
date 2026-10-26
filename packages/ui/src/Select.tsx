@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Check, ChevronDown } from "lucide-react";
+import { Check, ChevronDown } from "@toph/icons";
 
 export interface SelectOption<T extends string = string> {
   value: T;

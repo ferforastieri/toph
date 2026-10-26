@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
-import { AlertTriangle, FolderOpen, FolderPlus, HardDrive, Plus, Trash2 } from "lucide-react";
+import { AlertTriangle, FolderOpen, FolderPlus, HardDrive, Plus, Trash2 } from "@toph/icons";
 import { api } from "../api";
 import { basename } from "../lib";
 import { useApp } from "../store";

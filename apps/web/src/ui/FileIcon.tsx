@@ -14,7 +14,7 @@ import {
   Lock,
   Package,
   Settings,
-} from "lucide-react";
+} from "@toph/icons";
 import materialManifest from "material-icon-theme/dist/material-icons.json";
 import type { IconTheme } from "../settings";
 
@@ -62,17 +62,6 @@ function materialIconFile(name: string, dir: boolean, open: boolean): string {
   return path.split("/").pop() ?? "file.svg";
 }
 
-const vividColors: Record<string, string> = {
-  js: "#f1e05a", jsx: "#61dafb", ts: "#3178c6", tsx: "#61dafb",
-  json: "#cbcb41", md: "#519aba", mdx: "#519aba", css: "#a074c4",
-  scss: "#c6538c", html: "#e34c26", vue: "#41b883", svelte: "#ff3e00",
-  py: "#3572a5", go: "#00add8", rs: "#dea584", java: "#b07219",
-  kt: "#a97bff", sql: "#e38c00", sh: "#89e051", yml: "#cb171e",
-  yaml: "#cb171e", toml: "#9c4221", xml: "#e34c26", png: "#a074c4",
-  jpg: "#a074c4", jpeg: "#a074c4", gif: "#a074c4", svg: "#ffb13b",
-  db: "#e38c00", sqlite: "#e38c00", pdf: "#e34c26",
-};
-
 function iconFor(name: string, dir: boolean, open: boolean) {
   if (dir) return open ? FolderOpen : Folder;
   const lower = name.toLowerCase();
@@ -103,11 +92,6 @@ export default function FileIcon({ name, dir = false, open = false, iconTheme, s
     );
   }
   const Icon = iconFor(name, dir, open);
-  const ext = name.toLowerCase().split(".").pop() ?? "";
-  const color = iconTheme === "vivid"
-    ? (dir ? "var(--primary)" : vividColors[ext] ?? "var(--info)")
-    : iconTheme === "outline"
-      ? "var(--muted-2)"
-      : (dir ? "var(--primary)" : "var(--text-soft)");
+  const color = dir ? "var(--primary)" : "var(--text-soft)";
   return <Icon size={size} className={`${dir ? "folder-icon" : "file-icon"} file-icon-theme-${iconTheme}`} color={color} />;
 }

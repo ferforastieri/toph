@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
-import { RefreshCw, X } from "lucide-react";
+import { RefreshCw, X } from "@toph/icons";
 import { api, type Project } from "../api";
 import { useApp } from "../store";
 import { useResolvedTheme, useSettings } from "../settings";

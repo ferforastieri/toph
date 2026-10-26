@@ -10,7 +10,7 @@ import {
   Sparkles,
   Trash2,
   Undo2,
-} from "lucide-react";
+} from "@toph/icons";
 import { api, type Project } from "../api";
 import { expandGitPattern, sanitizeBranchName } from "../lib";
 import { suggestGitChanges } from "../gitAi";

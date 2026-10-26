@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Check, Pencil, Play, Square, Timer, Rows3, Trash2, X } from "lucide-react";
+import { Check, Pencil, Play, Square, Timer, Rows3, Trash2, X } from "@toph/icons";
 import { api, type DBProfile, type QueryResult } from "../api";
 import { useApp, type Tab } from "../store";
 import CodeEditor from "../components/CodeEditor";

@@ -1,4 +1,4 @@
-import { Database, Files, Globe2, Sparkles, TerminalSquare } from "lucide-react";
+import { Database, Files, Globe2, Sparkles, TerminalSquare } from "@toph/icons";
 import type { Sidebar } from "../store";
 
 interface Props {

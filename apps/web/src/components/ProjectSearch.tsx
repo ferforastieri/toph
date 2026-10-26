@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { FileText, Search, X } from "lucide-react";
+import { FileText, Search, X } from "@toph/icons";
 import { api, type Project, type SearchMatch } from "../api";
 import { basename } from "../lib";
 import { useSettings } from "../settings";

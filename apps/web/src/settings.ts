@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import { create } from "zustand";
+import type { IconTheme } from "@toph/icons";
+
+export type { IconTheme } from "@toph/icons";
 
 export type ThemePreference = "auto" | "dark" | "light" | "brand" | "emerald" | "nightwolf";
 export type ResolvedTheme = "dark" | "light" | "brand" | "emerald" | "nightwolf";
-export type IconTheme = "toph" | "material" | "outline" | "vivid";
 export type Accent = "jade" | "ocean" | "violet" | "amber" | "rose" | "graphite";
 export type GlassLevel = "off" | "subtle" | "regular" | "strong";
 export type BackgroundStyle = "aurora" | "mesh" | "grid" | "solid";
@@ -58,13 +60,13 @@ export const defaultSettings: AppearanceSettings = {
   minimap: false,
   respectReducedTransparency: false,
   aiPanelWidth: 390,
-  iconTheme: "toph",
+  iconTheme: "material",
   gitBranchPattern: "feature/{task}-{slug}",
   gitCommitPattern: "{task} {summary}",
 };
 
 const themes: ThemePreference[] = ["auto", "dark", "light", "brand", "emerald", "nightwolf"];
-const iconThemes: IconTheme[] = ["toph", "material", "outline", "vivid"];
+const iconThemes: IconTheme[] = ["material", "phosphor", "remix"];
 const accents: Accent[] = ["jade", "ocean", "violet", "amber", "rose", "graphite"];
 const glassLevels: GlassLevel[] = ["off", "subtle", "regular", "strong"];
 const backgrounds: BackgroundStyle[] = ["aurora", "mesh", "grid", "solid"];
@@ -138,6 +140,7 @@ export function applyAppearance(settings: AppearanceSettings): void {
   root.dataset.density = settings.density;
   root.dataset.tabs = settings.tabs;
   root.dataset.motion = settings.motion ? "on" : "off";
+  root.dataset.iconTheme = settings.iconTheme;
   root.dataset.reducedTransparency = settings.respectReducedTransparency ? "on" : "off";
   root.style.setProperty("--radius", `${settings.radius}px`);
   root.style.setProperty("--sidebar-width", `${settings.sidebarWidth}px`);
