@@ -14,6 +14,7 @@ interface Props {
   line?: number;
   blame?: GitBlameLine[];
   onCursorLine?: (line: number) => void;
+  onCursorPosition?: (line: number, column: number) => void;
   onChange: (value: string) => void;
   onSave?: () => void;
   onRun?: () => void;
@@ -212,6 +213,7 @@ export default function CodeEditor({
   line,
   blame,
   onCursorLine,
+  onCursorPosition,
   onChange,
   onSave,
   onRun,
@@ -266,9 +268,12 @@ export default function CodeEditor({
     const initialLine = instance.getPosition()?.lineNumber ?? 1;
     setCursorLine(initialLine);
     onCursorLine?.(initialLine);
+    const initialPosition = instance.getPosition();
+    if (initialPosition) onCursorPosition?.(initialPosition.lineNumber, initialPosition.column);
     instance.onDidChangeCursorPosition((event) => {
       setCursorLine(event.position.lineNumber);
       onCursorLine?.(event.position.lineNumber);
+      onCursorPosition?.(event.position.lineNumber, event.position.column);
     });
     instance.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
       saveRef.current?.();

@@ -111,6 +111,8 @@ func (s *Server) Handler() http.Handler {
 				r.Put("/file", s.writeFile)
 				r.Post("/search", s.search)
 				r.Get("/git/status", s.gitStatus)
+				r.Get("/git/branches", s.gitBranches)
+				r.Post("/git/checkout", s.gitCheckout)
 				r.Get("/git/diff", s.gitDiff)
 				r.Get("/git/file", s.gitFileVersions)
 				r.Get("/git/blame", s.gitBlame)

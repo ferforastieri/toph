@@ -64,6 +64,12 @@ export default function SourceControlPanel({
     void load();
   }, [load, refreshToken]);
 
+  useEffect(() => {
+    const refresh = () => void load();
+    window.addEventListener("toph:git-changed", refresh);
+    return () => window.removeEventListener("toph:git-changed", refresh);
+  }, [load]);
+
   const parsed = useMemo(() => parseGitStatus(status), [status]);
   const staged = parsed.changes.filter((change) => change.staged);
   const unstaged = parsed.changes.filter((change) => change.unstaged);

@@ -383,6 +383,17 @@ export const api = {
     });
   },
 
+  async gitBranches(projectId: string): Promise<{ current: string; branches: string[] }> {
+    return request(`/projects/${encodeURIComponent(projectId)}/git/branches`);
+  },
+
+  async gitCheckout(projectId: string, name: string): Promise<void> {
+    await request(`/projects/${encodeURIComponent(projectId)}/git/checkout`, {
+      method: "POST",
+      ...json({ name }),
+    });
+  },
+
   async gitStatus(projectId: string): Promise<string> {
     const response = await request<{ status: string }>(
       `/projects/${encodeURIComponent(projectId)}/git/status`,
