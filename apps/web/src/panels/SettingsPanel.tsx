@@ -1,5 +1,6 @@
 import { FormEvent, useState, type ReactNode } from "react";
 import {
+  ChevronRight,
   Gem,
   GitBranch,
   HardDrive,
@@ -34,21 +35,10 @@ interface Props {
   version: string;
 }
 
-type Category =
-  | "appearance"
-  | "layout"
-  | "editor"
-  | "terminal"
-  | "ai"
-  | "workspace"
-  | "git"
-  | "server";
+type Category = "appearance" | "ai" | "workspace" | "git" | "server";
 
 const categories: Array<{ id: Category; label: string; icon: typeof Sun }> = [
-  { id: "appearance", label: "Appearance", icon: Palette },
-  { id: "layout", label: "Layout", icon: LayoutPanelLeft },
-  { id: "editor", label: "Editor", icon: Type },
-  { id: "terminal", label: "Terminal", icon: TerminalSquare },
+  { id: "appearance", label: "Aparência", icon: Palette },
   { id: "ai", label: "AI", icon: Sparkles },
   { id: "workspace", label: "Workspace", icon: HardDrive },
   { id: "git", label: "Git", icon: GitBranch },
@@ -168,6 +158,34 @@ function PageTitle({ icon: Icon, children }: { icon: typeof Sun; children: React
   return <div className="settings-page-title"><Icon size={15} /> {children}</div>;
 }
 
+function AppearanceSection({
+  icon: Icon,
+  title,
+  defaultOpen = false,
+  children,
+}: {
+  icon: typeof Sun;
+  title: string;
+  defaultOpen?: boolean;
+  children: ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <details
+      className="settings-accordion"
+      open={open}
+      onToggle={(event) => setOpen(event.currentTarget.open)}
+    >
+      <summary className="settings-accordion-head">
+        <ChevronRight size={13} className="settings-accordion-chevron" />
+        <Icon size={14} className="settings-accordion-icon" />
+        <span>{title}</span>
+      </summary>
+      <div className="settings-accordion-body">{children}</div>
+    </details>
+  );
+}
+
 export default function SettingsPanel({ version }: Props) {
   const notify = useApp((state) => state.notify);
   const settings = useSettings();
@@ -216,82 +234,82 @@ export default function SettingsPanel({ version }: Props) {
 
       {category === "appearance" && (
         <div className="settings-page">
-          <PageTitle icon={Palette}>Appearance</PageTitle>
-          <div className="settings-field">
-            <span>Theme</span>
-            <Select
-              value={settings.theme}
-              options={themes.map((theme) => ({ value: theme.id, label: theme.label }))}
-              onChange={(theme) => update({ theme })}
-              label="Theme"
+          <PageTitle icon={Palette}>Aparência</PageTitle>
+
+          <AppearanceSection icon={Palette} title="Tema e cores" defaultOpen>
+            <div className="settings-field">
+              <span>Theme</span>
+              <Select
+                value={settings.theme}
+                options={themes.map((theme) => ({ value: theme.id, label: theme.label }))}
+                onChange={(theme) => update({ theme })}
+                label="Theme"
+              />
+            </div>
+            <div className="settings-field">
+              <span>Accent color</span>
+              <Select
+                value={settings.accent}
+                options={accents.map((accent) => ({ value: accent.id, label: accent.label }))}
+                onChange={(accent) => update({ accent })}
+                label="Accent color"
+              />
+            </div>
+            <div className="settings-field">
+              <span>Liquid glass</span>
+              <Select value={settings.glass} options={glassOptions.map((item) => ({ value: item.id, label: item.label }))} onChange={(glass) => update({ glass })} label="Liquid glass" />
+            </div>
+            <div className="settings-field">
+              <span>Background</span>
+              <Select value={settings.background} options={backgroundOptions.map((item) => ({ value: item.id, label: item.label }))} onChange={(background) => update({ background })} label="Background" />
+            </div>
+            <Range label="Corner radius" value={settings.radius} min={0} max={32} suffix="px" onChange={(radius) => update({ radius })} />
+          </AppearanceSection>
+
+          <AppearanceSection icon={Gem} title="Ícones">
+            <div className="settings-field">
+              <span>Icon set</span>
+              <Select value={settings.iconTheme} options={iconOptions.map((item) => ({ value: item.id, label: item.label }))} onChange={(iconTheme) => update({ iconTheme })} label="Icon set" />
+            </div>
+          </AppearanceSection>
+
+          <AppearanceSection icon={LayoutPanelLeft} title="Layout">
+            <Range label="Sidebar width" value={settings.sidebarWidth} min={220} max={460} step={4} suffix="px" onChange={(sidebarWidth) => update({ sidebarWidth })} />
+            <Range label="AI panel width" value={settings.aiPanelWidth} min={300} max={620} step={10} suffix="px" onChange={(aiPanelWidth) => update({ aiPanelWidth })} />
+            <div className="settings-field">
+              <span>Density</span>
+              <Select value={settings.density} options={densityOptions.map((item) => ({ value: item.id, label: item.label }))} onChange={(density) => update({ density })} label="Density" />
+            </div>
+            <div className="settings-field">
+              <span>Tab style</span>
+              <Select value={settings.tabs} options={tabOptions.map((item) => ({ value: item.id, label: item.label }))} onChange={(tabs) => update({ tabs })} label="Tab style" />
+            </div>
+            <Toggle label="Confirm closing dirty tabs" checked={settings.confirmClose} onChange={(confirmClose) => update({ confirmClose })} />
+          </AppearanceSection>
+
+          <AppearanceSection icon={Type} title="Editor">
+            <Range label="Font size" value={settings.editorFontSize} min={11} max={20} suffix="px" onChange={(editorFontSize) => update({ editorFontSize })} />
+            <Toggle label="Word wrap" checked={settings.wordWrap} onChange={(wordWrap) => update({ wordWrap })} />
+            <Toggle label="Minimap" checked={settings.minimap} onChange={(minimap) => update({ minimap })} />
+            <p className="settings-note">Editor autocomplete is configured in the AI section.</p>
+          </AppearanceSection>
+
+          <AppearanceSection icon={TerminalSquare} title="Terminal">
+            <Range label="Font size" value={settings.terminalFontSize} min={10} max={18} step={0.5} suffix="px" onChange={(terminalFontSize) => update({ terminalFontSize })} />
+            <Range label="Panel height" value={settings.terminalHeight} min={180} max={640} step={10} suffix="px" onChange={(terminalHeight) => update({ terminalHeight })} />
+          </AppearanceSection>
+
+          <AppearanceSection icon={Monitor} title="Movimento e acessibilidade">
+            <Toggle label="Animations" checked={settings.motion} onChange={(motion) => update({ motion })} />
+            <Toggle
+              label="Use system reduced transparency"
+              checked={settings.respectReducedTransparency}
+              onChange={(respectReducedTransparency) => update({ respectReducedTransparency })}
             />
-          </div>
-          <div className="settings-field">
-            <span>Accent color</span>
-            <Select
-              value={settings.accent}
-              options={accents.map((accent) => ({ value: accent.id, label: accent.label }))}
-              onChange={(accent) => update({ accent })}
-              label="Accent color"
-            />
-          </div>
-          <div className="settings-field">
-            <span>Liquid glass</span>
-            <Select value={settings.glass} options={glassOptions.map((item) => ({ value: item.id, label: item.label }))} onChange={(glass) => update({ glass })} label="Liquid glass" />
-          </div>
-          <div className="settings-field">
-            <span>Background</span>
-            <Select value={settings.background} options={backgroundOptions.map((item) => ({ value: item.id, label: item.label }))} onChange={(background) => update({ background })} label="Background" />
-          </div>
-          <div className="settings-field">
-            <span>Icon set</span>
-            <Select value={settings.iconTheme} options={iconOptions.map((item) => ({ value: item.id, label: item.label }))} onChange={(iconTheme) => update({ iconTheme })} label="Icon set" />
-          </div>
-          <Range label="Corner radius" value={settings.radius} min={0} max={32} suffix="px" onChange={(radius) => update({ radius })} />
-          <Toggle label="Animations" checked={settings.motion} onChange={(motion) => update({ motion })} />
-          <Toggle
-            label="Use system reduced transparency"
-            checked={settings.respectReducedTransparency}
-            onChange={(respectReducedTransparency) => update({ respectReducedTransparency })}
-          />
-          <p className="settings-note">
-            When off, Toph keeps the glass effect even if your operating system asks apps to reduce transparency.
-          </p>
-        </div>
-      )}
-
-      {category === "layout" && (
-        <div className="settings-page">
-          <PageTitle icon={LayoutPanelLeft}>Layout</PageTitle>
-          <Range label="Sidebar width" value={settings.sidebarWidth} min={220} max={460} step={4} suffix="px" onChange={(sidebarWidth) => update({ sidebarWidth })} />
-          <Range label="AI panel width" value={settings.aiPanelWidth} min={300} max={620} step={10} suffix="px" onChange={(aiPanelWidth) => update({ aiPanelWidth })} />
-          <div className="settings-field">
-            <span>Density</span>
-            <Select value={settings.density} options={densityOptions.map((item) => ({ value: item.id, label: item.label }))} onChange={(density) => update({ density })} label="Density" />
-          </div>
-          <div className="settings-field">
-            <span>Tab style</span>
-            <Select value={settings.tabs} options={tabOptions.map((item) => ({ value: item.id, label: item.label }))} onChange={(tabs) => update({ tabs })} label="Tab style" />
-          </div>
-          <Toggle label="Confirm closing dirty tabs" checked={settings.confirmClose} onChange={(confirmClose) => update({ confirmClose })} />
-        </div>
-      )}
-
-      {category === "editor" && (
-        <div className="settings-page">
-          <PageTitle icon={Type}>Editor</PageTitle>
-          <Range label="Font size" value={settings.editorFontSize} min={11} max={20} suffix="px" onChange={(editorFontSize) => update({ editorFontSize })} />
-          <Toggle label="Word wrap" checked={settings.wordWrap} onChange={(wordWrap) => update({ wordWrap })} />
-          <Toggle label="Minimap" checked={settings.minimap} onChange={(minimap) => update({ minimap })} />
-          <p className="settings-note">Editor autocomplete is configured in the AI section.</p>
-        </div>
-      )}
-
-      {category === "terminal" && (
-        <div className="settings-page">
-          <PageTitle icon={TerminalSquare}>Terminal</PageTitle>
-          <Range label="Font size" value={settings.terminalFontSize} min={10} max={18} step={0.5} suffix="px" onChange={(terminalFontSize) => update({ terminalFontSize })} />
-          <Range label="Panel height" value={settings.terminalHeight} min={180} max={640} step={10} suffix="px" onChange={(terminalHeight) => update({ terminalHeight })} />
+            <p className="settings-note">
+              When off, Toph keeps the glass effect even if your operating system asks apps to reduce transparency.
+            </p>
+          </AppearanceSection>
         </div>
       )}
 

@@ -6,7 +6,6 @@ import {
   GitBranch,
   Minus,
   Plus,
-  RefreshCw,
   Sparkles,
   Trash2,
   Undo2,
@@ -21,12 +20,12 @@ import { useAI } from "../ai";
 import { Button } from "@toph/ui";
 import FileIcon from "../ui/FileIcon";
 import { useConfirm } from "@toph/ui";
+import { useProjectEvents } from "../projectEvents";
 
 interface Props {
   project: Project;
   onOpenDiff: (path: string, staged: boolean) => void;
   embedded?: boolean;
-  refreshToken?: number;
   onStatusChange?: (status: string) => void;
 }
 
@@ -34,7 +33,6 @@ export default function SourceControlPanel({
   project,
   onOpenDiff,
   embedded = false,
-  refreshToken = 0,
   onStatusChange,
 }: Props) {
   const notify = useApp((state) => state.notify);
@@ -62,7 +60,9 @@ export default function SourceControlPanel({
 
   useEffect(() => {
     void load();
-  }, [load, refreshToken]);
+  }, [load]);
+
+  useProjectEvents(project.id, ["git", "files"], () => void load());
 
   useEffect(() => {
     const refresh = () => void load();
@@ -239,9 +239,6 @@ export default function SourceControlPanel({
       {!embedded && (
         <div className="panel-heading">
           <span>Source Control</span>
-          <Button className="icon-button" title="Refresh" onClick={() => void load()}>
-            <RefreshCw size={14} />
-          </Button>
         </div>
       )}
       <div className="scm-branch">

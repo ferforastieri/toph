@@ -32,8 +32,8 @@ export default function AiSettings() {
   const config = useAI((state) => state.config);
   const setConfig = useAI((state) => state.setConfig);
   const models = useAI((state) => state.models);
-  const loadingModels = useAI((state) => state.loadingModels);
   const loadModels = useAI((state) => state.loadModels);
+  const loadingModels = useAI((state) => state.loadingModels);
   const notify = useApp((state) => state.notify);
   const [form, setForm] = useState<AIConfigInput>(empty);
   const [busy, setBusy] = useState(false);
@@ -129,12 +129,7 @@ export default function AiSettings() {
           />
         </label>
         <div className="settings-field">
-          <span className="settings-field-head">
-            Model
-            <button type="button" className="ui-link-button" onClick={() => void loadModels()} disabled={loadingModels}>
-              {loadingModels ? "Loading..." : "Refresh"}
-            </button>
-          </span>
+          <span className="settings-field-head">Model</span>
           <Select
             value={form.model}
             options={[
@@ -148,7 +143,7 @@ export default function AiSettings() {
             ]}
             onChange={(model) => patch({ model })}
             label="Model"
-            placeholder={models.length ? "Choose a model" : "Save settings and refresh models"}
+            placeholder={models.length ? "Choose a model" : "Models load after saving settings"}
             disabled={loadingModels || models.length === 0}
           />
         </div>

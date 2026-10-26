@@ -1,16 +1,16 @@
 import { useEffect, useState } from "react";
-import { ChevronDown, ChevronRight, RefreshCw } from "@toph/icons";
+import { ChevronDown, ChevronRight } from "@toph/icons";
 import { api, type FileEntry, type Project } from "../api";
 import { useApp } from "../store";
 import { useSettings } from "../settings";
 import FileIcon from "../ui/FileIcon";
 import { Button } from "@toph/ui";
+import { useProjectEvents } from "../projectEvents";
 
 interface Props {
   project: Project;
   onOpenFile: (path: string) => void;
   embedded?: boolean;
-  refreshToken?: number;
   statuses?: Map<string, string>;
 }
 
@@ -18,12 +18,13 @@ export default function FileTree({
   project,
   onOpenFile,
   embedded = false,
-  refreshToken = 0,
   statuses,
 }: Props) {
   const [entries, setEntries] = useState<FileEntry[]>([]);
-  const [refresh, setRefresh] = useState(0);
+  const [revision, setRevision] = useState(0);
   const [error, setError] = useState("");
+
+  useProjectEvents(project.id, ["files"], () => setRevision((current) => current + 1));
 
   useEffect(() => {
     let cancelled = false;
@@ -41,16 +42,13 @@ export default function FileTree({
     return () => {
       cancelled = true;
     };
-  }, [project.id, refresh, refreshToken]);
+  }, [project.id, revision]);
 
   return (
     <div className={`tree ${embedded ? "explorer-tree" : ""}`}>
       {!embedded && (
         <div className="panel-heading">
           <span>Explorer</span>
-          <Button className="icon-button" title="Refresh" onClick={() => setRefresh((n) => n + 1)}>
-            <RefreshCw size={14} />
-          </Button>
         </div>
       )}
       <div className="tree-root">{project.root}</div>
@@ -63,6 +61,7 @@ export default function FileTree({
           depth={0}
           onOpenFile={onOpenFile}
           statuses={statuses}
+          revision={revision}
         />
       ))}
     </div>
@@ -75,12 +74,14 @@ function TreeNode({
   depth,
   onOpenFile,
   statuses,
+  revision,
 }: {
   project: Project;
   entry: FileEntry;
   depth: number;
   onOpenFile: (path: string) => void;
   statuses?: Map<string, string>;
+  revision: number;
 }) {
   const [open, setOpen] = useState(false);
   const [children, setChildren] = useState<FileEntry[] | null>(null);
@@ -92,23 +93,34 @@ function TreeNode({
     ? [...statuses.keys()].filter((path) => path.startsWith(`${entry.path}/`)).length
     : 0;
 
-  async function toggle() {
+  useEffect(() => {
+    if (!entry.dir || !open) return;
+    let cancelled = false;
+    setLoading(true);
+    api
+      .tree(project.id, entry.path)
+      .then((items) => {
+        if (!cancelled) setChildren(items);
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          notify("error", error instanceof Error ? error.message : "Could not open folder.");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [project.id, entry.dir, entry.path, open, revision, notify]);
+
+  function toggle() {
     if (!entry.dir) {
       onOpenFile(entry.path);
       return;
     }
-    const next = !open;
-    setOpen(next);
-    if (next && children === null) {
-      setLoading(true);
-      try {
-        setChildren(await api.tree(project.id, entry.path));
-      } catch (error) {
-        notify("error", error instanceof Error ? error.message : "Could not open folder.");
-      } finally {
-        setLoading(false);
-      }
-    }
+    setOpen((current) => !current);
   }
 
   return (
@@ -154,6 +166,7 @@ function TreeNode({
             depth={depth + 1}
             onOpenFile={onOpenFile}
             statuses={statuses}
+            revision={revision}
           />
         ))}
     </>

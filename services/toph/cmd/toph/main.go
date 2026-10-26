@@ -79,6 +79,7 @@ func run() error {
 	if err := app.EnsureDefaultProject(context.Background()); err != nil {
 		slog.Warn("could not seed default project", "error", err)
 	}
+	app.StartProjectWatchers(context.Background())
 
 	httpServer := &http.Server{
 		Addr:              cfg.Addr,
