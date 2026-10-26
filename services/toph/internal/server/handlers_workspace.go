@@ -167,6 +167,29 @@ func (s *Server) gitDiscard(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
+func (s *Server) gitBranches(w http.ResponseWriter, r *http.Request) {
+	branches, err := s.workspace.GitBranches(r.Context(), currentProject(r).Root)
+	if err != nil {
+		apiError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, branches)
+}
+
+func (s *Server) gitCheckout(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Name string `json:"name"`
+	}
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	if err := s.workspace.GitCheckout(r.Context(), currentProject(r).Root, req.Name); err != nil {
+		apiError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
 func (s *Server) gitCreateBranch(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Name string `json:"name"`

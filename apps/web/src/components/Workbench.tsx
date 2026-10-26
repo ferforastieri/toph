@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Check, ChevronDown, FolderGit2, FolderPlus, GitBranch, Plus, Settings2, Sparkles, X } from "@toph/icons";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { ArrowLeft, Check, ChevronDown, FolderPlus, GitBranch, Plus, Settings2, X } from "@toph/icons";
 import { api, getApiBase, type Repository, type SchemaTable, type WebTarget } from "../api";
-import { basename, quoteIdentifier } from "../lib";
+import { basename, languageFor, quoteIdentifier } from "../lib";
 import { useApp, type AppNotification, type Sidebar, type Tab } from "../store";
 import { providerLabel, useAI } from "../ai";
 import { nativePushToken, requestMobileNotificationPermission } from "../notifications";
@@ -61,8 +61,13 @@ export default function Workbench() {
   const [mobilePanelOpen, setMobilePanelOpen] = useState(false);
   const [projectsSheetOpen, setProjectsSheetOpen] = useState(false);
   const [projectMenuOpen, setProjectMenuOpen] = useState(false);
-  const [rightTab, setRightTab] = useState<"projects" | "agent">("projects");
+  const [branchMenuOpen, setBranchMenuOpen] = useState(false);
+  const [branchInfo, setBranchInfo] = useState<{ current: string; branches: string[] } | null>(null);
+  const [branchBusy, setBranchBusy] = useState("");
+  const [newBranchOpen, setNewBranchOpen] = useState(false);
+  const [newBranchName, setNewBranchName] = useState("");
   const [searchFocusToken, setSearchFocusToken] = useState(0);
+  const [cursor, setCursor] = useState({ line: 1, column: 1, language: "" });
   const loadedProject = useRef<string | null>(null);
   const mobile = document.documentElement.classList.contains("mobile-client");
 
@@ -102,6 +107,27 @@ export default function Workbench() {
   useEffect(() => {
     setSearchFocusToken(0);
   }, [activeProjectId]);
+
+  useEffect(() => {
+    const onCursor = (event: Event) => {
+      const detail = (event as CustomEvent<{ line: number; column: number; language: string }>).detail;
+      if (detail) setCursor(detail);
+    };
+    window.addEventListener("toph:cursor", onCursor);
+    return () => window.removeEventListener("toph:cursor", onCursor);
+  }, []);
+
+  useEffect(() => {
+    if (activeTab?.kind === "editor") {
+      setCursor({
+        line: activeTab.line ?? 1,
+        column: 1,
+        language: languageFor(activeTab.path ?? activeTab.title),
+      });
+    } else {
+      setCursor({ line: 1, column: 1, language: "" });
+    }
+  }, [activeTabId]);
 
   useEffect(() => {
     const handler = (payload: { title?: string; body?: string }) => {
@@ -340,6 +366,56 @@ export default function Workbench() {
     setTerminalOpen(!terminalOpen);
   }
 
+  async function toggleBranchMenu() {
+    if (branchMenuOpen) {
+      setBranchMenuOpen(false);
+      return;
+    }
+    if (!project) return;
+    setProjectMenuOpen(false);
+    setBranchMenuOpen(true);
+    setNewBranchOpen(false);
+    try {
+      setBranchInfo(await api.gitBranches(project.id));
+    } catch (error) {
+      notify("error", error instanceof Error ? error.message : "Não foi possível listar as branches.");
+    }
+  }
+
+  async function checkoutBranch(name: string) {
+    if (!project || branchBusy) return;
+    setBranchBusy(name);
+    try {
+      await api.gitCheckout(project.id, name);
+      setGitStatus(await api.gitStatus(project.id));
+      window.dispatchEvent(new Event("toph:git-changed"));
+      setBranchMenuOpen(false);
+    } catch (error) {
+      notify("error", error instanceof Error ? error.message : "Não foi possível trocar de branch.");
+    } finally {
+      setBranchBusy("");
+    }
+  }
+
+  async function createBranchFromMenu(event: FormEvent) {
+    event.preventDefault();
+    if (!project || !newBranchName.trim() || branchBusy) return;
+    const name = newBranchName.trim();
+    setBranchBusy("create");
+    try {
+      await api.gitCreateBranch(project.id, name);
+      setNewBranchName("");
+      setNewBranchOpen(false);
+      setGitStatus(await api.gitStatus(project.id));
+      setBranchInfo(await api.gitBranches(project.id));
+      window.dispatchEvent(new Event("toph:git-changed"));
+    } catch (error) {
+      notify("error", error instanceof Error ? error.message : "Não foi possível criar a branch.");
+    } finally {
+      setBranchBusy("");
+    }
+  }
+
   function openFile(path: string, line?: number) {
     if (!project) return;
     if (mobile) setMobilePanelOpen(false);
@@ -436,7 +512,6 @@ export default function Workbench() {
       });
     }
     setAiPanelOpen(true);
-    if (!mobile) setRightTab("agent");
   }
 
   function newAiSession() {
@@ -449,13 +524,11 @@ export default function Workbench() {
       projectId: project.id,
     });
     setAiPanelOpen(true);
-    if (!mobile) setRightTab("agent");
   }
 
   function toggleAI() {
     if (aiPanelOpen) {
       setAiPanelOpen(false);
-      if (!mobile) setRightTab("projects");
     } else {
       openAI();
     }
@@ -472,7 +545,6 @@ export default function Workbench() {
       sessionId: session.id,
     });
     setAiPanelOpen(true);
-    if (!mobile) setRightTab("agent");
   }
 
   function openNotification(notification: AppNotification) {
@@ -488,7 +560,6 @@ export default function Workbench() {
     if (mobile) setMobilePanelOpen(false);
     setTerminalOpen(false);
     setAiPanelOpen(true);
-    if (!mobile) setRightTab("agent");
   }
 
   function openWeb(target: WebTarget) {
@@ -662,100 +733,15 @@ export default function Workbench() {
           {terminalOpen && project && <TerminalPanel project={project} />}
         </main>
 
-        {!mobile && project && (
+        {!mobile && project && aiPanelOpen && aiDockTab && (
           <aside className="right-sidebar">
-            <div className="right-sidebar-tabs" role="tablist" aria-label="Painel direito">
-              <button
-                type="button"
-                role="tab"
-                aria-selected={rightTab === "projects"}
-                className={rightTab === "projects" ? "active" : ""}
-                onClick={() => {
-                  setRightTab("projects");
-                  setAiPanelOpen(false);
-                }}
-              >
-                <FolderGit2 size={15} /> Projetos
-              </button>
-              <button
-                type="button"
-                role="tab"
-                aria-selected={rightTab === "agent"}
-                className={rightTab === "agent" ? "active" : ""}
-                onClick={openAI}
-              >
-                <Sparkles size={15} /> Agente
-              </button>
+            <div className="right-agent">
+              <AiPanelTab
+                tab={aiDockTab}
+                project={project}
+                onClose={() => setAiPanelOpen(false)}
+              />
             </div>
-            {rightTab === "projects" ? (
-              <div className="right-projects">
-                <div className="right-projects-head">
-                  <span>Projetos abertos</span>
-                  <Button
-                    className="icon-button"
-                    title="Abrir projeto"
-                    aria-label="Abrir projeto"
-                    onClick={() => setShowRepoPicker(true)}
-                  >
-                    <Plus size={15} />
-                  </Button>
-                </div>
-                <div className="right-project-list">
-                  {openProjectIds.map((id) => {
-                    const item = projects.find((projectItem) => projectItem.id === id);
-                    if (!item) return null;
-                    const active = item.id === activeProjectId;
-                    return (
-                      <div className={`right-project-row ${active ? "active" : ""}`} key={item.id}>
-                        <button
-                          type="button"
-                          className="right-project-main"
-                          title={item.root}
-                          onClick={() => switchProject(item.id)}
-                        >
-                          <span className="right-project-avatar" style={{ background: item.color }}>
-                            {item.name.slice(0, 1).toUpperCase()}
-                          </span>
-                          <span className="right-project-copy">
-                            <strong>{item.name}</strong>
-                            <small>{item.root}</small>
-                          </span>
-                          {active && <Check size={15} />}
-                        </button>
-                        <Button
-                          className="icon-button"
-                          title={`Fechar ${item.name}`}
-                          aria-label={`Fechar ${item.name}`}
-                          onClick={() => void closeProject(item.id)}
-                        >
-                          <X size={13} />
-                        </Button>
-                      </div>
-                    );
-                  })}
-                </div>
-                <button
-                  type="button"
-                  className="right-project-open"
-                  onClick={() => setShowRepoPicker(true)}
-                >
-                  <FolderPlus size={15} /> Abrir projeto
-                </button>
-              </div>
-            ) : project && aiDockTab ? (
-              <div className="right-agent">
-                <AiPanelTab
-                  tab={aiDockTab}
-                  project={project}
-                  onClose={() => {
-                    setAiPanelOpen(false);
-                    setRightTab("projects");
-                  }}
-                />
-              </div>
-            ) : (
-              <div className="right-project-open empty">Abra o Agente para começar.</div>
-            )}
           </aside>
         )}
 
@@ -774,30 +760,106 @@ export default function Workbench() {
         <>
           <footer className="desktop-footer">
             <div className="desktop-footer-left">
-              {branch && (
-                <span className="desktop-footer-branch">
-                  <GitBranch size={12} /> {branch}
+              <button
+                type="button"
+                className="desktop-branch-button"
+                onClick={() => void toggleBranchMenu()}
+                aria-haspopup="menu"
+                aria-expanded={branchMenuOpen}
+              >
+                <GitBranch size={12} />
+                <span>{branch || "detached"}</span>
+                <ChevronDown size={12} />
+              </button>
+              <button
+                type="button"
+                className="desktop-project-button"
+                onClick={() => {
+                  setBranchMenuOpen(false);
+                  setProjectMenuOpen((current) => !current);
+                }}
+                aria-haspopup="menu"
+                aria-expanded={projectMenuOpen}
+              >
+                <span className="desktop-project-avatar" style={{ background: project.color }}>
+                  {project.name.slice(0, 1).toUpperCase()}
                 </span>
-              )}
+                <span className="desktop-project-name">{project.name}</span>
+                <span className="desktop-project-count">{openProjectIds.length}</span>
+                <ChevronDown size={14} />
+              </button>
             </div>
-            <button
-              type="button"
-              className="desktop-project-button"
-              onClick={() => setProjectMenuOpen((current) => !current)}
-              aria-haspopup="menu"
-              aria-expanded={projectMenuOpen}
-            >
-              <span className="desktop-project-avatar" style={{ background: project.color }}>
-                {project.name.slice(0, 1).toUpperCase()}
-              </span>
-              <span className="desktop-project-name">{project.name}</span>
-              <span className="desktop-project-count">{openProjectIds.length}</span>
-              <ChevronDown size={14} />
-            </button>
             <div className="desktop-footer-right">
+              {activeTab?.kind === "editor" && (
+                <span className="desktop-footer-item">Ln {cursor.line}, Col {cursor.column}</span>
+              )}
+              {cursor.language && <span className="desktop-footer-item">{cursor.language}</span>}
+              <span className="desktop-footer-item">UTF-8</span>
+              <span className="desktop-footer-item">LF</span>
               <span className="desktop-footer-version">v{version}</span>
             </div>
           </footer>
+
+          {branchMenuOpen && project && (
+            <>
+              <button
+                type="button"
+                className="desktop-project-menu-backdrop"
+                aria-label="Fechar seletor de branches"
+                onClick={() => setBranchMenuOpen(false)}
+              />
+              <div className="desktop-branch-menu" role="menu" aria-label="Branches">
+                <div className="desktop-branch-menu-head">
+                  <span>Branches</span>
+                  <span>{branchInfo?.current || branch || "detached"}</span>
+                </div>
+                <div className="desktop-branch-menu-list">
+                  {branchInfo ? (
+                    branchInfo.branches.map((name) => (
+                      <button
+                        key={name}
+                        type="button"
+                        role="menuitem"
+                        className={`desktop-branch-item ${name === branchInfo.current ? "active" : ""}`}
+                        disabled={Boolean(branchBusy)}
+                        onClick={() => void checkoutBranch(name)}
+                      >
+                        <GitBranch size={13} />
+                        <span>{name}</span>
+                        {name === branchInfo.current && <Check size={14} />}
+                      </button>
+                    ))
+                  ) : (
+                    <div className="desktop-branch-menu-state">Carregando branches...</div>
+                  )}
+                </div>
+                <div className="desktop-branch-menu-footer">
+                  {newBranchOpen ? (
+                    <form className="desktop-branch-form" onSubmit={(event) => void createBranchFromMenu(event)}>
+                      <input
+                        autoFocus
+                        value={newBranchName}
+                        onChange={(event) => setNewBranchName(event.target.value)}
+                        placeholder="nome-da-branch"
+                        aria-label="Nome da nova branch"
+                      />
+                      <Button className="primary small" disabled={!newBranchName.trim() || Boolean(branchBusy)}>
+                        Criar
+                      </Button>
+                    </form>
+                  ) : (
+                    <button
+                      type="button"
+                      className="desktop-project-menu-open"
+                      onClick={() => setNewBranchOpen(true)}
+                    >
+                      <Plus size={14} /> Criar branch
+                    </button>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
 
           {projectMenuOpen && (
             <>

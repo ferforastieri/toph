@@ -209,6 +209,45 @@ func gitShow(ctx context.Context, root, spec string) string {
 	return string(out)
 }
 
+type GitBranches struct {
+	Current  string   `json:"current"`
+	Branches []string `json:"branches"`
+}
+
+func (s *Service) GitBranches(ctx context.Context, root string) (GitBranches, error) {
+	currentOut, err := exec.CommandContext(ctx, "git", "-C", root, "rev-parse", "--abbrev-ref", "HEAD").Output()
+	if err != nil {
+		return GitBranches{}, fmt.Errorf("%s", strings.TrimSpace(string(currentOut)))
+	}
+	out, err := exec.CommandContext(ctx, "git", "-C", root, "branch", "--format=%(refname:short)").Output()
+	if err != nil {
+		return GitBranches{}, fmt.Errorf("%s", strings.TrimSpace(string(out)))
+	}
+	branches := make([]string, 0)
+	for _, line := range strings.Split(string(out), "\n") {
+		name := strings.TrimSpace(line)
+		if name != "" {
+			branches = append(branches, name)
+		}
+	}
+	return GitBranches{Current: strings.TrimSpace(string(currentOut)), Branches: branches}, nil
+}
+
+func (s *Service) GitCheckout(ctx context.Context, root, name string) error {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return fmt.Errorf("branch name is required")
+	}
+	if strings.HasPrefix(name, "-") || strings.ContainsAny(name, " \t\r\n") {
+		return fmt.Errorf("invalid branch name")
+	}
+	cmd := exec.CommandContext(ctx, "git", "-C", root, "switch", name)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("%s", strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
 func (s *Service) GitCreateBranch(ctx context.Context, root, name string) (string, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {
