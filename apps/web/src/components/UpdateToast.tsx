@@ -53,13 +53,11 @@ function findInstaller(
   return installers?.find((installer) => installer.kind === kind);
 }
 
-function preferredInstaller(status: UpdateStatus, msiFirst = true): UpdateInstaller | undefined {
+function preferredInstaller(status: UpdateStatus): UpdateInstaller | undefined {
   const installers = status.installers;
   switch (platform()) {
     case "windows":
-      return msiFirst
-        ? findInstaller(installers, "windows-msi") ?? findInstaller(installers, "windows-nsis")
-        : findInstaller(installers, "windows-nsis") ?? findInstaller(installers, "windows-msi");
+      return findInstaller(installers, "windows-msi");
     case "linux":
       return (
         findInstaller(installers, "linux-appimage") ??
@@ -133,19 +131,13 @@ export default function UpdateToast() {
   const desktopLabel =
     desktopInstaller?.kind === "windows-msi"
       ? "MSI"
-      : desktopInstaller?.kind === "windows-nsis"
-        ? "EXE"
-        : desktopInstaller?.kind === "linux-appimage"
-          ? "AppImage"
-          : desktopInstaller?.kind === "linux-deb"
-            ? "DEB"
-            : desktopInstaller?.kind === "linux-rpm"
-              ? "RPM"
-              : "";
-  const alternateInstaller =
-    status && !mobile && platform() === "windows"
-      ? findInstaller(status.installers, "windows-nsis") ?? findInstaller(status.installers, "windows-msi")
-      : undefined;
+      : desktopInstaller?.kind === "linux-appimage"
+        ? "AppImage"
+        : desktopInstaller?.kind === "linux-deb"
+          ? "DEB"
+          : desktopInstaller?.kind === "linux-rpm"
+            ? "RPM"
+            : "";
 
   async function update() {
     if (!status || phase === "updating") return;
@@ -205,12 +197,6 @@ export default function UpdateToast() {
     setError("The server did not finish updating. Check the service health and try again.");
   }
 
-  function downloadAlternate() {
-    if (alternateInstaller) {
-      void downloadInstaller(alternateInstaller);
-    }
-  }
-
   const visible = status?.supported && status.available && dismissed.current !== status.latestVersion;
   if (!visible && phase !== "updating" && phase !== "error") return null;
 
@@ -243,11 +229,6 @@ export default function UpdateToast() {
         </span>
         {downloadedPath && !failed && (
           <small className="update-path">Instalador salvo em {downloadedPath}</small>
-        )}
-        {!updating && alternateInstaller && desktopInstaller?.kind !== alternateInstaller.kind && (
-          <button type="button" className="update-alternate" onClick={downloadAlternate}>
-            <Download size={11} /> Baixar instalador .exe
-          </button>
         )}
       </div>
       <Button className="primary small" disabled={updating} onClick={() => void update()}>

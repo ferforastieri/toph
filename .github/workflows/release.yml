@@ -180,7 +180,7 @@ jobs:
           cp artifacts/server/toph-linux-arm64 release/
           find artifacts/android -name '*.apk' -exec cp {} release/ \;
           find artifacts/toph-client-desktop-ubuntu-24.04 -type f \( -name '*.AppImage' -o -name '*.deb' -o -name '*.rpm' \) -exec cp {} release/ \;
-          find artifacts/toph-client-desktop-windows-latest -type f \( -name '*.msi' -o -name '*-setup.exe' \) -exec cp {} release/ \;
+          find artifacts/toph-client-desktop-windows-latest -type f \( -name '*.msi' \) -exec cp {} release/ \;
           ls -lh release
 
       - name: Publish release
