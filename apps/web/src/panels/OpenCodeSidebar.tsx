@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Bot, Plus, Sparkles } from "lucide-react";
+import { Bot, Plus, Sparkles } from "@toph/icons";
 import type { Project } from "../api";
 import { listOpenCodeSessions, type OpenCodeSessionSummary } from "../opencodeSessions";
 import { useApp } from "../store";

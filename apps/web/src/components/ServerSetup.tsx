@@ -1,5 +1,5 @@
 import { FormEvent, useState } from "react";
-import { ArrowRight, Server } from "lucide-react";
+import { ArrowRight, Server } from "@toph/icons";
 import { probeServer } from "../api";
 import BrandMark from "@toph/brand";
 import { Button } from "@toph/ui";

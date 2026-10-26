@@ -7,7 +7,8 @@
     "apps/landing",
     "apps/client",
     "packages/brand",
-    "packages/ui"
+    "packages/ui",
+    "packages/icons"
   ],
   "scripts": {
     "dev:web": "npm run dev --workspace @toph/web",
@@ -20,5 +21,6 @@
   },
   "overrides": {
     "dompurify": "3.4.17"
-  }
+  },
+  "dependencies": {}
 }

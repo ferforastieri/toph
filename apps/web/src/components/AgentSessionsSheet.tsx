@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { Bot, Check, History, Plus, X } from "lucide-react";
+import { Bot, Check, History, Plus, X } from "@toph/icons";
 import type { Project } from "../api";
 import { relativeTime } from "../lib";
 import { listOpenCodeSessions, type OpenCodeSessionSummary } from "../opencodeSessions";

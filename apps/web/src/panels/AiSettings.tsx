@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
-import { Check, CircleAlert, PlugZap, Save, Sparkles } from "lucide-react";
+import { Check, CircleAlert, PlugZap, Save, Sparkles } from "@toph/icons";
 import { api, type AIConfigInput } from "../api";
 import { Checkbox } from "@toph/ui";
 import { Select } from "@toph/ui";

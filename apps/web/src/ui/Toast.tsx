@@ -1,4 +1,4 @@
-import { CircleCheck, Info, TriangleAlert, X } from "lucide-react";
+import { CircleCheck, Info, TriangleAlert, X } from "@toph/icons";
 import type { Toast as ToastModel } from "../store";
 import { IconButton } from "@toph/ui";
 

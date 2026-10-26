@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
-import { LogOut, Settings2, UserRound } from "lucide-react";
+import { LogOut, RotateCcw, Settings2, UserRound } from "@toph/icons";
 import { api, getApiBase, type User } from "../api";
 import { useApp } from "../store";
+import { useSettings } from "../settings";
 import { Button, Modal } from "@toph/ui";
 
 type Variant = "activity" | "titlebar";
@@ -34,10 +35,13 @@ function formatDate(value?: string): string {
 export default function AvatarMenu({ user, variant, onSettings, active = false }: Props) {
   const setUser = useApp((state) => state.setUser);
   const notify = useApp((state) => state.notify);
+  const resetSettings = useSettings((state) => state.reset);
   const [open, setOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [position, setPosition] = useState<CSSProperties>({});
+  const [appVersion, setAppVersion] = useState("");
+  const [buildId, setBuildId] = useState("");
   const buttonRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const avatar = initials(user?.username);
@@ -63,6 +67,22 @@ export default function AvatarMenu({ user, variant, onSettings, active = false }
     if (!open) updatePosition();
     setOpen((current) => !current);
   }
+
+  useEffect(() => {
+    if (!accountOpen) return;
+    let cancelled = false;
+    api
+      .version()
+      .then((info) => {
+        if (cancelled) return;
+        setAppVersion(info.version);
+        setBuildId(info.buildId);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [accountOpen]);
 
   useEffect(() => {
     if (!open) return;
@@ -176,7 +196,16 @@ export default function AvatarMenu({ user, variant, onSettings, active = false }
           document.body,
         )}
       {accountOpen && (
-        <Modal title="Conta" onClose={() => setAccountOpen(false)} width={430}>
+        <Modal
+          title="Conta"
+          onClose={() => setAccountOpen(false)}
+          width={430}
+          footer={
+            <Button className="ghost small" onClick={resetSettings}>
+              <RotateCcw size={14} /> Redefinir aparência
+            </Button>
+          }
+        >
           <div className="account-summary">
             <span className="avatar-initials avatar-initials-xl">{avatar}</span>
             <div>
@@ -190,6 +219,8 @@ export default function AvatarMenu({ user, variant, onSettings, active = false }
               <div className="settings-kv"><span>ID da conta</span><b>{user.id}</b></div>
             )}
             <div className="settings-kv"><span>Membro desde</span><b>{formatDate(user?.createdAt)}</b></div>
+            <div className="settings-kv"><span>Versão do Toph</span><b>{appVersion ? `v${appVersion}` : "—"}</b></div>
+            {buildId && <div className="settings-kv"><span>Build</span><b>{buildId}</b></div>}
           </div>
         </Modal>
       )}

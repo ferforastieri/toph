@@ -3,22 +3,17 @@ import {
   Gem,
   GitBranch,
   HardDrive,
-  Info,
   LayoutPanelLeft,
-  LogOut,
   Monitor,
   Moon,
   Palette,
-  RotateCcw,
   Server,
-  ShieldCheck,
   Sparkles,
   Sun,
   TerminalSquare,
   Type,
-  UserRound,
-} from "lucide-react";
-import { api, getApiBase, probeServer, setApiBase } from "../api";
+} from "@toph/icons";
+import { getApiBase, probeServer, setApiBase } from "../api";
 import { useApp } from "../store";
 import {
   type Accent,
@@ -37,7 +32,6 @@ import { Select } from "@toph/ui";
 
 interface Props {
   version: string;
-  buildId?: string;
 }
 
 type Category =
@@ -48,9 +42,7 @@ type Category =
   | "ai"
   | "workspace"
   | "git"
-  | "server"
-  | "account"
-  | "about";
+  | "server";
 
 const categories: Array<{ id: Category; label: string; icon: typeof Sun }> = [
   { id: "appearance", label: "Appearance", icon: Palette },
@@ -61,8 +53,6 @@ const categories: Array<{ id: Category; label: string; icon: typeof Sun }> = [
   { id: "workspace", label: "Workspace", icon: HardDrive },
   { id: "git", label: "Git", icon: GitBranch },
   { id: "server", label: "Server", icon: Server },
-  { id: "account", label: "Account", icon: UserRound },
-  { id: "about", label: "About", icon: Info },
 ];
 
 const accents: Array<{ id: Accent; label: string }> = [
@@ -84,10 +74,9 @@ const themes: Array<{ id: ThemePreference; label: string; icon: typeof Sun }> = 
 ];
 
 const iconOptions: Array<{ id: IconTheme; label: string }> = [
-  { id: "toph", label: "Toph" },
   { id: "material", label: "Material" },
-  { id: "outline", label: "Outline" },
-  { id: "vivid", label: "Vivid" },
+  { id: "phosphor", label: "Phosphor Fill" },
+  { id: "remix", label: "Remix Fill" },
 ];
 
 const glassOptions: Array<{ id: GlassLevel; label: string }> = [
@@ -179,24 +168,13 @@ function PageTitle({ icon: Icon, children }: { icon: typeof Sun; children: React
   return <div className="settings-page-title"><Icon size={15} /> {children}</div>;
 }
 
-export default function SettingsPanel({ version, buildId }: Props) {
-  const user = useApp((state) => state.user);
-  const setUser = useApp((state) => state.setUser);
+export default function SettingsPanel({ version }: Props) {
   const notify = useApp((state) => state.notify);
   const settings = useSettings();
   const update = useSettings((state) => state.update);
-  const reset = useSettings((state) => state.reset);
   const [category, setCategory] = useState<Category>("appearance");
   const [serverDraft, setServerDraft] = useState(() => getApiBase() || window.location.origin);
   const [serverBusy, setServerBusy] = useState(false);
-
-  async function logout() {
-    try {
-      await api.logout();
-    } finally {
-      setUser(null);
-    }
-  }
 
   async function changeServer(event: FormEvent) {
     event.preventDefault();
@@ -266,8 +244,8 @@ export default function SettingsPanel({ version, buildId }: Props) {
             <Select value={settings.background} options={backgroundOptions.map((item) => ({ value: item.id, label: item.label }))} onChange={(background) => update({ background })} label="Background" />
           </div>
           <div className="settings-field">
-            <span>File icons</span>
-            <Select value={settings.iconTheme} options={iconOptions.map((item) => ({ value: item.id, label: item.label }))} onChange={(iconTheme) => update({ iconTheme })} label="File icons" />
+            <span>Icon set</span>
+            <Select value={settings.iconTheme} options={iconOptions.map((item) => ({ value: item.id, label: item.label }))} onChange={(iconTheme) => update({ iconTheme })} label="Icon set" />
           </div>
           <Range label="Corner radius" value={settings.radius} min={0} max={32} suffix="px" onChange={(radius) => update({ radius })} />
           <Toggle label="Animations" checked={settings.motion} onChange={(motion) => update({ motion })} />
@@ -375,31 +353,6 @@ export default function SettingsPanel({ version, buildId }: Props) {
         </div>
       )}
 
-      {category === "account" && (
-        <div className="settings-page">
-          <PageTitle icon={ShieldCheck}>Account</PageTitle>
-          <div className="settings-row">
-            <UserRound size={15} />
-            <span>{user?.username ?? "unknown"}</span>
-          </div>
-          <Button className="ghost small" onClick={() => void logout()}>
-            <LogOut size={14} /> Sign out
-          </Button>
-        </div>
-      )}
-
-      {category === "about" && (
-        <div className="settings-page">
-          <PageTitle icon={Info}>About</PageTitle>
-          <div className="settings-kv"><span>Toph</span><b>{version}</b></div>
-          {buildId && <div className="settings-kv"><span>Build</span><b>{buildId}</b></div>}
-          <div className="settings-kv"><span>Server</span><b>{getApiBase() || window.location.origin}</b></div>
-          <p className="settings-note">Self-hosted workbench. Repositories, sessions and credentials stay on your server.</p>
-          <Button className="ghost small" onClick={reset}>
-            <RotateCcw size={14} /> Reset appearance
-          </Button>
-        </div>
-      )}
     </div>
   );
 }

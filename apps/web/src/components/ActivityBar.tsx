@@ -4,7 +4,7 @@ import {
   Globe2,
   Sparkles,
   TerminalSquare,
-} from "lucide-react";
+} from "@toph/icons";
 import { useApp, type Sidebar } from "../store";
 import { Button } from "@toph/ui";
 import AvatarMenu from "./AvatarMenu";

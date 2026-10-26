@@ -1,4 +1,4 @@
-import { Check } from "lucide-react";
+import { Check } from "@toph/icons";
 
 interface Props {
   checked: boolean;

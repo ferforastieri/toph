@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { FolderGit2, Search } from "lucide-react";
+import { FolderGit2, Search } from "@toph/icons";
 import { api, type Repository } from "../api";
 import { Button } from "@toph/ui";
 import { Modal } from "@toph/ui";

@@ -1,4 +1,4 @@
-import { ExternalLink, RefreshCw } from "lucide-react";
+import { ExternalLink, RefreshCw } from "@toph/icons";
 import { useState } from "react";
 import type { Tab } from "../store";
 import { Button } from "@toph/ui";

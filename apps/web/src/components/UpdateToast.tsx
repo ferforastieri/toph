@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Download, RefreshCw, X } from "lucide-react";
+import { Download, RefreshCw, X } from "@toph/icons";
 import { api, ApiError, type UpdateInstaller, type UpdateStatus } from "../api";
 import { Button } from "@toph/ui";
 

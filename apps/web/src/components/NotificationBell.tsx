@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
-import { Bell, CheckCheck, Trash2 } from "lucide-react";
+import { Bell, CheckCheck, Trash2 } from "@toph/icons";
 import { useApp, type AppNotification } from "../store";
 import { Button } from "@toph/ui";
 

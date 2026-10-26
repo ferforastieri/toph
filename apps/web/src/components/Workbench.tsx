@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Boxes, Check, ChevronDown, FolderPlus, GitBranch, Plus, Settings2, X } from "lucide-react";
+import { ArrowLeft, Check, ChevronDown, FolderGit2, FolderPlus, GitBranch, Plus, Settings2, Sparkles, X } from "@toph/icons";
 import { api, getApiBase, type Repository, type SchemaTable, type WebTarget } from "../api";
 import { basename, quoteIdentifier } from "../lib";
 import { useApp, type AppNotification, type Sidebar, type Tab } from "../store";
@@ -53,15 +53,15 @@ export default function Workbench() {
   const loadModels = useAI((state) => state.loadModels);
   const aiProvider = useAI((state) => state.config?.provider);
   const sidebarWidth = useSettings((state) => state.sidebarWidth);
-  const aiPanelWidth = useSettings((state) => state.aiPanelWidth);
   const updateSettings = useSettings((state) => state.update);
 
   const [showRepoPicker, setShowRepoPicker] = useState(false);
   const [version, setVersion] = useState("0.1.0");
-  const [buildId, setBuildId] = useState("");
   const [gitStatus, setGitStatus] = useState("");
   const [mobilePanelOpen, setMobilePanelOpen] = useState(false);
   const [projectsSheetOpen, setProjectsSheetOpen] = useState(false);
+  const [projectMenuOpen, setProjectMenuOpen] = useState(false);
+  const [rightTab, setRightTab] = useState<"projects" | "agent">("projects");
   const [searchFocusToken, setSearchFocusToken] = useState(0);
   const loadedProject = useRef<string | null>(null);
   const mobile = document.documentElement.classList.contains("mobile-client");
@@ -184,7 +184,6 @@ export default function Workbench() {
       .health()
       .then((health) => {
         setVersion(health.version);
-        setBuildId(health.buildId ?? "");
       })
       .catch(() => undefined);
     api
@@ -437,6 +436,7 @@ export default function Workbench() {
       });
     }
     setAiPanelOpen(true);
+    if (!mobile) setRightTab("agent");
   }
 
   function newAiSession() {
@@ -449,11 +449,13 @@ export default function Workbench() {
       projectId: project.id,
     });
     setAiPanelOpen(true);
+    if (!mobile) setRightTab("agent");
   }
 
   function toggleAI() {
     if (aiPanelOpen) {
       setAiPanelOpen(false);
+      if (!mobile) setRightTab("projects");
     } else {
       openAI();
     }
@@ -470,6 +472,7 @@ export default function Workbench() {
       sessionId: session.id,
     });
     setAiPanelOpen(true);
+    if (!mobile) setRightTab("agent");
   }
 
   function openNotification(notification: AppNotification) {
@@ -485,6 +488,7 @@ export default function Workbench() {
     if (mobile) setMobilePanelOpen(false);
     setTerminalOpen(false);
     setAiPanelOpen(true);
+    if (!mobile) setRightTab("agent");
   }
 
   function openWeb(target: WebTarget) {
@@ -553,12 +557,9 @@ export default function Workbench() {
 
   return (
     <div className="workbench">
-      <header className="titlebar">
-        <div className="titlebar-brand">
-          <BrandMark size="small" />
-        </div>
-        <div className="project-switcher">
-          {mobile ? (
+      {mobile && (
+        <header className="titlebar">
+          <div className="project-switcher">
             <button
               type="button"
               className="mobile-project-trigger"
@@ -572,70 +573,16 @@ export default function Workbench() {
               <span className="mobile-project-count">{openProjectIds.length}</span>
               <ChevronDown size={16} />
             </button>
-          ) : (
-            <>
-              <div className="project-tabs" role="tablist" aria-label="Open projects">
-                {openProjectIds.map((id) => {
-                  const item = projects.find((projectItem) => projectItem.id === id);
-                  if (!item) return null;
-                  return (
-                    <div
-                      key={item.id}
-                      className={`project-tab ${item.id === activeProjectId ? "active" : ""}`}
-                      role="tab"
-                      aria-selected={item.id === activeProjectId}
-                    >
-                      <Button
-                        className="project-tab-main"
-                        title={item.root}
-                        onClick={() => switchProject(item.id)}
-                      >
-                        {item.name}
-                      </Button>
-                      <Button
-                        className="project-tab-close"
-                        title={`Close ${item.name}`}
-                        aria-label={`Close ${item.name}`}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          void closeProject(item.id);
-                        }}
-                      >
-                        <X size={11} />
-                      </Button>
-                    </div>
-                  );
-                })}
-              </div>
-              <Button className="icon-button" title="Open repository" onClick={() => setShowRepoPicker(true)}>
-                <Plus size={15} />
-              </Button>
-            </>
-          )}
-        </div>
-        {mobile && (
-          <>
-            <NotificationBell variant="titlebar" onOpen={openNotification} />
-            <AvatarMenu
-              user={user}
-              variant="titlebar"
-              active={sidebar === "settings" && mobilePanelOpen}
-              onSettings={openMobileSettings}
-            />
-          </>
-        )}
-        <div className="titlebar-spacer" />
-        <div className="titlebar-meta">
-          {branch && (
-            <span className="titlebar-chip"><GitBranch size={12} /> {branch}</span>
-          )}
-          <span className="titlebar-version">v{version}</span>
-        </div>
-        <div className="titlebar-note">
-          <Boxes size={13} />
-          <span>{project?.root}</span>
-        </div>
-      </header>
+          </div>
+          <NotificationBell variant="titlebar" onOpen={openNotification} />
+          <AvatarMenu
+            user={user}
+            variant="titlebar"
+            active={sidebar === "settings" && mobilePanelOpen}
+            onSettings={openMobileSettings}
+          />
+        </header>
+      )}
 
       <div className={`workbench-body ${aiPanelOpen && project ? "ai-open" : ""}`}>
         <ActivityBar onOpenAI={toggleAI} onOpenNotification={openNotification} />
@@ -676,7 +623,7 @@ export default function Workbench() {
           {project && sidebar === "db" && <DatabasesPanel project={project} onOpenQuery={openQuery} onOpenTable={openTable} />}
           {project && sidebar === "ai" && <AiSidebar project={project} onNewSession={newAiSession} onOpenSession={openAiSession} />}
           {project && sidebar === "web" && <WebSidebar onOpenWeb={openWeb} />}
-          {sidebar === "settings" && <SettingsPanel version={version} buildId={buildId} />}
+          {sidebar === "settings" && <SettingsPanel version={version} />}
         </aside>
 
         <main className="editor-column">
@@ -715,20 +662,104 @@ export default function Workbench() {
           {terminalOpen && project && <TerminalPanel project={project} />}
         </main>
 
-        {project && aiDockTab && aiPanelOpen && (
-          <ResizeHandle
-            className="ai-resize"
-            orientation="vertical"
-            value={aiPanelWidth}
-            min={300}
-            max={620}
-            invert
-            label="Resize agent panel"
-            onChange={(width) => document.documentElement.style.setProperty("--ai-panel-width", `${width}px`)}
-            onCommit={(width) => updateSettings({ aiPanelWidth: width })}
-          />
+        {!mobile && project && (
+          <aside className="right-sidebar">
+            <div className="right-sidebar-tabs" role="tablist" aria-label="Painel direito">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={rightTab === "projects"}
+                className={rightTab === "projects" ? "active" : ""}
+                onClick={() => {
+                  setRightTab("projects");
+                  setAiPanelOpen(false);
+                }}
+              >
+                <FolderGit2 size={15} /> Projetos
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={rightTab === "agent"}
+                className={rightTab === "agent" ? "active" : ""}
+                onClick={openAI}
+              >
+                <Sparkles size={15} /> Agente
+              </button>
+            </div>
+            {rightTab === "projects" ? (
+              <div className="right-projects">
+                <div className="right-projects-head">
+                  <span>Projetos abertos</span>
+                  <Button
+                    className="icon-button"
+                    title="Abrir projeto"
+                    aria-label="Abrir projeto"
+                    onClick={() => setShowRepoPicker(true)}
+                  >
+                    <Plus size={15} />
+                  </Button>
+                </div>
+                <div className="right-project-list">
+                  {openProjectIds.map((id) => {
+                    const item = projects.find((projectItem) => projectItem.id === id);
+                    if (!item) return null;
+                    const active = item.id === activeProjectId;
+                    return (
+                      <div className={`right-project-row ${active ? "active" : ""}`} key={item.id}>
+                        <button
+                          type="button"
+                          className="right-project-main"
+                          title={item.root}
+                          onClick={() => switchProject(item.id)}
+                        >
+                          <span className="right-project-avatar" style={{ background: item.color }}>
+                            {item.name.slice(0, 1).toUpperCase()}
+                          </span>
+                          <span className="right-project-copy">
+                            <strong>{item.name}</strong>
+                            <small>{item.root}</small>
+                          </span>
+                          {active && <Check size={15} />}
+                        </button>
+                        <Button
+                          className="icon-button"
+                          title={`Fechar ${item.name}`}
+                          aria-label={`Fechar ${item.name}`}
+                          onClick={() => void closeProject(item.id)}
+                        >
+                          <X size={13} />
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </div>
+                <button
+                  type="button"
+                  className="right-project-open"
+                  onClick={() => setShowRepoPicker(true)}
+                >
+                  <FolderPlus size={15} /> Abrir projeto
+                </button>
+              </div>
+            ) : project && aiDockTab ? (
+              <div className="right-agent">
+                <AiPanelTab
+                  tab={aiDockTab}
+                  project={project}
+                  onClose={() => {
+                    setAiPanelOpen(false);
+                    setRightTab("projects");
+                  }}
+                />
+              </div>
+            ) : (
+              <div className="right-project-open empty">Abra o Agente para começar.</div>
+            )}
+          </aside>
         )}
-        {project && aiDockTab && aiPanelOpen && (
+
+        {mobile && project && aiDockTab && aiPanelOpen && (
           <aside className="ai-dock">
             <AiPanelTab
               tab={aiDockTab}
@@ -738,6 +769,92 @@ export default function Workbench() {
           </aside>
         )}
       </div>
+
+      {!mobile && (
+        <>
+          <footer className="desktop-footer">
+            <div className="desktop-footer-left">
+              {branch && (
+                <span className="desktop-footer-branch">
+                  <GitBranch size={12} /> {branch}
+                </span>
+              )}
+            </div>
+            <button
+              type="button"
+              className="desktop-project-button"
+              onClick={() => setProjectMenuOpen((current) => !current)}
+              aria-haspopup="menu"
+              aria-expanded={projectMenuOpen}
+            >
+              <span className="desktop-project-avatar" style={{ background: project.color }}>
+                {project.name.slice(0, 1).toUpperCase()}
+              </span>
+              <span className="desktop-project-name">{project.name}</span>
+              <span className="desktop-project-count">{openProjectIds.length}</span>
+              <ChevronDown size={14} />
+            </button>
+            <div className="desktop-footer-right">
+              <span className="desktop-footer-version">v{version}</span>
+            </div>
+          </footer>
+
+          {projectMenuOpen && (
+            <>
+              <button
+                type="button"
+                className="desktop-project-menu-backdrop"
+                aria-label="Fechar seletor de projetos"
+                onClick={() => setProjectMenuOpen(false)}
+              />
+              <div className="desktop-project-menu" role="menu" aria-label="Selecionar projeto">
+                <div className="desktop-project-menu-head">
+                  <span>Projetos abertos</span>
+                  <span>{openProjectIds.length}</span>
+                </div>
+                <div className="desktop-project-menu-list">
+                  {openProjectIds.map((id) => {
+                    const item = projects.find((projectItem) => projectItem.id === id);
+                    if (!item) return null;
+                    const active = item.id === activeProjectId;
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        role="menuitem"
+                        className={`desktop-project-menu-item ${active ? "active" : ""}`}
+                        onClick={() => {
+                          setProjectMenuOpen(false);
+                          switchProject(item.id);
+                        }}
+                      >
+                        <span className="desktop-project-avatar" style={{ background: item.color }}>
+                          {item.name.slice(0, 1).toUpperCase()}
+                        </span>
+                        <span className="desktop-project-menu-copy">
+                          <strong>{item.name}</strong>
+                          <small>{item.root}</small>
+                        </span>
+                        {active && <Check size={15} />}
+                      </button>
+                    );
+                  })}
+                </div>
+                <button
+                  type="button"
+                  className="desktop-project-menu-open"
+                  onClick={() => {
+                    setProjectMenuOpen(false);
+                    setShowRepoPicker(true);
+                  }}
+                >
+                  <FolderPlus size={15} /> Abrir repositório
+                </button>
+              </div>
+            </>
+          )}
+        </>
+      )}
 
       {mobile && projectsSheetOpen && (
         <>

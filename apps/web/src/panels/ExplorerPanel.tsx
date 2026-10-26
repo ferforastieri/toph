@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw } from "@toph/icons";
 import type { Project } from "../api";
 import { changeStatusByPath } from "../gitStatus";
 import { Button } from "@toph/ui";

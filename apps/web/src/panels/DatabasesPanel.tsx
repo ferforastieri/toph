@@ -10,7 +10,7 @@ import {
   Table2,
   Trash2,
   Wifi,
-} from "lucide-react";
+} from "@toph/icons";
 import { api, type DBProfile, type Project, type SchemaTable } from "../api";
 import { useApp } from "../store";
 import { Button } from "@toph/ui";
