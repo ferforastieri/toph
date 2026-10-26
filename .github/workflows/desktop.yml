@@ -59,9 +59,29 @@ jobs:
 
       - name: Install Linux dependencies
         if: matrix.platform == 'ubuntu-24.04'
+        shell: bash
         run: |
-          sudo timeout 600 apt-get -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 -o Acquire::Retries=3 update
-          sudo DEBIAN_FRONTEND=noninteractive timeout 600 apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libxdo-dev
+          set -euo pipefail
+          apt_options=(-o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 -o Acquire::Retries=5)
+          for attempt in 1 2 3; do
+            if sudo timeout 900 apt-get "${apt_options[@]}" update; then
+              break
+            fi
+            if [ "$attempt" = 3 ]; then
+              exit 1
+            fi
+            sleep 10
+          done
+          for attempt in 1 2 3; do
+            if sudo DEBIAN_FRONTEND=noninteractive timeout 1200 apt-get "${apt_options[@]}" install -y --no-install-recommends \
+              libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libxdo-dev; then
+              exit 0
+            fi
+            if [ "$attempt" = 3 ]; then
+              exit 1
+            fi
+            sleep 10
+          done
 
       - name: Install JavaScript dependencies
         run: npm ci
