@@ -1,9 +1,13 @@
 import { useEffect, useRef, useState } from "react";
-import { RefreshCw, X } from "lucide-react";
-import { api, ApiError, type UpdateStatus } from "../api";
+import { Download, RefreshCw, X } from "lucide-react";
+import { api, ApiError, type UpdateInstaller, type UpdateStatus } from "../api";
 import { Button } from "@toph/ui";
 
 type Phase = "idle" | "updating" | "error";
+
+interface TauriInternals {
+  invoke?: (command: string, args?: Record<string, unknown>) => Promise<unknown>;
+}
 
 async function clearClientCaches() {
   if ("caches" in window) {
@@ -30,10 +34,73 @@ function downloadApk(url: string, version: string) {
   link.remove();
 }
 
+function isMobile(): boolean {
+  return document.documentElement.classList.contains("mobile-client");
+}
+
+function platform(): "windows" | "linux" | "mac" | "other" {
+  const value = `${navigator.userAgent} ${navigator.platform}`;
+  if (/windows|win32|win64/i.test(value)) return "windows";
+  if (/linux|x11/i.test(value)) return "linux";
+  if (/macintosh|mac os|darwin/i.test(value)) return "mac";
+  return "other";
+}
+
+function findInstaller(
+  installers: UpdateInstaller[] | undefined,
+  kind: UpdateInstaller["kind"],
+): UpdateInstaller | undefined {
+  return installers?.find((installer) => installer.kind === kind);
+}
+
+function preferredInstaller(status: UpdateStatus, msiFirst = true): UpdateInstaller | undefined {
+  const installers = status.installers;
+  switch (platform()) {
+    case "windows":
+      return msiFirst
+        ? findInstaller(installers, "windows-msi") ?? findInstaller(installers, "windows-nsis")
+        : findInstaller(installers, "windows-nsis") ?? findInstaller(installers, "windows-msi");
+    case "linux":
+      return (
+        findInstaller(installers, "linux-appimage") ??
+        findInstaller(installers, "linux-deb") ??
+        findInstaller(installers, "linux-rpm")
+      );
+    default:
+      return undefined;
+  }
+}
+
+function browserDownload(installer: UpdateInstaller) {
+  const link = document.createElement("a");
+  link.href = installer.url;
+  link.download = installer.name;
+  link.rel = "noopener";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+}
+
+async function downloadInstaller(installer: UpdateInstaller): Promise<string> {
+  const internals = (window as unknown as { __TAURI_INTERNALS__?: TauriInternals }).__TAURI_INTERNALS__;
+  if (internals?.invoke) {
+    const path = await internals.invoke("download_update", {
+      url: installer.url,
+      filename: installer.name,
+      sha256: installer.sha256 ?? "",
+    });
+    if (typeof path === "string" && path.trim()) return path;
+    throw new Error("O download nativo não retornou o caminho do instalador.");
+  }
+  browserDownload(installer);
+  return "";
+}
+
 export default function UpdateToast() {
   const [status, setStatus] = useState<UpdateStatus | null>(null);
   const [phase, setPhase] = useState<Phase>("idle");
   const [error, setError] = useState("");
+  const [downloadedPath, setDownloadedPath] = useState("");
   const dismissed = useRef<string | null>(null);
 
   useEffect(() => {
@@ -61,15 +128,53 @@ export default function UpdateToast() {
     };
   }, []);
 
+  const mobile = isMobile();
+  const desktopInstaller = status && !mobile ? preferredInstaller(status) : undefined;
+  const desktopLabel =
+    desktopInstaller?.kind === "windows-msi"
+      ? "MSI"
+      : desktopInstaller?.kind === "windows-nsis"
+        ? "EXE"
+        : desktopInstaller?.kind === "linux-appimage"
+          ? "AppImage"
+          : desktopInstaller?.kind === "linux-deb"
+            ? "DEB"
+            : desktopInstaller?.kind === "linux-rpm"
+              ? "RPM"
+              : "";
+  const alternateInstaller =
+    status && !mobile && platform() === "windows"
+      ? findInstaller(status.installers, "windows-nsis") ?? findInstaller(status.installers, "windows-msi")
+      : undefined;
+
   async function update() {
     if (!status || phase === "updating") return;
     const target = status.latestVersion;
-    const mobile = document.documentElement.classList.contains("mobile-client");
-    if (mobile && status.apkUrl) {
-      downloadApk(status.apkUrl, target);
-    }
+    const mobileClient = isMobile();
+    const installer = mobileClient ? undefined : preferredInstaller(status);
+
     setPhase("updating");
     setError("");
+    setDownloadedPath("");
+    try {
+      if (mobileClient && status.apkUrl) {
+        downloadApk(status.apkUrl, target);
+      } else if (installer) {
+        const path = await downloadInstaller(installer);
+        setDownloadedPath(path);
+      }
+    } catch (err) {
+      setPhase("error");
+      setError(
+        err instanceof Error
+          ? err.message
+          : typeof err === "string"
+            ? err
+            : "Não foi possível baixar o instalador.",
+      );
+      return;
+    }
+
     try {
       await api.startUpdate();
     } catch (err) {
@@ -100,6 +205,12 @@ export default function UpdateToast() {
     setError("The server did not finish updating. Check the service health and try again.");
   }
 
+  function downloadAlternate() {
+    if (alternateInstaller) {
+      void downloadInstaller(alternateInstaller);
+    }
+  }
+
   const visible = status?.supported && status.available && dismissed.current !== status.latestVersion;
   if (!visible && phase !== "updating" && phase !== "error") return null;
 
@@ -117,18 +228,35 @@ export default function UpdateToast() {
         </strong>
         <span>
           {updating
-            ? document.documentElement.classList.contains("mobile-client")
+            ? mobile
               ? "Updating the server and downloading the new APK."
-              : "Updating the server and reloading this client."
+              : desktopInstaller
+                ? `Downloading ${desktopInstaller.name} and updating the server.`
+                : "Updating the server and reloading this client."
             : failed
               ? error
-              : document.documentElement.classList.contains("mobile-client")
+              : mobile
                 ? "Update the server and download the latest APK."
-                : "Update the server and reload the web clients."}
+                : desktopInstaller
+                  ? `Update the server and download the desktop installer${desktopLabel ? ` (${desktopLabel})` : ""}.`
+                  : "Update the server and reload the web clients."}
         </span>
+        {downloadedPath && !failed && (
+          <small className="update-path">Instalador salvo em {downloadedPath}</small>
+        )}
+        {!updating && alternateInstaller && desktopInstaller?.kind !== alternateInstaller.kind && (
+          <button type="button" className="update-alternate" onClick={downloadAlternate}>
+            <Download size={11} /> Baixar instalador .exe
+          </button>
+        )}
       </div>
       <Button className="primary small" disabled={updating} onClick={() => void update()}>
-        <RefreshCw size={13} /> {updating ? "Updating..." : failed ? "Retry" : "Update"}
+        {updating ? (
+          <RefreshCw size={13} className="spin" />
+        ) : (
+          <Download size={13} />
+        )}{" "}
+        {updating ? "Updating..." : failed ? "Retry" : "Update"}
       </Button>
       {!updating && (
         <Button

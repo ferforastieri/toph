@@ -155,10 +155,19 @@ export interface VersionInfo {
   buildId: string;
 }
 
+export interface UpdateInstaller {
+  kind: "windows-nsis" | "windows-msi" | "linux-appimage" | "linux-deb" | "linux-rpm";
+  name: string;
+  url: string;
+  sha256?: string;
+  size?: number;
+}
+
 export interface UpdateStatus {
   currentVersion: string;
   latestVersion: string;
   apkUrl?: string;
+  installers?: UpdateInstaller[];
   available: boolean;
   supported: boolean;
   busy: boolean;
