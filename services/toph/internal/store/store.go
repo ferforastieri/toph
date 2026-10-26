@@ -211,6 +211,17 @@ func (s *Store) Project(ctx context.Context, id string) (Project, error) {
 	return p, err
 }
 
+func (s *Store) ProjectByRoot(ctx context.Context, root string) (Project, error) {
+	var p Project
+	err := s.db.QueryRowContext(ctx,
+		`SELECT id, name, root, color, created_at, updated_at FROM projects WHERE root = ?`, root,
+	).Scan(&p.ID, &p.Name, &p.Root, &p.Color, &p.CreatedAt, &p.UpdatedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return Project{}, ErrNotFound
+	}
+	return p, err
+}
+
 func (s *Store) CreateProject(ctx context.Context, p Project) (Project, error) {
 	created := now()
 	if p.Color == "" {

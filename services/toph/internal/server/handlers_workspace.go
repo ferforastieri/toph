@@ -55,6 +55,7 @@ func (s *Server) writeFile(w http.ResponseWriter, r *http.Request) {
 		apiError(w, err)
 		return
 	}
+	s.publishProject(project.ID, "files", req.Path)
 	writeJSON(w, http.StatusOK, file)
 }
 
@@ -103,10 +104,12 @@ func (s *Server) gitStage(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	if err := s.workspace.GitStage(r.Context(), currentProject(r).Root, req.Paths); err != nil {
+	project := currentProject(r)
+	if err := s.workspace.GitStage(r.Context(), project.Root, req.Paths); err != nil {
 		apiError(w, err)
 		return
 	}
+	s.publishProject(project.ID, "git", "")
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
@@ -115,10 +118,12 @@ func (s *Server) gitUnstage(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	if err := s.workspace.GitUnstage(r.Context(), currentProject(r).Root, req.Paths); err != nil {
+	project := currentProject(r)
+	if err := s.workspace.GitUnstage(r.Context(), project.Root, req.Paths); err != nil {
 		apiError(w, err)
 		return
 	}
+	s.publishProject(project.ID, "git", "")
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
@@ -127,11 +132,13 @@ func (s *Server) gitCommit(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	output, err := s.workspace.GitCommit(r.Context(), currentProject(r).Root, req.Message)
+	project := currentProject(r)
+	output, err := s.workspace.GitCommit(r.Context(), project.Root, req.Message)
 	if err != nil {
 		apiError(w, err)
 		return
 	}
+	s.publishProject(project.ID, "git", "")
 	writeJSON(w, http.StatusOK, map[string]string{"output": output})
 }
 
@@ -160,10 +167,12 @@ func (s *Server) gitDiscard(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	if err := s.workspace.GitDiscard(r.Context(), currentProject(r).Root, req.Paths, req.Staged); err != nil {
+	project := currentProject(r)
+	if err := s.workspace.GitDiscard(r.Context(), project.Root, req.Paths, req.Staged); err != nil {
 		apiError(w, err)
 		return
 	}
+	s.publishGit(project.ID, "")
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
@@ -183,10 +192,12 @@ func (s *Server) gitCheckout(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	if err := s.workspace.GitCheckout(r.Context(), currentProject(r).Root, req.Name); err != nil {
+	project := currentProject(r)
+	if err := s.workspace.GitCheckout(r.Context(), project.Root, req.Name); err != nil {
 		apiError(w, err)
 		return
 	}
+	s.publishGit(project.ID, "")
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
@@ -197,11 +208,13 @@ func (s *Server) gitCreateBranch(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	name, err := s.workspace.GitCreateBranch(r.Context(), currentProject(r).Root, req.Name)
+	project := currentProject(r)
+	name, err := s.workspace.GitCreateBranch(r.Context(), project.Root, req.Name)
 	if err != nil {
 		apiError(w, err)
 		return
 	}
+	s.publishProject(project.ID, "git", name)
 	writeJSON(w, http.StatusOK, map[string]string{"name": name})
 }
 

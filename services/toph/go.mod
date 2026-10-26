@@ -8,6 +8,7 @@ require (
 	github.com/charmbracelet/x/conpty v0.2.0
 	github.com/coder/websocket v1.8.15
 	github.com/creack/pty v1.1.24
+	github.com/fsnotify/fsnotify v1.10.1
 	github.com/go-chi/chi/v5 v5.5.0
 	github.com/go-sql-driver/mysql v1.10.1
 	github.com/gocql/gocql v1.7.0

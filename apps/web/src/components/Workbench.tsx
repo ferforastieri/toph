@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { ArrowLeft, Check, ChevronDown, FolderPlus, GitBranch, Plus, Settings2, X } from "@toph/icons";
+import { ArrowLeft, Bell, Check, ChevronDown, FolderPlus, GitBranch, Plus, Settings2, X } from "@toph/icons";
 import { api, getApiBase, type Repository, type SchemaTable, type WebTarget } from "../api";
 import { basename, languageFor, quoteIdentifier } from "../lib";
 import { useApp, type AppNotification, type Sidebar, type Tab } from "../store";
 import { providerLabel, useAI } from "../ai";
 import { nativePushToken, requestMobileNotificationPermission } from "../notifications";
+import { PROJECT_EVENT, type ProjectEvent } from "../projectEvents";
 import ActivityBar from "./ActivityBar";
 import AvatarMenu from "./AvatarMenu";
 import MobileNav from "./MobileNav";
-import NotificationBell from "./NotificationBell";
 import Tabs from "./Tabs";
 import Toasts from "./Toasts";
 import RepoPicker from "./RepoPicker";
@@ -23,6 +23,7 @@ import AiPanelTab from "../panels/AiPanelTab";
 import WebPanelTab from "../panels/WebPanelTab";
 import DiffPanelTab from "../panels/DiffPanelTab";
 import TerminalPanel from "../panels/TerminalPanel";
+import SourceControlPanel from "../panels/SourceControlPanel";
 import { Button } from "@toph/ui";
 import BrandMark from "@toph/brand";
 import { ResizeHandle } from "@toph/ui";
@@ -45,6 +46,8 @@ export default function Workbench() {
   const terminalOpen = useApp((state) => state.terminalOpen);
   const setTerminalOpen = useApp((state) => state.setTerminalOpen);
   const notify = useApp((state) => state.notify);
+  const notifications = useApp((state) => state.notifications);
+  const markProjectNotificationsRead = useApp((state) => state.markProjectNotificationsRead);
   const aiPanelOpen = useApp((state) => state.aiPanelOpen);
   const setAiPanelOpen = useApp((state) => state.setAiPanelOpen);
   const aiDockTab = useApp((state) => state.aiDockTab);
@@ -74,6 +77,20 @@ export default function Workbench() {
   const project = projects.find((item) => item.id === activeProjectId) ?? null;
   const branch = gitStatus.split("\n")[0]?.replace(/^##\s*/, "").split("...")[0] ?? "";
   const activeTab = tabs.find((tab) => tab.id === activeTabId) ?? null;
+  const unreadForProject = (projectId: string) =>
+    notifications.filter((notification) => !notification.read && notification.projectId === projectId);
+  const unreadNotifications = notifications.filter(
+    (notification) => !notification.read && notification.projectId,
+  );
+  const latestUnread = unreadNotifications[0];
+  const latestUnreadProject = projects.find((item) => item.id === latestUnread?.projectId);
+  const sortedBranches = branchInfo
+    ? [...branchInfo.branches].sort((a, b) => {
+        if (a === branchInfo.current) return -1;
+        if (b === branchInfo.current) return 1;
+        return a.localeCompare(b);
+      })
+    : [];
 
   useEffect(() => {
     void loadAI().then(() => loadModels());
@@ -105,7 +122,124 @@ export default function Workbench() {
   }, [mobile, setAiPanelOpen, setSidebar, setTerminalOpen]);
 
   useEffect(() => {
+    if (!branchMenuOpen) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setBranchMenuOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [branchMenuOpen]);
+
+  useEffect(() => {
     setSearchFocusToken(0);
+  }, [activeProjectId]);
+
+  useEffect(() => {
+    let socket: WebSocket | null = null;
+    let retryTimer: number | undefined;
+    let stopped = false;
+    let attempts = 0;
+    let hasConnected = false;
+
+    const dispatch = (event: ProjectEvent) => {
+      window.dispatchEvent(new CustomEvent(PROJECT_EVENT, { detail: event }));
+    };
+    const connect = () => {
+      if (stopped || socket) return;
+      const base = (getApiBase() || window.location.origin).replace(/\/+$/, "");
+      let url: URL;
+      try {
+        url = new URL(`${base}/api/events/ws`, window.location.origin);
+      } catch {
+        return;
+      }
+      url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+      let current: WebSocket;
+      try {
+        current = new WebSocket(url);
+      } catch {
+        retryTimer = window.setTimeout(connect, Math.min(10000, 750 * 2 ** attempts++));
+        return;
+      }
+      socket = current;
+      current.onopen = () => {
+        attempts = 0;
+        if (hasConnected) {
+          const projectId = useApp.getState().activeProjectId;
+          if (projectId) dispatch({ type: "sync", projectId, at: Date.now() });
+        }
+        hasConnected = true;
+      };
+      current.onmessage = (message) => {
+        try {
+          const event = JSON.parse(String(message.data)) as ProjectEvent;
+          if (event && typeof event.type === "string" && typeof event.projectId === "string") {
+            dispatch(event);
+          }
+        } catch {
+          // Ignore malformed live update events.
+        }
+      };
+      current.onerror = () => current.close();
+      current.onclose = () => {
+        if (socket === current) socket = null;
+        if (stopped) return;
+        retryTimer = window.setTimeout(connect, Math.min(10000, 750 * 2 ** attempts++));
+      };
+    };
+
+    connect();
+    const onOnline = () => {
+      if (!socket) {
+        window.clearTimeout(retryTimer);
+        connect();
+      }
+    };
+    window.addEventListener("online", onOnline);
+    return () => {
+      stopped = true;
+      window.clearTimeout(retryTimer);
+      window.removeEventListener("online", onOnline);
+      socket?.close();
+    };
+  }, []);
+
+  useEffect(() => {
+    const sync = () => {
+      const projectId = useApp.getState().activeProjectId;
+      if (!projectId) return;
+      window.dispatchEvent(
+        new CustomEvent(PROJECT_EVENT, {
+          detail: { type: "sync", projectId, at: Date.now() } satisfies ProjectEvent,
+        }),
+      );
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") sync();
+    };
+    window.addEventListener("focus", sync);
+    window.addEventListener("pageshow", sync);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("focus", sync);
+      window.removeEventListener("pageshow", sync);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!activeProjectId) {
+      setGitStatus("");
+      return;
+    }
+    const onProjectEvent = (raw: Event) => {
+      const event = (raw as CustomEvent<ProjectEvent>).detail;
+      if (!event || event.projectId !== activeProjectId) return;
+      if (event.type !== "git" && event.type !== "files" && event.type !== "sync") return;
+      api.gitStatus(activeProjectId).then(setGitStatus).catch(() => undefined);
+    };
+    window.addEventListener(PROJECT_EVENT, onProjectEvent);
+    return () => window.removeEventListener(PROJECT_EVENT, onProjectEvent);
   }, [activeProjectId]);
 
   useEffect(() => {
@@ -375,6 +509,7 @@ export default function Workbench() {
     setProjectMenuOpen(false);
     setBranchMenuOpen(true);
     setNewBranchOpen(false);
+    setBranchInfo(null);
     try {
       setBranchInfo(await api.gitBranches(project.id));
     } catch (error) {
@@ -502,6 +637,7 @@ export default function Workbench() {
 
   function openAI() {
     if (!project) return;
+    markProjectNotificationsRead(project.id);
     const current = useApp.getState().aiDockTab;
     if (!current || current.projectId !== project.id) {
       setAiDockTab({
@@ -516,6 +652,7 @@ export default function Workbench() {
 
   function newAiSession() {
     if (!project) return;
+    markProjectNotificationsRead(project.id);
     if (mobile) setMobilePanelOpen(false);
     setAiDockTab({
       id: `ai:dock:${project.id}`,
@@ -536,6 +673,7 @@ export default function Workbench() {
 
   function openAiSession(session: { id: string; title?: string }) {
     if (!project) return;
+    markProjectNotificationsRead(project.id);
     if (mobile) setMobilePanelOpen(false);
     setAiDockTab({
       id: `ai:dock:${project.id}`,
@@ -549,6 +687,10 @@ export default function Workbench() {
 
   function openNotification(notification: AppNotification) {
     if (!notification.projectId) return;
+    setProjectMenuOpen(false);
+    setBranchMenuOpen(false);
+    setProjectsSheetOpen(false);
+    markProjectNotificationsRead(notification.projectId);
     if (notification.projectId !== activeProjectId) setActiveProject(notification.projectId);
     setAiDockTab({
       id: notification.tabId ?? `ai:dock:${notification.projectId}`,
@@ -560,6 +702,22 @@ export default function Workbench() {
     if (mobile) setMobilePanelOpen(false);
     setTerminalOpen(false);
     setAiPanelOpen(true);
+  }
+
+  function openLatestProjectNotification(projectId: string) {
+    const latest = notifications.find(
+      (notification) => !notification.read && notification.projectId === projectId,
+    );
+    if (!latest) return;
+    openNotification(latest);
+  }
+
+  function openLatestNotification() {
+    const latest = notifications.find(
+      (notification) => !notification.read && notification.projectId,
+    );
+    if (!latest) return;
+    openNotification(latest);
   }
 
   function openWeb(target: WebTarget) {
@@ -645,7 +803,18 @@ export default function Workbench() {
               <ChevronDown size={16} />
             </button>
           </div>
-          <NotificationBell variant="titlebar" onOpen={openNotification} />
+          {unreadNotifications.length > 0 && (
+            <button
+              type="button"
+              className="titlebar-project-notify"
+              title={`${unreadNotifications.length} notificação(ões)${latestUnreadProject ? ` · ${latestUnreadProject.name}` : ""}`}
+              aria-label="Abrir a notificação mais recente"
+              onClick={() => openLatestNotification()}
+            >
+              <Bell size={17} />
+              <span>{unreadNotifications.length > 9 ? "9+" : unreadNotifications.length}</span>
+            </button>
+          )}
           <AvatarMenu
             user={user}
             variant="titlebar"
@@ -656,7 +825,7 @@ export default function Workbench() {
       )}
 
       <div className={`workbench-body ${aiPanelOpen && project ? "ai-open" : ""}`}>
-        <ActivityBar onOpenAI={toggleAI} onOpenNotification={openNotification} />
+        <ActivityBar onOpenAI={toggleAI} />
         <ResizeHandle
           className="sidebar-resize"
           orientation="vertical"
@@ -687,8 +856,8 @@ export default function Workbench() {
             <ExplorerPanel
               project={project}
               onOpenFile={openFile}
-              onOpenDiff={openDiff}
               searchFocusToken={searchFocusToken}
+              onOpenGit={mobile ? () => void toggleBranchMenu() : undefined}
             />
           )}
           {project && sidebar === "db" && <DatabasesPanel project={project} onOpenQuery={openQuery} onOpenTable={openTable} />}
@@ -788,6 +957,18 @@ export default function Workbench() {
                 <span className="desktop-project-count">{openProjectIds.length}</span>
                 <ChevronDown size={14} />
               </button>
+              {unreadNotifications.length > 0 && (
+                <button
+                  type="button"
+                  className="desktop-project-notify"
+                  title={`${unreadNotifications.length} notificação(ões)${latestUnreadProject ? ` · ${latestUnreadProject.name}` : ""}`}
+                  aria-label="Abrir a notificação mais recente"
+                  onClick={() => openLatestNotification()}
+                >
+                  <Bell size={11} />
+                  <span>{unreadNotifications.length > 9 ? "9+" : unreadNotifications.length}</span>
+                </button>
+              )}
             </div>
             <div className="desktop-footer-right">
               {activeTab?.kind === "editor" && (
@@ -804,58 +985,102 @@ export default function Workbench() {
             <>
               <button
                 type="button"
-                className="desktop-project-menu-backdrop"
-                aria-label="Fechar seletor de branches"
+                className="desktop-branch-backdrop"
+                aria-label="Fechar painel de Git"
                 onClick={() => setBranchMenuOpen(false)}
               />
-              <div className="desktop-branch-menu" role="menu" aria-label="Branches">
-                <div className="desktop-branch-menu-head">
-                  <span>Branches</span>
-                  <span>{branchInfo?.current || branch || "detached"}</span>
+              <div
+                className="desktop-branch-menu"
+                role="dialog"
+                aria-modal="true"
+                aria-label="Branches e alterações"
+              >
+                <div className="desktop-branch-modal-head">
+                  <div className="desktop-branch-modal-title">
+                    <GitBranch size={14} />
+                    <span>Git</span>
+                    <strong>{branchInfo?.current || branch || "detached"}</strong>
+                  </div>
+                  <Button
+                    className="icon-button"
+                    title="Fechar"
+                    aria-label="Fechar painel de Git"
+                    onClick={() => setBranchMenuOpen(false)}
+                  >
+                    <X size={15} />
+                  </Button>
                 </div>
-                <div className="desktop-branch-menu-list">
-                  {branchInfo ? (
-                    branchInfo.branches.map((name) => (
-                      <button
-                        key={name}
-                        type="button"
-                        role="menuitem"
-                        className={`desktop-branch-item ${name === branchInfo.current ? "active" : ""}`}
-                        disabled={Boolean(branchBusy)}
-                        onClick={() => void checkoutBranch(name)}
-                      >
-                        <GitBranch size={13} />
-                        <span>{name}</span>
-                        {name === branchInfo.current && <Check size={14} />}
-                      </button>
-                    ))
-                  ) : (
-                    <div className="desktop-branch-menu-state">Carregando branches...</div>
-                  )}
-                </div>
-                <div className="desktop-branch-menu-footer">
-                  {newBranchOpen ? (
-                    <form className="desktop-branch-form" onSubmit={(event) => void createBranchFromMenu(event)}>
-                      <input
-                        autoFocus
-                        value={newBranchName}
-                        onChange={(event) => setNewBranchName(event.target.value)}
-                        placeholder="nome-da-branch"
-                        aria-label="Nome da nova branch"
+
+                <div className="desktop-branch-modal-body">
+                  <section className="desktop-branch-pane">
+                    <div className="desktop-branch-pane-head">
+                      <span>Branches</span>
+                      <b>{branchInfo ? branchInfo.branches.length : "..."}</b>
+                    </div>
+                    <div className="desktop-branch-menu-list">
+                      {branchInfo ? (
+                        sortedBranches.map((name) => (
+                          <button
+                            key={name}
+                            type="button"
+                            role="menuitem"
+                            title={name}
+                            aria-current={name === branchInfo.current ? "true" : undefined}
+                            className={`desktop-branch-item ${name === branchInfo.current ? "active" : ""}`}
+                            disabled={Boolean(branchBusy)}
+                            onClick={() => void checkoutBranch(name)}
+                          >
+                            <GitBranch size={13} />
+                            <span className="desktop-branch-name">{name}</span>
+                            {name === branchInfo.current && <Check size={14} />}
+                          </button>
+                        ))
+                      ) : (
+                        <div className="desktop-branch-menu-state">Carregando branches...</div>
+                      )}
+                    </div>
+                    <div className="desktop-branch-menu-footer">
+                      {newBranchOpen ? (
+                        <form className="desktop-branch-form" onSubmit={(event) => void createBranchFromMenu(event)}>
+                          <input
+                            autoFocus
+                            value={newBranchName}
+                            onChange={(event) => setNewBranchName(event.target.value)}
+                            placeholder="nome-da-branch"
+                            aria-label="Nome da nova branch"
+                          />
+                          <Button className="primary small" disabled={!newBranchName.trim() || Boolean(branchBusy)}>
+                            Criar
+                          </Button>
+                        </form>
+                      ) : (
+                        <button
+                          type="button"
+                          className="desktop-project-menu-open"
+                          onClick={() => setNewBranchOpen(true)}
+                        >
+                          <Plus size={14} /> Criar branch
+                        </button>
+                      )}
+                    </div>
+                  </section>
+
+                  <section className="desktop-branch-git-pane">
+                    <div className="desktop-branch-pane-head">
+                      <span>Alterações</span>
+                    </div>
+                    <div className="desktop-branch-git">
+                      <SourceControlPanel
+                        project={project}
+                        embedded
+                        onOpenDiff={(path, staged) => {
+                          setBranchMenuOpen(false);
+                          openDiff(path, staged);
+                        }}
+                        onStatusChange={setGitStatus}
                       />
-                      <Button className="primary small" disabled={!newBranchName.trim() || Boolean(branchBusy)}>
-                        Criar
-                      </Button>
-                    </form>
-                  ) : (
-                    <button
-                      type="button"
-                      className="desktop-project-menu-open"
-                      onClick={() => setNewBranchOpen(true)}
-                    >
-                      <Plus size={14} /> Criar branch
-                    </button>
-                  )}
+                    </div>
+                  </section>
                 </div>
               </div>
             </>
@@ -879,26 +1104,47 @@ export default function Workbench() {
                     const item = projects.find((projectItem) => projectItem.id === id);
                     if (!item) return null;
                     const active = item.id === activeProjectId;
+                    const unread = unreadForProject(item.id);
                     return (
-                      <button
+                      <div
                         key={item.id}
-                        type="button"
-                        role="menuitem"
-                        className={`desktop-project-menu-item ${active ? "active" : ""}`}
-                        onClick={() => {
-                          setProjectMenuOpen(false);
-                          switchProject(item.id);
-                        }}
+                        className={`desktop-project-menu-row ${active ? "active" : ""}`}
                       >
-                        <span className="desktop-project-avatar" style={{ background: item.color }}>
-                          {item.name.slice(0, 1).toUpperCase()}
-                        </span>
-                        <span className="desktop-project-menu-copy">
-                          <strong>{item.name}</strong>
-                          <small>{item.root}</small>
-                        </span>
-                        {active && <Check size={15} />}
-                      </button>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          className="desktop-project-menu-item"
+                          onClick={() => {
+                            setProjectMenuOpen(false);
+                            switchProject(item.id);
+                          }}
+                        >
+                          <span className="desktop-project-avatar" style={{ background: item.color }}>
+                            {item.name.slice(0, 1).toUpperCase()}
+                          </span>
+                          <span className="desktop-project-menu-copy">
+                            <strong>{item.name}</strong>
+                            <small>{item.root}</small>
+                          </span>
+                          {active && <Check size={15} />}
+                        </button>
+                        {unread.length > 0 && (
+                          <button
+                            type="button"
+                            className="desktop-project-menu-notify"
+                            title={`${unread.length} notificação(ões) em ${item.name}`}
+                            aria-label={`Abrir notificação de ${item.name}`}
+                            onClick={() => {
+                              setProjectMenuOpen(false);
+                              switchProject(item.id);
+                              openLatestProjectNotification(item.id);
+                            }}
+                          >
+                            <Bell size={12} />
+                            <span>{unread.length > 9 ? "9+" : unread.length}</span>
+                          </button>
+                        )}
+                      </div>
                     );
                   })}
                 </div>
@@ -942,6 +1188,7 @@ export default function Workbench() {
                 const item = projects.find((projectItem) => projectItem.id === id);
                 if (!item) return null;
                 const active = item.id === activeProjectId;
+                const unread = unreadForProject(item.id);
                 return (
                   <div className={`mobile-project-row ${active ? "active" : ""}`} key={item.id}>
                     <button
@@ -961,6 +1208,21 @@ export default function Workbench() {
                       </span>
                       {active && <Check size={16} className="mobile-project-check" />}
                     </button>
+                    {unread.length > 0 && (
+                      <Button
+                        className="icon-button mobile-project-notify"
+                        aria-label={`Abrir notificação de ${item.name}`}
+                        title={`${unread.length} notificação(ões) em ${item.name}`}
+                        onClick={() => {
+                          setProjectsSheetOpen(false);
+                          switchProject(item.id);
+                          openLatestProjectNotification(item.id);
+                        }}
+                      >
+                        <Bell size={15} />
+                        {unread.length > 1 && <span>{unread.length > 9 ? "9+" : unread.length}</span>}
+                      </Button>
+                    )}
                     <Button
                       className="icon-button"
                       aria-label={`Fechar ${item.name}`}

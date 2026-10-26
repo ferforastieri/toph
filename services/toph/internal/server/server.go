@@ -35,6 +35,8 @@ type Server struct {
 	ai            *ai.Service
 	push          *push.Service
 	notifications *notificationHub
+	events        *projectEventHub
+	watcher       *projectWatcher
 	web           http.Handler
 	clientIP      clientIPResolver
 	loginLimiter  *loginLimiter
@@ -62,6 +64,7 @@ func New(
 		terminals: terminals, db: db, opencode: oc, ai: aiService,
 		push:          pushService,
 		notifications: newNotificationHub(),
+		events:        newProjectEventHub(),
 		clientIP:      newClientIPResolver(cfg.TrustedProxies),
 		loginLimiter:  newLoginLimiter(10, 5*time.Minute),
 		apiLimiter:    newLoginLimiter(300, time.Minute),
@@ -72,6 +75,7 @@ func New(
 	if cfgAI, err := aiService.Load(context.Background()); err == nil && cfgAI.Provider == "opencode" && cfgAI.BaseURL != "" {
 		_ = oc.SetConfig(cfgAI.BaseURL, cfgAI.APIKey)
 	}
+	s.watcher = newProjectWatcher(s.events)
 	s.web = s.staticHandler()
 	return s
 }
@@ -96,6 +100,7 @@ func (s *Server) Handler() http.Handler {
 		r.Post("/api/update", s.startUpdate)
 		r.Post("/api/push/tokens", s.registerPushToken)
 		r.Get("/api/notifications/stream", s.notificationStream)
+		r.Get("/api/events/ws", s.projectEventsWS)
 
 		r.Route("/api/projects", func(r chi.Router) {
 			r.Get("/", s.listProjects)

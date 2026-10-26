@@ -44,6 +44,7 @@ func (s *Server) createProject(w http.ResponseWriter, r *http.Request) {
 		apiError(w, err)
 		return
 	}
+	s.watcher.Watch(project)
 	writeJSON(w, http.StatusCreated, project)
 }
 
@@ -57,6 +58,7 @@ func (s *Server) updateProject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	project := currentProject(r)
+	previousRoot := project.Root
 	if req.Root != "" && req.Root != project.Root {
 		root, err := s.workspace.ValidateRoot(req.Root)
 		if err != nil {
@@ -76,14 +78,20 @@ func (s *Server) updateProject(w http.ResponseWriter, r *http.Request) {
 		apiError(w, err)
 		return
 	}
+	if updated.Root != previousRoot {
+		s.watcher.Unwatch(project.ID)
+		s.watcher.Watch(updated)
+	}
 	writeJSON(w, http.StatusOK, updated)
 }
 
 func (s *Server) deleteProject(w http.ResponseWriter, r *http.Request) {
-	if err := s.store.DeleteProject(r.Context(), chi.URLParam(r, "projectID")); err != nil {
+	projectID := chi.URLParam(r, "projectID")
+	if err := s.store.DeleteProject(r.Context(), projectID); err != nil {
 		apiError(w, err)
 		return
 	}
+	s.watcher.Unwatch(projectID)
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 

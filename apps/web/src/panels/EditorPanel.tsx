@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api, ApiError, type GitBlameLine, type Project } from "../api";
 import { languageFor } from "../lib";
 import { useApp, type Tab } from "../store";
 import CodeEditor from "../components/CodeEditor";
+import { useProjectEvents } from "../projectEvents";
 
 interface Props {
   tab: Tab;
@@ -13,6 +14,35 @@ export default function EditorPanel({ tab, project }: Props) {
   const updateTab = useApp((state) => state.updateTab);
   const notify = useApp((state) => state.notify);
   const [blame, setBlame] = useState<GitBlameLine[]>([]);
+  const [stale, setStale] = useState(false);
+  const tabRef = useRef(tab);
+  tabRef.current = tab;
+
+  useEffect(() => {
+    setStale(false);
+  }, [tab.id, tab.path, tab.hash]);
+
+  useProjectEvents(project.id, ["files", "git"], (event) => {
+    if (!tab.path) return;
+    const broad = event.type === "sync" || event.type === "git";
+    if (!broad && event.path !== tab.path) return;
+    const current = tabRef.current;
+    if (current.dirty) {
+      if (!broad) setStale(true);
+      return;
+    }
+    api
+      .file(project.id, tab.path)
+      .then((file) => {
+        const latest = tabRef.current;
+        if (latest.path !== tab.path || latest.dirty) return;
+        if (latest.content !== file.content || latest.hash !== file.hash) {
+          updateTab(tab.id, { content: file.content, hash: file.hash, dirty: false });
+        }
+        setStale(false);
+      })
+      .catch(() => setStale(true));
+  });
 
   useEffect(() => {
     if (tab.content !== undefined || !tab.path) return;
@@ -77,6 +107,7 @@ export default function EditorPanel({ tab, project }: Props) {
         <span className="sep">/</span>
         <span>{tab.path}</span>
         {tab.dirty && <span className="dirty-label">modified</span>}
+        {stale && <span className="dirty-label">changed on disk</span>}
       </div>
       <div className="editor-surface">
         <CodeEditor

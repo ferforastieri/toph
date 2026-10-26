@@ -6,7 +6,6 @@ import {
   Folder,
   Play,
   Plus,
-  RefreshCw,
   Table2,
   Trash2,
   Wifi,
@@ -17,6 +16,7 @@ import { Button } from "@toph/ui";
 import { Checkbox } from "@toph/ui";
 import { Select } from "@toph/ui";
 import { useConfirm } from "@toph/ui";
+import { useProjectEvents } from "../projectEvents";
 
 interface Props {
   project: Project;
@@ -35,21 +35,43 @@ export default function DatabasesPanel({ project, onOpenQuery, onOpenTable }: Pr
   const notify = useApp((state) => state.notify);
   const confirm = useConfirm();
 
-  async function load() {
-    setBusy(true);
+  async function load(quiet = false): Promise<DBProfile[]> {
+    if (!quiet) setBusy(true);
     try {
-      setProfiles(await api.dbProfiles(project.root));
+      const next = await api.dbProfiles(project.root);
+      setProfiles(next);
       setError("");
+      return next;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load connections.");
+      return [];
     } finally {
-      setBusy(false);
+      if (!quiet) setBusy(false);
     }
   }
 
   useEffect(() => {
     void load();
   }, [project.root]);
+
+  useProjectEvents(project.id, ["databases"], () => {
+    void (async () => {
+      const next = await load(true);
+      const available = new Set(next.map((item) => item.id));
+      await Promise.all(
+        Object.keys(expanded)
+          .filter((profileId) => expanded[profileId] && available.has(profileId))
+          .map(async (profileId) => {
+            try {
+              const tables = await api.dbSchema(profileId);
+              setSchemas((value) => ({ ...value, [profileId]: tables }));
+            } catch {
+              // The connection may have been removed while refreshing.
+            }
+          }),
+      );
+    })();
+  });
 
   async function toggle(profile: DBProfile) {
     const next = !expanded[profile.id];
@@ -69,9 +91,6 @@ export default function DatabasesPanel({ project, onOpenQuery, onOpenTable }: Pr
       <div className="panel-heading">
         <span>Databases</span>
         <div className="panel-actions">
-          <Button className="icon-button" title="Refresh" onClick={() => void load()}>
-            <RefreshCw size={14} />
-          </Button>
           <Button className="icon-button" title="New connection" onClick={() => setShowForm((v) => !v)}>
             <Plus size={15} />
           </Button>

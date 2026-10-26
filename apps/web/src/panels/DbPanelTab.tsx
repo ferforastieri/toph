@@ -5,6 +5,7 @@ import { useApp, type Tab } from "../store";
 import CodeEditor from "../components/CodeEditor";
 import { Button } from "@toph/ui";
 import { useConfirm } from "@toph/ui";
+import { useProjectEvents } from "../projectEvents";
 
 interface Props {
   tab: Tab;
@@ -21,7 +22,30 @@ export default function DbPanelTab({ tab }: Props) {
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState<{ rowIndex: number; values: Record<string, string> } | null>(null);
   const [mutationBusy, setMutationBusy] = useState(false);
+  const [stale, setStale] = useState(false);
   const autoRan = useRef(false);
+  const suppressRefreshUntil = useRef(0);
+  const refreshTimer = useRef<number | undefined>(undefined);
+  const runRef = useRef<() => void>(() => undefined);
+  const canAutoRefresh = Boolean(
+    tab.id.startsWith("db:table:") && readOnlyTableQuery(sql, profile?.driver),
+  );
+
+  useProjectEvents(tab.projectId, ["database.rows", "databases"], (event) => {
+    if (!tab.profileId) return;
+    if (event.type !== "sync" && event.path !== tab.profileId) return;
+    if (Date.now() < suppressRefreshUntil.current) return;
+    if (canAutoRefresh && !busy) {
+      if (event.type === "sync" && !result) return;
+      window.clearTimeout(refreshTimer.current);
+      refreshTimer.current = window.setTimeout(() => runRef.current(), 300);
+      return;
+    }
+    if (event.type !== "sync") setStale(true);
+  });
+
+  useEffect(() => () => window.clearTimeout(refreshTimer.current), []);
+
   const canEdit = Boolean(
     tab.table &&
       tab.table.primary.length > 0 &&
@@ -60,11 +84,15 @@ export default function DbPanelTab({ tab }: Props) {
 
   async function run() {
     if (!tab.profileId || !sql.trim()) return;
+    window.clearTimeout(refreshTimer.current);
+    suppressRefreshUntil.current = Date.now() + 1000;
     setBusy(true);
+    setStale(false);
     setError("");
     try {
       const response = await api.queryDB(tab.profileId, sql, 500);
       setResult(response);
+      setStale(false);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Query failed.";
       setError(message);
@@ -73,6 +101,10 @@ export default function DbPanelTab({ tab }: Props) {
       setBusy(false);
     }
   }
+
+  runRef.current = () => {
+    void run();
+  };
 
   function updateSql(value: string) {
     setSql(value);
@@ -114,6 +146,7 @@ export default function DbPanelTab({ tab }: Props) {
       }
     }
     setMutationBusy(true);
+    suppressRefreshUntil.current = Date.now() + 1500;
     try {
       await api.updateRow(tab.profileId, {
         schema: tab.table.schema,
@@ -143,6 +176,7 @@ export default function DbPanelTab({ tab }: Props) {
     });
     if (!ok) return;
     setMutationBusy(true);
+    suppressRefreshUntil.current = Date.now() + 1500;
     try {
       await api.deleteRow(tab.profileId, {
         schema: tab.table.schema,
@@ -221,6 +255,7 @@ export default function DbPanelTab({ tab }: Props) {
               <span>{result.rowCount} rows</span>
               <span>{result.durationMs} ms</span>
               {result.truncated && <span className="truncated">truncated at 500 rows</span>}
+              {stale && <span className="truncated">data changed — run again</span>}
             </div>
             {result.columns.length === 0 ? (
               <div className="empty-hint compact">
@@ -349,4 +384,28 @@ function formatValue(value: unknown): string {
   if (typeof value === "string") return value;
   if (value === null || value === undefined) return "NULL";
   return JSON.stringify(value);
+}
+
+function readOnlyTableQuery(sql: string, driver?: string): boolean {
+  const text = sql.trim();
+  if (!text) return false;
+  if (driver === "mongodb" || driver === "elasticsearch") {
+    try {
+      const parsed = JSON.parse(text) as Record<string, unknown>;
+      if (driver === "mongodb") {
+        return Boolean(parsed && parsed.filter && !parsed.update && !parsed.delete);
+      }
+      const body = parsed?.body as Record<string, unknown> | undefined;
+      return Boolean(body?.query);
+    } catch {
+      return false;
+    }
+  }
+  if (driver === "redis") return /^scan\b/i.test(text);
+  if (driver === "neo4j") return /^match\b[\s\S]*\breturn\b/i.test(text);
+  if (driver === "cassandra" || !driver) return /^select\b/i.test(text);
+  if (driver === "postgres" || driver === "mysql" || driver === "sqlite" || driver === "sqlserver") {
+    return /^select\b/i.test(text);
+  }
+  return /^select\b/i.test(text);
 }

@@ -8,8 +8,6 @@ import {
 import { useApp, type Sidebar } from "../store";
 import { Button } from "@toph/ui";
 import AvatarMenu from "./AvatarMenu";
-import NotificationBell from "./NotificationBell";
-import type { AppNotification } from "../store";
 
 const items: Array<{ id: Sidebar; label: string; icon: typeof Files }> = [
   { id: "files", label: "Explorer", icon: Files },
@@ -20,10 +18,9 @@ const items: Array<{ id: Sidebar; label: string; icon: typeof Files }> = [
 
 interface Props {
   onOpenAI: () => void;
-  onOpenNotification: (notification: AppNotification) => void;
 }
 
-export default function ActivityBar({ onOpenAI, onOpenNotification }: Props) {
+export default function ActivityBar({ onOpenAI }: Props) {
   const sidebar = useApp((state) => state.sidebar);
   const setSidebar = useApp((state) => state.setSidebar);
   const toggleTerminal = useApp((state) => state.toggleTerminal);
@@ -59,7 +56,6 @@ export default function ActivityBar({ onOpenAI, onOpenNotification }: Props) {
         </Button>
       </div>
       <div className="activity-bottom">
-        <NotificationBell variant="activity" onOpen={onOpenNotification} />
         <AvatarMenu
           user={user}
           variant="activity"
