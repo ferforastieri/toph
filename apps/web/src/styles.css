@@ -4778,17 +4778,3 @@ html.mobile-client .avatar-titlebar .avatar-initials {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
-.update-alternate {
-  width: max-content;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  margin-top: 2px;
-  padding: 0;
-  background: transparent;
-  color: var(--primary);
-  font-size: 9.5px;
-}
-
-.update-alternate:hover { color: var(--primary-strong); text-decoration: underline; }

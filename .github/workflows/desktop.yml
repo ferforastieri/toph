@@ -32,9 +32,11 @@ jobs:
           - platform: ubuntu-24.04
             goos: linux
             sidecar: toph
+            bundles: appimage,deb,rpm
           - platform: windows-latest
             goos: windows
             sidecar: toph.exe
+            bundles: msi
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v4
@@ -100,7 +102,7 @@ jobs:
 
       - name: Build desktop
         working-directory: apps/client
-        run: npm run sync-brand && npm run tauri -- build --config '{"version":"${{ steps.version.outputs.version }}"}'
+        run: npm run sync-brand && npm run tauri -- build --bundles "${{ matrix.bundles }}" --config '{"version":"${{ steps.version.outputs.version }}"}'
 
       - name: Upload installers
         uses: actions/upload-artifact@v4
