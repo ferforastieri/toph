@@ -188,7 +188,9 @@ impl AppState {
             let _ = state.ensure_default_project().await;
         }
         let projects = state.store.list_projects().await?;
-        state.watcher.watch_existing(&projects);
+        state
+            .watcher
+            .watch_existing(&projects, &state.config.workspace_roots);
 
         let weak = Arc::downgrade(&state);
         state.opencode.set_idle_handler(move || {
@@ -239,9 +241,28 @@ impl AppState {
             updated_at: String::new(),
         };
         let created = self.store.create_project(project).await?;
-        self.watcher
-            .watch(&created.id, PathBuf::from(&created.root).as_path())?;
+        self.watch_project(&created.id, FsPath::new(&created.root))
+            .await?;
         Ok(())
+    }
+
+    async fn watch_project(&self, project_id: &str, root: &FsPath) -> AppResult<()> {
+        // A project that covers an entire workspace root would otherwise
+        // duplicate the watcher of every project nested below it. Keep the
+        // parent shallow in that case; nested projects have their own trees.
+        let projects = self.store.list_projects().await?;
+        let nested = projects.iter().any(|other| {
+            other.id != project_id
+                && FsPath::new(&other.root) != root
+                && FsPath::new(&other.root).starts_with(root)
+        });
+        let at_workspace_root = self
+            .config
+            .workspace_roots
+            .iter()
+            .any(|workspace| workspace == root);
+        self.watcher
+            .watch(project_id, root, !(at_workspace_root && nested))
     }
 
     fn publish_project_root(&self, root: &str, event_type: &str, path: Option<String>) {
@@ -313,13 +334,24 @@ pub async fn serve(config: Config) -> AppResult<()> {
     let state = AppState::build(config).await?;
     let listener = TcpListener::bind(&addr).await?;
     tracing::info!(%addr, data = %state.config.data_dir.display(), "toph listening");
-    axum::serve(
+    let server = axum::serve(
         listener,
-        router(state).into_make_service_with_connect_info::<SocketAddr>(),
-    )
-    .with_graceful_shutdown(shutdown_signal())
-    .await
-    .map_err(|error| AppError::Internal(error.into()))?;
+        router(state.clone()).into_make_service_with_connect_info::<SocketAddr>(),
+    );
+    tokio::select! {
+        result = server => {
+            result.map_err(|error| AppError::Internal(error.into()))?;
+        }
+        _ = shutdown_signal() => {
+            tracing::info!("toph shutting down");
+        }
+    }
+    // Long-lived WebSockets and SSE streams do not complete on their own.
+    // Stop their producers and leave the process; systemd will start the next
+    // binary immediately.
+    state.opencode.stop();
+    state.watcher.stop_all();
+    state.terminals.close_all();
     Ok(())
 }
 
@@ -820,7 +852,7 @@ async fn create_project(
             updated_at: String::new(),
         })
         .await?;
-    state.watcher.watch(&project.id, &root)?;
+    state.watch_project(&project.id, &root).await?;
     Ok((StatusCode::CREATED, Json(project)).into_response())
 }
 
@@ -854,8 +886,8 @@ async fn update_project(
     if updated.root != previous_root {
         state.watcher.unwatch(&updated.id);
         state
-            .watcher
-            .watch(&updated.id, FsPath::new(&updated.root))?;
+            .watch_project(&updated.id, FsPath::new(&updated.root))
+            .await?;
     }
     Ok(Json(updated))
 }

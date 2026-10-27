@@ -10,6 +10,8 @@ use walkdir::WalkDir;
 
 use crate::errors::{AppError, AppResult};
 
+const MAX_WATCHED_DIRECTORIES: usize = 4096;
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProjectEvent {
@@ -62,7 +64,7 @@ impl ProjectWatcher {
         }
     }
 
-    pub fn watch(&self, project_id: &str, root: &Path) -> AppResult<()> {
+    pub fn watch(&self, project_id: &str, root: &Path, recursive: bool) -> AppResult<()> {
         if self
             .watchers
             .lock()
@@ -91,7 +93,9 @@ impl ProjectWatcher {
         let project_id_for_thread = project_id.clone();
         std::thread::spawn(move || {
             if let Ok(mut guard) = watcher_for_thread.lock() {
-                let _ = watch_tree(&mut guard, &root_for_thread, &root_for_thread);
+                if recursive {
+                    let _ = watch_tree(&mut guard, &root_for_thread, &root_for_thread);
+                }
                 let git_dir = root_for_thread.join(".git");
                 let _ = guard.watch(&git_dir, RecursiveMode::NonRecursive);
                 let _ = watch_tree(&mut guard, &git_dir.join("refs"), &root_for_thread);
@@ -104,17 +108,20 @@ impl ProjectWatcher {
                     .unwrap_or(Duration::from_secs(10));
                 match receiver.recv_timeout(timeout) {
                     Ok(Ok(event)) => {
-                        if let EventKind::Create(_) = event.kind {
-                            for path in &event.paths {
-                                if path.is_dir()
-                                    && !ignored_dir(
-                                        path.file_name()
-                                            .and_then(|value| value.to_str())
-                                            .unwrap_or(""),
-                                    )
-                                {
-                                    if let Ok(mut watcher) = watcher_for_thread.lock() {
-                                        let _ = watch_tree(&mut watcher, path, &root_for_thread);
+                        if recursive {
+                            if let EventKind::Create(_) = event.kind {
+                                for path in &event.paths {
+                                    if path.is_dir()
+                                        && !ignored_dir(
+                                            path.file_name()
+                                                .and_then(|value| value.to_str())
+                                                .unwrap_or(""),
+                                        )
+                                    {
+                                        if let Ok(mut watcher) = watcher_for_thread.lock() {
+                                            let _ =
+                                                watch_tree(&mut watcher, path, &root_for_thread);
+                                        }
                                     }
                                 }
                             }
@@ -167,9 +174,17 @@ impl ProjectWatcher {
         }
     }
 
-    pub fn watch_existing(&self, projects: &[crate::model::Project]) {
+    pub fn watch_existing(&self, projects: &[crate::model::Project], workspace_roots: &[PathBuf]) {
         for project in projects {
-            if let Err(error) = self.watch(&project.id, Path::new(&project.root)) {
+            let root = Path::new(&project.root);
+            let nested = projects.iter().any(|other| {
+                other.id != project.id
+                    && Path::new(&other.root) != root
+                    && Path::new(&other.root).starts_with(root)
+            });
+            let at_workspace_root = workspace_roots.iter().any(|workspace| workspace == root);
+            let recursive = !(at_workspace_root && nested);
+            if let Err(error) = self.watch(&project.id, root, recursive) {
                 tracing::warn!(%error, project = %project.id, "could not watch project");
             }
         }
@@ -181,6 +196,7 @@ fn watch_tree(
     path: &Path,
     root: &Path,
 ) -> std::io::Result<()> {
+    let mut watched = 0;
     for entry in WalkDir::new(path)
         .follow_links(false)
         .into_iter()
@@ -195,7 +211,15 @@ fn watch_tree(
             continue;
         }
         if entry.file_type().is_dir() {
-            let _ = watcher.watch(entry.path(), RecursiveMode::NonRecursive);
+            if watched >= MAX_WATCHED_DIRECTORIES {
+                break;
+            }
+            if watcher
+                .watch(entry.path(), RecursiveMode::NonRecursive)
+                .is_ok()
+            {
+                watched += 1;
+            }
         }
     }
     Ok(())
