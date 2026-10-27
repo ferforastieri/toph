@@ -32,8 +32,6 @@ interface Props {
   effort: string;
   efforts: string[];
   onEffortChange: (value: string) => void;
-  yolo: boolean;
-  onYoloChange: (value: boolean) => void;
   placeholder: string;
   allowAttachments?: boolean;
 }
@@ -50,8 +48,6 @@ export function AgentComposer({
   effort,
   efforts,
   onEffortChange,
-  yolo,
-  onYoloChange,
   placeholder,
   allowAttachments = true,
 }: Props) {
@@ -132,7 +128,39 @@ export function AgentComposer({
         </div>
       )}
       <div className="agent-composer">
-        <div className="agent-composer-toolbar">
+        <textarea
+          ref={areaRef}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && !event.shiftKey) {
+              event.preventDefault();
+              submit();
+            }
+            if (event.key === "Escape") setMenu(false);
+          }}
+          placeholder={placeholder}
+          aria-label="Mensagem para o agente"
+          rows={3}
+        />
+        {attachments.length > 0 && (
+          <div className="agent-attachments">
+            {attachments.map((file) => (
+              <span key={`${file.name}-${file.size}`} className="agent-attachment" title={file.name}>
+                <FilePlus2 size={12} />
+                <span>{file.name}</span>
+                <button
+                  type="button"
+                  aria-label={`Remove ${file.name}`}
+                  onClick={() => setAttachments((items) => items.filter((item) => item !== file))}
+                ><X size={11} /></button>
+              </span>
+            ))}
+          </div>
+        )}
+        {error && <div className="agent-composer-error">{error}</div>}
+        <div className="agent-composer-bottom">
+          <IconButton label="Add context or file" onClick={() => setMenu((open) => !open)}><Plus size={16} /></IconButton>
           <Select
             value={model}
             options={models.map((item) => ({ value: item.id, label: item.label }))}
@@ -151,51 +179,7 @@ export function AgentComposer({
             placement="top"
             disabled={efforts.length === 0}
           />
-          <button
-            type="button"
-            className={`agent-yolo ${yolo ? "on" : ""}`}
-            aria-pressed={yolo}
-            onClick={() => onYoloChange(!yolo)}
-          >
-            YOLO
-          </button>
           <span className="agent-composer-spacer" />
-        </div>
-        {attachments.length > 0 && (
-          <div className="agent-attachments">
-            {attachments.map((file) => (
-              <span key={`${file.name}-${file.size}`} className="agent-attachment" title={file.name}>
-                <FilePlus2 size={12} />
-                <span>{file.name}</span>
-                <button
-                  type="button"
-                  aria-label={`Remove ${file.name}`}
-                  onClick={() => setAttachments((items) => items.filter((item) => item !== file))}
-                ><X size={11} /></button>
-              </span>
-            ))}
-          </div>
-        )}
-        <textarea
-          ref={areaRef}
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" && !event.shiftKey) {
-              event.preventDefault();
-              submit();
-            }
-            if (event.key === "Escape") setMenu(false);
-          }}
-          placeholder={placeholder}
-          rows={3}
-        />
-        {error && <div className="agent-composer-error">{error}</div>}
-        <div className="agent-composer-bottom">
-          <IconButton label="Add context or file" onClick={() => setMenu((open) => !open)}><Plus size={16} /></IconButton>
-          <span className="agent-composer-hint">
-            {allowAttachments ? "Files, commands, context and shell" : "Commands and context"}
-          </span>
           {busy && onStop ? (
             <Button type="button" variant="ghost" size="sm" onClick={onStop}><Square size={13} /> Stop</Button>
           ) : (
