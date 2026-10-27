@@ -37,13 +37,13 @@ export function Select<T extends string>({
   function place() {
     const rect = triggerRef.current?.getBoundingClientRect();
     if (!rect) return;
-    const desired = Math.min(280, options.length * 34 + 10);
+    const desired = Math.min(240, options.length * 28 + 8);
     const below = window.innerHeight - rect.bottom - 8;
     const above = rect.top - 8;
     let side = placement;
     if (side === "bottom" && below < Math.min(desired, 120) && above > below) side = "top";
     if (side === "top" && above < Math.min(desired, 120) && below > above) side = "bottom";
-    const maxHeight = Math.max(76, Math.min(280, desired, side === "top" ? above : below));
+    const maxHeight = Math.max(72, Math.min(240, desired, side === "top" ? above : below));
     const top = side === "top"
       ? Math.max(8, rect.top - maxHeight - 6)
       : Math.min(window.innerHeight - maxHeight - 8, rect.bottom + 6);

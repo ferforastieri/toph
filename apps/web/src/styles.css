@@ -2834,7 +2834,8 @@ html[data-accent="graphite"] { --accent-rgb: 192, 200, 185; }
 
 /* Shared UI kit: Apple-style controls, one height and one rhythm. */
 :root {
-  --control-height: 34px;
+  --control-height: 30px;
+  --field-height: 28px;
   --control-radius: calc(var(--radius) * 0.5);
   --control-gap: 8px;
 }
@@ -2886,17 +2887,18 @@ html[data-accent="graphite"] { --accent-rgb: 192, 200, 185; }
 
 .ui-select-trigger {
   width: 100%;
-  height: var(--control-height);
+  height: var(--field-height);
+  min-height: var(--field-height);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  padding: 0 11px;
+  gap: 7px;
+  padding: 0 9px;
   border: 1px solid var(--border);
   border-radius: var(--control-radius);
   background: var(--input-bg);
   color: var(--text);
-  font-size: 12px;
+  font-size: 11.5px;
   text-align: left;
 }
 .ui-select-trigger:hover:not(:disabled) { border-color: var(--primary); }
@@ -2920,15 +2922,15 @@ html[data-accent="graphite"] { --accent-rgb: 192, 200, 185; }
 }
 .ui-select-menu button {
   width: 100%;
-  min-height: 32px;
+  min-height: 28px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 6px 8px;
+  padding: 4px 7px;
   border-radius: max(0px, calc(var(--radius-sm) - 3px));
   color: var(--text-soft);
-  font-size: 11.5px;
+  font-size: 11px;
   text-align: left;
 }
 .ui-select-menu button:hover { background: var(--surface-hover); color: var(--text); }
@@ -2978,8 +2980,37 @@ textarea,
 .ui-select-trigger {
   min-height: var(--control-height);
 }
-textarea { min-height: 74px; }
+textarea { min-height: 64px; }
 .primary.ui-button, .ghost.ui-button { min-height: var(--control-height); }
+
+/* Compact native fields everywhere: text, search, number and date inputs. */
+input:not([type="range"]):not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="color"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="image"]),
+select:not([multiple]) {
+  height: var(--field-height);
+  min-height: var(--field-height);
+  padding: 0 8px;
+  font-size: 11.5px;
+  line-height: 1.2;
+}
+input:not([type="range"]):not([type="checkbox"]):not([type="radio"]):not([type="file"]):not([type="color"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="image"])::-webkit-date-and-time-value {
+  min-height: 0;
+}
+textarea {
+  min-height: 64px;
+  padding: 6px 8px;
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+.input-with-icon {
+  height: var(--field-height);
+  min-height: var(--field-height);
+  padding: 0 8px;
+}
+.input-with-icon input {
+  height: auto;
+  min-height: 0;
+  padding: 0;
+}
 
 /* Control height normalization */
 .primary,
@@ -3499,7 +3530,7 @@ body.resize-active * {
 }
 .scm-commit textarea {
   width: 100%;
-  min-height: 62px;
+  min-height: 52px;
   resize: vertical;
   padding: 8px 9px;
   border: 1px solid var(--border);

@@ -5,6 +5,7 @@ import { RefreshCw, X } from "@toph/icons";
 import { api, type Project } from "../api";
 import { useApp } from "../store";
 import { useResolvedTheme, useSettings } from "../settings";
+import { CODE_FONT_FAMILY } from "../editorThemes";
 import { Button } from "@toph/ui";
 import { ResizeHandle } from "@toph/ui";
 
@@ -34,9 +35,14 @@ export default function TerminalPanel({ project }: Props) {
     const term = new Terminal({
       convertEol: true,
       cursorBlink: true,
-      fontFamily: "'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace",
+      cursorStyle: "block",
+      drawBoldTextInBrightColors: true,
+      fontFamily: CODE_FONT_FAMILY,
       fontSize: terminalFontSize,
-      lineHeight: 1.35,
+      fontWeight: "normal",
+      fontWeightBold: "bold",
+      letterSpacing: 0,
+      lineHeight: 1,
       scrollback: 5000,
       theme: resolved === "light"
         ? {
@@ -111,8 +117,14 @@ export default function TerminalPanel({ project }: Props) {
         ? {
             background: "#000000",
             foreground: "#C8C8C8",
-            cursor: primary,
+            cursor: "#FF50FF",
+            cursorAccent: "#000000",
             selectionBackground: "#96969659",
+            selectionForeground: "#C8C8C8",
+            selectionInactiveBackground: "#96969633",
+            scrollbarSliderBackground: "#50505050",
+            scrollbarSliderHoverBackground: "#50505080",
+            scrollbarSliderActiveBackground: "#50505050",
             black: "#000000",
             red: "#FF7878",
             green: "#AAE682",
