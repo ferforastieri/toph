@@ -164,7 +164,7 @@ impl AppState {
         let (notifications, _) = broadcast::channel(64);
         let state = Arc::new(Self {
             login_limiter: Arc::new(RateLimiter::new(10, Duration::from_secs(5 * 60))),
-            api_limiter: Arc::new(RateLimiter::new(300, Duration::from_secs(60))),
+            api_limiter: Arc::new(RateLimiter::new(1200, Duration::from_secs(60))),
             update: UpdateManager::new(&config),
             http: reqwest::Client::builder()
                 .timeout(Duration::from_secs(15))
@@ -503,9 +503,19 @@ async fn auth_middleware(
         .get::<ConnectInfo<SocketAddr>>()
         .map(|value| value.0);
     let key = client_key(request.headers(), connect, &state.config.trusted_proxies);
-    if request.uri().path().starts_with("/api/")
-        && request.uri().path() != "/api/health"
-        && request.uri().path() != "/api/version"
+    let path = request.uri().path();
+    // Reads power the live UI and can legitimately burst after file-system
+    // changes. Mutations stay rate-limited; long-lived streams and the
+    // OpenCode proxy have their own flow control.
+    let long_lived = path == "/api/events/ws"
+        || path == "/api/notifications/stream"
+        || path.starts_with("/api/opencode/")
+        || (path.starts_with("/api/terminals/") && path.ends_with("/ws"));
+    if !long_lived
+        && path.starts_with("/api/")
+        && path != "/api/health"
+        && path != "/api/version"
+        && unsafe_method(request.method())
         && !state.api_limiter.allow(&key)
     {
         return AppError::RateLimited.into_response();

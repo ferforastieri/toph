@@ -56,6 +56,7 @@ export default function Workbench() {
   const loadModels = useAI((state) => state.loadModels);
   const aiProvider = useAI((state) => state.config?.provider);
   const sidebarWidth = useSettings((state) => state.sidebarWidth);
+  const aiPanelWidth = useSettings((state) => state.aiPanelWidth);
   const updateSettings = useSettings((state) => state.update);
 
   const [showRepoPicker, setShowRepoPicker] = useState(false);
@@ -79,11 +80,7 @@ export default function Workbench() {
   const activeTab = tabs.find((tab) => tab.id === activeTabId) ?? null;
   const unreadForProject = (projectId: string) =>
     notifications.filter((notification) => !notification.read && notification.projectId === projectId);
-  const unreadNotifications = notifications.filter(
-    (notification) => !notification.read && notification.projectId,
-  );
-  const latestUnread = unreadNotifications[0];
-  const latestUnreadProject = projects.find((item) => item.id === latestUnread?.projectId);
+  const activeUnread = project ? unreadForProject(project.id) : [];
   const sortedBranches = branchInfo
     ? [...branchInfo.branches].sort((a, b) => {
         if (a === branchInfo.current) return -1;
@@ -712,14 +709,6 @@ export default function Workbench() {
     openNotification(latest);
   }
 
-  function openLatestNotification() {
-    const latest = notifications.find(
-      (notification) => !notification.read && notification.projectId,
-    );
-    if (!latest) return;
-    openNotification(latest);
-  }
-
   function openWeb(target: WebTarget) {
     if (!project) return;
     if (mobile) setMobilePanelOpen(false);
@@ -802,19 +791,19 @@ export default function Workbench() {
               <span className="mobile-project-count">{openProjectIds.length}</span>
               <ChevronDown size={16} />
             </button>
+            {activeUnread.length > 0 && (
+              <button
+                type="button"
+                className="titlebar-project-notify"
+                title={`${activeUnread.length} notificação(ões) em ${project?.name ?? "projeto"}`}
+                aria-label="Abrir a notificação mais recente do projeto"
+                onClick={() => project && openLatestProjectNotification(project.id)}
+              >
+                <Bell size={17} />
+                <span>{activeUnread.length > 9 ? "9+" : activeUnread.length}</span>
+              </button>
+            )}
           </div>
-          {unreadNotifications.length > 0 && (
-            <button
-              type="button"
-              className="titlebar-project-notify"
-              title={`${unreadNotifications.length} notificação(ões)${latestUnreadProject ? ` · ${latestUnreadProject.name}` : ""}`}
-              aria-label="Abrir a notificação mais recente"
-              onClick={() => openLatestNotification()}
-            >
-              <Bell size={17} />
-              <span>{unreadNotifications.length > 9 ? "9+" : unreadNotifications.length}</span>
-            </button>
-          )}
           <AvatarMenu
             user={user}
             variant="titlebar"
@@ -903,7 +892,18 @@ export default function Workbench() {
         </main>
 
         {!mobile && project && aiPanelOpen && aiDockTab && (
-          <aside className="right-sidebar">
+          <>
+            <ResizeHandle
+              className="ai-resize"
+              orientation="vertical"
+              value={aiPanelWidth}
+              min={300}
+              max={620}
+              label="Resize agent panel"
+              onChange={(width) => document.documentElement.style.setProperty("--ai-panel-width", `${width}px`)}
+              onCommit={(width) => updateSettings({ aiPanelWidth: width })}
+            />
+            <aside className="right-sidebar">
             <div className="right-agent">
               <AiPanelTab
                 tab={aiDockTab}
@@ -911,7 +911,8 @@ export default function Workbench() {
                 onClose={() => setAiPanelOpen(false)}
               />
             </div>
-          </aside>
+            </aside>
+          </>
         )}
 
         {mobile && project && aiDockTab && aiPanelOpen && (
@@ -940,35 +941,37 @@ export default function Workbench() {
                 <span>{branch || "detached"}</span>
                 <ChevronDown size={12} />
               </button>
-              <button
-                type="button"
-                className="desktop-project-button"
-                onClick={() => {
-                  setBranchMenuOpen(false);
-                  setProjectMenuOpen((current) => !current);
-                }}
-                aria-haspopup="menu"
-                aria-expanded={projectMenuOpen}
-              >
-                <span className="desktop-project-avatar" style={{ background: project.color }}>
-                  {project.name.slice(0, 1).toUpperCase()}
-                </span>
-                <span className="desktop-project-name">{project.name}</span>
-                <span className="desktop-project-count">{openProjectIds.length}</span>
-                <ChevronDown size={14} />
-              </button>
-              {unreadNotifications.length > 0 && (
+              <div className="desktop-project-pill">
                 <button
                   type="button"
-                  className="desktop-project-notify"
-                  title={`${unreadNotifications.length} notificação(ões)${latestUnreadProject ? ` · ${latestUnreadProject.name}` : ""}`}
-                  aria-label="Abrir a notificação mais recente"
-                  onClick={() => openLatestNotification()}
+                  className="desktop-project-button"
+                  onClick={() => {
+                    setBranchMenuOpen(false);
+                    setProjectMenuOpen((current) => !current);
+                  }}
+                  aria-haspopup="menu"
+                  aria-expanded={projectMenuOpen}
                 >
-                  <Bell size={11} />
-                  <span>{unreadNotifications.length > 9 ? "9+" : unreadNotifications.length}</span>
+                  <span className="desktop-project-avatar" style={{ background: project.color }}>
+                    {project.name.slice(0, 1).toUpperCase()}
+                  </span>
+                  <span className="desktop-project-name">{project.name}</span>
+                  <span className="desktop-project-count">{openProjectIds.length}</span>
+                  <ChevronDown size={14} />
                 </button>
-              )}
+                {activeUnread.length > 0 && (
+                  <button
+                    type="button"
+                    className="desktop-project-notify"
+                    title={`${activeUnread.length} notificação(ões) em ${project.name}`}
+                    aria-label="Abrir a notificação mais recente do projeto"
+                    onClick={() => openLatestProjectNotification(project.id)}
+                  >
+                    <Bell size={11} />
+                    <span>{activeUnread.length > 9 ? "9+" : activeUnread.length}</span>
+                  </button>
+                )}
+              </div>
             </div>
             <div className="desktop-footer-right">
               {activeTab?.kind === "editor" && (

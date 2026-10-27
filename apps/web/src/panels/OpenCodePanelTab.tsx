@@ -50,11 +50,9 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
   const [error, setError] = useState("");
   const [model, setModel] = useState(aiConfig?.model ?? "");
   const [effort, setEffort] = useState("");
-  const [yolo, setYolo] = useState(false);
   const [sessionsOpen, setSessionsOpen] = useState(false);
   const [usage, setUsage] = useState<{ cost?: number; tokens?: unknown } | null>(null);
-  const yoloRef = useRef(yolo);
-  yoloRef.current = yolo;
+  const yoloRef = useRef(true);
   const bottomRef = useRef<HTMLDivElement>(null);
   const subagents = useRef(new Map<string, string>());
   const notifyPending = useRef(false);
@@ -571,25 +569,19 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
 
   return (
     <div className="ai-tab opencode-tab">
-      <div className="ai-toolbar">
-        <div className="ai-title">
-          <Bot size={16} />
-          <strong>OpenCode</strong>
-          <span className="ai-project">{project.name}</span>
-        </div>
-        <div className="ai-toolbar-actions">
-          <button
-            type="button"
-            className="ai-session-trigger"
-            onClick={() => setSessionsOpen(true)}
-            aria-label="Abrir sessões"
-          >
-            <History size={14} />
-            <span>{tab.sessionId ? tab.title || `Sessão ${tab.sessionId.slice(0, 8)}` : "Nova sessão"}</span>
-            <ChevronDown size={13} />
-          </button>
-          {onClose && <Button className="icon-button" title="Close agent" onClick={onClose}><X size={15} /></Button>}
-        </div>
+      <div className="ai-toolbar ai-session-toolbar">
+        <button
+          type="button"
+          className="ai-session-trigger"
+          onClick={() => setSessionsOpen(true)}
+          aria-label="Abrir listagem de sessões"
+          title="Sessões"
+        >
+          <History size={14} />
+          <span>{tab.sessionId ? tab.title || `Sessão ${tab.sessionId.slice(0, 8)}` : "Nova sessão"}</span>
+          <ChevronDown size={13} />
+        </button>
+        {onClose && <Button className="icon-button" title="Close agent" onClick={onClose}><X size={15} /></Button>}
       </div>
 
       <div className="ai-messages">
@@ -676,8 +668,6 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
         effort={effort}
         efforts={efforts}
         onEffortChange={(next) => void chooseEffort(next)}
-        yolo={yolo}
-        onYoloChange={setYolo}
         placeholder="Pergunte ao OpenCode... (/ comandos, @ contexto, ! shell)"
         allowAttachments
       />

@@ -29,7 +29,6 @@ function GenericAiPanel({ tab, project, config, onClose }: Props & { config: AIC
   const [error, setError] = useState("");
   const [model, setModel] = useState(config.model);
   const [effort, setEffort] = useState("");
-  const [yolo, setYolo] = useState(false);
   const models = useAI((state) => state.models);
   const loadModels = useAI((state) => state.loadModels);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -60,7 +59,7 @@ function GenericAiPanel({ tab, project, config, onClose }: Props & { config: AIC
       const context = config.systemPrompt
         ? [{ role: "system" as const, content: config.systemPrompt }, ...history]
         : history;
-      const result = await api.aiChat(context, { model, effort, yolo });
+      const result = await api.aiChat(context, { model, effort, yolo: true });
       addMessage(tab.id, {
         id: `assistant-${Date.now()}`,
         role: "assistant",
@@ -126,8 +125,6 @@ function GenericAiPanel({ tab, project, config, onClose }: Props & { config: AIC
         effort={effort}
         efforts={[]}
         onEffortChange={setEffort}
-        yolo={yolo}
-        onYoloChange={setYolo}
         placeholder={`Pergunte ao ${label} sobre este projeto...`}
         allowAttachments={false}
       />
