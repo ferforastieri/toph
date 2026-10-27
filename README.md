@@ -35,7 +35,7 @@ The installed server does not serve the landing page or documentation. The landi
 - Receive in-app AI response notifications and Android push notifications through Firebase Cloud Messaging, including when the app is closed.
 - Download the next desktop installer directly from the update toast, with checksum verification. Windows uses the MSI installer.
 - Use a native-titlebar-only desktop shell with a VS Code-style bottom status bar, project selector, branch picker, and an agent rail.
-- Personalize the web app with light/dark/auto themes, the Toph brand palette, Emerald, Night Wolf Black, accents, liquid-glass intensity, backgrounds, radius, density, sidebar width, editor and terminal typography, tab styles, and three global icon sets: Material, Phosphor Fill and Remix Fill. The icon choice applies to the entire interface and the file tree. Drag the sidebar, agent dock and terminal edges to resize them.
+- Personalize the web app with light/dark/auto themes, the Toph brand palette, Emerald, Night Wolf, accents, liquid-glass intensity, backgrounds, radius, density, sidebar width, editor and terminal typography, tab styles, and three global icon sets: Material, Phosphor Fill and Remix Fill. The icon choice applies to the entire interface and the file tree. Drag the sidebar, agent dock and terminal edges to resize them.
 
 ## Repository layout
 

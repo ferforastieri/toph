@@ -60,7 +60,7 @@ const themes: Array<{ id: ThemePreference; label: string; icon: typeof Sun }> = 
   { id: "light", label: "Light", icon: Sun },
   { id: "brand", label: "Brand", icon: Palette },
   { id: "emerald", label: "Emerald", icon: Gem },
-  { id: "nightwolf", label: "Night Wolf (black)", icon: Moon },
+  { id: "nightwolf", label: "Night Wolf", icon: Moon },
 ];
 
 const iconOptions: Array<{ id: IconTheme; label: string }> = [
