@@ -5,6 +5,11 @@ const TOKEN_TYPES = [
   "variable",
   "type.identifier",
   "keyword.control",
+  "keyword.control.conditional",
+  "keyword.control.loop",
+  "keyword.other.new",
+  "constant.language",
+  "keyword.operator",
   "function",
   "parameter",
   "property",
@@ -14,10 +19,56 @@ const tokenType = {
   variable: 0,
   type: 1,
   keyword: 2,
-  function: 3,
-  parameter: 4,
-  property: 5,
+  conditional: 3,
+  loop: 4,
+  newKeyword: 5,
+  constant: 6,
+  operator: 7,
+  function: 8,
+  parameter: 9,
+  property: 10,
 } as const;
+
+const keywordTypes: Record<string, number> = {
+  private: tokenType.keyword,
+  public: tokenType.keyword,
+  protected: tokenType.keyword,
+  readonly: tokenType.keyword,
+  static: tokenType.keyword,
+  abstract: tokenType.keyword,
+  declare: tokenType.keyword,
+  override: tokenType.keyword,
+  async: tokenType.keyword,
+  await: tokenType.keyword,
+  export: tokenType.keyword,
+  return: tokenType.keyword,
+  throw: tokenType.keyword,
+  break: tokenType.keyword,
+  continue: tokenType.keyword,
+  yield: tokenType.keyword,
+  try: tokenType.keyword,
+  catch: tokenType.keyword,
+  finally: tokenType.keyword,
+  as: tokenType.keyword,
+  default: tokenType.keyword,
+  if: tokenType.conditional,
+  else: tokenType.conditional,
+  switch: tokenType.conditional,
+  case: tokenType.conditional,
+  for: tokenType.loop,
+  while: tokenType.loop,
+  do: tokenType.loop,
+  this: tokenType.constant,
+  true: tokenType.constant,
+  false: tokenType.constant,
+  null: tokenType.constant,
+  undefined: tokenType.constant,
+  new: tokenType.newKeyword,
+  typeof: tokenType.operator,
+  instanceof: tokenType.operator,
+  in: tokenType.operator,
+  delete: tokenType.operator,
+};
 
 interface SemanticToken {
   start: number;
@@ -26,6 +77,52 @@ interface SemanticToken {
 }
 
 const registered = new WeakSet<object>();
+
+const parameterStopWords = new Set([
+  "any",
+  "boolean",
+  "false",
+  "never",
+  "null",
+  "number",
+  "object",
+  "string",
+  "symbol",
+  "this",
+  "true",
+  "undefined",
+  "unknown",
+  "void",
+]);
+
+function markParameters(
+  text: string,
+  openIndex: number,
+  add: (start: number, length: number, type: number) => void,
+): void {
+  let depth = 0;
+  let closeIndex = -1;
+  for (let index = openIndex; index < text.length; index += 1) {
+    const char = text[index];
+    if (char === "(") depth += 1;
+    else if (char === ")") {
+      depth -= 1;
+      if (depth === 0) {
+        closeIndex = index;
+        break;
+      }
+    }
+  }
+  if (closeIndex < 0) return;
+  const regionStart = openIndex + 1;
+  const region = text.slice(regionStart, closeIndex);
+  for (const match of region.matchAll(/[A-Za-z_$][\w$]*/g)) {
+    const word = match[0];
+    if (parameterStopWords.has(word) || keywordTypes[word] !== undefined) continue;
+    if (/^[A-Z]/.test(word)) continue;
+    add(regionStart + (match.index ?? 0), word.length, tokenType.parameter);
+  }
+}
 
 function collectTokens(text: string): SemanticToken[] {
   const tokens = new Map<number, SemanticToken>();
@@ -102,24 +199,43 @@ function collectTokens(text: string): SemanticToken[] {
     add(start, name.length, tokenType.variable);
   }
 
-  for (const match of text.matchAll(/\b(?:async\s+)?function\s+([A-Za-z_$][\w$]*)/g)) {
+  for (const match of text.matchAll(/\b(?:async\s+)?function\s+([A-Za-z_$][\w$]*)\s*\(/g)) {
     const name = match[1];
-    const start = (match.index ?? 0) + match[0].lastIndexOf(name);
+    const start = (match.index ?? 0) + match[0].lastIndexOf("(") - name.length - 1;
     add(start, name.length, tokenType.function);
+    markParameters(text, (match.index ?? 0) + match[0].lastIndexOf("("), add);
   }
 
   for (const match of text.matchAll(
     /^\s*(?:(?:public|private|protected|static|readonly|async|get|set)\s+)+([A-Za-z_$][\w$]*)\s*\(/gm,
   )) {
     const name = match[1];
-    const start = (match.index ?? 0) + match[0].lastIndexOf(name);
-    add(start, name.length, tokenType.function);
+    const open = (match.index ?? 0) + match[0].lastIndexOf("(");
+    const nameAt = (match.index ?? 0) + match[0].indexOf(name);
+    add(nameAt, name.length, tokenType.function);
+    markParameters(text, open, add);
   }
 
   for (const match of text.matchAll(/\.\s*([A-Za-z_$][\w$]*)\s*\(/g)) {
     const name = match[1];
     const start = (match.index ?? 0) + match[0].lastIndexOf(name);
     add(start, name.length, tokenType.function);
+  }
+
+  for (const match of text.matchAll(/([A-Za-z_$][\w$]*)\s*=>/g)) {
+    const name = match[1];
+    if (keywordTypes[name] === undefined && !/^[A-Z]/.test(name)) {
+      add((match.index ?? 0) + match[0].indexOf(name), name.length, tokenType.parameter);
+    }
+  }
+
+  // VS Code gives modifiers, control-flow words, literals and operators
+  // different colors from regular keywords. Monaco's built-in TypeScript
+  // tokenizer exposes them all as "keyword", so restore those distinctions.
+  for (const match of text.matchAll(/\b[A-Za-z_$][\w$]*\b/g)) {
+    const word = match[0];
+    const type = keywordTypes[word];
+    if (type !== undefined) add(match.index ?? 0, word.length, type);
   }
 
   return [...tokens.values()].sort((left, right) => left.start - right.start);

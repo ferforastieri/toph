@@ -191,6 +191,7 @@ const nightwolfTheme: editor.IStandaloneThemeData = {
     { token: "function", foreground: "00DCDC" },
     { token: "variable", foreground: "FFDC96" },
     { token: "variable.parameter", foreground: "FFDC96" },
+    { token: "parameter", foreground: "FFDC96" },
     { token: "variable.predefined", foreground: "FFDC96" },
     { token: "delimiter", foreground: "C8C8C8" },
     { token: "delimiter.bracket", foreground: "C8C8C8" },
