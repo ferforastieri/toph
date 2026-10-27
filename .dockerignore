@@ -6,9 +6,10 @@ node_modules
 apps/*/node_modules
 apps/*/dist
 apps/web/public/monaco
-services/toph/internal/webui/dist
 NOTES.local.md
 *.db
 *.db-shm
 *.db-wal
 .env
+services/toph/target
+apps/client/src-tauri/target

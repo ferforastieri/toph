@@ -12,6 +12,40 @@ UPDATE_HELPER=/usr/local/lib/toph/update.sh
 UPDATE_SERVICE=/etc/systemd/system/toph-update.service
 UPDATE_PATH=/etc/systemd/system/toph-update.path
 SERVICE_USER="${TOPH_SERVICE_USER:-${SUDO_USER:-}}"
+DEV_COMPONENTS="${TOPH_DEV_COMPONENTS:-}"
+
+usage() {
+  cat <<'USAGE'
+Usage: install.sh [--components git,node,pnpm,rust,go,python|all] [--no-components]
+
+TOPH_DEV_COMPONENTS may also be set in the environment. If omitted and the
+installer is interactive, it asks whether to install the development toolchain.
+USAGE
+}
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --components)
+      shift
+      [ "$#" -gt 0 ] || { usage; exit 1; }
+      DEV_COMPONENTS="$1"
+      ;;
+    --components=*) DEV_COMPONENTS="${1#*=}" ;;
+    --no-components) DEV_COMPONENTS="none" ;;
+    --help|-h) usage; exit 0 ;;
+    *) echo "Unknown option: $1" >&2; usage; exit 1 ;;
+  esac
+  shift
+done
+
+if [ -z "$DEV_COMPONENTS" ] && [ -r /dev/tty ]; then
+  printf 'Install development tools on this server (git,node,pnpm,rust,go,python)? [y/N] ' >/dev/tty
+  read -r ANSWER </dev/tty || ANSWER=""
+  case "$ANSWER" in
+    y|Y|yes|YES|s|S|sim|SIM) DEV_COMPONENTS="git,node,pnpm,rust,go,python" ;;
+    *) DEV_COMPONENTS="none" ;;
+  esac
+fi
 
 if [ "$(id -u)" -ne 0 ]; then
   echo "Run this installer as root (sudo)." >&2
@@ -32,6 +66,53 @@ if [ -z "$VERSION" ]; then
   echo "Could not determine the latest Toph release." >&2
   exit 1
 fi
+
+install_dev_components() {
+  [ "$DEV_COMPONENTS" = "none" ] && return 0
+  [ -n "$DEV_COMPONENTS" ] || return 0
+  if [ "$DEV_COMPONENTS" = "all" ]; then
+    DEV_COMPONENTS="git,node,pnpm,rust,go,python"
+  fi
+  echo "Installing development environment: ${DEV_COMPONENTS}"
+  local packages=()
+  local comp
+  IFS=',' read -ra SELECTED <<< "$DEV_COMPONENTS"
+  for comp in "${SELECTED[@]}"; do
+    comp="$(echo "$comp" | tr -d '[:space:]')"
+    case "$comp" in
+      git) packages+=(git) ;;
+      node) packages+=(nodejs npm) ;;
+      pnpm) packages+=(nodejs npm) ;;
+      rust) packages+=(rustc cargo) ;;
+      go)
+        if command -v apt-get >/dev/null 2>&1; then packages+=(golang-go)
+        elif command -v dnf >/dev/null 2>&1; then packages+=(golang)
+        else packages+=(go); fi
+        ;;
+      python) packages+=(python3 python3-pip python3-venv) ;;
+      "") ;;
+      *) echo "Unknown development component: $comp" >&2 ;;
+    esac
+  done
+  if [ "${#packages[@]}" -gt 0 ]; then
+    if command -v apt-get >/dev/null 2>&1; then
+      apt-get -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 -o Acquire::Retries=5 update
+      DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "${packages[@]}"
+    elif command -v dnf >/dev/null 2>&1; then
+      dnf install -y "${packages[@]}"
+    elif command -v pacman >/dev/null 2>&1; then
+      pacman -S --noconfirm --needed "${packages[@]}"
+    else
+      echo "No supported package manager found for the development environment." >&2
+      return 1
+    fi
+  fi
+  if printf '%s' ",$DEV_COMPONENTS," | grep -q ',pnpm,'; then
+    npm install -g pnpm
+  fi
+  printf '%s\n' "$DEV_COMPONENTS" > /etc/toph/dev-components
+  echo "Development environment installed."
+}
 
 ARCH="$(uname -m)"
 case "$ARCH" in
@@ -278,6 +359,10 @@ done
 
 if ! curl -fsS "http://127.0.0.1:${PORT}/api/health" >/dev/null 2>&1; then
   rollback
+fi
+
+if ! install_dev_components; then
+  echo "Warning: the development environment could not be fully installed." >&2
 fi
 
 IP="$(hostname -I 2>/dev/null | awk '{print $1}')"

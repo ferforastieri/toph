@@ -9,6 +9,13 @@ interface ServerInfo {
   buildId?: string;
 }
 
+interface ToolStatus {
+  id: string;
+  label: string;
+  installed: boolean;
+  version: string;
+}
+
 const SERVER_KEY = "toph_desktop_server";
 const LEGACY_RECENT_KEY = "toph_desktop_recent_servers";
 const LOCAL_WORKSPACE_KEY = "toph_desktop_local_workspace";
@@ -60,6 +67,12 @@ export default function App() {
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
   const [mobile, setMobile] = useState(mobileUserAgent);
+  const [environmentOpen, setEnvironmentOpen] = useState(false);
+  const [tools, setTools] = useState<ToolStatus[]>([]);
+  const [selectedTools, setSelectedTools] = useState<Set<string>>(new Set());
+  const [environmentBusy, setEnvironmentBusy] = useState(false);
+  const [environmentLog, setEnvironmentLog] = useState("");
+  const [environmentError, setEnvironmentError] = useState("");
   const bootStarted = useRef(false);
 
   useEffect(() => {
@@ -144,6 +157,50 @@ export default function App() {
     } finally {
       setBusy(false);
     }
+  }
+
+  async function openEnvironment() {
+    setEnvironmentOpen(true);
+    setEnvironmentError("");
+    setEnvironmentLog("");
+    try {
+      const status = await invoke<ToolStatus[]>("environment_status");
+      setTools(status);
+      setSelectedTools(new Set(status.filter((tool) => !tool.installed).map((tool) => tool.id)));
+    } catch (err) {
+      setEnvironmentError(err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  function toggleTool(id: string) {
+    setSelectedTools((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  async function installEnvironment() {
+    if (selectedTools.size === 0) return;
+    setEnvironmentBusy(true);
+    setEnvironmentError("");
+    setEnvironmentLog("");
+    try {
+      const log = await invoke<string>("install_environment", {
+        components: Array.from(selectedTools),
+      });
+      setEnvironmentLog(log);
+      setTools(await invoke<ToolStatus[]>("environment_status"));
+    } catch (err) {
+      setEnvironmentError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setEnvironmentBusy(false);
+    }
+  }
+
+  async function restartToph() {
+    await invoke("restart_app");
   }
 
   async function localMode() {
@@ -253,12 +310,95 @@ export default function App() {
                 Escolher pasta e abrir
               </button>
             </div>
+            <div className="local-card environment-card">
+              <div>
+                <span className="eyebrow">Opcional</span>
+                <h2>Ambiente de desenvolvimento</h2>
+                <p>Instale Git, Node.js, pnpm, Rust, Go e Python para usar no terminal local.</p>
+              </div>
+              <button className="secondary" type="button" disabled={busy} onClick={() => void openEnvironment()}>
+                Escolher ferramentas
+              </button>
+            </div>
           </>
         )}
 
         {status && <div className="status">{status}</div>}
         {error && <div className="error">{error}</div>}
       </section>
+
+      {environmentOpen && (
+        <div className="environment-backdrop" role="presentation" onClick={() => !environmentBusy && setEnvironmentOpen(false)}>
+          <section
+            className="environment-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Ambiente de desenvolvimento"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="environment-modal-head">
+              <div>
+                <span className="eyebrow">Ambiente local</span>
+                <h2>Ferramentas de desenvolvimento</h2>
+                <p>As ferramentas escolhidas serão instaladas neste computador.</p>
+              </div>
+              <button
+                type="button"
+                className="environment-close"
+                disabled={environmentBusy}
+                onClick={() => setEnvironmentOpen(false)}
+                aria-label="Fechar"
+              >
+                ×
+              </button>
+            </div>
+            <div className="environment-tools">
+              {tools.map((tool) => (
+                <label key={tool.id} className={`environment-tool ${tool.installed ? "installed" : ""}`}>
+                  <input
+                    type="checkbox"
+                    checked={tool.installed || selectedTools.has(tool.id)}
+                    disabled={tool.installed || environmentBusy}
+                    onChange={() => toggleTool(tool.id)}
+                  />
+                  <span className="environment-tool-copy">
+                    <strong>{tool.label}</strong>
+                    <small>{tool.installed ? tool.version || "instalado" : "não instalado"}</small>
+                  </span>
+                  {tool.installed && <span className="environment-tool-badge">pronto</span>}
+                </label>
+              ))}
+            </div>
+            <p className="environment-note">
+              No Linux, o sistema pode pedir sua senha de administrador. No Windows, o instalador usa o winget.
+            </p>
+            {environmentError && <div className="error">{environmentError}</div>}
+            {environmentLog && <pre className="environment-log">{environmentLog}</pre>}
+            <div className="environment-actions">
+              <button type="button" className="secondary" disabled={environmentBusy} onClick={() => setEnvironmentOpen(false)}>
+                Fechar
+              </button>
+              <button
+                type="button"
+                className="secondary"
+                disabled={environmentBusy}
+                onClick={() => void restartToph()}
+              >
+                Reiniciar Toph
+              </button>
+              <button
+                type="button"
+                className="primary"
+                disabled={environmentBusy || selectedTools.size === 0}
+                onClick={() => void installEnvironment()}
+              >
+                {environmentBusy ? "Instalando..." : "Instalar selecionadas"}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+
       <footer>Toph Client · cliente self-hosted</footer>
     </main>
   );

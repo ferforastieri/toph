@@ -3,10 +3,6 @@
 web:
 	npm install
 	npm run build:web
-	rm -rf services/toph/internal/webui/dist
-	mkdir -p services/toph/internal/webui/dist
-	cp -R apps/web/dist/. services/toph/internal/webui/dist/
-	touch services/toph/internal/webui/dist/.keep
 
 web-landing:
 	npm install
@@ -14,22 +10,24 @@ web-landing:
 
 build: web
 	mkdir -p bin
-	cd services/toph && go build -trimpath -o ../../bin/toph ./cmd/toph
+	TOPH_VERSION="$${TOPH_VERSION:-0.0.0-dev}" cargo build --release --manifest-path services/toph/Cargo.toml --bin toph
+	cp services/toph/target/release/toph bin/toph
 
 run:
-	cd services/toph && go run ./cmd/toph
+	cd services/toph && cargo run --bin toph
 
 dev:
-	@echo "API:     cd services/toph && go run ./cmd/toph"
+	@echo "API:     cd services/toph && cargo run --bin toph"
 	@echo "App:     npm run dev:web"
 	@echo "Landing: npm run dev:landing"
 
 test:
-	cd services/toph && go test ./...
+	cargo test --manifest-path services/toph/Cargo.toml
 	npm test
 
 fmt:
-	cd services/toph && gofmt -w $$(find . -name '*.go')
+	cargo fmt --manifest-path services/toph/Cargo.toml
+	cargo fmt --manifest-path apps/client/src-tauri/Cargo.toml
 
 mobile:
 	npm ci

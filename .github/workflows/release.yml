@@ -38,16 +38,21 @@ jobs:
   server:
     needs: prepare
     if: needs.prepare.outputs.release == 'true'
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            artifact: amd64
+            output: toph-linux-amd64
+          - runner: ubuntu-24.04-arm
+            artifact: arm64
+            output: toph-linux-arm64
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
-
-      - uses: actions/setup-go@v5
-        with:
-          go-version: "1.26"
-          cache: true
 
       - uses: actions/setup-node@v4
         with:
@@ -55,34 +60,31 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
 
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: services/toph -> target
+
       - run: npm ci
       - run: npm run build:web
 
-      - name: Embed web and build server binaries
+      - name: Build server binary
         env:
           VERSION: ${{ needs.prepare.outputs.version }}
+          TOPH_VERSION: ${{ needs.prepare.outputs.version }}
         run: |
           set -euo pipefail
-          rm -rf services/toph/internal/webui/dist
-          mkdir -p services/toph/internal/webui/dist
-          cp -R apps/web/dist/. services/toph/internal/webui/dist/
-          touch services/toph/internal/webui/dist/.keep
-          cd services/toph
-          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
-            go build -trimpath -ldflags="-s -w -X github.com/ferforastieri/toph/internal/server.Version=${VERSION}" \
-            -o ../../toph-linux-amd64 ./cmd/toph
-          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 \
-            go build -trimpath -ldflags="-s -w -X github.com/ferforastieri/toph/internal/server.Version=${VERSION}" \
-            -o ../../toph-linux-arm64 ./cmd/toph
+          cargo build --release --manifest-path services/toph/Cargo.toml --bin toph
+          cp services/toph/target/release/toph "${{ matrix.output }}"
 
-      - name: Upload server binaries
+      - name: Upload server artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: server
+          name: server-${{ matrix.artifact }}
           path: |
             install.sh
-            toph-linux-amd64
-            toph-linux-arm64
+            ${{ matrix.output }}
           if-no-files-found: error
 
   android:
@@ -175,9 +177,9 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p release
-          cp artifacts/server/install.sh release/
-          cp artifacts/server/toph-linux-amd64 release/
-          cp artifacts/server/toph-linux-arm64 release/
+          cp artifacts/server-amd64/install.sh release/
+          cp artifacts/server-amd64/toph-linux-amd64 release/
+          cp artifacts/server-arm64/toph-linux-arm64 release/
           find artifacts/android -name '*.apk' -exec cp {} release/ \;
           find artifacts/toph-client-desktop-ubuntu-24.04 -type f \( -name '*.AppImage' -o -name '*.deb' -o -name '*.rpm' \) -exec cp {} release/ \;
           find artifacts/toph-client-desktop-windows-latest -type f \( -name '*.msi' \) -exec cp {} release/ \;

@@ -17,7 +17,9 @@
     "build:landing": "npm run build --workspace @toph/landing",
     "build:client": "npm run build --workspace @toph/client",
     "test": "npm run test --workspace @toph/web",
-    "sync-brand": "npm run sync --workspace @toph/brand"
+    "sync-brand": "npm run sync --workspace @toph/brand",
+    "build:server": "cargo build --release --manifest-path services/toph/Cargo.toml --bin toph",
+    "test:server": "cargo test --manifest-path services/toph/Cargo.toml"
   },
   "overrides": {
     "dompurify": "3.4.17"

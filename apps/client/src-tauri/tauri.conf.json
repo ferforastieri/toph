@@ -6,7 +6,7 @@
   "build": {
     "beforeDevCommand": "npm run sync-brand && npm run dev",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "npm run sync-brand && npm run prepare-local && npm run build",
+    "beforeBuildCommand": "npm run sync-brand && npm run build && npm --prefix ../.. run build:web",
     "frontendDist": "../dist"
   },
   "app": {

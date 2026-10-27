@@ -15,12 +15,12 @@ The installed server does not serve the landing page or documentation. The landi
 
 ## What it does
 
-- Browse and edit project files with tabs, a file tree, unified search inside Git and Git status.
+- Browse and edit project files with tabs, a file tree, unified search and live Git status. Source control changes and branch switching live in the Git modal.
 - Run a real terminal attached to the server, with a draggable terminal height and working keyboard input.
 - Open repositories from a searchable repository picker; names are derived automatically.
 - Open projects as top-level tabs. Closing a project tab stops its terminal sessions and child processes without deleting the project.
-- Use the real VS Code Material Icon Theme, a Source Control panel with stage/unstage/discard/commit and branch creation from configurable patterns, side-by-side diff tabs and Git blame for the current editor line.
-- Search lives in Source Control and matches both file names and file content automatically with debounce, without pressing Enter.
+- Use the real VS Code Material Icon Theme, stage/unstage/discard/commit and branch creation from configurable patterns in the Git modal, side-by-side diff tabs and Git blame for the current editor line.
+- Search matches both file names and file content automatically with debounce, without pressing Enter.
 - Ctrl+P opens and focuses the same unified search, while inline Git blame and an OpenCode-style conversation view provide reasoning, tool cards, subagents and Markdown.
 - Edit SQL table rows with primary-key safety.
 - Connect to PostgreSQL, MySQL/MariaDB, SQLite, SQL Server, Oracle, ClickHouse, Cassandra, MongoDB, Redis, Elasticsearch and Neo4j, inspect schemas, run queries and inspect results.
@@ -43,7 +43,7 @@ The installed server does not serve the landing page or documentation. The landi
 apps/web/        React workbench application
 apps/landing/    public landing page
 apps/client/    Tauri desktop and Android client
-services/toph/   Go API, workspace, terminals, databases, OpenCode proxy
+services/toph/   Rust API, workspace, terminals, databases, OpenCode proxy
 packages/brand/  shared brand assets and BrandMark
 packages/ui/     shared React UI primitives
 deploy/          Docker Compose
@@ -58,7 +58,7 @@ Browser (React)                     Tauri (desktop + Android)
         │                                    │
         └──────────── HTTPS / WSS ───────────┘
                           │
-                    toph (Go)
+                    toph (Rust)
         ├── auth and sessions
         ├── projects and workspace files
         ├── terminal (PTY over WebSocket)
@@ -69,7 +69,7 @@ Browser (React)                     Tauri (desktop + Android)
         repositories · PostgreSQL · SQLite · MySQL · OpenCode
 ```
 
-The Go server is the only component that touches repositories, database credentials and shells. Clients are thin: they render tabs and stream data. The browser build is embedded in the Go binary; desktop and Android clients use the same API. Desktop local mode starts that same binary as a bundled sidecar on the user's machine.
+The Rust server is the only component that touches repositories, database credentials and shells. Clients are thin: they render tabs and stream data. The browser build is embedded in the Rust binary; desktop and Android clients use the same API. Desktop local mode embeds the Rust server in the Tauri process itself, so no separate server process is started.
 
 ## Security
 
@@ -85,9 +85,9 @@ The Go server is the only component that touches repositories, database credenti
 
 ### Requirements
 
-- Go 1.26+
+- Rust stable (1.90+ recommended)
 - Node.js 22+
-- SQLite (embedded through `modernc.org/sqlite`)
+- SQLite is embedded through SQLx
 - Linux, macOS or a Linux container
 - Docker and Docker Compose v2, optional
 
@@ -95,8 +95,7 @@ The Go server is the only component that touches repositories, database credenti
 
 ```sh
 cp .env.example .env
-cd services/toph
-go run ./cmd/toph
+cargo run --manifest-path services/toph/Cargo.toml --bin toph
 ```
 
 In another terminal:
@@ -121,7 +120,7 @@ make build
 ./bin/toph
 ```
 
-`make build` builds `apps/web` and embeds it into the Go binary. Open `http://127.0.0.1:8787`.
+`make build` builds `apps/web` and embeds it into the Rust binary. Open `http://127.0.0.1:8787`.
 
 ### One-command install
 
@@ -134,6 +133,17 @@ curl -fsSL https://github.com/ferforastieri/toph/releases/latest/download/instal
 The installer creates the `toph` user, installs the binary, creates a systemd
 service, generates the first password and starts Toph on port `8787`. It also
 installs the root-owned update helper used by the in-app update toast.
+
+The server installer can also provision a development environment on the
+server, where Toph's terminal and tools actually run:
+
+```sh
+curl -fsSL .../install.sh | sudo sh -s -- --components git,node,pnpm,rust,go,python
+```
+
+Use `--components all` or `--no-components`. The desktop launcher offers the
+same optional tool selection for local workspaces; remote desktop, web and
+mobile clients never install toolchains on the client machine.
 
 ### Releases
 
@@ -160,9 +170,9 @@ toast. Installing the downloaded APK still requires the normal Android prompt.
 
 ### Desktop
 
-Install the Windows or Linux package from the [latest release](https://github.com/ferforastieri/toph/releases/latest). Desktop local mode bundles the Toph server and asks for a workspace folder; server mode asks only for a URL on first use and reconnects to the last server on later launches. The Toph menu opens the launcher again (`Ctrl+Shift+L`). The local backend uses the app data directory for SQLite and its generated admin password.
+Install the Windows or Linux package from the [latest release](https://github.com/ferforastieri/toph/releases/latest). Desktop local mode embeds the Rust Toph server and asks for a workspace folder; server mode asks only for a URL on first use and reconnects to the last server on later launches. The launcher also offers an optional development-environment installer for Git, Node.js, pnpm, Rust, Go and Python. The local backend uses the app data directory for SQLite and its generated admin password.
 
-The desktop and Android builds share `apps/client/`; Android is remote-only because Tauri mobile cannot run an external sidecar. Windows installers use Toph-branded NSIS and WiX artwork and metadata.
+The desktop and Android builds share `apps/client/`; Android remains remote-only; the embedded desktop server target is not built for mobile. Windows installers use a Toph-branded WiX MSI with custom artwork and metadata.
 
 ### Docker
 
@@ -176,7 +186,7 @@ Mount the repositories you want to expose under `/workspaces` and keep `TOPH_DAT
 
 Signed Android APKs are published on [GitHub Releases](https://github.com/ferforastieri/toph/releases). They are remote-only.
 
-The Tauri client lives in `apps/client/` and builds the Windows and Linux installers from the same source. On the desktop it can connect to a Toph server or run a bundled local Toph backend. On Android it is a remote-only client: the WebView connects to the Toph server URL configured on the launcher, and no local server or terminal runs on the phone.
+The Tauri client lives in `apps/client/` and builds the Windows and Linux installers from the same source. On the desktop it can connect to a Toph server or run the embedded local Rust backend. On Android it is a remote-only client: the WebView connects to the Toph server URL configured on the launcher, and no local server or terminal runs on the phone.
 
 For Android development, install JDK 21, Android SDK 36 and NDK 28.2, then:
 
@@ -207,6 +217,7 @@ The generated Android project is not committed; `tauri android init` recreates i
 | `TOPH_FIREBASE_PROJECT_ID` | service-account project | Firebase project ID for Cloud Messaging |
 | `TOPH_WEB_DIR` | embedded build | Serve a web build from disk in development |
 | `TOPH_UPDATE_REPO` | `ferforastieri/toph` | GitHub repository used by the in-app update check |
+| `TOPH_DEV_COMPONENTS` | empty | Server installer only: `git,node,pnpm,rust,go,python`, `all`, or `none` |
 
 ## Security
 
@@ -223,4 +234,4 @@ MIT.
 
 ## Desktop
 
-The client lives in `apps/client/` and uses Tauri 2. The same project builds Windows and Linux installers, with a Tauri Android target for mobile. Server mode accepts any Toph server URL; local mode bundles the Go backend, asks for a workspace folder, starts the server on loopback, and shuts it down when the workspace window closes. Windows local terminals use ConPTY; Linux uses a PTY.
+The client lives in `apps/client/` and uses Tauri 2. The same project builds Windows and Linux installers, with a Tauri Android target for mobile. Server mode accepts any Toph server URL; local mode embeds the Rust backend in the Tauri process, asks for a workspace folder, serves the UI on loopback, and shuts the backend down when the app exits. Windows local terminals use ConPTY; Linux uses a PTY.
