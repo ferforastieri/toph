@@ -29,6 +29,15 @@ function GenericAiPanel({ tab, project, config, onClose }: Props & { config: AIC
   const [error, setError] = useState("");
   const [model, setModel] = useState(config.model);
   const [effort, setEffort] = useState("");
+
+  useEffect(() => {
+    const handleContext = (event: Event) => {
+      const path = (event as CustomEvent<{ path?: string }>).detail?.path;
+      if (path) setInput((current) => `${current}${current.trim() ? " " : ""}@${path} `);
+    };
+    window.addEventListener("toph:ai-context", handleContext);
+    return () => window.removeEventListener("toph:ai-context", handleContext);
+  }, []);
   const models = useAI((state) => state.models);
   const loadModels = useAI((state) => state.loadModels);
   const bottomRef = useRef<HTMLDivElement>(null);

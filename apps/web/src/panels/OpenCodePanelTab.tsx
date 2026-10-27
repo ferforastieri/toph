@@ -51,6 +51,16 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
   const [model, setModel] = useState(aiConfig?.model ?? "");
   const [effort, setEffort] = useState("");
   const [sessionsOpen, setSessionsOpen] = useState(false);
+
+  useEffect(() => {
+    const handleContext = (event: Event) => {
+      const path = (event as CustomEvent<{ path?: string }>).detail?.path;
+      if (!path) return;
+      setInput((current) => `${current}${current.trim() ? " " : ""}@${path} `);
+    };
+    window.addEventListener("toph:ai-context", handleContext);
+    return () => window.removeEventListener("toph:ai-context", handleContext);
+  }, []);
   const [usage, setUsage] = useState<{ cost?: number; tokens?: unknown } | null>(null);
   const yoloRef = useRef(true);
   const bottomRef = useRef<HTMLDivElement>(null);

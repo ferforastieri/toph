@@ -12,6 +12,8 @@ interface Props {
   onOpenFile: (path: string) => void;
   embedded?: boolean;
   statuses?: Map<string, string>;
+  onSelect?: (entry: FileEntry) => void;
+  onContextMenu?: (entry: FileEntry, event: React.MouseEvent) => void;
 }
 
 export default function FileTree({
@@ -19,6 +21,8 @@ export default function FileTree({
   onOpenFile,
   embedded = false,
   statuses,
+  onSelect,
+  onContextMenu,
 }: Props) {
   const [entries, setEntries] = useState<FileEntry[]>([]);
   const [revision, setRevision] = useState(0);
@@ -51,7 +55,6 @@ export default function FileTree({
           <span>Explorer</span>
         </div>
       )}
-      <div className="tree-root">{project.root}</div>
       {error && <div className="panel-error">{error}</div>}
       {entries.map((entry) => (
         <TreeNode
@@ -62,6 +65,8 @@ export default function FileTree({
           onOpenFile={onOpenFile}
           statuses={statuses}
           revision={revision}
+          onSelect={onSelect}
+          onContextMenu={onContextMenu}
         />
       ))}
     </div>
@@ -75,6 +80,8 @@ function TreeNode({
   onOpenFile,
   statuses,
   revision,
+  onSelect,
+  onContextMenu,
 }: {
   project: Project;
   entry: FileEntry;
@@ -82,6 +89,8 @@ function TreeNode({
   onOpenFile: (path: string) => void;
   statuses?: Map<string, string>;
   revision: number;
+  onSelect?: (entry: FileEntry) => void;
+  onContextMenu?: (entry: FileEntry, event: React.MouseEvent) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [children, setChildren] = useState<FileEntry[] | null>(null);
@@ -96,7 +105,7 @@ function TreeNode({
   useEffect(() => {
     if (!entry.dir || !open) return;
     let cancelled = false;
-    setLoading(true);
+    if (!children) setLoading(true);
     api
       .tree(project.id, entry.path)
       .then((items) => {
@@ -128,7 +137,11 @@ function TreeNode({
       <Button
         className={`tree-item ${entry.dir ? "is-dir" : "is-file"}`}
         style={{ paddingLeft: 10 + depth * 14 }}
-        onClick={() => void toggle()}
+        onClick={() => {
+          onSelect?.(entry);
+          void toggle();
+        }}
+        onContextMenu={(event) => onContextMenu?.(entry, event)}
         title={entry.path}
       >
         <span className="tree-chevron">
@@ -167,6 +180,8 @@ function TreeNode({
             onOpenFile={onOpenFile}
             statuses={statuses}
             revision={revision}
+            onSelect={onSelect}
+            onContextMenu={onContextMenu}
           />
         ))}
     </>

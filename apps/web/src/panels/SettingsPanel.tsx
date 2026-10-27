@@ -1,4 +1,4 @@
-import { FormEvent, useState, type ReactNode } from "react";
+import { FormEvent, useEffect, useState, type ReactNode } from "react";
 import {
   ChevronRight,
   Gem,
@@ -191,6 +191,17 @@ export default function SettingsPanel({ version }: Props) {
   const settings = useSettings();
   const update = useSettings((state) => state.update);
   const [category, setCategory] = useState<Category>("appearance");
+
+  useEffect(() => {
+    const handleCategory = (event: Event) => {
+      const next = (event as CustomEvent<string>).detail;
+      if (next === "workspace" || next === "ai" || next === "git" || next === "server" || next === "appearance") {
+        setCategory(next);
+      }
+    };
+    window.addEventListener("toph:settings-category", handleCategory);
+    return () => window.removeEventListener("toph:settings-category", handleCategory);
+  }, []);
   const [serverDraft, setServerDraft] = useState(() => getApiBase() || window.location.origin);
   const [serverBusy, setServerBusy] = useState(false);
 

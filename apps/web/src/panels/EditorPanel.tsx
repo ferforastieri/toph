@@ -10,9 +10,10 @@ import { useProjectEvents } from "../projectEvents";
 interface Props {
   tab: Tab;
   project: Project;
+  onOpenChanges?: (path: string) => void;
 }
 
-export default function EditorPanel({ tab, project }: Props) {
+export default function EditorPanel({ tab, project, onOpenChanges }: Props) {
   const updateTab = useApp((state) => state.updateTab);
   const notify = useApp((state) => state.notify);
   const iconTheme = useSettings((state) => state.iconTheme);
@@ -116,6 +117,9 @@ export default function EditorPanel({ tab, project }: Props) {
       <div className="editor-surface">
         <CodeEditor
           path={tab.path ?? tab.title}
+          projectId={project.id}
+          projectRoot={project.root}
+          onOpenChanges={onOpenChanges}
           value={tab.content}
           language={languageFor(tab.path ?? tab.title)}
           line={tab.line}

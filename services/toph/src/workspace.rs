@@ -9,7 +9,9 @@ use tokio::process::Command;
 use walkdir::WalkDir;
 
 use crate::errors::{AppError, AppResult};
-use crate::model::{FileContent, FileEntry, GitBlameLine, GitBranches, Repository, SearchMatch};
+use crate::model::{
+    FileContent, FileEntry, GitBlameLine, GitBranches, GitHistoryEntry, Repository, SearchMatch,
+};
 
 const MAX_READ_SIZE: u64 = 5 * 1024 * 1024;
 
@@ -209,6 +211,67 @@ impl WorkspaceService {
             .persist(&path)
             .map_err(|error| AppError::Io(error.error))?;
         self.read(root, relative)
+    }
+
+    pub fn create_dir(&self, root: &Path, relative: &str) -> AppResult<()> {
+        let path = resolve_for_write(root, relative)?;
+        fs::create_dir_all(path)?;
+        Ok(())
+    }
+
+    pub fn write_bytes(&self, root: &Path, relative: &str, content: &[u8]) -> AppResult<i64> {
+        let path = resolve_for_write(root, relative)?;
+        let parent = path.parent().ok_or(AppError::Forbidden)?;
+        let mut temporary = tempfile::Builder::new()
+            .prefix(".toph-")
+            .tempfile_in(parent)?;
+        temporary.write_all(content)?;
+        temporary.as_file().sync_all()?;
+        temporary
+            .persist(&path)
+            .map_err(|error| AppError::Io(error.error))?;
+        Ok(content.len() as i64)
+    }
+
+    pub fn read_bytes(&self, root: &Path, relative: &str) -> AppResult<Vec<u8>> {
+        let path = resolve_existing(root, relative)?;
+        let metadata = fs::metadata(&path)?;
+        if metadata.is_dir() {
+            return Err(AppError::BadRequest("path is a directory".into()));
+        }
+        if metadata.len() > MAX_READ_SIZE * 4 {
+            return Err(AppError::TooLarge);
+        }
+        Ok(fs::read(path)?)
+    }
+
+    pub async fn git_history(&self, root: &Path, path: &str) -> AppResult<Vec<GitHistoryEntry>> {
+        let path = validate_git_path(path)?;
+        let is_directory = root.join(&path).is_dir();
+        let mut args = vec!["log"];
+        if !is_directory {
+            args.push("--follow");
+        }
+        args.extend([
+            "-n",
+            "80",
+            "--format=%H%x1f%an%x1f%aI%x1f%s",
+            "--",
+            path.as_str(),
+        ]);
+        let output = git_output(root, &args).await?;
+        Ok(output
+            .lines()
+            .filter_map(|line| {
+                let mut fields = line.splitn(4, '\u{1f}');
+                Some(GitHistoryEntry {
+                    hash: fields.next()?.to_string(),
+                    author: fields.next()?.to_string(),
+                    date: fields.next()?.to_string(),
+                    subject: fields.next()?.to_string(),
+                })
+            })
+            .collect())
     }
 
     pub async fn search(
