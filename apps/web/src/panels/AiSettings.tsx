@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
-import { Check, CircleAlert, PlugZap, Save, Sparkles } from "@toph/icons";
+import { Check, CircleAlert, PlugZap, Save, Bot } from "@toph/icons";
 import { api, type AIConfigInput } from "../api";
 import { Checkbox } from "@toph/ui";
 import { Select } from "@toph/ui";
@@ -104,7 +104,7 @@ export default function AiSettings() {
 
   return (
     <div className="settings-page">
-      <div className="settings-page-title"><Sparkles size={15} /> AI agent</div>
+      <div className="settings-page-title"><Bot size={15} /> AI agent</div>
       <p className="settings-note">
         The selected provider is used by the Agent tab and, when supported, by editor autocomplete.
         Keys and URLs are stored on the server, not baked into the image or environment.

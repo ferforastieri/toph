@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Bot, Plus, Sparkles } from "@toph/icons";
+import { Bot, Plus } from "@toph/icons";
 import type { Project } from "../api";
 import { listOpenCodeSessions, type OpenCodeSessionSummary } from "../opencodeSessions";
 import { useApp } from "../store";
@@ -56,7 +56,7 @@ export default function OpenCodeSidebar({ project, onNewSession, onOpenSession }
       </div>
       {error && <div className="panel-error">{error}</div>}
       <div className="ai-sidebar-copy">
-        <Sparkles size={16} />
+        <Bot size={16} />
         <p>
           Sessions run on the Toph server with access to <code>{project.root}</code>.
         </p>

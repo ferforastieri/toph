@@ -2,7 +2,7 @@ import {
   Database,
   Files,
   Globe2,
-  Sparkles,
+  Bot,
   TerminalSquare,
 } from "@toph/icons";
 import { useApp, type Sidebar } from "../store";
@@ -12,7 +12,7 @@ import AvatarMenu from "./AvatarMenu";
 const items: Array<{ id: Sidebar; label: string; icon: typeof Files }> = [
   { id: "files", label: "Explorer", icon: Files },
   { id: "db", label: "Databases", icon: Database },
-  { id: "ai", label: "Agent", icon: Sparkles },
+  { id: "ai", label: "Agent", icon: Bot },
   { id: "web", label: "Web apps", icon: Globe2 },
 ];
 
