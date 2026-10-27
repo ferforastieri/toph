@@ -49,29 +49,36 @@ export default function ExplorerPanel({
           </Button>
         )}
       </div>
+      <div className="explorer-files">
+        <ProjectSearch
+          project={project}
+          onOpenFile={onOpenFile}
+          focusToken={searchFocusToken}
+        />
+        <div className="explorer-tree-head">
+          <span>Arquivos</span>
+          {statuses.size > 0 && <b>{statuses.size}</b>}
+        </div>
+        <FileTree
+          project={project}
+          onOpenFile={onOpenFile}
+          embedded
+          statuses={statuses}
+        />
+      </div>
       <div className="explorer-changes">
+        <div className="explorer-changes-head">
+          <span>Alterações</span>
+          {statuses.size > 0 && <b>{statuses.size}</b>}
+        </div>
         <SourceControlPanel
           project={project}
           embedded
+          view="changes"
           onOpenDiff={onOpenDiff}
           onStatusChange={handleStatusChange}
         />
       </div>
-      <ProjectSearch
-        project={project}
-        onOpenFile={onOpenFile}
-        focusToken={searchFocusToken}
-      />
-      <div className="explorer-tree-head">
-        <span>Arquivos</span>
-        {statuses.size > 0 && <b>{statuses.size}</b>}
-      </div>
-      <FileTree
-        project={project}
-        onOpenFile={onOpenFile}
-        embedded
-        statuses={statuses}
-      />
     </div>
   );
 }
