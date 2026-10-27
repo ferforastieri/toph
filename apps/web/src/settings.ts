@@ -41,6 +41,7 @@ export interface SettingsState extends AppearanceSettings {
 }
 
 const STORAGE_KEY = "toph_appearance";
+const CODE_FONT_MIGRATION_KEY = "toph_code_font_v1";
 
 export const defaultSettings: AppearanceSettings = {
   theme: "emerald",
@@ -51,7 +52,7 @@ export const defaultSettings: AppearanceSettings = {
   tabs: "glass",
   radius: 20,
   sidebarWidth: 310,
-  editorFontSize: 13,
+  editorFontSize: 14,
   terminalFontSize: 12.5,
   terminalHeight: 280,
   motion: true,
@@ -86,8 +87,18 @@ function numberIn(value: unknown, min: number, max: number, fallback: number): n
 function readSettings(): AppearanceSettings {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return defaultSettings;
+    if (!raw) {
+      localStorage.setItem(CODE_FONT_MIGRATION_KEY, "1");
+      return defaultSettings;
+    }
     const value = JSON.parse(raw) as Partial<AppearanceSettings>;
+    const storedFontSize = numberIn(value.editorFontSize, 11, 20, defaultSettings.editorFontSize);
+    const editorFontSize = localStorage.getItem(CODE_FONT_MIGRATION_KEY)
+      ? storedFontSize
+      : storedFontSize === 13
+        ? defaultSettings.editorFontSize
+        : storedFontSize;
+    localStorage.setItem(CODE_FONT_MIGRATION_KEY, "1");
     return {
       theme: choose(value.theme, themes, defaultSettings.theme),
       accent: choose(value.accent, accents, defaultSettings.accent),
@@ -97,7 +108,7 @@ function readSettings(): AppearanceSettings {
       tabs: choose(value.tabs, tabStyles, defaultSettings.tabs),
       radius: numberIn(value.radius, 0, 32, defaultSettings.radius),
       sidebarWidth: numberIn(value.sidebarWidth, 220, 460, defaultSettings.sidebarWidth),
-      editorFontSize: numberIn(value.editorFontSize, 11, 20, defaultSettings.editorFontSize),
+      editorFontSize,
       terminalFontSize: numberIn(value.terminalFontSize, 10, 18, defaultSettings.terminalFontSize),
       terminalHeight: numberIn(value.terminalHeight, 180, 640, defaultSettings.terminalHeight),
       motion: value.motion !== false,

@@ -58,8 +58,13 @@ export default function Tabs() {
             }}
             title={tab.path ?? tab.url ?? tab.title}
           >
-            {tab.kind === "editor" ? (
-              <FileIcon name={tab.title} path={tab.path} iconTheme={iconTheme} size={14} />
+            {tab.kind === "editor" || (tab.kind === "diff" && tab.path) ? (
+              <FileIcon
+                name={tab.path ?? tab.title}
+                path={tab.path}
+                iconTheme={iconTheme}
+                size={14}
+              />
             ) : (
               <Icon size={14} className="tab-icon" />
             )}

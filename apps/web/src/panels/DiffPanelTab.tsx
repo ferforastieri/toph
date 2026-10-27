@@ -3,12 +3,16 @@ import { DiffEditor } from "@monaco-editor/react";
 import { api, type Project } from "../api";
 import { languageFor } from "../lib";
 import { useResolvedTheme, useSettings } from "../settings";
+import { CODE_FONT_FAMILY, codeLineHeight, monacoThemeName, registerEditorThemes } from "../editorThemes";
+import FileIcon from "../ui/FileIcon";
 import { useApp, type Tab } from "../store";
 
 export default function DiffPanelTab({ tab, project }: { tab: Tab; project: Project }) {
   const notify = useApp((state) => state.notify);
   const resolved = useResolvedTheme();
   const fontSize = useSettings((state) => state.editorFontSize);
+  const accent = useSettings((state) => state.accent);
+  const iconTheme = useSettings((state) => state.iconTheme);
   const [versions, setVersions] = useState<{ original: string; modified: string } | null>(null);
 
   useEffect(() => {
@@ -35,6 +39,7 @@ export default function DiffPanelTab({ tab, project }: { tab: Tab; project: Proj
       <div className="editor-breadcrumb">
         <span>{project.name}</span>
         <span className="sep">/</span>
+        <FileIcon name={tab.path ?? tab.title} path={tab.path} iconTheme={iconTheme} size={13} />
         <span>{tab.path}</span>
         <span className="dirty-label">{tab.staged ? "staged" : "working tree"}</span>
       </div>
@@ -43,18 +48,21 @@ export default function DiffPanelTab({ tab, project }: { tab: Tab; project: Proj
           original={versions.original}
           modified={versions.modified}
           language={languageFor(tab.path ?? tab.title)}
-          theme={resolved === "light" ? "vs" : "vs-dark"}
+          theme={monacoThemeName(resolved)}
+          beforeMount={(monaco) => registerEditorThemes(monaco, accent)}
           options={{
             readOnly: true,
             renderSideBySide: true,
             useInlineViewWhenSpaceIsLimited: false,
             automaticLayout: true,
             minimap: { enabled: false },
-            scrollBeyondLastLine: false,
-            fontFamily: "'IBM Plex Mono', 'SFMono-Regular', Consolas, monospace",
+            scrollBeyondLastLine: true,
+            fontFamily: CODE_FONT_FAMILY,
             fontSize,
-            lineHeight: Math.round(fontSize * 1.55),
-            padding: { top: 10, bottom: 20 },
+            lineHeight: codeLineHeight(fontSize),
+            lineNumbersMinChars: 3,
+            glyphMargin: false,
+            padding: { top: 0, bottom: 0 },
           }}
         />
       </div>

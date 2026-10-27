@@ -23,7 +23,6 @@ import AiPanelTab from "../panels/AiPanelTab";
 import WebPanelTab from "../panels/WebPanelTab";
 import DiffPanelTab from "../panels/DiffPanelTab";
 import TerminalPanel from "../panels/TerminalPanel";
-import SourceControlPanel from "../panels/SourceControlPanel";
 import { Button } from "@toph/ui";
 import BrandMark from "@toph/brand";
 import { ResizeHandle } from "@toph/ui";
@@ -847,6 +846,8 @@ export default function Workbench() {
               onOpenFile={openFile}
               searchFocusToken={searchFocusToken}
               onOpenGit={mobile ? () => void toggleBranchMenu() : undefined}
+              onOpenDiff={openDiff}
+              onStatusChange={setGitStatus}
             />
           )}
           {project && sidebar === "db" && <DatabasesPanel project={project} onOpenQuery={openQuery} onOpenTable={openTable} />}
@@ -996,7 +997,7 @@ export default function Workbench() {
                 className="desktop-branch-menu"
                 role="dialog"
                 aria-modal="true"
-                aria-label="Branches e alterações"
+                aria-label="Branches"
               >
                 <div className="desktop-branch-modal-head">
                   <div className="desktop-branch-modal-title">
@@ -1068,22 +1069,6 @@ export default function Workbench() {
                     </div>
                   </section>
 
-                  <section className="desktop-branch-git-pane">
-                    <div className="desktop-branch-pane-head">
-                      <span>Alterações</span>
-                    </div>
-                    <div className="desktop-branch-git">
-                      <SourceControlPanel
-                        project={project}
-                        embedded
-                        onOpenDiff={(path, staged) => {
-                          setBranchMenuOpen(false);
-                          openDiff(path, staged);
-                        }}
-                        onStatusChange={setGitStatus}
-                      />
-                    </div>
-                  </section>
                 </div>
               </div>
             </>
