@@ -42,6 +42,7 @@ export interface SettingsState extends AppearanceSettings {
 
 const STORAGE_KEY = "toph_appearance";
 const CODE_FONT_MIGRATION_KEY = "toph_code_font_v1";
+const TERMINAL_FONT_MIGRATION_KEY = "toph_terminal_font_v1";
 
 export const defaultSettings: AppearanceSettings = {
   theme: "emerald",
@@ -53,7 +54,7 @@ export const defaultSettings: AppearanceSettings = {
   radius: 20,
   sidebarWidth: 310,
   editorFontSize: 14,
-  terminalFontSize: 12.5,
+  terminalFontSize: 14,
   terminalHeight: 280,
   motion: true,
   confirmClose: true,
@@ -89,6 +90,7 @@ function readSettings(): AppearanceSettings {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) {
       localStorage.setItem(CODE_FONT_MIGRATION_KEY, "1");
+      localStorage.setItem(TERMINAL_FONT_MIGRATION_KEY, "1");
       return defaultSettings;
     }
     const value = JSON.parse(raw) as Partial<AppearanceSettings>;
@@ -98,7 +100,14 @@ function readSettings(): AppearanceSettings {
       : storedFontSize === 13
         ? defaultSettings.editorFontSize
         : storedFontSize;
+    const storedTerminalFontSize = numberIn(value.terminalFontSize, 10, 18, defaultSettings.terminalFontSize);
+    const terminalFontSize = localStorage.getItem(TERMINAL_FONT_MIGRATION_KEY)
+      ? storedTerminalFontSize
+      : storedTerminalFontSize === 12.5
+        ? defaultSettings.terminalFontSize
+        : storedTerminalFontSize;
     localStorage.setItem(CODE_FONT_MIGRATION_KEY, "1");
+    localStorage.setItem(TERMINAL_FONT_MIGRATION_KEY, "1");
     return {
       theme: choose(value.theme, themes, defaultSettings.theme),
       accent: choose(value.accent, accents, defaultSettings.accent),
@@ -109,7 +118,7 @@ function readSettings(): AppearanceSettings {
       radius: numberIn(value.radius, 0, 32, defaultSettings.radius),
       sidebarWidth: numberIn(value.sidebarWidth, 220, 460, defaultSettings.sidebarWidth),
       editorFontSize,
-      terminalFontSize: numberIn(value.terminalFontSize, 10, 18, defaultSettings.terminalFontSize),
+      terminalFontSize,
       terminalHeight: numberIn(value.terminalHeight, 180, 640, defaultSettings.terminalHeight),
       motion: value.motion !== false,
       confirmClose: value.confirmClose !== false,
