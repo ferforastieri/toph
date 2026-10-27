@@ -244,9 +244,10 @@ textarea {
 }
 
 .activity-bar {
+  position: relative;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+  justify-content: flex-start;
   border-right: 1px solid var(--border-soft);
   background: var(--chrome);
   padding: 6px 0;
@@ -256,6 +257,19 @@ textarea {
 .activity-bottom {
   display: grid;
   gap: 2px;
+}
+html:not(.mobile-client) .activity-top {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  transform: translateY(-50%);
+}
+html:not(.mobile-client) .activity-bottom {
+  position: absolute;
+  right: 0;
+  bottom: 6px;
+  left: 0;
 }
 
 .activity-button {
@@ -4657,10 +4671,17 @@ html.mobile-client .avatar-titlebar .avatar-initials {
 
 /* Unified Explorer */
 .explorer-panel {
+  height: 100%;
   min-height: 100%;
-  padding-bottom: 18px;
+  padding-bottom: 0;
+  overflow: hidden;
 }
 .explorer-panel > .panel-heading { flex: none; }
+.explorer-files {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
 .explorer-panel .project-search-results { max-height: min(34dvh, 320px); }
 .scm-embedded {
   display: grid;
@@ -4677,14 +4698,41 @@ html.mobile-client .avatar-titlebar .avatar-initials {
 }
 .explorer-changes {
   flex: none;
-  padding: 7px 0 5px;
-  border-bottom: 1px solid var(--border-soft);
+  max-height: min(38dvh, 360px);
+  display: flex;
+  flex-direction: column;
+  padding: 7px 0 0;
+  border-top: 1px solid var(--border-soft);
 }
-.explorer-changes .scm-embedded .scm-branch { padding: 0 14px 7px; }
-.explorer-changes .scm-embedded .scm-commit { padding: 0 12px 8px; }
-.explorer-changes .scm-embedded .scm-sections.embedded {
-  max-height: min(27dvh, 280px);
-  padding-bottom: 3px;
+.explorer-changes-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 13px 5px;
+  color: var(--muted);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.explorer-changes-head b {
+  color: var(--muted-2);
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  font-weight: 500;
+}
+.explorer-changes .scm-embedded {
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+}
+.explorer-changes .scm-sections.embedded {
+  max-height: none;
+  min-height: 0;
+  overflow: auto;
+  padding-bottom: 6px;
 }
 .explorer-tree-head {
   flex: none;
@@ -5257,6 +5305,14 @@ html:not(.mobile-client) .workbench-body.ai-open {
   padding: 3px 4px 4px;
   border-top: 1px solid var(--border-soft);
 }
+.desktop-branch-commit {
+  flex: none;
+  border-top: 1px solid var(--border-soft);
+  padding-bottom: 4px;
+}
+.desktop-branch-commit .desktop-branch-pane-head { padding: 0 10px; }
+.desktop-branch-commit .scm-commit { padding: 7px 12px 8px; }
+.desktop-branch-commit .scm-embedded { display: block; }
 .desktop-branch-git {
   min-height: 0;
   flex: 1;

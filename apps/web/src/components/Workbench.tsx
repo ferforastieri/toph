@@ -23,6 +23,7 @@ import AiPanelTab from "../panels/AiPanelTab";
 import WebPanelTab from "../panels/WebPanelTab";
 import DiffPanelTab from "../panels/DiffPanelTab";
 import TerminalPanel from "../panels/TerminalPanel";
+import SourceControlPanel from "../panels/SourceControlPanel";
 import { Button } from "@toph/ui";
 import BrandMark from "@toph/brand";
 import { ResizeHandle } from "@toph/ui";
@@ -1069,6 +1070,18 @@ export default function Workbench() {
                     </div>
                   </section>
 
+                  <section className="desktop-branch-commit">
+                    <div className="desktop-branch-pane-head">
+                      <span>Commit</span>
+                    </div>
+                    <SourceControlPanel
+                      project={project}
+                      embedded
+                      view="commit"
+                      onOpenDiff={openDiff}
+                      onStatusChange={setGitStatus}
+                    />
+                  </section>
                 </div>
               </div>
             </>

@@ -10,6 +10,47 @@ export function codeLineHeight(fontSize: number): number {
   return Math.round(fontSize * 1.35);
 }
 
+function commonScopeRules(palette: {
+  comment: string;
+  keyword: string;
+  string: string;
+  number: string;
+  type: string;
+  function: string;
+  variable: string;
+  property: string;
+  foreground: string;
+}): editor.ITokenThemeRule[] {
+  return [
+    { token: "comment", foreground: palette.comment, fontStyle: "italic" },
+    { token: "storage", foreground: palette.keyword },
+    { token: "storage.type", foreground: palette.keyword },
+    { token: "storage.modifier", foreground: palette.keyword },
+    { token: "keyword.control", foreground: palette.keyword },
+    { token: "keyword.operator", foreground: palette.number },
+    { token: "keyword.other", foreground: palette.number },
+    { token: "entity.name.function", foreground: palette.function },
+    { token: "meta.function-call", foreground: palette.function },
+    { token: "support.function", foreground: palette.function },
+    { token: "entity.name.type", foreground: palette.type },
+    { token: "entity.name.class", foreground: palette.type },
+    { token: "support.type", foreground: palette.type },
+    { token: "support.class", foreground: palette.type },
+    { token: "variable", foreground: palette.variable },
+    { token: "variable.parameter", foreground: palette.variable },
+    { token: "variable.other.property", foreground: palette.property },
+    { token: "variable.other.object.property", foreground: palette.property },
+    { token: "meta.object-literal.key", foreground: palette.property },
+    { token: "variable.language.this", foreground: palette.variable },
+    { token: "string", foreground: palette.string },
+    { token: "constant.numeric", foreground: palette.number },
+    { token: "constant.language", foreground: palette.number },
+    { token: "number", foreground: palette.number },
+    { token: "punctuation", foreground: palette.foreground },
+    { token: "meta.brace", foreground: palette.foreground },
+  ];
+}
+
 const darkTheme: editor.IStandaloneThemeData = {
   base: "vs-dark",
   inherit: true,
@@ -21,6 +62,17 @@ const darkTheme: editor.IStandaloneThemeData = {
     { token: "type", foreground: "7FA7A0" },
     { token: "function", foreground: "B9D77E" },
     { token: "variable", foreground: "EEF1E8" },
+    ...commonScopeRules({
+      comment: "77806F",
+      keyword: "D4A24C",
+      string: "A8C66C",
+      number: "E0A33A",
+      type: "7FA7A0",
+      function: "B9D77E",
+      variable: "EEF1E8",
+      property: "A3AA99",
+      foreground: "EEF1E8",
+    }),
   ],
   colors: {
     "editor.background": "#0F120D",
@@ -56,6 +108,17 @@ const lightTheme: editor.IStandaloneThemeData = {
     { token: "type", foreground: "2F6E76" },
     { token: "function", foreground: "2E6A3A" },
     { token: "variable", foreground: "22251F" },
+    ...commonScopeRules({
+      comment: "7A8177",
+      keyword: "9A5B12",
+      string: "3E7A45",
+      number: "A05A18",
+      type: "2F6E76",
+      function: "2E6A3A",
+      variable: "22251F",
+      property: "555C52",
+      foreground: "22251F",
+    }),
   ],
   colors: {
     "editor.background": "#F7F8F5",
@@ -94,6 +157,17 @@ const brandTheme: editor.IStandaloneThemeData = {
     { token: "variable", foreground: "DCE4F7" },
     { token: "variable.parameter", foreground: "B7C4E2" },
     { token: "entity.other.attribute-name", foreground: "A9B8FF" },
+    ...commonScopeRules({
+      comment: "67748F",
+      keyword: "7C9BFF",
+      string: "7BD88F",
+      number: "FFC857",
+      type: "58C4FF",
+      function: "98B0FF",
+      variable: "DCE4F7",
+      property: "B7C4E2",
+      foreground: "DCE4F7",
+    }),
   ],
   colors: {
     "editor.background": "#080B12",
@@ -132,6 +206,17 @@ const emeraldTheme: editor.IStandaloneThemeData = {
     { token: "variable", foreground: "E7FFF7" },
     { token: "variable.parameter", foreground: "B6E3D5" },
     { token: "entity.other.attribute-name", foreground: "5EEAD4" },
+    ...commonScopeRules({
+      comment: "5C8B7E",
+      keyword: "43E6A0",
+      string: "A7F3D0",
+      number: "F6C96B",
+      type: "67E8F9",
+      function: "6CF2B7",
+      variable: "E7FFF7",
+      property: "B6E3D5",
+      foreground: "E7FFF7",
+    }),
   ],
   colors: {
     "editor.background": "#041310",
@@ -163,6 +248,23 @@ const nightwolfTheme: editor.IStandaloneThemeData = {
   rules: [
     { token: "", foreground: "C8C8C8" },
     { token: "comment", foreground: "647882", fontStyle: "italic" },
+    { token: "entity.name.function", foreground: "00DCDC" },
+    { token: "meta.function-call", foreground: "00DCDC", fontStyle: "italic" },
+    { token: "support.function", foreground: "00DCDC" },
+    { token: "entity.name.type", foreground: "86E0F4" },
+    { token: "entity.name.class", foreground: "00DCDC" },
+    { token: "support.type", foreground: "9696FF" },
+    { token: "support.class", foreground: "9696FF" },
+    { token: "storage.type", foreground: "00B1FF", fontStyle: "italic" },
+    { token: "storage.modifier", foreground: "9696FF", fontStyle: "italic" },
+    { token: "variable.other.property", foreground: "C8C8C8" },
+    { token: "variable.other.object.property", foreground: "C8C8C8" },
+    { token: "variable.object.property", foreground: "C8C8C8" },
+    { token: "meta.object-literal.key", foreground: "C8C8C8" },
+    { token: "variable.language.this", foreground: "FF7878" },
+    { token: "meta.delimiter.period", foreground: "DC8CFF", fontStyle: "italic" },
+    { token: "punctuation", foreground: "C8C8C8" },
+    { token: "meta.brace", foreground: "C8C8C8" },
     { token: "comment.doc", foreground: "647882", fontStyle: "italic" },
     { token: "keyword", foreground: "00B1FF", fontStyle: "italic" },
     { token: "keyword.control", foreground: "9696FF", fontStyle: "italic" },
@@ -174,6 +276,7 @@ const nightwolfTheme: editor.IStandaloneThemeData = {
     { token: "keyword.operator.comparison", foreground: "DC8CFF" },
     { token: "keyword.operator.relational", foreground: "DC8CFF" },
     { token: "keyword.other.new", foreground: "FF7878" },
+    { token: "keyword.control.new", foreground: "FF7878" },
     { token: "storage", foreground: "00B1FF", fontStyle: "italic" },
     { token: "storage.modifier", foreground: "9696FF", fontStyle: "italic" },
     { token: "string", foreground: "AAE682" },

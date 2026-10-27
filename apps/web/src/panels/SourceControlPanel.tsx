@@ -27,6 +27,7 @@ interface Props {
   onOpenDiff: (path: string, staged: boolean) => void;
   embedded?: boolean;
   onStatusChange?: (status: string) => void;
+  view?: "full" | "changes" | "commit";
 }
 
 export default function SourceControlPanel({
@@ -34,6 +35,7 @@ export default function SourceControlPanel({
   onOpenDiff,
   embedded = false,
   onStatusChange,
+  view = "full",
 }: Props) {
   const notify = useApp((state) => state.notify);
   const user = useApp((state) => state.user);
@@ -46,6 +48,9 @@ export default function SourceControlPanel({
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [changesOpen, setChangesOpen] = useState(true);
+  const showBranch = view === "full";
+  const showCommit = view !== "changes";
+  const showChanges = view !== "commit";
 
   const load = useCallback(async () => {
     try {
@@ -241,6 +246,7 @@ export default function SourceControlPanel({
           <span>Source Control</span>
         </div>
       )}
+      {showBranch && (
       <div className="scm-branch">
         <GitBranch size={13} />
         <span>{parsed.branch || "detached"}</span>
@@ -274,11 +280,11 @@ export default function SourceControlPanel({
           <Plus size={9} className="scm-branch-plus" />
         </Button>
       </div>
+      )}
 
       {error && <div className="panel-error">{error}</div>}
 
-      {changesOpen && (
-        <>
+      {showCommit && (
           <div className="scm-commit">
             <div className="scm-commit-input">
               <textarea
@@ -308,7 +314,9 @@ export default function SourceControlPanel({
               <Check size={13} /> Commit
             </Button>
           </div>
+      )}
 
+      {showChanges && (view === "changes" || changesOpen) && (
           <div className={`scm-sections ${embedded ? "embedded" : ""}`}>
         {staged.length > 0 && (
           <section className="scm-section">
@@ -377,7 +385,6 @@ export default function SourceControlPanel({
           ))}
         </section>
           </div>
-        </>
       )}
     </div>
   );

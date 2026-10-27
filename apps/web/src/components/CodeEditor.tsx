@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import type { CancellationToken, IPosition, editor, languages } from "monaco-editor";
 import { useResolvedTheme, useSettings } from "../settings";
 import { CODE_FONT_FAMILY, codeLineHeight, monacoThemeName, registerEditorThemes } from "../editorThemes";
-import { registerEditorSemanticTokens } from "../editorSemantic";
+import { registerEditorTextMate } from "../editorTextMate";
 import { relativeTime } from "../lib";
 import { useAI } from "../ai";
 import { api, type GitBlameLine } from "../api";
@@ -191,7 +191,7 @@ export default function CodeEditor({
       theme={themeName}
       beforeMount={(monaco) => {
         registerEditorThemes(monaco, accent);
-        registerEditorSemanticTokens(monaco);
+        registerEditorTextMate(monaco);
       }}
       onMount={onMount}
       onChange={(next) => onChange(next ?? "")}
@@ -201,7 +201,6 @@ export default function CodeEditor({
         fontFamily: CODE_FONT_FAMILY,
         fontSize: settings.editorFontSize,
         lineHeight: codeLineHeight(settings.editorFontSize),
-        "semanticHighlighting.enabled": true,
         minimap: { enabled: settings.minimap },
         automaticLayout: true,
         scrollBeyondLastLine: true,

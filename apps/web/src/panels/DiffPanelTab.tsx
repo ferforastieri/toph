@@ -1,11 +1,10 @@
 import { useEffect, useState } from "react";
 import { DiffEditor } from "@monaco-editor/react";
-import type { editor } from "monaco-editor";
 import { api, type Project } from "../api";
 import { languageFor } from "../lib";
 import { useResolvedTheme, useSettings } from "../settings";
 import { CODE_FONT_FAMILY, codeLineHeight, monacoThemeName, registerEditorThemes } from "../editorThemes";
-import { registerEditorSemanticTokens } from "../editorSemantic";
+import { registerEditorTextMate } from "../editorTextMate";
 import FileIcon from "../ui/FileIcon";
 import { useApp, type Tab } from "../store";
 
@@ -53,12 +52,7 @@ export default function DiffPanelTab({ tab, project }: { tab: Tab; project: Proj
           theme={monacoThemeName(resolved)}
           beforeMount={(monaco) => {
             registerEditorThemes(monaco, accent);
-            registerEditorSemanticTokens(monaco);
-          }}
-          onMount={(instance) => {
-            const options = { "semanticHighlighting.enabled": true } as editor.IEditorOptions;
-            instance.getOriginalEditor().updateOptions(options);
-            instance.getModifiedEditor().updateOptions(options);
+            registerEditorTextMate(monaco);
           }}
           options={{
             readOnly: true,
