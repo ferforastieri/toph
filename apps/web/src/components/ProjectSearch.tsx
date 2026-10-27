@@ -174,11 +174,6 @@ export default function ProjectSearch({ project, onOpenFile, focusToken = 0 }: P
         </div>
       </form>
 
-      {!searching && (
-        <div className="project-search-hint">
-          Busque por nome de arquivo ou por um termo dentro do projeto.
-        </div>
-      )}
       {busy && <div className="project-search-state">Buscando...</div>}
       {error && <div className="panel-error">{error}</div>}
       {searching && !busy && !error && results.length === 0 && (

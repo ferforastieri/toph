@@ -108,3 +108,12 @@ pub struct GitBranches {
     pub current: String,
     pub branches: Vec<String>,
 }
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitHistoryEntry {
+    pub hash: String,
+    pub author: String,
+    pub date: String,
+    pub subject: String,
+}

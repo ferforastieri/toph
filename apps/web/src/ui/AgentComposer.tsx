@@ -80,7 +80,7 @@ export function AgentComposer({
     setMenu(false);
   }
 
-  async function pickFiles(files: FileList | null) {
+  async function pickFiles(files: FileList | File[] | null) {
     if (!files) return;
     setError("");
     const next: AgentAttachment[] = [];
@@ -132,6 +132,19 @@ export function AgentComposer({
           ref={areaRef}
           value={value}
           onChange={(event) => onChange(event.target.value)}
+          onPaste={(event) => {
+            if (!allowAttachments) return;
+            const clipboard = event.clipboardData;
+            const files = clipboard.files.length > 0
+              ? clipboard.files
+              : Array.from(clipboard.items)
+                  .map((item) => item.kind === "file" ? item.getAsFile() : null)
+                  .filter((file): file is File => Boolean(file));
+            if (files.length > 0) {
+              event.preventDefault();
+              void pickFiles(files);
+            }
+          }}
           onKeyDown={(event) => {
             if (event.key === "Enter" && !event.shiftKey) {
               event.preventDefault();

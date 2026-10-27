@@ -140,9 +140,19 @@ export default function Workbench() {
     let stopped = false;
     let attempts = 0;
     let hasConnected = false;
+    let flushTimer: number | undefined;
+    const pending = new Map<string, ProjectEvent>();
 
     const dispatch = (event: ProjectEvent) => {
-      window.dispatchEvent(new CustomEvent(PROJECT_EVENT, { detail: event }));
+      pending.set(`${event.projectId}:${event.type}`, event);
+      window.clearTimeout(flushTimer);
+      flushTimer = window.setTimeout(() => {
+        const events = [...pending.values()];
+        pending.clear();
+        for (const current of events) {
+          window.dispatchEvent(new CustomEvent(PROJECT_EVENT, { detail: current }));
+        }
+      }, 140);
     };
     const connect = () => {
       if (stopped || socket) return;
@@ -199,6 +209,8 @@ export default function Workbench() {
     return () => {
       stopped = true;
       window.clearTimeout(retryTimer);
+      window.clearTimeout(flushTimer);
+      pending.clear();
       window.removeEventListener("online", onOnline);
       socket?.close();
     };
@@ -889,7 +901,6 @@ export default function Workbench() {
               project={project}
               onOpenFile={openFile}
               searchFocusToken={searchFocusToken}
-              onOpenGit={mobile ? () => void toggleBranchMenu() : undefined}
               onOpenDiff={openDiff}
               onStatusChange={setGitStatus}
             />
@@ -922,7 +933,11 @@ export default function Workbench() {
               </div>
             )}
             {activeTab?.kind === "editor" && project && (
-              <EditorPanel tab={activeTab} project={project} />
+              <EditorPanel
+                tab={activeTab}
+                project={project}
+                onOpenChanges={(path) => openDiff(path, false)}
+              />
             )}
             {activeTab?.kind === "db" && <DbPanelTab tab={activeTab} />}
             {activeTab?.kind === "ai" && project && (

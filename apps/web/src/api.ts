@@ -51,6 +51,13 @@ export interface SearchMatch {
   preview: string;
 }
 
+export interface GitHistoryEntry {
+  hash: string;
+  author: string;
+  date: string;
+  subject: string;
+}
+
 
 export interface AIConfig {
   provider: string;
@@ -374,6 +381,31 @@ export const api = {
       method: "PUT",
       ...json({ path, content, baseHash }),
     });
+  },
+
+  async makeDir(projectId: string, path: string): Promise<void> {
+    await request(`/projects/${encodeURIComponent(projectId)}/mkdir`, {
+      method: "POST",
+      ...json({ path }),
+    });
+  },
+
+  async uploadFile(projectId: string, path: string, data: string): Promise<void> {
+    await request(`/projects/${encodeURIComponent(projectId)}/upload`, {
+      method: "POST",
+      ...json({ path, data }),
+    });
+  },
+
+  rawUrl(projectId: string, path: string): string {
+    return `${apiBase}${API_BASE}/projects/${encodeURIComponent(projectId)}/raw?path=${encodeURIComponent(path)}`;
+  },
+
+  async gitHistory(projectId: string, path: string): Promise<GitHistoryEntry[]> {
+    const response = await request<{ history: GitHistoryEntry[] }>(
+      `/projects/${encodeURIComponent(projectId)}/git/history?path=${encodeURIComponent(path)}`,
+    );
+    return response.history;
   },
 
   async search(projectId: string, query: string): Promise<SearchMatch[]> {

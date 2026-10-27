@@ -14,6 +14,7 @@ use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::response::{IntoResponse, Redirect, Response};
 use axum::routing::{any, delete, get, post};
 use axum::{Json, Router};
+use base64::Engine as _;
 use ipnet::IpNet;
 use rust_embed::RustEmbed;
 use serde::{Deserialize, Serialize};
@@ -391,7 +392,11 @@ fn router(state: Arc<AppState>) -> Router {
             get(read_file).put(write_file),
         )
         .route("/api/projects/{project_id}/files", get(files))
+        .route("/api/projects/{project_id}/mkdir", post(make_dir))
+        .route("/api/projects/{project_id}/upload", post(upload_file))
+        .route("/api/projects/{project_id}/raw", get(raw_file))
         .route("/api/projects/{project_id}/search", post(search))
+        .route("/api/projects/{project_id}/git/history", get(git_history))
         .route("/api/projects/{project_id}/git/status", get(git_status))
         .route("/api/projects/{project_id}/git/branches", get(git_branches))
         .route(
@@ -962,6 +967,87 @@ async fn write_file(
     )?;
     state.events.publish(&project_id, "files", Some(input.path));
     Ok(Json(file))
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct NewPathRequest {
+    path: String,
+}
+
+async fn make_dir(
+    State(state): State<Arc<AppState>>,
+    Path(project_id): Path<String>,
+    Json(input): Json<NewPathRequest>,
+) -> AppResult<Response> {
+    let project = state.store.project(&project_id).await?;
+    state
+        .workspace
+        .create_dir(FsPath::new(&project.root), &input.path)?;
+    state.events.publish(&project_id, "files", Some(input.path));
+    Ok((StatusCode::CREATED, Json(json!({ "ok": true }))).into_response())
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct UploadFileRequest {
+    path: String,
+    data: String,
+}
+
+async fn upload_file(
+    State(state): State<Arc<AppState>>,
+    Path(project_id): Path<String>,
+    Json(input): Json<UploadFileRequest>,
+) -> AppResult<Response> {
+    let project = state.store.project(&project_id).await?;
+    let data = base64::engine::general_purpose::STANDARD
+        .decode(input.data.as_bytes())
+        .map_err(|_| AppError::BadRequest("invalid base64 file".into()))?;
+    if data.len() > 32 * 1024 * 1024 {
+        return Err(AppError::TooLarge);
+    }
+    let size = state
+        .workspace
+        .write_bytes(FsPath::new(&project.root), &input.path, &data)?;
+    state.events.publish(&project_id, "files", Some(input.path));
+    Ok((
+        StatusCode::CREATED,
+        Json(json!({ "ok": true, "size": size })),
+    )
+        .into_response())
+}
+
+async fn raw_file(
+    State(state): State<Arc<AppState>>,
+    Path(project_id): Path<String>,
+    Query(query): Query<HashMap<String, String>>,
+) -> AppResult<Response> {
+    let project = state.store.project(&project_id).await?;
+    let path = query.get("path").map(String::as_str).unwrap_or("");
+    let data = state
+        .workspace
+        .read_bytes(FsPath::new(&project.root), path)?;
+    let mime = mime_guess::from_path(path).first_or_octet_stream();
+    Ok(Response::builder()
+        .header(header::CONTENT_TYPE, mime.as_ref())
+        .header(header::CACHE_CONTROL, "no-store")
+        .body(Body::from(data))
+        .map_err(|error| AppError::Internal(error.into()))?)
+}
+
+async fn git_history(
+    State(state): State<Arc<AppState>>,
+    Path(project_id): Path<String>,
+    Query(query): Query<HashMap<String, String>>,
+) -> AppResult<Json<Value>> {
+    let project = state.store.project(&project_id).await?;
+    let path = query.get("path").map(String::as_str).unwrap_or("");
+    let history = state
+        .workspace
+        .git_history(FsPath::new(&project.root), path)
+        .await?;
+    Ok(Json(json!({ "history": history })))
 }
 
 #[derive(Deserialize)]
