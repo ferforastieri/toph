@@ -2,9 +2,7 @@ use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::fs;
 use std::io::Write;
-use std::net::TcpListener;
 use std::path::PathBuf;
-use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
 use std::time::Duration;
 use tauri::{Manager, RunEvent, State};
@@ -19,9 +17,10 @@ struct ServerInfo {
     build_id: Option<String>,
 }
 
+#[cfg(not(target_os = "android"))]
 #[derive(Default)]
 struct LocalState {
-    child: Mutex<Option<Child>>,
+    server: Mutex<Option<toph_server::server::EmbeddedServer>>,
 }
 
 fn normalize_server(raw: &str) -> Result<Url, String> {
@@ -149,92 +148,23 @@ fn navigate_main(app: &tauri::AppHandle, url: Url) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn open_server(window: tauri::WebviewWindow, app: tauri::AppHandle, url: String) -> Result<(), String> {
+fn open_server(
+    window: tauri::WebviewWindow,
+    app: tauri::AppHandle,
+    url: String,
+) -> Result<(), String> {
     require_local(&window)?;
     let base = normalize_server(&url)?;
     let mut target = endpoint(&base, "app/")?;
     target
         .query_pairs_mut()
         .append_pair("server", base.as_str());
-    match navigate_main(&app, target.clone()) {
-        Ok(()) => {
-            eprintln!("toph: navigating to server {target}");
-            Ok(())
-        }
-        Err(err) => {
-            eprintln!("toph: could not navigate to server {target}: {err}");
-            Err(err)
-        }
-    }
+    navigate_main(&app, target.clone()).inspect_err(|err| {
+        eprintln!("toph: could not navigate to server {target}: {err}");
+    })
 }
 
-fn sidecar_name() -> &'static str {
-    if cfg!(windows) {
-        "toph.exe"
-    } else {
-        "toph"
-    }
-}
-
-fn local_binary(app: &tauri::AppHandle) -> Result<PathBuf, String> {
-    if let Ok(resource) = app.path().resource_dir() {
-        let candidate = resource.join("resources").join(sidecar_name());
-        if candidate.is_file() {
-            return Ok(candidate);
-        }
-    }
-    let name = sidecar_name();
-    for candidate in [format!("../bin/{name}"), format!("../../bin/{name}")] {
-        let candidate = PathBuf::from(candidate);
-        if candidate.is_file() {
-            return Ok(candidate);
-        }
-    }
-    Err("Backend local não foi encontrado nesta instalação.".into())
-}
-
-fn quiet_command(binary: &PathBuf) -> Command {
-    let mut command = Command::new(binary);
-    command
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null());
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        // CREATE_NO_WINDOW: the sidecar is a console program, but the desktop
-        // app is graphical and must not flash a console window.
-        command.creation_flags(0x08000000);
-    }
-    command
-}
-
-fn kill_child(child: &mut Child) {
-    #[cfg(unix)]
-    {
-        // Let the Go server shut down terminals and close its database cleanly.
-        unsafe {
-            libc::kill(child.id() as i32, libc::SIGTERM);
-        }
-        for _ in 0..20 {
-            if matches!(child.try_wait(), Ok(Some(_))) {
-                return;
-            }
-            std::thread::sleep(Duration::from_millis(50));
-        }
-    }
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        let _ = Command::new("taskkill")
-            .args(["/T", "/F", "/PID", &child.id().to_string()])
-            .creation_flags(0x08000000)
-            .status();
-    }
-    let _ = child.kill();
-    let _ = child.wait();
-}
-
+#[cfg(not(target_os = "android"))]
 async fn login_cookie_headers(base: &Url, password: &str) -> Result<(String, String), String> {
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(15))
@@ -267,6 +197,7 @@ async fn login_cookie_headers(base: &Url, password: &str) -> Result<(String, Str
     Ok((session, csrf))
 }
 
+#[cfg(not(target_os = "android"))]
 async fn ensure_local_workspace(
     base: &Url,
     session: &str,
@@ -360,6 +291,7 @@ async fn ensure_local_workspace(
     Ok(())
 }
 
+#[cfg(not(target_os = "android"))]
 fn random_password() -> String {
     use rand::RngCore;
     let mut bytes = [0u8; 24];
@@ -372,6 +304,7 @@ fn random_password() -> String {
     value
 }
 
+#[cfg(not(target_os = "android"))]
 #[tauri::command]
 async fn start_local_server(
     window: tauri::WebviewWindow,
@@ -380,12 +313,12 @@ async fn start_local_server(
     workspace: Option<String>,
 ) -> Result<(), String> {
     require_local(&window)?;
-    let binary = local_binary(&app)?;
-    if let Ok(mut slot) = state.child.lock() {
-        if let Some(mut old) = slot.take() {
-            kill_child(&mut old);
+    if let Ok(mut slot) = state.server.lock() {
+        if let Some(server) = slot.take() {
+            server.shutdown();
         }
     }
+
     let data_root = app
         .path()
         .app_data_dir()
@@ -428,20 +361,16 @@ async fn start_local_server(
         workspaces.clone()
     };
 
-    let port = (38100u16..38200)
-        .find(|port| TcpListener::bind(("127.0.0.1", *port)).is_ok())
-        .ok_or_else(|| "Não encontrei uma porta local livre.".to_string())?;
-    let base = Url::parse(&format!("http://127.0.0.1:{port}/")).map_err(|err| err.to_string())?;
-
-    let mut child = quiet_command(&binary)
-        .env("TOPH_ADDR", format!("127.0.0.1:{port}"))
-        .env("TOPH_DATA_DIR", &data_dir)
-        .env("TOPH_WORKSPACES", &workspace_root)
-        .env("TOPH_ADMIN_PASSWORD", &password)
-        .env("TOPH_SECURE_COOKIES", "false")
-        .env("TOPH_TRUSTED_PROXIES", "127.0.0.1/32")
-        .spawn()
+    let config = toph_server::config::Config::local(
+        data_dir,
+        workspace_root.clone(),
+        password.clone(),
+        "127.0.0.1:0".into(),
+    );
+    let server = toph_server::start_embedded(config)
+        .await
         .map_err(|err| format!("Não foi possível iniciar o backend local: {err}"))?;
+    let base = Url::parse(&format!("http://{}/", server.addr)).map_err(|err| err.to_string())?;
 
     let mut healthy = false;
     for _ in 0..30 {
@@ -449,26 +378,26 @@ async fn start_local_server(
             healthy = true;
             break;
         }
-        tokio::time::sleep(Duration::from_millis(300)).await;
+        tokio::time::sleep(Duration::from_millis(100)).await;
     }
     if !healthy {
-        kill_child(&mut child);
+        server.shutdown();
         return Err("O backend local não ficou saudável.".into());
     }
 
     let (session, csrf) = match login_cookie_headers(&base, &password).await {
         Ok(value) => value,
         Err(err) => {
-            kill_child(&mut child);
+            server.shutdown();
             return Err(err);
         }
     };
     if let Err(err) = ensure_local_workspace(&base, &session, &csrf, &workspace_root).await {
-        kill_child(&mut child);
+        server.shutdown();
         return Err(err);
     }
-    if let Ok(mut slot) = state.child.lock() {
-        *slot = Some(child);
+    if let Ok(mut slot) = state.server.lock() {
+        *slot = Some(server);
     }
 
     let mut target = endpoint(&base, "app/")?;
@@ -476,9 +405,9 @@ async fn start_local_server(
         .query_pairs_mut()
         .append_pair("server", base.as_str());
     if let Err(err) = navigate_main(&app, target) {
-        if let Ok(mut slot) = state.child.lock() {
-            if let Some(mut process) = slot.take() {
-                kill_child(&mut process);
+        if let Ok(mut slot) = state.server.lock() {
+            if let Some(server) = slot.take() {
+                server.shutdown();
             }
         }
         return Err(err);
@@ -504,6 +433,219 @@ fn is_mobile() -> bool {
     cfg!(mobile)
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ToolStatus {
+    id: String,
+    label: String,
+    installed: bool,
+    version: String,
+}
+
+const TOOL_COMPONENTS: &[(&str, &str, &[&str], &str)] = &[
+    ("git", "Git", &["git"], "--version"),
+    ("node", "Node.js", &["node"], "--version"),
+    ("pnpm", "pnpm", &["pnpm"], "--version"),
+    ("rust", "Rust + Cargo", &["rustc"], "--version"),
+    ("go", "Go", &["go"], "version"),
+    ("python", "Python", &["python3", "python"], "--version"),
+];
+
+#[tauri::command]
+async fn environment_status() -> Vec<ToolStatus> {
+    let mut statuses = Vec::new();
+    for (id, label, commands, version_arg) in TOOL_COMPONENTS {
+        let mut installed = false;
+        let mut version = String::new();
+        for command in *commands {
+            if let Ok(output) = tokio::process::Command::new(command)
+                .arg(version_arg)
+                .output()
+                .await
+            {
+                if output.status.success() {
+                    installed = true;
+                    version = String::from_utf8_lossy(&output.stdout)
+                        .lines()
+                        .next()
+                        .unwrap_or("")
+                        .trim()
+                        .to_string();
+                    if version.is_empty() {
+                        version = String::from_utf8_lossy(&output.stderr)
+                            .lines()
+                            .next()
+                            .unwrap_or("")
+                            .trim()
+                            .to_string();
+                    }
+                    break;
+                }
+            }
+        }
+        statuses.push(ToolStatus {
+            id: (*id).into(),
+            label: (*label).into(),
+            installed,
+            version,
+        });
+    }
+    statuses
+}
+
+#[tauri::command]
+async fn install_environment(components: Vec<String>) -> Result<String, String> {
+    let allowed = ["git", "node", "pnpm", "rust", "go", "python"];
+    let selected: Vec<String> = components
+        .into_iter()
+        .filter(|component| allowed.contains(&component.as_str()))
+        .collect();
+    if selected.is_empty() {
+        return Err("Selecione pelo menos uma ferramenta.".into());
+    }
+    if cfg!(windows) {
+        install_environment_windows(&selected).await
+    } else {
+        install_environment_linux(&selected).await
+    }
+}
+
+async fn run_installer(command: &str, args: &[&str]) -> Result<String, String> {
+    let output = tokio::process::Command::new(command)
+        .args(args)
+        .output()
+        .await
+        .map_err(|error| format!("Não foi possível executar {command}: {error}"))?;
+    let mut text = String::from_utf8_lossy(&output.stdout).to_string();
+    text.push_str(&String::from_utf8_lossy(&output.stderr));
+    if !output.status.success() {
+        return Err(format!(
+            "{command} terminou com {}. {}",
+            output.status,
+            text.trim()
+        ));
+    }
+    Ok(text)
+}
+
+async fn install_environment_windows(selected: &[String]) -> Result<String, String> {
+    run_installer("winget", &["--version"]).await?;
+    let packages = [
+        ("git", "Git.Git"),
+        ("node", "OpenJS.NodeJS.LTS"),
+        ("pnpm", "pnpm.pnpm"),
+        ("rust", "Rustlang.Rustup"),
+        ("go", "GoLang.Go"),
+        ("python", "Python.Python.3.13"),
+    ];
+    let mut log = String::new();
+    for component in selected {
+        let Some((_, package)) = packages.iter().find(|(id, _)| id == component) else {
+            continue;
+        };
+        log.push_str(&format!("Instalando {component} ({package})...\n"));
+        let output = run_installer(
+            "winget",
+            &[
+                "install",
+                "--id",
+                package,
+                "-e",
+                "--silent",
+                "--accept-package-agreements",
+                "--accept-source-agreements",
+            ],
+        )
+        .await?;
+        log.push_str(&output);
+    }
+    log.push_str("\nAmbiente instalado. Reinicie o Toph para carregar o PATH atualizado.\n");
+    Ok(log)
+}
+
+async fn install_environment_linux(selected: &[String]) -> Result<String, String> {
+    let use_apt = std::path::Path::new("/usr/bin/apt-get").exists();
+    let use_dnf = std::path::Path::new("/usr/bin/dnf").exists();
+    let use_pacman = std::path::Path::new("/usr/bin/pacman").exists();
+    if !use_apt && !use_dnf && !use_pacman {
+        return Err("Gerenciador de pacotes não suportado. Instale Git, Node, Rust, Go e Python manualmente.".into());
+    }
+    let mut packages: Vec<&str> = Vec::new();
+    for component in selected {
+        match component.as_str() {
+            "git" => packages.push("git"),
+            "node" => packages.extend(["nodejs", "npm"]),
+            "pnpm" => packages.extend(["nodejs", "npm"]),
+            "rust" => packages.extend(["rustc", "cargo"]),
+            "go" => packages.push(if use_apt {
+                "golang-go"
+            } else if use_dnf {
+                "golang"
+            } else {
+                "go"
+            }),
+            "python" => packages.extend(["python3", "python3-pip", "python3-venv"]),
+            _ => {}
+        }
+    }
+    packages.sort();
+    packages.dedup();
+    let root_prefix = if std::path::Path::new("/usr/bin/pkexec").exists() {
+        "pkexec"
+    } else {
+        "sudo"
+    };
+    let mut log = String::new();
+    let sudo = root_prefix == "sudo";
+    if use_apt {
+        let mut update = vec!["env", "DEBIAN_FRONTEND=noninteractive", "apt-get", "update"];
+        if sudo {
+            update.insert(0, "-n");
+        }
+        log.push_str(&run_installer(root_prefix, &update).await?);
+        let mut args = vec![
+            "env",
+            "DEBIAN_FRONTEND=noninteractive",
+            "apt-get",
+            "install",
+            "-y",
+        ];
+        if sudo {
+            args.insert(0, "-n");
+        }
+        args.extend(packages.iter().copied());
+        log.push_str(&run_installer(root_prefix, &args).await?);
+    } else if use_dnf {
+        let mut args = vec!["dnf", "install", "-y"];
+        if sudo {
+            args.insert(0, "-n");
+        }
+        args.extend(packages.iter().copied());
+        log.push_str(&run_installer(root_prefix, &args).await?);
+    } else {
+        let mut args = vec!["pacman", "-S", "--noconfirm", "--needed"];
+        if sudo {
+            args.insert(0, "-n");
+        }
+        args.extend(packages.iter().copied());
+        log.push_str(&run_installer(root_prefix, &args).await?);
+    }
+    if selected.iter().any(|component| component == "pnpm") {
+        let mut args = vec!["npm", "install", "-g", "pnpm"];
+        if sudo {
+            args.insert(0, "-n");
+        }
+        log.push_str(&run_installer(root_prefix, &args).await?);
+    }
+    log.push_str("\nAmbiente instalado. Reinicie o Toph para carregar o PATH atualizado.\n");
+    Ok(log)
+}
+
+#[tauri::command]
+fn restart_app(app: tauri::AppHandle) {
+    app.restart();
+}
+
 #[tauri::command]
 async fn download_update(
     app: tauri::AppHandle,
@@ -517,7 +659,9 @@ async fn download_update(
     }
     if !matches!(
         parsed.host_str(),
-        Some("github.com") | Some("objects.githubusercontent.com") | Some("github-releases.githubusercontent.com")
+        Some("github.com")
+            | Some("objects.githubusercontent.com")
+            | Some("github-releases.githubusercontent.com")
     ) {
         return Err("Origem de atualização não permitida.".into());
     }
@@ -527,7 +671,9 @@ async fn download_update(
         .unwrap_or("")
         .trim();
     if !matches!(
-        PathBuf::from(name).extension().and_then(|value| value.to_str()),
+        PathBuf::from(name)
+            .extension()
+            .and_then(|value| value.to_str()),
         Some("exe") | Some("msi") | Some("AppImage") | Some("deb") | Some("rpm")
     ) {
         return Err("Nome de instalador inválido.".into());
@@ -583,34 +729,58 @@ async fn download_update(
         target = dir.join(candidate);
         counter += 1;
     }
-    fs::write(&target, &bytes).map_err(|err| format!("Não foi possível salvar o instalador: {err}"))?;
+    fs::write(&target, &bytes)
+        .map_err(|err| format!("Não foi possível salvar o instalador: {err}"))?;
     Ok(target.display().to_string())
 }
 
-#[cfg_attr(mobile, tauri::mobile_entry_point)]
-pub fn run() {
-    let builder = tauri::Builder::default()
-        .plugin(tauri_plugin_dialog::init())
-        .manage(LocalState::default())
-        .setup(|_app| Ok(()))
-        .invoke_handler(tauri::generate_handler![
+#[cfg(not(target_os = "android"))]
+macro_rules! desktop_commands {
+    () => {
+        tauri::generate_handler![
             validate_server,
             open_server,
             start_local_server,
             is_mobile,
+            environment_status,
+            install_environment,
+            restart_app,
             download_update
-        ]);
+        ]
+    };
+}
+
+#[cfg(target_os = "android")]
+macro_rules! desktop_commands {
+    () => {
+        tauri::generate_handler![validate_server, open_server, is_mobile, download_update]
+    };
+}
+
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
+pub fn run() {
+    #[allow(unused_mut)]
+    let mut builder = tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
+        .setup(|_app| Ok(()))
+        .invoke_handler(desktop_commands!());
+
+    #[cfg(not(target_os = "android"))]
+    {
+        builder = builder.manage(LocalState::default());
+    }
 
     let app = builder
         .build(tauri::generate_context!())
         .expect("error while building Toph Client");
 
-    app.run(|app_handle, event| {
-        if let RunEvent::Exit = event {
-            if let Some(state) = app_handle.try_state::<LocalState>() {
-                if let Ok(mut child) = state.child.lock() {
-                    if let Some(mut process) = child.take() {
-                        kill_child(&mut process);
+    app.run(|_app_handle, _event| {
+        #[cfg(not(target_os = "android"))]
+        if let RunEvent::Exit = _event {
+            if let Some(state) = _app_handle.try_state::<LocalState>() {
+                if let Ok(mut slot) = state.server.lock() {
+                    if let Some(server) = slot.take() {
+                        server.shutdown();
                     }
                 }
             }

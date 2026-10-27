@@ -11,6 +11,9 @@
     "allow-validate-server",
     "allow-open-server",
     "allow-start-local-server",
-    "allow-is-mobile"
+    "allow-is-mobile",
+    "allow-environment-status",
+    "allow-install-environment",
+    "allow-restart-app"
   ]
 }

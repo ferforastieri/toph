@@ -1,0 +1,70 @@
+[package]
+name = "toph-server"
+version = "0.18.0"
+edition = "2021"
+rust-version = "1.90"
+description = "Toph backend and embedded local server"
+license = "MIT"
+
+[lib]
+name = "toph_server"
+path = "src/lib.rs"
+
+[[bin]]
+name = "toph"
+path = "src/main.rs"
+
+[dependencies]
+aes-gcm = "0.10"
+anyhow = "1"
+argon2 = { version = "0.5", features = ["std"] }
+async-trait = "0.1"
+async-stream = "0.3"
+axum = { version = "0.8", features = ["ws", "macros"] }
+base64 = "0.22"
+bytes = "1"
+chrono = { version = "0.4", features = ["serde"] }
+clickhouse = { version = "0.15", features = ["rustls-tls-ring", "rustls-tls-webpki-roots"] }
+futures-util = "0.3"
+hex = "0.4"
+http = "1"
+http-body-util = "0.1"
+jsonwebtoken = "9"
+ipnet = "2"
+libc = "0.2"
+mime_guess = "2"
+mongodb = "3.9"
+neo4rs = { version = "0.8", features = ["json"] }
+notify = "8"
+oracle-rs = "0.1.7"
+portable-pty = "0.9"
+rand = "0.8"
+redis = { version = "1.0", features = ["tokio-rustls-comp", "connection-manager"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls", "cookies"] }
+rust-embed = { version = "8", features = ["include-exclude"] }
+scylla = { version = "1.9", features = ["rustls-023"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+subtle = "2"
+sqlx = { version = "0.8.6", default-features = false, features = ["runtime-tokio-rustls", "any", "derive", "sqlite", "postgres", "mysql", "chrono", "uuid", "json"] }
+thiserror = "2"
+tiberius = { version = "0.13", default-features = false, features = ["tds80", "rustls", "tokio", "chrono"] }
+tokio = { version = "1", features = ["full"] }
+tokio-stream = "0.1"
+tokio-util = { version = "0.7", features = ["compat", "io"] }
+tower = "0.5"
+tower-http = { version = "0.6", features = ["trace"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+url = "2"
+uuid = { version = "1", features = ["v4", "serde"] }
+walkdir = "2"
+tempfile = "3"
+
+
+[dev-dependencies]
+tokio-tungstenite = "0.28"
+
+[profile.release]
+strip = true

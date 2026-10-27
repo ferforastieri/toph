@@ -25,7 +25,8 @@ button { border: 0; cursor: pointer; }
   display: grid;
   place-items: center;
   padding: 42px;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
   background:
     radial-gradient(ellipse at 18% 12%, rgba(67, 230, 160, 0.16), transparent 42%),
     radial-gradient(ellipse at 82% 78%, rgba(34, 211, 238, 0.1), transparent 38%),
@@ -36,6 +37,7 @@ button { border: 0; cursor: pointer; }
 .ambient-two { width: 320px; height: 320px; bottom: -180px; left: 4%; background: rgba(45, 212, 191, 0.1); }
 .launcher {
   position: relative;
+  margin: auto;
   z-index: 1;
   width: min(760px, 100%);
   padding: 30px;
@@ -92,6 +94,90 @@ button:disabled { cursor: not-allowed; opacity: 0.5; }
 .status, .error { margin-top: 14px; padding: 9px 11px; border-radius: 8px; font-size: 11px; }
 .status { background: rgba(67, 230, 160, 0.1); color: var(--primary); }
 .error { background: rgba(255, 107, 122, 0.1); color: var(--error); }
+
+.environment-card { border-color: rgba(45, 212, 191, 0.18); background: rgba(4, 19, 16, 0.34); }
+.environment-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(1, 10, 8, 0.72);
+  backdrop-filter: blur(14px);
+}
+.environment-modal {
+  width: min(620px, 100%);
+  max-height: min(86dvh, 720px);
+  overflow: auto;
+  display: grid;
+  gap: 18px;
+  padding: 24px;
+  border: 1px solid rgba(67, 230, 160, 0.26);
+  border-radius: 20px;
+  background: #071d17;
+  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.55);
+}
+.environment-modal-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.environment-modal-head p { margin-top: 5px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.environment-close {
+  width: 32px;
+  height: 32px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 20px;
+  line-height: 1;
+}
+.environment-close:hover:not(:disabled) { color: var(--text); border-color: var(--primary); }
+.environment-tools { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.environment-tool {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 12px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: rgba(4, 19, 16, 0.45);
+  cursor: pointer;
+}
+.environment-tool:hover { border-color: rgba(67, 230, 160, 0.45); }
+.environment-tool.installed { background: rgba(67, 230, 160, 0.07); border-color: rgba(67, 230, 160, 0.22); cursor: default; }
+.environment-tool input { width: 16px; height: 16px; flex: none; accent-color: var(--primary); }
+.environment-tool-copy { min-width: 0; display: grid; gap: 3px; flex: 1; }
+.environment-tool-copy strong { color: var(--text); font-size: 12px; }
+.environment-tool-copy small { overflow: hidden; color: var(--muted); font-family: ui-monospace, monospace; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.environment-tool-badge { flex: none; padding: 2px 6px; border-radius: 999px; background: rgba(67, 230, 160, 0.14); color: var(--primary); font-size: 8px; font-weight: 700; text-transform: uppercase; }
+.environment-note { color: var(--muted); font-size: 10.5px; line-height: 1.55; }
+.environment-log {
+  max-height: 180px;
+  overflow: auto;
+  margin: 0;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.28);
+  color: #b8e8d8;
+  font-family: ui-monospace, monospace;
+  font-size: 10px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+.environment-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.environment-actions .primary,
+.environment-actions .secondary { min-height: 36px; padding: 0 14px; }
+@media (max-width: 720px) {
+  .environment-backdrop { padding: 12px; }
+  .environment-modal { padding: 18px; border-radius: 16px; }
+  .environment-tools { grid-template-columns: 1fr; }
+  .environment-actions { display: grid; grid-template-columns: 1fr; }
+}
+
 footer { position: absolute; bottom: 14px; z-index: 1; color: rgba(127, 179, 163, 0.55); font-size: 9px; letter-spacing: 0.06em; text-transform: uppercase; }
 
 @media (max-width: 720px) {
