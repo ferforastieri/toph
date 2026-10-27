@@ -3,13 +3,13 @@ import {
   ChevronRight,
   Gem,
   GitBranch,
+  Bot,
   HardDrive,
   LayoutPanelLeft,
   Monitor,
   Moon,
   Palette,
   Server,
-  Sparkles,
   Sun,
   TerminalSquare,
   Type,
@@ -39,7 +39,7 @@ type Category = "appearance" | "ai" | "workspace" | "git" | "server";
 
 const categories: Array<{ id: Category; label: string; icon: typeof Sun }> = [
   { id: "appearance", label: "Aparência", icon: Palette },
-  { id: "ai", label: "AI", icon: Sparkles },
+  { id: "ai", label: "AI", icon: Bot },
   { id: "workspace", label: "Workspace", icon: HardDrive },
   { id: "git", label: "Git", icon: GitBranch },
   { id: "server", label: "Server", icon: Server },

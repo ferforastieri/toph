@@ -1,4 +1,4 @@
-import { Database, Files, Globe2, Sparkles, TerminalSquare } from "@toph/icons";
+import { Database, Files, Globe2, Bot, TerminalSquare } from "@toph/icons";
 import type { Sidebar } from "../store";
 
 interface Props {
@@ -51,7 +51,7 @@ export default function MobileNav({
         aria-pressed={aiPanelOpen}
         onClick={onAI}
       >
-        <Sparkles size={21} strokeWidth={1.8} />
+        <Bot size={21} strokeWidth={1.8} />
         <span>Agente</span>
       </button>
       <button

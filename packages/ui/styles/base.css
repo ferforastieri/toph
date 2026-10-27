@@ -32,7 +32,7 @@
   --info: #7fa7a0;
   --shadow: 0 24px 70px rgba(0, 0, 0, 0.48);
   --shadow-soft: 0 8px 28px rgba(0, 0, 0, 0.24);
-  --font-ui: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter Variable", Inter, system-ui, "Segoe UI", sans-serif;
+  --font-ui: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", system-ui, "Ubuntu", "Droid Sans", sans-serif;
   --font-mono: "IBM Plex Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
   --sidebar-width: 296px;
   --activity-width: 64px;

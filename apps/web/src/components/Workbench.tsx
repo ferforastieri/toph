@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { ArrowLeft, Bell, Check, ChevronDown, FolderPlus, GitBranch, Plus, Settings2, X } from "@toph/icons";
+import { ArrowLeft, Bell, Bot, Check, ChevronDown, FolderPlus, GitBranch, Plus, Settings2, X } from "@toph/icons";
 import { api, getApiBase, type Repository, type SchemaTable, type WebTarget } from "../api";
-import { basename, languageFor, quoteIdentifier } from "../lib";
+import { basename, expandGitPattern, languageFor, quoteIdentifier, sanitizeBranchName } from "../lib";
 import { useApp, type AppNotification, type Sidebar, type Tab } from "../store";
 import { providerLabel, useAI } from "../ai";
 import { nativePushToken, requestMobileNotificationPermission } from "../notifications";
@@ -28,6 +28,8 @@ import { Button } from "@toph/ui";
 import BrandMark from "@toph/brand";
 import { ResizeHandle } from "@toph/ui";
 import { useSettings } from "../settings";
+import { suggestGitChanges } from "../gitAi";
+import { parseGitStatus } from "../gitStatus";
 
 export default function Workbench() {
   const projects = useApp((state) => state.projects);
@@ -56,6 +58,8 @@ export default function Workbench() {
   const loadModels = useAI((state) => state.loadModels);
   const aiProvider = useAI((state) => state.config?.provider);
   const sidebarWidth = useSettings((state) => state.sidebarWidth);
+  const branchPattern = useSettings((state) => state.gitBranchPattern);
+  const aiConfig = useAI((state) => state.config);
   const aiPanelWidth = useSettings((state) => state.aiPanelWidth);
   const updateSettings = useSettings((state) => state.update);
 
@@ -68,7 +72,6 @@ export default function Workbench() {
   const [branchMenuOpen, setBranchMenuOpen] = useState(false);
   const [branchInfo, setBranchInfo] = useState<{ current: string; branches: string[] } | null>(null);
   const [branchBusy, setBranchBusy] = useState("");
-  const [newBranchOpen, setNewBranchOpen] = useState(false);
   const [newBranchName, setNewBranchName] = useState("");
   const [searchFocusToken, setSearchFocusToken] = useState(0);
   const [cursor, setCursor] = useState({ line: 1, column: 1, language: "" });
@@ -505,7 +508,7 @@ export default function Workbench() {
     if (!project) return;
     setProjectMenuOpen(false);
     setBranchMenuOpen(true);
-    setNewBranchOpen(false);
+    setNewBranchName("");
     setBranchInfo(null);
     try {
       setBranchInfo(await api.gitBranches(project.id));
@@ -529,6 +532,47 @@ export default function Workbench() {
     }
   }
 
+  async function collectBranchDiff(): Promise<string> {
+    if (!project) return "";
+    const parsed = parseGitStatus(await api.gitStatus(project.id));
+    const seen = new Set<string>();
+    const parts: string[] = [];
+    for (const change of parsed.changes) {
+      if (seen.has(change.path)) continue;
+      seen.add(change.path);
+      const staged = change.staged && !change.unstaged;
+      const diff = await api.gitDiff(project.id, change.path, staged).catch(() => "");
+      if (diff) parts.push(diff);
+    }
+    return parts.join("\n").slice(0, 16000);
+  }
+
+  async function generateBranchName() {
+    if (!project || branchBusy) return;
+    setBranchBusy("generate");
+    try {
+      const status = await api.gitStatus(project.id);
+      const parsed = parseGitStatus(status);
+      const diff = await collectBranchDiff();
+      const suggestion = await suggestGitChanges(aiConfig, diff, parsed.branch);
+      const generated = sanitizeBranchName(
+        expandGitPattern(branchPattern, {
+          repo: project.name,
+          branch: parsed.branch,
+          user: user?.username ?? "",
+          task: suggestion.task,
+          slug: suggestion.slug || "update",
+          summary: suggestion.summary,
+        }),
+      );
+      setNewBranchName(generated);
+    } catch (error) {
+      notify("error", error instanceof Error ? error.message : "Não foi possível gerar a branch.");
+    } finally {
+      setBranchBusy("");
+    }
+  }
+
   async function createBranchFromMenu(event: FormEvent) {
     event.preventDefault();
     if (!project || !newBranchName.trim() || branchBusy) return;
@@ -537,7 +581,6 @@ export default function Workbench() {
     try {
       await api.gitCreateBranch(project.id, name);
       setNewBranchName("");
-      setNewBranchOpen(false);
       setGitStatus(await api.gitStatus(project.id));
       setBranchInfo(await api.gitBranches(project.id));
       window.dispatchEvent(new Event("toph:git-changed"));
@@ -1045,28 +1088,29 @@ export default function Workbench() {
                       )}
                     </div>
                     <div className="desktop-branch-menu-footer">
-                      {newBranchOpen ? (
-                        <form className="desktop-branch-form" onSubmit={(event) => void createBranchFromMenu(event)}>
+                      <form className="desktop-branch-form" onSubmit={(event) => void createBranchFromMenu(event)}>
+                        <div className="desktop-branch-input">
                           <input
-                            autoFocus
                             value={newBranchName}
                             onChange={(event) => setNewBranchName(event.target.value)}
                             placeholder="nome-da-branch"
                             aria-label="Nome da nova branch"
                           />
-                          <Button className="primary small" disabled={!newBranchName.trim() || Boolean(branchBusy)}>
-                            Criar
+                          <Button
+                            type="button"
+                            className="icon-button branch-generate"
+                            title="Gerar nome da branch com IA"
+                            aria-label="Gerar nome da branch com IA"
+                            disabled={Boolean(branchBusy)}
+                            onClick={() => void generateBranchName()}
+                          >
+                            {branchBusy === "generate" ? "..." : <Bot size={13} />}
                           </Button>
-                        </form>
-                      ) : (
-                        <button
-                          type="button"
-                          className="desktop-project-menu-open"
-                          onClick={() => setNewBranchOpen(true)}
-                        >
-                          <Plus size={14} /> Criar branch
-                        </button>
-                      )}
+                        </div>
+                        <Button className="primary small" disabled={!newBranchName.trim() || Boolean(branchBusy)}>
+                          Criar
+                        </Button>
+                      </form>
                     </div>
                   </section>
 

@@ -6,7 +6,7 @@ import {
   GitBranch,
   Minus,
   Plus,
-  Sparkles,
+  Bot,
   Trash2,
   Undo2,
 } from "@toph/icons";
@@ -303,7 +303,7 @@ export default function SourceControlPanel({
                 disabled={Boolean(busy)}
                 onClick={() => void generateMessage()}
               >
-                <Sparkles size={13} />
+                <Bot size={13} />
               </Button>
             </div>
             <Button

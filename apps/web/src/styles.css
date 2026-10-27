@@ -795,7 +795,7 @@ html:not(.mobile-client) .activity-bottom {
   max-width: 220px;
   border-right: 1px solid var(--border-soft);
   color: var(--muted);
-  font-size: 11.5px;
+  font-size: 12.5px;
   cursor: pointer;
   position: relative;
   flex: none;
@@ -1860,7 +1860,7 @@ html[data-density="spacious"] { --density: 1.12; --titlebar-height: 58px; --stat
 body {
   background: var(--bg);
   color: var(--text);
-  letter-spacing: -0.006em;
+  letter-spacing: 0;
 }
 
 body::before,
@@ -2182,24 +2182,25 @@ html[data-tabs="compact"] .tab-strip { height: calc(40px * var(--density)); padd
 html[data-tabs="compact"] .tab { height: calc(30px * var(--density)); min-width: 86px; font-size: 11px; }
 
 .panel-heading {
-  height: calc(44px * var(--density));
-  padding: 0 14px;
-  color: var(--text-soft);
-  font-size: 11.5px;
+  height: 35px;
+  padding: 0 12px;
+  color: var(--muted);
+  font-size: 11px;
   font-weight: 600;
-  letter-spacing: -0.01em;
-  text-transform: none;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .tree-item {
-  height: calc(27px * var(--density));
-  margin: 0 6px;
+  height: 22px;
+  margin: 0;
   padding-right: 8px;
-  border-radius: calc(var(--radius) * 0.42);
+  border-radius: 0;
   color: var(--text-soft);
-  transition: background 0.18s var(--ease-snappy), color 0.18s var(--ease-snappy), transform 0.18s var(--ease-snappy);
+  font-size: 12.5px;
+  transition: background 0.18s var(--ease-snappy), color 0.18s var(--ease-snappy);
 }
-.tree-item:hover { background: var(--surface-hover); color: var(--text); transform: translateX(1px); }
+.tree-item:hover { background: var(--surface-hover); color: var(--text); transform: none; }
 
 .search-result,
 .db-table,
@@ -4857,7 +4858,7 @@ html.mobile-client .avatar-titlebar .avatar-initials {
 /* Desktop shell: no app titlebar, persistent project/agent rail and footer */
 :root {
   --right-sidebar-width: 330px;
-  --desktop-footer-height: 24px;
+  --desktop-footer-height: 22px;
 }
 
 html:not(.mobile-client) .workbench {
@@ -4879,12 +4880,13 @@ html:not(.mobile-client) .workbench-body.ai-open {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 6px;
-  padding: 0 6px;
-  border-top: 1px solid var(--border-soft);
-  background: color-mix(in srgb, var(--primary) 10%, var(--chrome));
+  gap: 8px;
+  padding: 0 8px;
+  border-top: 1px solid var(--border);
+  background: var(--bg);
   color: var(--muted);
-  font-size: 9px;
+  font-family: var(--font-ui);
+  font-size: 11px;
 }
 
 .desktop-footer-left,
@@ -4903,51 +4905,51 @@ html:not(.mobile-client) .workbench-body.ai-open {
   align-items: center;
   gap: 5px;
   overflow: hidden;
-  color: var(--muted-2);
-  font-family: var(--font-mono);
-  font-size: 9px;
+  color: var(--muted);
+  font-family: var(--font-ui);
+  font-size: 11px;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
 
 .desktop-branch-button {
-  height: 19px;
+  height: 22px;
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 0 6px;
-  border-radius: 3px;
-  color: var(--text-soft);
-  font-family: var(--font-mono);
-  font-size: 9px;
+  padding: 0 4px;
+  border-radius: 0;
+  color: var(--muted);
+  font-family: var(--font-ui);
+  font-size: 11px;
   white-space: nowrap;
 }
 .desktop-branch-button:hover { color: var(--text); background: rgba(255, 255, 255, 0.08); }
 .desktop-branch-button svg { flex: none; color: var(--primary); }
 .desktop-branch-button span { max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
-.desktop-footer-item { color: var(--muted-2); font-family: var(--font-mono); font-size: 8.5px; }
+.desktop-footer-item { color: var(--muted); font-family: var(--font-ui); font-size: 11px; }
 
 .desktop-project-pill {
-  height: 19px;
+  height: 22px;
   display: inline-flex;
   align-items: center;
   gap: 1px;
-  border-radius: 4px;
-  background: rgba(255, 255, 255, 0.03);
+  border-radius: 0;
+  background: transparent;
 }
 .desktop-project-pill:hover { background: rgba(255, 255, 255, 0.08); }
 .desktop-project-pill .desktop-project-button { padding-right: 3px; }
 .desktop-project-pill .desktop-project-button:hover { background: transparent; }
 .desktop-project-button {
-  height: 19px;
+  height: 22px;
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 0 6px 0 3px;
-  border-radius: 3px;
+  padding: 0 4px 0 3px;
+  border-radius: 0;
   background: transparent;
-  color: var(--text-soft);
-  font-size: 9px;
+  color: var(--muted);
+  font-size: 11px;
 }
 .desktop-project-button:hover { background: rgba(255, 255, 255, 0.08); color: var(--text); }
 .desktop-project-button svg { color: var(--muted); }
@@ -5330,7 +5332,21 @@ html:not(.mobile-client) .workbench-body.ai-open {
   border-top: 0;
 }
 .desktop-branch-form { display: flex; gap: 5px; padding: 4px 3px; }
-.desktop-branch-form input { min-width: 0; flex: 1; height: 28px; font-size: 10px; }
+.desktop-branch-input { position: relative; flex: 1; min-width: 0; display: flex; }
+.desktop-branch-form input { min-width: 0; flex: 1; height: 28px; padding-right: 32px; font-size: 10px; }
+.desktop-branch-input .branch-generate {
+  position: absolute;
+  top: 50%;
+  right: 3px;
+  width: 24px !important;
+  height: 24px !important;
+  min-width: 24px;
+  min-height: 24px;
+  transform: translateY(-50%);
+  color: var(--muted);
+  border-radius: 5px;
+}
+.desktop-branch-input .branch-generate:hover:not(:disabled) { color: var(--primary); background: var(--primary-soft); }
 .desktop-branch-form .primary { min-height: 28px; padding: 0 9px; }
 @media (max-width: 720px) {
   .desktop-branch-menu { max-height: 86dvh; }

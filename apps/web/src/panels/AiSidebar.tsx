@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Bot, Plus, Sparkles } from "@toph/icons";
+import { Bot, Plus } from "@toph/icons";
 import { providerLabel, useAI } from "../ai";
 import type { Project } from "../api";
 import OpenCodeSidebar from "./OpenCodeSidebar";
@@ -38,7 +38,7 @@ export default function AiSidebar({ project, onNewSession, onOpenSession }: Prop
         {config ? `${label}${config.model ? ` · ${config.model}` : ""}` : "Loading configuration..."}
       </div>
       <div className="ai-sidebar-copy">
-        <Sparkles size={16} />
+        <Bot size={16} />
         <p>
           The selected agent runs through the Toph server with access to <code>{project.root}</code>.
         </p>
