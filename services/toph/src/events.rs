@@ -77,14 +77,25 @@ impl ProjectWatcher {
         })
         .map_err(|error| AppError::Internal(error.into()))?;
         let watcher = Arc::new(Mutex::new(watcher));
+        // Watching the root itself is cheap. Loading the full tree can be slow
+        // for very large workspaces, so the recursive walk stays off the
+        // startup path in the watcher thread.
+        if let Ok(mut guard) = watcher.lock() {
+            let _ = guard.watch(root, RecursiveMode::NonRecursive);
+        }
         let root = root.to_path_buf();
         let hub = self.hub.clone();
         let project_id = project_id.to_string();
         let watcher_for_thread = watcher.clone();
         let root_for_thread = root.clone();
-        let root_for_watch = root.clone();
         let project_id_for_thread = project_id.clone();
         std::thread::spawn(move || {
+            if let Ok(mut guard) = watcher_for_thread.lock() {
+                let _ = watch_tree(&mut guard, &root_for_thread, &root_for_thread);
+                let git_dir = root_for_thread.join(".git");
+                let _ = guard.watch(&git_dir, RecursiveMode::NonRecursive);
+                let _ = watch_tree(&mut guard, &git_dir.join("refs"), &root_for_thread);
+            }
             let mut pending: Option<(Instant, PathBuf)> = None;
             loop {
                 let timeout = pending
@@ -137,17 +148,6 @@ impl ProjectWatcher {
                 }
             }
         });
-        {
-            let mut guard = watcher
-                .lock()
-                .map_err(|_| crate::errors::internal("watcher lock"))?;
-            watch_tree(&mut guard, &root_for_watch, &root_for_watch)?;
-        }
-        let git_dir = root.join(".git");
-        if let Ok(mut watcher) = watcher.lock() {
-            let _ = watcher.watch(&git_dir, RecursiveMode::NonRecursive);
-            let _ = watch_tree(&mut watcher, &git_dir.join("refs"), &root);
-        }
         self.watchers
             .lock()
             .map_err(|_| crate::errors::internal("watcher map"))?
