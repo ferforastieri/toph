@@ -3275,7 +3275,7 @@ html[data-theme="emerald"] {
   --accent-rgb: 67, 230, 160;
 }
 
-/* Night Wolf Black — colors from MaoSantaella.night-wolf */
+/* Night Wolf */
 html[data-theme="nightwolf"] {
   color-scheme: dark;
   --bg: #000000;

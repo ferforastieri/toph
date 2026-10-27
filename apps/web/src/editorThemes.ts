@@ -3,9 +3,7 @@ import type { editor } from "monaco-editor";
 
 import { accentPalette, type Accent, type ResolvedTheme } from "./settings";
 
-// Matches the font stack used by code-server's default Linux configuration.
-// When Droid Sans Mono is not installed in the browser, both code-server and
-// Toph fall back to the exact same generic monospace font.
+// Toph's editor monospace stack.
 export const CODE_FONT_FAMILY = "'Droid Sans Mono', monospace";
 
 export function codeLineHeight(fontSize: number): number {
@@ -158,9 +156,7 @@ const emeraldTheme: editor.IStandaloneThemeData = {
   },
 };
 
-// Night Wolf (black) from maosantaella.night-wolf, the theme selected in the
-// user's code-server. Keep the colors in sync with
-// extensions/maosantaella.night-wolf-2.5.0-universal/themes/night-wolf-black.json.
+// Night Wolf color scheme, bundled with Toph.
 const nightwolfTheme: editor.IStandaloneThemeData = {
   base: "vs-dark",
   inherit: false,
