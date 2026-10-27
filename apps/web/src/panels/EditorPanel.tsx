@@ -3,6 +3,8 @@ import { api, ApiError, type GitBlameLine, type Project } from "../api";
 import { languageFor } from "../lib";
 import { useApp, type Tab } from "../store";
 import CodeEditor from "../components/CodeEditor";
+import FileIcon from "../ui/FileIcon";
+import { useSettings } from "../settings";
 import { useProjectEvents } from "../projectEvents";
 
 interface Props {
@@ -13,6 +15,7 @@ interface Props {
 export default function EditorPanel({ tab, project }: Props) {
   const updateTab = useApp((state) => state.updateTab);
   const notify = useApp((state) => state.notify);
+  const iconTheme = useSettings((state) => state.iconTheme);
   const [blame, setBlame] = useState<GitBlameLine[]>([]);
   const [stale, setStale] = useState(false);
   const tabRef = useRef(tab);
@@ -105,6 +108,7 @@ export default function EditorPanel({ tab, project }: Props) {
       <div className="editor-breadcrumb">
         <span>{project.name}</span>
         <span className="sep">/</span>
+        <FileIcon name={tab.path ?? tab.title} path={tab.path} iconTheme={iconTheme} size={13} />
         <span>{tab.path}</span>
         {tab.dirty && <span className="dirty-label">modified</span>}
         {stale && <span className="dirty-label">changed on disk</span>}

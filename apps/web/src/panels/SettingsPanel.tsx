@@ -60,7 +60,7 @@ const themes: Array<{ id: ThemePreference; label: string; icon: typeof Sun }> = 
   { id: "light", label: "Light", icon: Sun },
   { id: "brand", label: "Brand", icon: Palette },
   { id: "emerald", label: "Emerald", icon: Gem },
-  { id: "nightwolf", label: "Night Wolf", icon: Moon },
+  { id: "nightwolf", label: "Night Wolf (black)", icon: Moon },
 ];
 
 const iconOptions: Array<{ id: IconTheme; label: string }> = [
@@ -177,9 +177,9 @@ function AppearanceSection({
       onToggle={(event) => setOpen(event.currentTarget.open)}
     >
       <summary className="settings-accordion-head">
-        <ChevronRight size={13} className="settings-accordion-chevron" />
-        <Icon size={14} className="settings-accordion-icon" />
+        <Icon size={15} className="settings-accordion-icon" />
         <span>{title}</span>
+        <ChevronRight size={16} className="settings-accordion-chevron" />
       </summary>
       <div className="settings-accordion-body">{children}</div>
     </details>

@@ -327,7 +327,7 @@ export default function SourceControlPanel({
               <div className="scm-file" key={`staged:${change.path}`}>
                 <Button className="scm-file-main" title={change.path} onClick={() => onOpenDiff(change.path, true)}>
                   <span className={`scm-status ${change.index.trim() || "M"}`}>{statusLabel(change)}</span>
-                  <FileIcon name={change.path} iconTheme={iconTheme} size={13} />
+                  <FileIcon name={change.path} path={change.path} iconTheme={iconTheme} size={13} />
                   <span className="scm-path">{change.path}</span>
                 </Button>
                 <Button className="scm-action" title="Unstage" onClick={() => void unstage([change.path])}>
@@ -364,7 +364,7 @@ export default function SourceControlPanel({
                 <span className={`scm-status ${change.index === "?" ? "U" : change.worktree.trim() || "M"}`}>
                   {statusLabel(change)}
                 </span>
-                <FileIcon name={change.path} iconTheme={iconTheme} size={13} />
+                <FileIcon name={change.path} path={change.path} iconTheme={iconTheme} size={13} />
                 <span className="scm-path">{change.path}</span>
               </Button>
               <Button className="scm-action" title="Stage" onClick={() => void stage([change.path])}>

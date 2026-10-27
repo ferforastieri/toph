@@ -40,17 +40,24 @@ interface MaterialManifest {
 
 const material = materialManifest as MaterialManifest;
 
+function baseName(value: string): string {
+  const normalized = value.replace(/\\/g, "/").replace(/\/+$/, "");
+  return normalized.split("/").pop() || normalized;
+}
+
 function materialIconName(name: string, dir: boolean, open: boolean): string {
-  const lower = name.toLowerCase();
+  const lower = baseName(name).toLowerCase();
   if (dir) {
     return (open ? material.folderNamesExpanded[lower] : material.folderNames[lower])
       ?? (open ? material.folderExpanded : material.folder);
   }
   const exact = material.fileNames[lower];
   if (exact) return exact;
-  const dot = lower.lastIndexOf(".");
-  if (dot >= 0) {
-    const extension = material.fileExtensions[lower.slice(dot + 1)];
+  // Material Icon Theme supports compound suffixes such as d.ts, test.ts,
+  // schema.json and routing.tsx. Try the longest suffix first.
+  const parts = lower.split(".");
+  for (let index = 0; index < parts.length; index += 1) {
+    const extension = material.fileExtensions[parts.slice(index).join(".")];
     if (extension) return extension;
   }
   return material.file;
@@ -64,7 +71,7 @@ function materialIconFile(name: string, dir: boolean, open: boolean): string {
 
 function iconFor(name: string, dir: boolean, open: boolean) {
   if (dir) return open ? FolderOpen : Folder;
-  const lower = name.toLowerCase();
+  const lower = baseName(name).toLowerCase();
   if (lower === "dockerfile") return Container;
   if (lower === ".gitignore" || lower === ".gitattributes") return GitBranch;
   if (lower === "package.json" || lower === "package-lock.json" || lower === "pnpm-lock.yaml") return Package;

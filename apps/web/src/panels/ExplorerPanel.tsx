@@ -1,17 +1,19 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { GitBranch } from "@toph/icons";
-import { api, type Project } from "../api";
+import type { Project } from "../api";
 import { changeStatusByPath } from "../gitStatus";
 import ProjectSearch from "../components/ProjectSearch";
 import { Button } from "@toph/ui";
-import { useProjectEvents } from "../projectEvents";
 import FileTree from "./FileTree";
+import SourceControlPanel from "./SourceControlPanel";
 
 interface Props {
   project: Project;
   onOpenFile: (path: string, line?: number) => void;
   searchFocusToken?: number;
   onOpenGit?: () => void;
+  onOpenDiff: (path: string, staged: boolean) => void;
+  onStatusChange?: (status: string) => void;
 }
 
 export default function ExplorerPanel({
@@ -19,23 +21,18 @@ export default function ExplorerPanel({
   onOpenFile,
   searchFocusToken,
   onOpenGit,
+  onOpenDiff,
+  onStatusChange,
 }: Props) {
   const [gitStatus, setGitStatus] = useState("");
   const statuses = useMemo(() => changeStatusByPath(gitStatus), [gitStatus]);
-
-  const loadStatus = useCallback(async () => {
-    try {
-      setGitStatus(await api.gitStatus(project.id));
-    } catch {
-      setGitStatus("");
-    }
-  }, [project.id]);
-
-  useEffect(() => {
-    void loadStatus();
-  }, [loadStatus]);
-
-  useProjectEvents(project.id, ["git", "files"], () => void loadStatus());
+  const handleStatusChange = useCallback(
+    (next: string) => {
+      setGitStatus(next);
+      onStatusChange?.(next);
+    },
+    [onStatusChange],
+  );
 
   return (
     <div className="panel explorer-panel">
@@ -44,13 +41,21 @@ export default function ExplorerPanel({
         {onOpenGit && (
           <Button
             className="icon-button"
-            title="Branches e alterações"
-            aria-label="Abrir branches e alterações"
+            title="Branches"
+            aria-label="Abrir branches"
             onClick={onOpenGit}
           >
             <GitBranch size={14} />
           </Button>
         )}
+      </div>
+      <div className="explorer-changes">
+        <SourceControlPanel
+          project={project}
+          embedded
+          onOpenDiff={onOpenDiff}
+          onStatusChange={handleStatusChange}
+        />
       </div>
       <ProjectSearch
         project={project}
