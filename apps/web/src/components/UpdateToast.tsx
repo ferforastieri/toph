@@ -179,7 +179,8 @@ export default function UpdateToast() {
       }
     }
 
-    const deadline = Date.now() + 180_000;
+    const startedAt = Date.now();
+    const deadline = startedAt + 180_000;
     while (Date.now() < deadline) {
       await wait(2_000);
       try {
@@ -187,6 +188,12 @@ export default function UpdateToast() {
         if (health.version === target) {
           await clearClientCaches();
           window.location.reload();
+          return;
+        }
+        const update = await api.updateStatus();
+        if (Date.now() - startedAt > 10_000 && update.error && !update.busy) {
+          setPhase("error");
+          setError(update.error);
           return;
         }
       } catch {
