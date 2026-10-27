@@ -38,7 +38,7 @@ while [ "$#" -gt 0 ]; do
   shift
 done
 
-if [ -z "$DEV_COMPONENTS" ] && [ -r /dev/tty ]; then
+if [ -z "$DEV_COMPONENTS" ] && [ -t 0 ]; then
   printf 'Install development tools on this server (git,node,pnpm,rust,go,python)? [y/N] ' >/dev/tty
   read -r ANSWER </dev/tty || ANSWER=""
   case "$ANSWER" in
@@ -287,7 +287,7 @@ if ! curl -fL --retry 3 --retry-delay 2 "https://github.com/\${REPO}/releases/do
   write_state error "\$TAG"
   exit 1
 fi
-if ! TOPH_REPO="\$REPO" TOPH_VERSION="\$TAG" TOPH_SERVICE_USER="\$SERVICE_USER" TOPH_DATA_DIR="\$DATA_DIR" \
+if ! TOPH_REPO="\$REPO" TOPH_VERSION="\$TAG" TOPH_SERVICE_USER="\$SERVICE_USER" TOPH_DATA_DIR="\$DATA_DIR" TOPH_DEV_COMPONENTS="none" \
   bash "\$INSTALLER" >> "\$LOG" 2>&1; then
   write_state error "\$TAG"
   exit 1
