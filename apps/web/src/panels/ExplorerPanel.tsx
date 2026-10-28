@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ChevronDown, ChevronRight, FolderOpen } from "@toph/icons";
 import { createPortal } from "react-dom";
 import type { FileEntry, GitHistoryEntry, Project, SearchMatch } from "../api";
 import { api } from "../api";
@@ -60,6 +61,7 @@ export default function ExplorerPanel({
   const setTerminalOpen = useApp((state) => state.setTerminalOpen);
   const setAiPanelOpen = useApp((state) => state.setAiPanelOpen);
   const [gitStatus, setGitStatus] = useState("");
+  const [rootOpen, setRootOpen] = useState(true);
   const [contextMenu, setContextMenu] = useState<ContextTarget | null>(null);
   const [selected, setSelected] = useState<FileEntry | null>(null);
   const [historyDialog, setHistoryDialog] = useState<{
@@ -332,20 +334,38 @@ export default function ExplorerPanel({
           event.target.value = "";
         }}
       />
+      <div className="panel-heading">
+        <span>Arquivos</span>
+      </div>
+      <button
+        type="button"
+        className="explorer-project"
+        title={project.root}
+        aria-expanded={rootOpen}
+        onClick={() => setRootOpen((current) => !current)}
+      >
+        {rootOpen
+          ? <ChevronDown size={13} className="explorer-project-chevron" />
+          : <ChevronRight size={13} className="explorer-project-chevron" />}
+        <FolderOpen size={15} className="explorer-project-icon" />
+        <span>{project.name}</span>
+      </button>
       <div className="explorer-files">
         <ProjectSearch
           project={project}
           onOpenFile={onOpenFile}
           focusToken={searchFocusToken}
         />
-        <FileTree
-          project={project}
-          onOpenFile={onOpenFile}
-          embedded
-          statuses={statuses}
-          onSelect={setSelected}
-          onContextMenu={openContextMenu}
-        />
+        {rootOpen && (
+          <FileTree
+            project={project}
+            onOpenFile={onOpenFile}
+            embedded
+            statuses={statuses}
+            onSelect={setSelected}
+            onContextMenu={openContextMenu}
+          />
+        )}
       </div>
       <div className="explorer-changes">
         <div className="explorer-changes-head">
