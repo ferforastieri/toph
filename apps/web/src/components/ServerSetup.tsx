@@ -1,8 +1,9 @@
-import { FormEvent, useState } from "react";
+import { useState, type FormEvent } from "react";
 import { ArrowRight, Server } from "@toph/icons";
 import { probeServer } from "../api";
 import BrandMark from "@toph/brand";
-import { Button } from "@toph/ui";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 interface Props {
   defaultUrl: string;
@@ -21,43 +22,37 @@ export default function ServerSetup({ defaultUrl, onConnected }: Props) {
     try {
       onConnected(await probeServer(url));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not reach this server.");
+      setError(err instanceof Error ? err.message : "Não foi possível conectar ao servidor.");
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <main className="login">
-      <div className="login-panel">
-        <div className="brand">
-          <BrandMark />
+    <main className="flex min-h-dvh items-center justify-center bg-background p-4">
+      <div className="flex w-full max-w-sm flex-col gap-6 rounded-2xl border bg-card p-6 shadow-sm">
+        <div className="flex items-center gap-3">
+          <BrandMark size="large" />
           <div>
-            <h1>Toph</h1>
-            <p>Connect to your self-hosted workbench.</p>
+            <h1 className="text-xl font-semibold tracking-tight">Toph</h1>
+            <p className="text-sm text-muted-foreground">Conecte ao seu workbench self-hosted.</p>
           </div>
         </div>
-        <form onSubmit={submit} className="login-form">
-          <label>
-            Server URL
-            <div className="input-with-icon">
-              <Server size={15} />
-              <input
-                value={url}
-                onChange={(event) => setUrl(event.target.value)}
-                placeholder="https://toph.example.com"
-                autoFocus
-              />
+        <form className="flex flex-col gap-4" onSubmit={submit}>
+          <label className="flex flex-col gap-1.5 text-sm">
+            URL do servidor
+            <div className="relative">
+              <Server size={15} className="pointer-events-none absolute start-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <Input value={url} onChange={(event) => setUrl(event.target.value)} placeholder="https://toph.example.com" className="ps-9" autoFocus />
             </div>
           </label>
-          {error && <div className="form-error">{error}</div>}
-          <Button className="primary" disabled={busy || !url.trim()}>
-            {busy ? "Connecting..." : "Connect"} <ArrowRight size={15} />
+          {error && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive">{error}</p>}
+          <Button type="submit" disabled={busy || !url.trim()}>
+            {busy ? "Conectando..." : "Conectar"} <ArrowRight size={15} />
           </Button>
         </form>
-        <p className="login-note">
-          Toph runs on your server. The address is saved on this device; credentials are
-          never sent to a third party.
+        <p className="text-xs text-muted-foreground">
+          O endereço fica salvo neste dispositivo; as credenciais nunca são enviadas a terceiros.
         </p>
       </div>
     </main>

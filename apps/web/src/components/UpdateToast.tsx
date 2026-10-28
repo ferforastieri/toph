@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { Download, RefreshCw, X } from "@toph/icons";
+import { X } from "@toph/icons";
 import { api, ApiError, type UpdateInstaller, type UpdateStatus } from "../api";
-import { Button } from "@toph/ui";
+import { Button } from "@/components/ui/button";
 
 type Phase = "idle" | "updating" | "error";
 
@@ -206,59 +206,23 @@ export default function UpdateToast() {
 
   const visible = status?.supported && status.available && dismissed.current !== status.latestVersion;
   if (!visible && phase !== "updating" && phase !== "error") return null;
-
   const updating = phase === "updating";
   const failed = phase === "error";
   return (
-    <div className={`update-toast ${failed ? "error" : ""}`} role="status">
-      <div>
-        <strong>
-          {updating
-            ? "Updating Toph..."
-            : failed
-              ? "Update failed"
-              : `Toph v${status?.latestVersion ?? ""} is available`}
-        </strong>
-        <span>
-          {updating
-            ? mobile
-              ? "Updating the server and downloading the new APK."
-              : desktopInstaller
-                ? `Downloading ${desktopInstaller.name} and updating the server.`
-                : "Updating the server and reloading this client."
-            : failed
-              ? error
-              : mobile
-                ? "Update the server and download the latest APK."
-                : desktopInstaller
-                  ? `Update the server and download the desktop installer${desktopLabel ? ` (${desktopLabel})` : ""}.`
-                  : "Update the server and reload the web clients."}
-        </span>
-        {downloadedPath && !failed && (
-          <small className="update-path">Instalador salvo em {downloadedPath}</small>
-        )}
+    <div className={`fixed bottom-10 end-3 z-50 w-[min(400px,calc(100vw-24px))] rounded-xl border bg-popover p-3 text-popover-foreground shadow-lg ${failed ? "border-destructive/50" : ""}`} role="status">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 flex-col gap-1">
+          <strong className="text-sm">{updating ? "Atualizando o Toph..." : failed ? "Falha na atualização" : `Toph v${status?.latestVersion ?? ""} disponível`}</strong>
+          <span className="text-xs text-muted-foreground">
+            {updating ? (mobile ? "Atualizando o servidor e baixando o novo APK." : desktopInstaller ? `Baixando ${desktopInstaller.name} e atualizando o servidor.` : "Atualizando o servidor e recarregando os clientes web.") : failed ? error : mobile ? "Atualize o servidor e baixe o APK mais recente." : desktopInstaller ? `Atualize o servidor e baixe o instalador desktop${desktopLabel ? ` (${desktopLabel})` : ""}.` : "Atualize o servidor e recarregue os clientes web."}
+          </span>
+          {downloadedPath && !failed && <small className="text-[10px] text-muted-foreground">Instalador salvo em {downloadedPath}</small>}
+        </div>
+        <div className="flex shrink-0 items-center gap-1">
+          {!updating && <Button size="sm" onClick={() => void update()}>{failed ? "Tentar novamente" : "Atualizar"}</Button>}
+          {!updating && <Button variant="ghost" size="icon-xs" aria-label="Dismiss" onClick={() => { if (status) dismissed.current = status.latestVersion; setPhase("idle"); setStatus(null); }}><X size={14} /></Button>}
+        </div>
       </div>
-      <Button className="primary small" disabled={updating} onClick={() => void update()}>
-        {updating ? (
-          <RefreshCw size={13} className="spin" />
-        ) : (
-          <Download size={13} />
-        )}{" "}
-        {updating ? "Updating..." : failed ? "Retry" : "Update"}
-      </Button>
-      {!updating && (
-        <Button
-          className="icon-button"
-          aria-label="Dismiss"
-          onClick={() => {
-            if (status) dismissed.current = status.latestVersion;
-            setPhase("idle");
-            setStatus(null);
-          }}
-        >
-          <X size={14} />
-        </Button>
-      )}
     </div>
   );
 }

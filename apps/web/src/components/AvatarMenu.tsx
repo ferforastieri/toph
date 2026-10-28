@@ -1,10 +1,24 @@
-import { useEffect, useRef, useState, type CSSProperties } from "react";
-import { createPortal } from "react-dom";
-import { LogOut, RotateCcw, Settings2, UserRound } from "@toph/icons";
+import { useEffect, useState } from "react";
+import { LogOut, Settings2, UserRound } from "@toph/icons";
 import { api, getApiBase, type User } from "../api";
 import { useApp } from "../store";
-import { useSettings } from "../settings";
-import { Button, Modal } from "@toph/ui";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 
 type Variant = "activity" | "titlebar";
 
@@ -19,9 +33,7 @@ function initials(username?: string): string {
   const value = username?.trim();
   if (!value) return "?";
   const parts = value.split(/[\s._-]+/).filter(Boolean);
-  if (parts.length > 1) {
-    return `${parts[0][0] ?? ""}${parts[1][0] ?? ""}`.toUpperCase();
-  }
+  if (parts.length > 1) return `${parts[0][0] ?? ""}${parts[1][0] ?? ""}`.toUpperCase();
   return value.slice(0, 2).toUpperCase();
 }
 
@@ -35,86 +47,25 @@ function formatDate(value?: string): string {
 export default function AvatarMenu({ user, variant, onSettings, active = false }: Props) {
   const setUser = useApp((state) => state.setUser);
   const notify = useApp((state) => state.notify);
-  const resetSettings = useSettings((state) => state.reset);
-  const [open, setOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [position, setPosition] = useState<CSSProperties>({});
   const [appVersion, setAppVersion] = useState("");
   const [buildId, setBuildId] = useState("");
-  const buttonRef = useRef<HTMLButtonElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
   const avatar = initials(user?.username);
   const server = getApiBase() || window.location.origin;
-
-  function updatePosition() {
-    const rect = buttonRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    if (variant === "titlebar") {
-      setPosition({
-        top: rect.bottom + 8,
-        right: Math.max(8, window.innerWidth - rect.right),
-      });
-    } else {
-      setPosition({
-        bottom: Math.max(8, window.innerHeight - rect.bottom),
-        left: rect.right + 8,
-      });
-    }
-  }
-
-  function toggle() {
-    if (!open) updatePosition();
-    setOpen((current) => !current);
-  }
 
   useEffect(() => {
     if (!accountOpen) return;
     let cancelled = false;
-    api
-      .version()
+    api.version()
       .then((info) => {
         if (cancelled) return;
         setAppVersion(info.version);
         setBuildId(info.buildId);
       })
       .catch(() => undefined);
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [accountOpen]);
-
-  useEffect(() => {
-    if (!open) return;
-    const reposition = () => updatePosition();
-    window.addEventListener("resize", reposition);
-    window.addEventListener("scroll", reposition, true);
-    return () => {
-      window.removeEventListener("resize", reposition);
-      window.removeEventListener("scroll", reposition, true);
-    };
-  }, [open, variant]);
-
-  useEffect(() => {
-    if (!open) return;
-    const onPointerDown = (event: PointerEvent) => {
-      const target = event.target as Node;
-      if (menuRef.current?.contains(target) || buttonRef.current?.contains(target)) return;
-      setOpen(false);
-    };
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("pointerdown", onPointerDown, true);
-    document.addEventListener("keydown", onKeyDown);
-    window.setTimeout(() => {
-      menuRef.current?.querySelector<HTMLButtonElement>("button")?.focus();
-    }, 0);
-    return () => {
-      document.removeEventListener("pointerdown", onPointerDown, true);
-      document.removeEventListener("keydown", onKeyDown);
-    };
-  }, [open]);
 
   async function logout() {
     setBusy(true);
@@ -124,106 +75,83 @@ export default function AvatarMenu({ user, variant, onSettings, active = false }
       notify("error", error instanceof Error ? error.message : "Não foi possível sair.");
     } finally {
       setBusy(false);
-      setOpen(false);
       setAccountOpen(false);
       setUser(null);
     }
   }
 
-  function openSettings() {
-    setOpen(false);
-    onSettings();
-  }
-
   return (
     <>
-      <Button
-        ref={buttonRef}
-        type="button"
-        className={`avatar-button avatar-${variant} ${active ? "active" : ""} ${open ? "open" : ""}`}
-        title={user ? `Conta de ${user.username}` : "Conta"}
-        aria-label={user ? `Abrir menu da conta de ${user.username}` : "Abrir menu da conta"}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        onClick={toggle}
-      >
-        <span className="avatar-initials">{avatar}</span>
-      </Button>
-      {open &&
-        createPortal(
-          <div
-            ref={menuRef}
-            className={`avatar-menu avatar-menu-${variant}`}
-            style={position}
-            role="menu"
-            aria-label="Menu da conta"
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            aria-label={user ? `Abrir menu da conta de ${user.username}` : "Abrir menu da conta"}
+            className={`rounded-full outline-none ring-offset-2 ring-offset-background transition-shadow focus-visible:ring-2 focus-visible:ring-ring ${active ? "ring-2 ring-primary" : ""}`}
           >
-            <div className="avatar-menu-head">
-              <span className="avatar-initials avatar-initials-lg">{avatar}</span>
-              <span className="avatar-menu-identity">
-                <strong>{user?.username ?? "Conta"}</strong>
-                <small>{server}</small>
-              </span>
+            <Avatar className={variant === "titlebar" ? "size-8" : "size-9"}>
+              <AvatarFallback className="bg-primary/15 text-xs font-semibold text-primary">{avatar}</AvatarFallback>
+            </Avatar>
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align={variant === "activity" ? "start" : "end"} side={variant === "activity" ? "right" : "bottom"} className="w-72">
+          <DropdownMenuLabel className="flex items-center gap-3 py-2 font-normal">
+            <Avatar className="size-9"><AvatarFallback className="bg-primary/15 text-xs font-semibold text-primary">{avatar}</AvatarFallback></Avatar>
+            <span className="min-w-0">
+              <span className="block truncate text-sm font-medium">{user?.username ?? "Conta"}</span>
+              <span className="block truncate text-xs text-muted-foreground">{server}</span>
+            </span>
+          </DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onSelect={onSettings} className="gap-2">
+            <Settings2 size={15} /> Configurações
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => setAccountOpen(true)} className="gap-2">
+            <UserRound size={15} /> Conta
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem variant="destructive" disabled={busy} onSelect={() => void logout()} className="gap-2">
+            <LogOut size={15} /> {busy ? "Saindo..." : "Sair"}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <Dialog open={accountOpen} onOpenChange={setAccountOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Conta</DialogTitle>
+            <DialogDescription>Sessão neste servidor.</DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-5">
+            <div className="flex items-center gap-3">
+              <Avatar className="size-12"><AvatarFallback className="bg-primary/15 text-base font-semibold text-primary">{avatar}</AvatarFallback></Avatar>
+              <div>
+                <p className="font-medium">{user?.username ?? "Conta"}</p>
+                <p className="text-xs text-muted-foreground">{server}</p>
+              </div>
             </div>
-            <div className="avatar-menu-separator" />
-            <button type="button" role="menuitem" onClick={openSettings}>
-              <Settings2 size={15} />
-              <span>Configurações</span>
-            </button>
-            <button
-              type="button"
-              role="menuitem"
-              onClick={() => {
-                setOpen(false);
-                setAccountOpen(true);
-              }}
-            >
-              <UserRound size={15} />
-              <span>Conta</span>
-            </button>
-            <div className="avatar-menu-separator" />
-            <button
-              type="button"
-              role="menuitem"
-              className="danger"
-              disabled={busy}
-              onClick={() => void logout()}
-            >
-              <LogOut size={15} />
-              <span>{busy ? "Saindo..." : "Sair"}</span>
-            </button>
-          </div>,
-          document.body,
-        )}
-      {accountOpen && (
-        <Modal
-          title="Conta"
-          onClose={() => setAccountOpen(false)}
-          width={430}
-          footer={
-            <Button className="ghost small" onClick={resetSettings}>
-              <RotateCcw size={14} /> Redefinir aparência
-            </Button>
-          }
-        >
-          <div className="account-summary">
-            <span className="avatar-initials avatar-initials-xl">{avatar}</span>
-            <div>
-              <strong>{user?.username ?? "Conta"}</strong>
-              <small>Sessão neste servidor</small>
+            <div className="flex flex-col divide-y rounded-xl border">
+              <Fact label="Servidor" value={server} />
+              {user?.id !== undefined && <Fact label="ID da conta" value={String(user.id)} />}
+              <Fact label="Membro desde" value={formatDate(user?.createdAt)} />
+              <Fact label="Versão do Toph" value={appVersion ? `v${appVersion}` : "—"} />
+              {buildId && <Fact label="Build" value={buildId} />}
             </div>
           </div>
-          <div className="account-facts">
-            <div className="settings-kv"><span>Servidor</span><b>{server}</b></div>
-            {user?.id !== undefined && (
-              <div className="settings-kv"><span>ID da conta</span><b>{user.id}</b></div>
-            )}
-            <div className="settings-kv"><span>Membro desde</span><b>{formatDate(user?.createdAt)}</b></div>
-            <div className="settings-kv"><span>Versão do Toph</span><b>{appVersion ? `v${appVersion}` : "—"}</b></div>
-            {buildId && <div className="settings-kv"><span>Build</span><b>{buildId}</b></div>}
+          <div className="flex justify-end">
+            <Button variant="outline" onClick={() => setAccountOpen(false)}>Fechar</Button>
           </div>
-        </Modal>
-      )}
+        </DialogContent>
+      </Dialog>
     </>
+  );
+}
+
+function Fact({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-4 px-3 py-2.5">
+      <span className="text-xs text-muted-foreground">{label}</span>
+      <span className="truncate text-xs font-medium">{value}</span>
+    </div>
   );
 }

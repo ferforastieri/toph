@@ -1,83 +1,31 @@
-import { useEffect, useState } from "react";
 import { create } from "zustand";
-import type { IconTheme } from "@toph/icons";
 
-export type { IconTheme } from "@toph/icons";
+export type Theme = "light" | "dark" | "nightwolf";
 
-export type ThemePreference = "auto" | "dark" | "light" | "brand" | "emerald" | "nightwolf";
-export type ResolvedTheme = "dark" | "light" | "brand" | "emerald" | "nightwolf";
-export type Accent = "jade" | "ocean" | "violet" | "amber" | "rose" | "graphite";
-export type GlassLevel = "off" | "subtle" | "regular" | "strong";
-export type BackgroundStyle = "aurora" | "mesh" | "grid" | "solid";
-export type Density = "compact" | "comfortable" | "spacious";
-export type TabStyle = "glass" | "underline" | "compact";
-
-export interface AppearanceSettings {
-  theme: ThemePreference;
-  accent: Accent;
-  glass: GlassLevel;
-  background: BackgroundStyle;
-  density: Density;
-  tabs: TabStyle;
-  radius: number;
+export interface SettingsState {
+  theme: Theme;
   sidebarWidth: number;
-  editorFontSize: number;
-  terminalFontSize: number;
-  terminalHeight: number;
-  motion: boolean;
-  confirmClose: boolean;
-  wordWrap: boolean;
-  minimap: boolean;
-  respectReducedTransparency: boolean;
   aiPanelWidth: number;
-  iconTheme: IconTheme;
+  terminalHeight: number;
+  confirmClose: boolean;
   gitBranchPattern: string;
   gitCommitPattern: string;
-}
-
-export interface SettingsState extends AppearanceSettings {
-  update: (patch: Partial<AppearanceSettings>) => void;
+  update: (patch: Partial<Omit<SettingsState, "update" | "setTheme" | "reset">>) => void;
+  setTheme: (theme: Theme) => void;
   reset: () => void;
 }
 
-const STORAGE_KEY = "toph_appearance";
-const CODE_FONT_MIGRATION_KEY = "toph_code_font_v1";
-const TERMINAL_FONT_MIGRATION_KEY = "toph_terminal_font_v1";
+const STORAGE_KEY = "toph_settings";
 
-export const defaultSettings: AppearanceSettings = {
-  theme: "emerald",
-  accent: "jade",
-  glass: "regular",
-  background: "aurora",
-  density: "comfortable",
-  tabs: "glass",
-  radius: 20,
-  sidebarWidth: 310,
-  editorFontSize: 14,
-  terminalFontSize: 14,
-  terminalHeight: 280,
-  motion: true,
-  confirmClose: true,
-  wordWrap: false,
-  minimap: false,
-  respectReducedTransparency: false,
+export const defaultSettings = {
+  theme: "nightwolf" as Theme,
+  sidebarWidth: 300,
   aiPanelWidth: 390,
-  iconTheme: "material",
+  terminalHeight: 280,
+  confirmClose: true,
   gitBranchPattern: "feature/{task}-{slug}",
   gitCommitPattern: "{task} {summary}",
 };
-
-const themes: ThemePreference[] = ["auto", "dark", "light", "brand", "emerald", "nightwolf"];
-const iconThemes: IconTheme[] = ["material", "phosphor", "remix"];
-const accents: Accent[] = ["jade", "ocean", "violet", "amber", "rose", "graphite"];
-const glassLevels: GlassLevel[] = ["off", "subtle", "regular", "strong"];
-const backgrounds: BackgroundStyle[] = ["aurora", "mesh", "grid", "solid"];
-const densities: Density[] = ["compact", "comfortable", "spacious"];
-const tabStyles: TabStyle[] = ["glass", "underline", "compact"];
-
-function choose<T extends string>(value: unknown, options: T[], fallback: T): T {
-  return typeof value === "string" && options.includes(value as T) ? (value as T) : fallback;
-}
 
 function numberIn(value: unknown, min: number, max: number, fallback: number): number {
   return typeof value === "number" && Number.isFinite(value)
@@ -85,129 +33,86 @@ function numberIn(value: unknown, min: number, max: number, fallback: number): n
     : fallback;
 }
 
-function readSettings(): AppearanceSettings {
+function readSettings() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      localStorage.setItem(CODE_FONT_MIGRATION_KEY, "1");
-      localStorage.setItem(TERMINAL_FONT_MIGRATION_KEY, "1");
-      return defaultSettings;
-    }
-    const value = JSON.parse(raw) as Partial<AppearanceSettings>;
-    const storedFontSize = numberIn(value.editorFontSize, 11, 20, defaultSettings.editorFontSize);
-    const editorFontSize = localStorage.getItem(CODE_FONT_MIGRATION_KEY)
-      ? storedFontSize
-      : storedFontSize === 13
-        ? defaultSettings.editorFontSize
-        : storedFontSize;
-    const storedTerminalFontSize = numberIn(value.terminalFontSize, 10, 18, defaultSettings.terminalFontSize);
-    const terminalFontSize = localStorage.getItem(TERMINAL_FONT_MIGRATION_KEY)
-      ? storedTerminalFontSize
-      : storedTerminalFontSize === 12.5
-        ? defaultSettings.terminalFontSize
-        : storedTerminalFontSize;
-    localStorage.setItem(CODE_FONT_MIGRATION_KEY, "1");
-    localStorage.setItem(TERMINAL_FONT_MIGRATION_KEY, "1");
+    if (!raw) return defaultSettings;
+    const value = JSON.parse(raw) as Partial<typeof defaultSettings>;
     return {
-      theme: choose(value.theme, themes, defaultSettings.theme),
-      accent: choose(value.accent, accents, defaultSettings.accent),
-      glass: choose(value.glass, glassLevels, defaultSettings.glass),
-      background: choose(value.background, backgrounds, defaultSettings.background),
-      density: choose(value.density, densities, defaultSettings.density),
-      tabs: choose(value.tabs, tabStyles, defaultSettings.tabs),
-      radius: numberIn(value.radius, 0, 32, defaultSettings.radius),
+      theme:
+        value.theme === "light" || value.theme === "dark" || value.theme === "nightwolf"
+          ? value.theme
+          : defaultSettings.theme,
       sidebarWidth: numberIn(value.sidebarWidth, 220, 460, defaultSettings.sidebarWidth),
-      editorFontSize,
-      terminalFontSize,
-      terminalHeight: numberIn(value.terminalHeight, 180, 640, defaultSettings.terminalHeight),
-      motion: value.motion !== false,
-      confirmClose: value.confirmClose !== false,
-      wordWrap: value.wordWrap === true,
-      minimap: value.minimap === true,
-      respectReducedTransparency: value.respectReducedTransparency === true,
       aiPanelWidth: numberIn(value.aiPanelWidth, 300, 620, defaultSettings.aiPanelWidth),
-      iconTheme: choose(value.iconTheme, iconThemes, defaultSettings.iconTheme),
-      gitBranchPattern: !value.gitBranchPattern || value.gitBranchPattern === "feature/{datetime}" || value.gitBranchPattern === "feature/{date}"
-        ? defaultSettings.gitBranchPattern
-        : value.gitBranchPattern,
-      gitCommitPattern: !value.gitCommitPattern || value.gitCommitPattern === "chore: update {date}"
-        ? defaultSettings.gitCommitPattern
-        : value.gitCommitPattern,
+      terminalHeight: numberIn(value.terminalHeight, 180, 640, defaultSettings.terminalHeight),
+      confirmClose: value.confirmClose !== false,
+      gitBranchPattern:
+        typeof value.gitBranchPattern === "string" && value.gitBranchPattern.trim()
+          ? value.gitBranchPattern
+          : defaultSettings.gitBranchPattern,
+      gitCommitPattern:
+        typeof value.gitCommitPattern === "string" && value.gitCommitPattern.trim()
+          ? value.gitCommitPattern
+          : defaultSettings.gitCommitPattern,
     };
   } catch {
     return defaultSettings;
   }
 }
 
-export function resolveTheme(preference: ThemePreference): ResolvedTheme {
-  if (preference !== "auto") return preference;
-  return window.matchMedia?.("(prefers-color-scheme: light)").matches ? "light" : "dark";
+export function applyTheme(theme: Theme): void {
+  const root = document.documentElement;
+  root.classList.toggle("dark", theme !== "light");
+  root.classList.toggle("theme-nightwolf", theme === "nightwolf");
+  root.style.colorScheme = theme === "light" ? "light" : "dark";
+  root.dataset.theme = theme;
 }
 
-const glassStyles: Record<GlassLevel, { blur: number; opacity: number; saturate: number }> = {
-  off: { blur: 0, opacity: 0.98, saturate: 1 },
-  subtle: { blur: 16, opacity: 0.66, saturate: 1.3 },
-  regular: { blur: 28, opacity: 0.54, saturate: 1.55 },
-  strong: { blur: 42, opacity: 0.38, saturate: 1.8 },
-};
-
-export function applyAppearance(settings: AppearanceSettings): void {
+export function applyLayout(settings: Pick<typeof defaultSettings, "sidebarWidth" | "aiPanelWidth" | "terminalHeight">): void {
   const root = document.documentElement;
-  root.dataset.theme = resolveTheme(settings.theme);
-  root.dataset.accent = settings.accent;
-  root.dataset.glass = settings.glass;
-  root.dataset.background = settings.background;
-  root.dataset.density = settings.density;
-  root.dataset.tabs = settings.tabs;
-  root.dataset.motion = settings.motion ? "on" : "off";
-  root.dataset.iconTheme = settings.iconTheme;
-  root.dataset.reducedTransparency = settings.respectReducedTransparency ? "on" : "off";
-  root.style.setProperty("--radius", `${settings.radius}px`);
   root.style.setProperty("--sidebar-width", `${settings.sidebarWidth}px`);
-  root.style.setProperty("--editor-font-size", `${settings.editorFontSize}px`);
-  root.style.setProperty("--terminal-font-size", `${settings.terminalFontSize}px`);
-  root.style.setProperty("--terminal-height", `${settings.terminalHeight}px`);
   root.style.setProperty("--ai-panel-width", `${settings.aiPanelWidth}px`);
-  const glass = glassStyles[settings.glass];
-  const lightBoost = root.dataset.theme === "light" ? 0.12 : 0;
-  root.style.setProperty("--glass-blur", `${glass.blur}px`);
-  root.style.setProperty("--glass-opacity", `${Math.min(1, glass.opacity + lightBoost)}`);
-  root.style.setProperty("--glass-saturate", `${glass.saturate}`);
+  root.style.setProperty("--terminal-height", `${settings.terminalHeight}px`);
 }
 
 export const useSettings = create<SettingsState>((set, get) => ({
   ...readSettings(),
   update: (patch) => {
-    const next = { ...get(), ...patch };
-    const settings: AppearanceSettings = {
-      theme: next.theme,
-      accent: next.accent,
-      glass: next.glass,
-      background: next.background,
-      density: next.density,
-      tabs: next.tabs,
-      radius: next.radius,
-      sidebarWidth: next.sidebarWidth,
-      editorFontSize: next.editorFontSize,
-      terminalFontSize: next.terminalFontSize,
-      terminalHeight: next.terminalHeight,
-      motion: next.motion,
-      confirmClose: next.confirmClose,
-      wordWrap: next.wordWrap,
-      minimap: next.minimap,
-      respectReducedTransparency: next.respectReducedTransparency,
-      aiPanelWidth: next.aiPanelWidth,
-      iconTheme: next.iconTheme,
-      gitBranchPattern: next.gitBranchPattern,
-      gitCommitPattern: next.gitCommitPattern,
+    const next = {
+      theme: get().theme,
+      sidebarWidth: patch.sidebarWidth ?? get().sidebarWidth,
+      aiPanelWidth: patch.aiPanelWidth ?? get().aiPanelWidth,
+      terminalHeight: patch.terminalHeight ?? get().terminalHeight,
+      confirmClose: patch.confirmClose ?? get().confirmClose,
+      gitBranchPattern: patch.gitBranchPattern ?? get().gitBranchPattern,
+      gitCommitPattern: patch.gitCommitPattern ?? get().gitCommitPattern,
     };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
-    applyAppearance(settings);
-    set(settings);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    applyLayout(next);
+    set(next);
+  },
+  setTheme: (theme) => {
+    const next = { ...get(), theme };
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        theme,
+        sidebarWidth: next.sidebarWidth,
+        aiPanelWidth: next.aiPanelWidth,
+        terminalHeight: next.terminalHeight,
+        confirmClose: next.confirmClose,
+        gitBranchPattern: next.gitBranchPattern,
+        gitCommitPattern: next.gitCommitPattern,
+      }),
+    );
+    applyTheme(theme);
+    set({ theme });
   },
   reset: () => {
     localStorage.removeItem(STORAGE_KEY);
-    applyAppearance(defaultSettings);
+    applyTheme(defaultSettings.theme);
+    applyLayout(defaultSettings);
     set(defaultSettings);
   },
 }));
@@ -217,34 +122,8 @@ let initialized = false;
 export function initAppearance(): void {
   if (initialized) return;
   initialized = true;
-  applyAppearance(readSettings());
-  const media = window.matchMedia?.("(prefers-color-scheme: light)");
-  media?.addEventListener?.("change", () => {
-    if (useSettings.getState().theme === "auto") {
-      applyAppearance(useSettings.getState());
-    }
-  });
+  const settings = readSettings();
+  applyTheme(settings.theme);
+  applyLayout(settings);
+  localStorage.removeItem("toph_appearance");
 }
-
-export function useResolvedTheme(): ResolvedTheme {
-  const preference = useSettings((state) => state.theme);
-  const [resolved, setResolved] = useState(() => resolveTheme(preference));
-  useEffect(() => {
-    setResolved(resolveTheme(preference));
-    if (preference !== "auto") return;
-    const media = window.matchMedia?.("(prefers-color-scheme: light)");
-    const onChange = () => setResolved(resolveTheme(preference));
-    media?.addEventListener?.("change", onChange);
-    return () => media?.removeEventListener?.("change", onChange);
-  }, [preference]);
-  return resolved;
-}
-
-export const accentPalette: Record<Accent, { cursor: string; selectionDark: string; selectionLight: string }> = {
-  jade: { cursor: "#A8C66C", selectionDark: "#33421F", selectionLight: "#CFE3B8" },
-  ocean: { cursor: "#58B6D3", selectionDark: "#1D4652", selectionLight: "#BEE3EF" },
-  violet: { cursor: "#B18DFF", selectionDark: "#3D3056", selectionLight: "#DED2FA" },
-  amber: { cursor: "#E1B15C", selectionDark: "#4A3A1C", selectionLight: "#F0DDBB" },
-  rose: { cursor: "#EE8FA2", selectionDark: "#4D2834", selectionLight: "#F4CDD5" },
-  graphite: { cursor: "#C0C8B9", selectionDark: "#343B30", selectionLight: "#D7DDD3" },
-};

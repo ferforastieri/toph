@@ -4,10 +4,10 @@ import { FitAddon } from "@xterm/addon-fit";
 import { RefreshCw, X } from "@toph/icons";
 import { api, type Project } from "../api";
 import { useApp } from "../store";
-import { useResolvedTheme, useSettings } from "../settings";
+import { useSettings } from "../settings";
 import { CODE_FONT_FAMILY } from "../editorThemes";
-import { Button } from "@toph/ui";
-import { ResizeHandle } from "@toph/ui";
+import { Button } from "@/components/ui/button";
+import ResizeHandle from "../ui/resize";
 
 interface Props {
   project: Project;
@@ -20,36 +20,33 @@ export default function TerminalPanel({ project }: Props) {
   const [status, setStatus] = useState<"connecting" | "open" | "closed" | "error">("connecting");
   const [attempt, setAttempt] = useState(0);
   const [error, setError] = useState("");
-  const terminalFontSize = useSettings((state) => state.terminalFontSize);
   const terminalHeight = useSettings((state) => state.terminalHeight);
   const updateSettings = useSettings((state) => state.update);
-  const accent = useSettings((state) => state.accent);
-  const resolved = useResolvedTheme();
+  const theme = useSettings((state) => state.theme);
 
   useEffect(() => {
     if (!hostRef.current) return;
     let disposed = false;
     let socket: WebSocket | null = null;
     let resizeObserver: ResizeObserver | null = null;
-    const primary = getComputedStyle(document.documentElement).getPropertyValue("--primary").trim() || "#A8C66C";
     const term = new Terminal({
       convertEol: true,
       cursorBlink: true,
       cursorStyle: "block",
       drawBoldTextInBrightColors: true,
       fontFamily: CODE_FONT_FAMILY,
-      fontSize: terminalFontSize,
+      fontSize: 14,
       fontWeight: "normal",
       fontWeightBold: "bold",
       letterSpacing: 0,
       lineHeight: 1,
       scrollback: 5000,
-      theme: resolved === "light"
+      theme: theme === "light"
         ? {
             background: "#F7F8F5",
             foreground: "#22251F",
-            cursor: primary,
-            selectionBackground: "#CFE3B8",
+            cursor: "#9D3BB5",
+            selectionBackground: "#EBD4F2",
             black: "#22251F",
             red: "#B64B40",
             green: "#3E7A45",
@@ -67,103 +64,53 @@ export default function TerminalPanel({ project }: Props) {
             brightCyan: "#4C8C94",
             brightWhite: "#11130F",
           }
-        : resolved === "brand"
-        ? {
-            background: "#080B12",
-            foreground: "#DCE4F7",
-            cursor: primary,
-            selectionBackground: "#2B3B70",
-            black: "#080B12",
-            red: "#FF6B7A",
-            green: "#7BD88F",
-            yellow: "#FFC857",
-            blue: "#7C9BFF",
-            magenta: "#B9A0D6",
-            cyan: "#58C4FF",
-            white: "#DCE4F7",
-            brightBlack: "#4D5870",
-            brightRed: "#FF8A96",
-            brightGreen: "#A0E7AE",
-            brightYellow: "#FFD98A",
-            brightBlue: "#98B0FF",
-            brightMagenta: "#CDB8E6",
-            brightCyan: "#8AD8FF",
-            brightWhite: "#FFFFFF",
-          }
-        : resolved === "emerald"
-        ? {
-            background: "#041310",
-            foreground: "#E7FFF7",
-            cursor: primary,
-            selectionBackground: "#174035",
-            black: "#041310",
-            red: "#FF7D8A",
-            green: "#43E6A0",
-            yellow: "#F6C96B",
-            blue: "#2DD4BF",
-            magenta: "#C4B5FD",
-            cyan: "#67E8F9",
-            white: "#E7FFF7",
-            brightBlack: "#426B60",
-            brightRed: "#FF9AA4",
-            brightGreen: "#6CF2B7",
-            brightYellow: "#FFD98A",
-            brightBlue: "#5EEAD4",
-            brightMagenta: "#DDD6FE",
-            brightCyan: "#A5F3FC",
-            brightWhite: "#FFFFFF",
-          }
-        : resolved === "nightwolf"
-        ? {
-            background: "#000000",
-            foreground: "#C8C8C8",
-            cursor: "#FF50FF",
-            cursorAccent: "#000000",
-            selectionBackground: "#96969659",
-            selectionForeground: "#C8C8C8",
-            selectionInactiveBackground: "#96969633",
-            scrollbarSliderBackground: "#50505050",
-            scrollbarSliderHoverBackground: "#50505080",
-            scrollbarSliderActiveBackground: "#50505050",
-            black: "#000000",
-            red: "#FF7878",
-            green: "#AAE682",
-            yellow: "#FFDC96",
-            blue: "#00B1FF",
-            magenta: "#FF50FF",
-            cyan: "#00DCDC",
-            white: "#C8C8C8",
-            brightBlack: "#787878",
-            brightRed: "#FF7878",
-            brightGreen: "#AAE682",
-            brightYellow: "#FFDC96",
-            brightBlue: "#00B1FF",
-            brightMagenta: "#FF50FF",
-            brightCyan: "#00DCDC",
-            brightWhite: "#FFFFFF",
-          }
-        : {
-            background: "#0F120D",
-            foreground: "#EEF1E8",
-            cursor: primary,
-            selectionBackground: "#33421F",
-            black: "#0F120D",
-            red: "#D96C5F",
-            green: "#A8C66C",
-            yellow: "#D4A24C",
-            blue: "#7FA7A0",
-            magenta: "#B9A0D6",
-            cyan: "#7FA7A0",
-            white: "#EEF1E8",
-            brightBlack: "#566050",
-            brightRed: "#F08A7D",
-            brightGreen: "#B9D77E",
-            brightYellow: "#E3B662",
-            brightBlue: "#9BC2BA",
-            brightMagenta: "#CDB8E6",
-            brightCyan: "#9BC2BA",
-            brightWhite: "#FFFFFF",
-          },
+        : theme === "nightwolf"
+          ? {
+              background: "#000000",
+              foreground: "#C8C8C8",
+              cursor: "#FF50FF",
+              cursorAccent: "#000000",
+              selectionBackground: "#96969659",
+              selectionForeground: "#C8C8C8",
+              black: "#000000",
+              red: "#FF7878",
+              green: "#AAE682",
+              yellow: "#FFDC96",
+              blue: "#00B1FF",
+              magenta: "#FF50FF",
+              cyan: "#00DCDC",
+              white: "#C8C8C8",
+              brightBlack: "#787878",
+              brightRed: "#FF7878",
+              brightGreen: "#AAE682",
+              brightYellow: "#FFDC96",
+              brightBlue: "#00B1FF",
+              brightMagenta: "#FF50FF",
+              brightCyan: "#00DCDC",
+              brightWhite: "#FFFFFF",
+            }
+          : {
+              background: "#0F120D",
+              foreground: "#EEF1E8",
+              cursor: "#A8C66C",
+              selectionBackground: "#33421F",
+              black: "#0F120D",
+              red: "#D96C5F",
+              green: "#A8C66C",
+              yellow: "#D4A24C",
+              blue: "#7FA7A0",
+              magenta: "#B9A0D6",
+              cyan: "#7FA7A0",
+              white: "#EEF1E8",
+              brightBlack: "#566050",
+              brightRed: "#F08A7D",
+              brightGreen: "#B9D77E",
+              brightYellow: "#E3B662",
+              brightBlue: "#9BC2BA",
+              brightMagenta: "#CDB8E6",
+              brightCyan: "#9BC2BA",
+              brightWhite: "#FFFFFF",
+            },
     });
     const fit = new FitAddon();
     term.loadAddon(fit);
@@ -237,37 +184,21 @@ export default function TerminalPanel({ project }: Props) {
       socket?.close();
       term.dispose();
     };
-  }, [accent, attempt, project.id, setTerminalId, terminalFontSize, resolved]);
+  }, [attempt, project.id, setTerminalId, theme]);
 
   return (
-    <section className="terminal-panel">
-      <ResizeHandle
-        className="terminal-resize"
-        orientation="horizontal"
-        value={terminalHeight}
-        min={180}
-        max={640}
-        invert
-        label="Resize terminal"
-        onChange={(height) => document.documentElement.style.setProperty("--terminal-height", `${height}px`)}
-        onCommit={(height) => updateSettings({ terminalHeight: height })}
-      />
-      <div className="terminal-header">
-        <div className="terminal-tabs">
-          <span className="terminal-tab active">Terminal</span>
-        </div>
-        <div className="terminal-actions">
-          <span className={`terminal-status ${status}`}>{status}</span>
-          <Button className="icon-button" title="Reconnect" onClick={() => setAttempt((n) => n + 1)}>
-            <RefreshCw size={13} />
-          </Button>
-          <Button className="icon-button" title="Close" onClick={() => setTerminalOpen(false)}>
-            <X size={14} />
-          </Button>
+    <section className="flex h-[var(--terminal-height)] min-h-[180px] shrink-0 flex-col border-t bg-muted/20">
+      <ResizeHandle className="terminal-resize" orientation="horizontal" value={terminalHeight} min={180} max={640} invert label="Resize terminal" onChange={(height) => document.documentElement.style.setProperty("--terminal-height", `${height}px`)} onCommit={(height) => updateSettings({ terminalHeight: height })} />
+      <div className="flex h-8 shrink-0 items-center justify-between border-b px-2">
+        <span className="flex h-6 items-center rounded border bg-background px-2 text-[11px] font-medium">Terminal</span>
+        <div className="flex items-center gap-1.5">
+          <span className="text-[10px] text-muted-foreground">{status}</span>
+          <Button variant="ghost" size="icon-xs" aria-label="Reconnect" onClick={() => setAttempt((n) => n + 1)}><RefreshCw size={13} /></Button>
+          <Button variant="ghost" size="icon-xs" aria-label="Close" onClick={() => setTerminalOpen(false)}><X size={14} /></Button>
         </div>
       </div>
-      {error && <div className="terminal-error">{error}</div>}
-      <div className="terminal-host" ref={hostRef} />
+      {error && <div className="border-b border-destructive/40 bg-destructive/10 px-2 py-1 text-[11px] text-destructive">{error}</div>}
+      <div className="min-h-0 flex-1" ref={hostRef} />
     </section>
   );
 }

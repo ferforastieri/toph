@@ -1,29 +1,13 @@
 import {
-  BookOpen,
-  Braces,
-  Container,
-  Database,
-  FileCode2,
-  FileJson,
-  FileText,
-  FileType,
-  Folder,
-  FolderOpen,
-  GitBranch,
-  Image,
-  Lock,
-  Package,
-  Settings,
 } from "@toph/icons";
 import materialManifest from "material-icon-theme/dist/material-icons.json";
-import type { IconTheme } from "../settings";
 
 interface Props {
   name: string;
   path?: string;
   dir?: boolean;
   open?: boolean;
-  iconTheme: IconTheme;
+
   size?: number;
 }
 
@@ -69,36 +53,13 @@ function materialIconFile(name: string, dir: boolean, open: boolean): string {
   return path.split("/").pop() ?? "file.svg";
 }
 
-function iconFor(name: string, dir: boolean, open: boolean) {
-  if (dir) return open ? FolderOpen : Folder;
-  const lower = baseName(name).toLowerCase();
-  if (lower === "dockerfile") return Container;
-  if (lower === ".gitignore" || lower === ".gitattributes") return GitBranch;
-  if (lower === "package.json" || lower === "package-lock.json" || lower === "pnpm-lock.yaml") return Package;
-  if (lower === ".env" || lower.startsWith(".env.")) return Lock;
-  if (lower.endsWith(".json")) return FileJson;
-  if (lower.endsWith(".md") || lower.endsWith(".mdx") || lower.endsWith(".txt")) return BookOpen;
-  if (lower.endsWith(".yml") || lower.endsWith(".yaml") || lower.endsWith(".toml")) return Settings;
-  if (["js", "jsx", "ts", "tsx", "vue", "svelte"].some((ext) => lower.endsWith(`.${ext}`))) return Braces;
-  if (["css", "scss", "less", "html", "xml"].some((ext) => lower.endsWith(`.${ext}`))) return FileType;
-  if (["png", "jpg", "jpeg", "gif", "svg", "ico", "webp"].some((ext) => lower.endsWith(`.${ext}`))) return Image;
-  if (["sql", "db", "sqlite"].some((ext) => lower.endsWith(`.${ext}`))) return Database;
-  if (["sh", "bash", "zsh", "fish"].some((ext) => lower.endsWith(`.${ext}`))) return FileCode2;
-  return FileText;
-}
-
-export default function FileIcon({ name, dir = false, open = false, iconTheme, size = 15 }: Props) {
-  if (iconTheme === "material") {
-    return (
-      <img
-        src={`${import.meta.env.BASE_URL}material-icons/${materialIconFile(name, dir, open)}`}
-        alt=""
-        className={`${dir ? "folder-icon" : "file-icon"} material-file-icon`}
-        style={{ width: size, height: size }}
-      />
-    );
-  }
-  const Icon = iconFor(name, dir, open);
-  const color = dir ? "var(--primary)" : "var(--text-soft)";
-  return <Icon size={size} className={`${dir ? "folder-icon" : "file-icon"} file-icon-theme-${iconTheme}`} color={color} />;
+export default function FileIcon({ name, dir = false, open = false, size = 15 }: Props) {
+  return (
+    <img
+      src={`${import.meta.env.BASE_URL}material-icons/${materialIconFile(name, dir, open)}`}
+      alt=""
+      className="shrink-0 object-contain"
+      style={{ width: size, height: size }}
+    />
+  );
 }

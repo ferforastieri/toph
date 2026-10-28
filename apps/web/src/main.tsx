@@ -4,10 +4,10 @@ import "@fontsource/ibm-plex-mono";
 import "@xterm/xterm/css/xterm.css";
 import "./monaco";
 import "@toph/icons/styles.css";
-import "@toph/ui/styles/base.css";
-import "./styles.css";
+import "./index.css";
 import { initAppearance } from "./settings";
-import { ConfirmProvider } from "@toph/ui";
+import { ConfirmProvider } from "./ui/confirm";
+import { Toaster } from "./ui/toaster";
 import App from "./App";
 import { installNativeInsets } from "./nativeInsets";
 
@@ -22,6 +22,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <ConfirmProvider>
       <App />
+      <Toaster />
     </ConfirmProvider>
   </React.StrictMode>,
 );

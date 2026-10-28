@@ -5,7 +5,8 @@ import { providerLabel, useAI } from "../ai";
 import { useApp, type AiMessage, type Tab } from "../store";
 import type { Project } from "../api";
 import OpenCodePanelTab from "./OpenCodePanelTab";
-import { Button } from "@toph/ui";
+import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { AgentComposer } from "../ui/AgentComposer";
 import { notifyAiResponse } from "../aiNotifications";
 
@@ -29,6 +30,7 @@ function GenericAiPanel({ tab, project, config, onClose }: Props & { config: AIC
   const [error, setError] = useState("");
   const [model, setModel] = useState(config.model);
   const [effort, setEffort] = useState("");
+  const [yolo, setYolo] = useState(true);
 
   useEffect(() => {
     const handleContext = (event: Event) => {
@@ -68,7 +70,7 @@ function GenericAiPanel({ tab, project, config, onClose }: Props & { config: AIC
       const context = config.systemPrompt
         ? [{ role: "system" as const, content: config.systemPrompt }, ...history]
         : history;
-      const result = await api.aiChat(context, { model, effort, yolo: true });
+      const result = await api.aiChat(context, { model, effort, yolo });
       addMessage(tab.id, {
         id: `assistant-${Date.now()}`,
         role: "assistant",
@@ -92,51 +94,35 @@ function GenericAiPanel({ tab, project, config, onClose }: Props & { config: AIC
   }
 
   return (
-    <div className="ai-tab opencode-tab">
-      <div className="ai-toolbar">
-        <div className="ai-title">
-          <Bot size={16} />
-          <strong>{label}</strong>
+    <div className="flex h-full min-h-0 w-full flex-1 flex-col bg-background">
+      <div className="flex shrink-0 flex-col gap-2 border-b p-2">
+        <div className="flex items-center gap-2">
+          <div className="flex min-w-0 flex-1 items-center gap-2 px-1.5"><Bot size={16} className="text-primary" /><strong className="truncate text-sm font-medium">{label}</strong></div>
+          {onClose && <Button variant="ghost" size="icon-sm" aria-label="Fechar agente" onClick={onClose}><X size={15} /></Button>}
         </div>
-        <span className="ai-session">{project.name}</span>
-        {onClose && <Button className="icon-button" title="Close agent" onClick={onClose}><X size={15} /></Button>}
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] text-muted-foreground">{project.name}</span>
+          <span className="flex items-center gap-1.5 rounded border px-2 py-1 text-[11px] text-muted-foreground">YOLO <Switch checked={yolo} onCheckedChange={setYolo} className="scale-75" /></span>
+        </div>
       </div>
-      <div className="ai-messages">
+      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3">
         {messages.length === 0 && (
-          <div className="empty-hint">
-            <Bot size={26} />
-            <p>Ask {label} about this project.</p>
-            <span className="muted">
-              The agent is configured in Settings → AI and can read {project.root} through the server.
-            </span>
+          <div className="flex flex-col items-center gap-2 py-10 text-center text-muted-foreground">
+            <Bot size={26} /><p className="text-sm">Pergunte ao {label} sobre este projeto.</p>
+            <span className="max-w-[320px] text-xs">O agente pode ler {project.root} através do servidor.</span>
           </div>
         )}
         {messages.map((message) => (
-          <div className={`ai-message ${message.role}`} key={message.id}>
-            <div className="ai-message-role">
-              {message.role === "user" ? "You" : message.role === "assistant" ? label : "Error"}
-            </div>
-            <pre>{message.text}</pre>
+          <div key={message.id} className={`flex max-w-[92%] flex-col gap-1 rounded-xl px-3 py-2 ${message.role === "user" ? "ms-auto bg-primary/15" : message.role === "error" ? "border border-destructive/40 bg-destructive/10 text-destructive" : "bg-card"}`}>
+            <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{message.role === "user" ? "Você" : message.role === "assistant" ? label : "Erro"}</div>
+            <pre className="whitespace-pre-wrap break-words font-sans text-xs">{message.text}</pre>
           </div>
         ))}
-        {streaming && <div className="ai-thinking"><span className="pulse" /> Working...</div>}
+        {streaming && <div className="flex items-center gap-2 px-1 text-xs text-muted-foreground"><span className="size-2 animate-pulse rounded-full bg-primary" /> Trabalhando...</div>}
         <div ref={bottomRef} />
       </div>
-      {error && <div className="ai-error">{error}</div>}
-      <AgentComposer
-        value={input}
-        onChange={setInput}
-        onSend={(text) => void send(text)}
-        busy={streaming}
-        models={models}
-        model={model}
-        onModelChange={setModel}
-        effort={effort}
-        efforts={[]}
-        onEffortChange={setEffort}
-        placeholder={`Pergunte ao ${label} sobre este projeto...`}
-        allowAttachments={false}
-      />
+      {error && <div className="mx-2 rounded-md bg-destructive/10 px-2 py-1 text-[11px] text-destructive">{error}</div>}
+      <AgentComposer value={input} onChange={setInput} onSend={(text) => void send(text)} busy={streaming} models={models} model={model} onModelChange={setModel} effort={effort} efforts={[]} onEffortChange={setEffort} placeholder={`Pergunte ao ${label} sobre este projeto...`} allowAttachments={false} />
     </div>
   );
 }
@@ -151,7 +137,7 @@ export default function AiPanelTab({ tab, project, onClose }: Props) {
   }, [config, load]);
 
   if (!config) {
-    return <div className="editor-loading">{loading ? "Loading agent configuration..." : "AI is not configured. Open Settings → AI."}</div>;
+    return <div className="flex h-full items-center justify-center text-sm text-muted-foreground">{loading ? "Loading agent configuration..." : "AI is not configured. Open Settings → AI."}</div>;
   }
   if (config.provider === "opencode") return <OpenCodePanelTab tab={tab} project={project} onClose={onClose} />;
   return <GenericAiPanel tab={tab} project={project} config={config} onClose={onClose} />;
