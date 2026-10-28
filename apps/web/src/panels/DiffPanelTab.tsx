@@ -6,6 +6,8 @@ import { useSettings } from "../settings";
 import { CODE_FONT_FAMILY, codeLineHeight, monacoThemeName, registerEditorThemes } from "../editorThemes";
 import { registerEditorTextMate } from "../editorTextMate";
 import FileIcon from "../ui/FileIcon";
+import { Breadcrumb, BreadcrumbItem, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
+import { Badge } from "@/components/ui/badge";
 import { useApp, type Tab } from "../store";
 
 export default function DiffPanelTab({ tab, project }: { tab: Tab; project: Project }) {
@@ -34,11 +36,15 @@ export default function DiffPanelTab({ tab, project }: { tab: Tab; project: Proj
 
   return (
     <div className="flex h-full min-h-0 w-full flex-1 flex-col">
-      <div className="flex h-8 min-w-0 shrink-0 items-center gap-1.5 border-b px-2 text-[11px] text-muted-foreground">
-        <span className="shrink-0">{project.name}</span><span>/</span><FileIcon name={tab.path ?? tab.title} path={tab.path} size={13} />
-        <span className="truncate">{tab.path}</span>
-        <span className="ms-1 rounded bg-muted px-1.5 py-0.5 text-[10px]">{tab.staged ? "staged" : "working tree"}</span>
-      </div>
+      <Breadcrumb className="flex h-8 min-w-0 shrink-0 items-center border-b px-2">
+        <BreadcrumbList className="min-w-0 gap-1.5 text-[11px]">
+          <BreadcrumbItem className="shrink-0">{project.name}</BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem><FileIcon name={tab.path ?? tab.title} path={tab.path} size={13} /></BreadcrumbItem>
+          <BreadcrumbItem className="min-w-0"><BreadcrumbPage className="truncate">{tab.path}</BreadcrumbPage></BreadcrumbItem>
+        <BreadcrumbItem><Badge variant="secondary" className="text-[10px]">{tab.staged ? "staged" : "working tree"}</Badge></BreadcrumbItem>
+        </BreadcrumbList>
+      </Breadcrumb>
       <div className="min-h-0 flex-1 overflow-hidden">
         <DiffEditor
           original={versions.original}

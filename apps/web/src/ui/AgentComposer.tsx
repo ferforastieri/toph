@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Attachment, AttachmentAction, AttachmentActions, AttachmentContent, AttachmentDescription, AttachmentGroup, AttachmentMedia, AttachmentTitle } from "@/components/ui/attachment";
 
 export interface AgentAttachment { name: string; uri: string; mime: string; size: number; }
 
@@ -91,14 +92,15 @@ export function AgentComposer({ value, onChange, onSend, onStop, busy, models, m
           className="min-h-16 resize-none border-0 bg-transparent px-1 shadow-none focus-visible:ring-0"
         />
         {attachments.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 px-1">
+          <AttachmentGroup className="px-1">
             {attachments.map((file) => (
-              <span key={`${file.name}-${file.size}`} className="flex items-center gap-1 rounded-full bg-muted px-2 py-1 text-[10px] text-muted-foreground" title={file.name}>
-                <FilePlus2 size={12} /><span className="max-w-[140px] truncate">{file.name}</span>
-                <button type="button" aria-label={`Remover ${file.name}`} onClick={() => setAttachments((items) => items.filter((item) => item !== file))}><X size={11} /></button>
-              </span>
+              <Attachment key={`${file.name}-${file.size}`} size="sm">
+                <AttachmentMedia><FilePlus2 /></AttachmentMedia>
+                <AttachmentContent><AttachmentTitle>{file.name}</AttachmentTitle><AttachmentDescription>{Math.ceil(file.size / 1024)} KB</AttachmentDescription></AttachmentContent>
+                <AttachmentActions><AttachmentAction aria-label={`Remover ${file.name}`} onClick={() => setAttachments((items) => items.filter((item) => item !== file))}><X size={12} /></AttachmentAction></AttachmentActions>
+              </Attachment>
             ))}
-          </div>
+          </AttachmentGroup>
         )}
         {error && <p className="px-1 text-[10px] text-destructive">{error}</p>}
         <div className="flex min-w-0 items-center gap-1.5">

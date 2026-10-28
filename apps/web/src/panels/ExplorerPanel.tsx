@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, ChevronRight, FolderOpen } from "@toph/icons";
-import { createPortal } from "react-dom";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuShortcut, ContextMenuTrigger } from "@/components/ui/context-menu";
 import type { FileEntry, GitHistoryEntry, Project, SearchMatch } from "../api";
 import { api } from "../api";
 import { changeStatusByPath } from "../gitStatus";
@@ -48,6 +48,15 @@ async function fileToBase64(file: File): Promise<string> {
     reader.onerror = () => reject(reader.error);
     reader.readAsDataURL(file);
   });
+}
+
+function ActionItem({ label, shortcut, disabled, onSelect }: { label: string; shortcut?: string; disabled?: boolean; onSelect: () => void }) {
+  return (
+    <ContextMenuItem disabled={disabled} onSelect={onSelect}>
+      {label}
+      {shortcut && <ContextMenuShortcut>{shortcut}</ContextMenuShortcut>}
+    </ContextMenuItem>
+  );
 }
 
 export default function ExplorerPanel({
@@ -107,15 +116,9 @@ export default function ExplorerPanel({
     );
   }
 
-  function openContextMenu(entry: FileEntry, event: React.MouseEvent) {
-    event.preventDefault();
-    event.stopPropagation();
+  function openContextMenu(entry: FileEntry, _event: React.MouseEvent) {
     setSelected(entry);
-    setContextMenu({
-      entry,
-      x: Math.min(event.clientX, window.innerWidth - 250),
-      y: Math.min(event.clientY, window.innerHeight - 420),
-    });
+    setContextMenu({ entry, x: 0, y: 0 });
   }
 
   async function newFile(target = selected) {
@@ -258,43 +261,14 @@ export default function ExplorerPanel({
     action();
   }
 
-  function MenuItem({ label, onClick, disabled = false, shortcut }: { label: string; onClick: () => void; disabled?: boolean; shortcut?: string }) {
-    return (
-      <button type="button" role="menuitem" disabled={disabled} onClick={onClick} className="flex h-8 w-full items-center justify-between gap-3 rounded px-2 text-start text-xs text-foreground hover:bg-accent disabled:cursor-not-allowed disabled:text-muted-foreground disabled:hover:bg-transparent">
-        <span className="truncate">{label}</span>
-        {shortcut && <span className="shrink-0 text-[10px] text-muted-foreground">{shortcut}</span>}
-      </button>
-    );
-  }
 
-  const menu = contextMenu && createPortal(
-    <div className="fixed z-50 w-[280px] rounded-lg border bg-popover p-1.5 text-popover-foreground shadow-lg" style={{ left: contextMenu.x, top: contextMenu.y }} role="menu" onMouseDown={(event) => event.stopPropagation()}>
-      <MenuItem label="New File..." onClick={() => menuAction(() => void newFile(contextMenu.entry))} />
-      <MenuItem label="New Folder..." onClick={() => menuAction(() => void newFolder(contextMenu.entry))} />
-      <MenuItem label="Open in Images Preview" disabled={contextMenu.entry.dir} onClick={() => menuAction(() => IMAGE_EXTENSIONS.test(contextMenu.entry.path) ? window.open(api.rawUrl(project.id, contextMenu.entry.path), "_blank", "noopener,noreferrer") : onOpenFile(contextMenu.entry.path))} />
-      <MenuItem label="Open in Integrated Terminal" onClick={() => menuAction(() => setTerminalOpen(true))} />
-      <div className="my-1 h-px bg-border" />
-      <MenuItem label="Add Folder to Workspace..." disabled={!contextMenu.entry.dir} onClick={() => menuAction(() => void addWorkspaceFolder(contextMenu.entry))} />
-      <MenuItem label="Open Folder Settings" onClick={() => menuAction(() => { window.dispatchEvent(new CustomEvent("toph:open-settings", { detail: "workspace" })); })} />
-      <MenuItem label="Remove Folder from Workspace" disabled={!contextMenu.entry.dir} onClick={() => menuAction(() => void removeWorkspaceFolder(contextMenu.entry))} />
-      <div className="my-1 h-px bg-border" />
-      <MenuItem label="Find in Folder..." disabled={!contextMenu.entry.dir} onClick={() => menuAction(() => void findInFolder(contextMenu.entry))} />
-      <MenuItem label="Folder History" disabled={!contextMenu.entry.dir} onClick={() => menuAction(() => void showHistory(contextMenu.entry))} />
-      <MenuItem label="Add Folder to Chat" disabled={!contextMenu.entry.dir} onClick={() => menuAction(() => addFolderToChat(contextMenu.entry))} />
-      <div className="my-1 h-px bg-border" />
-      <MenuItem label="Paste" shortcut="Ctrl+V" onClick={() => menuAction(() => void pasteImage(contextMenu.entry))} />
-      <MenuItem label="Upload..." onClick={() => menuAction(() => uploadRef.current?.click())} />
-      <MenuItem label="Download..." disabled={contextMenu.entry.dir} onClick={() => menuAction(() => download(contextMenu.entry))} />
-      <div className="my-1 h-px bg-border" />
-      <MenuItem label="Copy Path" shortcut="Shift+Alt+C" onClick={() => menuAction(() => copy(absolutePath(contextMenu.entry)))} />
-      <MenuItem label="Copy Relative Path" onClick={() => menuAction(() => copy(contextMenu.entry.path))} />
-    </div>,
-    document.body,
-  );
 
   const rootEntry: FileEntry = { name: project.name, path: "", dir: true, size: 0, modTime: "" };
 
   return (
+    <>
+    <ContextMenu onOpenChange={(open) => !open && setContextMenu(null)}>
+      <ContextMenuTrigger asChild>
     <div
       className="flex h-full min-h-0 flex-col bg-muted/20"
       tabIndex={-1}
@@ -313,7 +287,6 @@ export default function ExplorerPanel({
       }}
     >
       <input ref={uploadRef} type="file" multiple hidden onChange={(event) => { if (event.target.files) void uploadFiles(event.target.files); event.target.value = ""; }} />
-      <div className="flex h-9 shrink-0 items-center border-b px-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Arquivos</div>
       <button type="button" className="flex h-7 w-full shrink-0 items-center gap-1.5 border-b px-2.5 text-start text-xs hover:bg-accent" title={project.root} aria-expanded={rootOpen} onClick={() => setRootOpen((current) => !current)}>
         {rootOpen ? <ChevronDown size={13} className="text-muted-foreground" /> : <ChevronRight size={13} className="text-muted-foreground" />}
         <FolderOpen size={15} className="text-primary" />
@@ -324,7 +297,34 @@ export default function ExplorerPanel({
       <div className="explorer-changes flex min-h-[120px] max-h-[46%] shrink-0 flex-col border-t">
         <div className="min-h-0 flex-1 overflow-y-auto"><SourceControlPanel project={project} embedded view="changes" onOpenDiff={onOpenDiff} onStatusChange={handleStatusChange} /></div>
       </div>
-      {menu}
+    </div>
+      </ContextMenuTrigger>
+      <ContextMenuContent className="w-64">
+        {contextMenu && (
+          <>
+            <ActionItem label="New File..." onSelect={() => menuAction(() => void newFile(contextMenu.entry))} />
+            <ActionItem label="New Folder..." onSelect={() => menuAction(() => void newFolder(contextMenu.entry))} />
+            <ActionItem label="Open in Images Preview" disabled={contextMenu.entry.dir} onSelect={() => menuAction(() => IMAGE_EXTENSIONS.test(contextMenu.entry.path) ? window.open(api.rawUrl(project.id, contextMenu.entry.path), "_blank", "noopener,noreferrer") : onOpenFile(contextMenu.entry.path))} />
+            <ActionItem label="Open in Integrated Terminal" onSelect={() => menuAction(() => setTerminalOpen(true))} />
+            <ContextMenuSeparator />
+            <ActionItem label="Add Folder to Workspace..." disabled={!contextMenu.entry.dir} onSelect={() => menuAction(() => void addWorkspaceFolder(contextMenu.entry))} />
+            <ActionItem label="Open Folder Settings" onSelect={() => menuAction(() => window.dispatchEvent(new CustomEvent("toph:open-settings", { detail: "workspace" })))} />
+            <ActionItem label="Remove Folder from Workspace" disabled={!contextMenu.entry.dir} onSelect={() => menuAction(() => void removeWorkspaceFolder(contextMenu.entry))} />
+            <ContextMenuSeparator />
+            <ActionItem label="Find in Folder..." disabled={!contextMenu.entry.dir} onSelect={() => menuAction(() => void findInFolder(contextMenu.entry))} />
+            <ActionItem label="Folder History" disabled={!contextMenu.entry.dir} onSelect={() => menuAction(() => void showHistory(contextMenu.entry))} />
+            <ActionItem label="Add Folder to Chat" disabled={!contextMenu.entry.dir} onSelect={() => menuAction(() => addFolderToChat(contextMenu.entry))} />
+            <ContextMenuSeparator />
+            <ActionItem label="Paste" shortcut="Ctrl+V" onSelect={() => menuAction(() => void pasteImage(contextMenu.entry))} />
+            <ActionItem label="Upload..." onSelect={() => menuAction(() => uploadRef.current?.click())} />
+            <ActionItem label="Download..." disabled={contextMenu.entry.dir} onSelect={() => menuAction(() => download(contextMenu.entry))} />
+            <ContextMenuSeparator />
+            <ActionItem label="Copy Path" shortcut="Shift+Alt+C" onSelect={() => menuAction(() => copy(absolutePath(contextMenu.entry)))} />
+            <ActionItem label="Copy Relative Path" onSelect={() => menuAction(() => copy(contextMenu.entry.path))} />
+          </>
+        )}
+      </ContextMenuContent>
+    </ContextMenu>
       {historyDialog && (
         <Dialog open onOpenChange={(open) => !open && setHistoryDialog(null)}>
           <DialogContent className="max-w-xl">
@@ -361,6 +361,6 @@ export default function ExplorerPanel({
           </DialogContent>
         </Dialog>
       )}
-    </div>
+    </>
   );
 }

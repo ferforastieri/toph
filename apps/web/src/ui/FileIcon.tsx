@@ -1,6 +1,7 @@
 import {
 } from "@toph/icons";
 import materialManifest from "material-icon-theme/dist/material-icons.json";
+import { useSettings } from "../settings";
 
 interface Props {
   name: string;
@@ -54,11 +55,12 @@ function materialIconFile(name: string, dir: boolean, open: boolean): string {
 }
 
 export default function FileIcon({ name, dir = false, open = false, size = 15 }: Props) {
+  const theme = useSettings((state) => state.theme);
   return (
     <img
       src={`${import.meta.env.BASE_URL}material-icons/${materialIconFile(name, dir, open)}`}
       alt=""
-      className="shrink-0 object-contain"
+      className={`shrink-0 object-contain ${theme === "light" ? "" : "brightness-150 saturate-125"}`}
       style={{ width: size, height: size }}
     />
   );

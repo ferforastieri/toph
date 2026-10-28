@@ -16,6 +16,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Field, FieldLabel } from "@/components/ui/field";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 type Category = "general" | "ai" | "workspace" | "git" | "server";
 
@@ -125,36 +128,23 @@ export default function SettingsDialog({
                       <h3 className="text-sm font-medium">Tema</h3>
                       <p className="text-xs text-muted-foreground">Apenas três temas são suportados.</p>
                     </div>
-                    <div className="grid gap-2 sm:grid-cols-3">
+                    <ToggleGroup type="single" value={theme} onValueChange={(value) => value && setTheme(value as Theme)} className="grid gap-2 sm:grid-cols-3">
                       {themes.map((item) => {
                         const Icon = item.icon;
-                        const active = theme === item.id;
                         return (
-                          <button
-                            key={item.id}
-                            type="button"
-                            onClick={() => setTheme(item.id)}
-                            className={cn(
-                              "flex flex-col items-start gap-1 rounded-xl border p-3 text-start transition-colors",
-                              active
-                                ? "border-primary bg-primary/10 text-foreground"
-                                : "border-border bg-card text-muted-foreground hover:bg-accent hover:text-foreground",
-                            )}
-                          >
-                            <Icon size={18} className={active ? "text-primary" : ""} />
+                          <ToggleGroupItem key={item.id} value={item.id} className="h-auto flex-col items-start gap-1 rounded-xl border p-3 text-start data-[state=on]:border-primary data-[state=on]:bg-primary/10">
+                            <Icon size={18} className="text-muted-foreground" />
                             <span className="text-sm font-medium">{item.label}</span>
-                            <span className="text-xs text-muted-foreground">{item.description}</span>
-                          </button>
+                            <span className="text-xs font-normal text-muted-foreground">{item.description}</span>
+                          </ToggleGroupItem>
                         );
                       })}
-                    </div>
+                    </ToggleGroup>
                   </section>
-                  <section className="rounded-xl border bg-card p-4">
-                    <h3 className="text-sm font-medium">Sessão</h3>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      O Toph está conectado em {getApiBase() || window.location.origin}.
-                    </p>
-                  </section>
+                  <Card>
+                    <CardHeader><CardTitle className="text-sm">Sessão</CardTitle></CardHeader>
+                    <CardContent className="text-xs text-muted-foreground">O Toph está conectado em {getApiBase() || window.location.origin}.</CardContent>
+                  </Card>
                 </div>
               )}
 
@@ -164,14 +154,8 @@ export default function SettingsDialog({
               {category === "git" && (
                 <div className="flex flex-col gap-4">
                   <div className="flex flex-col gap-3 rounded-xl border bg-card p-4">
-                    <label className="flex flex-col gap-1.5 text-sm">
-                      Padrão de branch
-                      <Input value={settings.gitBranchPattern} onChange={(event) => update({ gitBranchPattern: event.target.value })} />
-                    </label>
-                    <label className="flex flex-col gap-1.5 text-sm">
-                      Padrão de commit
-                      <Input value={settings.gitCommitPattern} onChange={(event) => update({ gitCommitPattern: event.target.value })} />
-                    </label>
+                    <Field><FieldLabel>Padrão de branch</FieldLabel><Input value={settings.gitBranchPattern} onChange={(event) => update({ gitBranchPattern: event.target.value })} /></Field>
+                    <Field><FieldLabel>Padrão de commit</FieldLabel><Input value={settings.gitCommitPattern} onChange={(event) => update({ gitCommitPattern: event.target.value })} /></Field>
                   </div>
                   <p className="text-xs text-muted-foreground">
                     Tokens: {"{date}"}, {"{time}"}, {"{datetime}"}, {"{repo}"}, {"{branch}"}, {"{user}"}, {"{task}"}, {"{slug}"} e {"{summary}"}.
@@ -182,10 +166,7 @@ export default function SettingsDialog({
               {category === "server" && (
                 <form className="flex flex-col gap-4" onSubmit={(event) => void changeServer(event)}>
                   <div className="rounded-xl border bg-card p-4">
-                    <label className="flex flex-col gap-1.5 text-sm">
-                      URL do servidor
-                      <Input value={serverDraft} onChange={(event) => setServerDraft(event.target.value)} placeholder="https://seu-servidor" />
-                    </label>
+                    <Field><FieldLabel>URL do servidor</FieldLabel><Input value={serverDraft} onChange={(event) => setServerDraft(event.target.value)} placeholder="https://seu-servidor" /></Field>
                   </div>
                   <div className="flex justify-end">
                     <Button type="submit" disabled={serverBusy || !serverDraft.trim()}>

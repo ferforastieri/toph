@@ -8,6 +8,7 @@ type IconProps = Omit<HTMLAttributes<HTMLSpanElement>, "children"> & {
 
 const glyphs = {
   AlertTriangle: "warning",
+  ArrowDown: "arrow_downward",
   ArrowLeft: "arrow_back",
   ArrowRight: "arrow_forward",
   ArrowUp: "arrow_upward",
@@ -39,6 +40,7 @@ const glyphs = {
   FolderOpen: "folder_open",
   FolderPlus: "create_new_folder",
   Gem: "diamond",
+  GripVertical: "drag_indicator",
   GitBranch: "account_tree",
   Globe2: "public",
   HardDrive: "hard_drive",
@@ -47,10 +49,12 @@ const glyphs = {
   ImagePlus: "add_photo_alternate",
   Info: "info",
   LayoutPanelLeft: "view_sidebar",
+  LoaderCircle: "progress_activity",
   Lock: "lock",
   LogOut: "logout",
   Minus: "remove",
   Monitor: "desktop_windows",
+  MoreHorizontal: "more_horiz",
   Moon: "dark_mode",
   Package: "inventory_2",
   Palette: "palette",
@@ -105,6 +109,10 @@ const IconBase = forwardRef<HTMLSpanElement, IconProps & { glyph: GlyphName }>(f
 
 export const AlertTriangle = forwardRef<HTMLSpanElement, IconProps>(function AlertTriangle(props, ref) {
   return <IconBase {...props} glyph="AlertTriangle" ref={ref} />;
+});
+
+export const ArrowDown = forwardRef<HTMLSpanElement, IconProps>(function ArrowDown(props, ref) {
+  return <IconBase {...props} glyph="ArrowDown" ref={ref} />;
 });
 
 export const ArrowLeft = forwardRef<HTMLSpanElement, IconProps>(function ArrowLeft(props, ref) {
@@ -243,6 +251,10 @@ export const HardDrive = forwardRef<HTMLSpanElement, IconProps>(function HardDri
   return <IconBase {...props} glyph="HardDrive" ref={ref} />;
 });
 
+export const GripVertical = forwardRef<HTMLSpanElement, IconProps>(function GripVertical(props, ref) {
+  return <IconBase {...props} glyph="GripVertical" ref={ref} />;
+});
+
 export const History = forwardRef<HTMLSpanElement, IconProps>(function History(props, ref) {
   return <IconBase {...props} glyph="History" ref={ref} />;
 });
@@ -263,6 +275,10 @@ export const LayoutPanelLeft = forwardRef<HTMLSpanElement, IconProps>(function L
   return <IconBase {...props} glyph="LayoutPanelLeft" ref={ref} />;
 });
 
+export const LoaderCircle = forwardRef<HTMLSpanElement, IconProps>(function LoaderCircle(props, ref) {
+  return <IconBase {...props} glyph="LoaderCircle" ref={ref} />;
+});
+
 export const Lock = forwardRef<HTMLSpanElement, IconProps>(function Lock(props, ref) {
   return <IconBase {...props} glyph="Lock" ref={ref} />;
 });
@@ -277,6 +293,10 @@ export const Minus = forwardRef<HTMLSpanElement, IconProps>(function Minus(props
 
 export const Monitor = forwardRef<HTMLSpanElement, IconProps>(function Monitor(props, ref) {
   return <IconBase {...props} glyph="Monitor" ref={ref} />;
+});
+
+export const MoreHorizontal = forwardRef<HTMLSpanElement, IconProps>(function MoreHorizontal(props, ref) {
+  return <IconBase {...props} glyph="MoreHorizontal" ref={ref} />;
 });
 
 export const Moon = forwardRef<HTMLSpanElement, IconProps>(function Moon(props, ref) {

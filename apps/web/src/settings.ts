@@ -4,9 +4,6 @@ export type Theme = "light" | "dark" | "nightwolf";
 
 export interface SettingsState {
   theme: Theme;
-  sidebarWidth: number;
-  aiPanelWidth: number;
-  terminalHeight: number;
   confirmClose: boolean;
   gitBranchPattern: string;
   gitCommitPattern: string;
@@ -19,19 +16,11 @@ const STORAGE_KEY = "toph_settings";
 
 export const defaultSettings = {
   theme: "nightwolf" as Theme,
-  sidebarWidth: 300,
-  aiPanelWidth: 390,
-  terminalHeight: 280,
   confirmClose: true,
   gitBranchPattern: "feature/{task}-{slug}",
   gitCommitPattern: "{task} {summary}",
 };
 
-function numberIn(value: unknown, min: number, max: number, fallback: number): number {
-  return typeof value === "number" && Number.isFinite(value)
-    ? Math.min(max, Math.max(min, value))
-    : fallback;
-}
 
 function readSettings() {
   try {
@@ -43,9 +32,6 @@ function readSettings() {
         value.theme === "light" || value.theme === "dark" || value.theme === "nightwolf"
           ? value.theme
           : defaultSettings.theme,
-      sidebarWidth: numberIn(value.sidebarWidth, 220, 460, defaultSettings.sidebarWidth),
-      aiPanelWidth: numberIn(value.aiPanelWidth, 300, 620, defaultSettings.aiPanelWidth),
-      terminalHeight: numberIn(value.terminalHeight, 180, 640, defaultSettings.terminalHeight),
       confirmClose: value.confirmClose !== false,
       gitBranchPattern:
         typeof value.gitBranchPattern === "string" && value.gitBranchPattern.trim()
@@ -69,27 +55,17 @@ export function applyTheme(theme: Theme): void {
   root.dataset.theme = theme;
 }
 
-export function applyLayout(settings: Pick<typeof defaultSettings, "sidebarWidth" | "aiPanelWidth" | "terminalHeight">): void {
-  const root = document.documentElement;
-  root.style.setProperty("--sidebar-width", `${settings.sidebarWidth}px`);
-  root.style.setProperty("--ai-panel-width", `${settings.aiPanelWidth}px`);
-  root.style.setProperty("--terminal-height", `${settings.terminalHeight}px`);
-}
 
 export const useSettings = create<SettingsState>((set, get) => ({
   ...readSettings(),
   update: (patch) => {
     const next = {
       theme: get().theme,
-      sidebarWidth: patch.sidebarWidth ?? get().sidebarWidth,
-      aiPanelWidth: patch.aiPanelWidth ?? get().aiPanelWidth,
-      terminalHeight: patch.terminalHeight ?? get().terminalHeight,
       confirmClose: patch.confirmClose ?? get().confirmClose,
       gitBranchPattern: patch.gitBranchPattern ?? get().gitBranchPattern,
       gitCommitPattern: patch.gitCommitPattern ?? get().gitCommitPattern,
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-    applyLayout(next);
     set(next);
   },
   setTheme: (theme) => {
@@ -98,9 +74,6 @@ export const useSettings = create<SettingsState>((set, get) => ({
       STORAGE_KEY,
       JSON.stringify({
         theme,
-        sidebarWidth: next.sidebarWidth,
-        aiPanelWidth: next.aiPanelWidth,
-        terminalHeight: next.terminalHeight,
         confirmClose: next.confirmClose,
         gitBranchPattern: next.gitBranchPattern,
         gitCommitPattern: next.gitCommitPattern,
@@ -112,7 +85,6 @@ export const useSettings = create<SettingsState>((set, get) => ({
   reset: () => {
     localStorage.removeItem(STORAGE_KEY);
     applyTheme(defaultSettings.theme);
-    applyLayout(defaultSettings);
     set(defaultSettings);
   },
 }));
@@ -124,6 +96,5 @@ export function initAppearance(): void {
   initialized = true;
   const settings = readSettings();
   applyTheme(settings.theme);
-  applyLayout(settings);
   localStorage.removeItem("toph_appearance");
 }

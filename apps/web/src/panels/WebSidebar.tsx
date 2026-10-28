@@ -5,6 +5,7 @@ import { useApp } from "../store";
 import { useConfirm } from "../ui/confirm";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 
 interface Props { onOpenWeb: (target: WebTarget) => void; }
 
@@ -35,7 +36,7 @@ export default function WebSidebar({ onOpenWeb }: Props) {
             <Button variant="ghost" size="icon-xs" aria-label="Excluir" onClick={async () => { const ok = await confirm({ title: "Excluir web app?", message: `Excluir "${target.name}" deste workspace?`, confirmLabel: "Excluir", danger: true }); if (!ok) return; await api.deleteWebTarget(target.id); await load(); }}><Trash2 size={13} /></Button>
           </div>
         ))}
-        {targets.length === 0 && !showForm && <div className="flex flex-col items-center gap-2 px-4 py-10 text-center"><Globe2 size={22} className="text-muted-foreground" /><p className="text-sm text-muted-foreground">Nenhum web app ainda.</p><Button variant="outline" size="sm" onClick={() => setShowForm(true)}>Adicionar web app</Button></div>}
+        {targets.length === 0 && !showForm && <Empty className="border-0"><EmptyHeader><EmptyMedia variant="icon"><Globe2 size={20} /></EmptyMedia><EmptyTitle>Nenhum web app</EmptyTitle><EmptyDescription>Adicione uma URL para abrir dentro do Toph.</EmptyDescription></EmptyHeader><EmptyContent><Button variant="outline" size="sm" onClick={() => setShowForm(true)}>Adicionar web app</Button></EmptyContent></Empty>}
       </div>
     </div>
   );
