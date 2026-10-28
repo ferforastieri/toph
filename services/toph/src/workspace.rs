@@ -246,7 +246,11 @@ impl WorkspaceService {
     }
 
     pub async fn git_history(&self, root: &Path, path: &str) -> AppResult<Vec<GitHistoryEntry>> {
-        let path = validate_git_path(path)?;
+        let path = if path.trim().is_empty() || path == "." {
+            ".".to_string()
+        } else {
+            validate_git_path(path)?
+        };
         let is_directory = root.join(&path).is_dir();
         let mut args = vec!["log"];
         if !is_directory {

@@ -285,10 +285,28 @@ export default function ExplorerPanel({
     document.body,
   );
 
+  const rootEntry: FileEntry = {
+    name: project.name,
+    path: "",
+    dir: true,
+    size: 0,
+    modTime: "",
+  };
+
   return (
     <div
       className="panel explorer-panel"
       tabIndex={-1}
+      onContextMenu={(event) => {
+        if ((event.target as HTMLElement).closest(".tree-item, .project-search, .explorer-changes")) return;
+        event.preventDefault();
+        setSelected(rootEntry);
+        setContextMenu({
+          entry: rootEntry,
+          x: Math.min(event.clientX, window.innerWidth - 250),
+          y: Math.min(event.clientY, window.innerHeight - 420),
+        });
+      }}
       onPaste={(event) => {
         const target = event.target as HTMLElement;
         if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target.isContentEditable) return;
