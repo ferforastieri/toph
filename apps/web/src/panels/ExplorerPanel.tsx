@@ -287,6 +287,7 @@ export default function ExplorerPanel({
       }}
     >
       <input ref={uploadRef} type="file" multiple hidden onChange={(event) => { if (event.target.files) void uploadFiles(event.target.files); event.target.value = ""; }} />
+      <div className="flex h-9 shrink-0 items-center border-b px-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Arquivos</div>
       <button type="button" className="flex h-7 w-full shrink-0 items-center gap-1.5 border-b px-2.5 text-start text-xs hover:bg-accent" title={project.root} aria-expanded={rootOpen} onClick={() => setRootOpen((current) => !current)}>
         {rootOpen ? <ChevronDown size={13} className="text-muted-foreground" /> : <ChevronRight size={13} className="text-muted-foreground" />}
         <FolderOpen size={15} className="text-primary" />
