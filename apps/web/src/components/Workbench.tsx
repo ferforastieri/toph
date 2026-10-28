@@ -1,14 +1,12 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { ArrowLeft, Bell, Bot, Check, ChevronDown, FolderPlus, GitBranch, Plus, Settings2, X } from "@toph/icons";
+import { Bell, Bot, Check, ChevronDown, Database as DatabaseIcon, Files as FilesIcon, Globe2 as GlobeIcon, FolderPlus, GitBranch, Plus, Settings2, TerminalSquare, X } from "@toph/icons";
 import { api, getApiBase, type Repository, type SchemaTable, type WebTarget } from "../api";
 import { basename, expandGitPattern, languageFor, quoteIdentifier, sanitizeBranchName } from "../lib";
-import { useApp, type AppNotification, type Sidebar, type Tab } from "../store";
+import { useApp, type AppNotification, type Sidebar as SidebarSection, type Tab } from "../store";
 import { providerLabel, useAI } from "../ai";
 import { nativePushToken, requestMobileNotificationPermission } from "../notifications";
 import { PROJECT_EVENT, type ProjectEvent } from "../projectEvents";
-import ActivityBar from "./ActivityBar";
 import AvatarMenu from "./AvatarMenu";
-import MobileNav from "./MobileNav";
 import Tabs from "./Tabs";
 import Toasts from "./Toasts";
 import RepoPicker from "./RepoPicker";
@@ -44,9 +42,23 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import ResizeHandle from "../ui/resize";
 import SettingsDialog from "./SettingsDialog";
-import { cn } from "@/lib/utils";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarHeader,
+  SidebarInset,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarTrigger,
+  useSidebar,
+} from "@/components/ui/sidebar";
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import { Separator } from "@/components/ui/separator";
 import { useSettings } from "../settings";
 import { suggestGitChanges } from "../gitAi";
 import { parseGitStatus } from "../gitStatus";
@@ -67,6 +79,7 @@ export default function Workbench() {
   const setSidebar = useApp((state) => state.setSidebar);
   const terminalOpen = useApp((state) => state.terminalOpen);
   const setTerminalOpen = useApp((state) => state.setTerminalOpen);
+  const toggleTerminal = useApp((state) => state.toggleTerminal);
   const notify = useApp((state) => state.notify);
   const notifications = useApp((state) => state.notifications);
   const markProjectNotificationsRead = useApp((state) => state.markProjectNotificationsRead);
@@ -77,16 +90,12 @@ export default function Workbench() {
   const loadAI = useAI((state) => state.load);
   const loadModels = useAI((state) => state.loadModels);
   const aiProvider = useAI((state) => state.config?.provider);
-  const sidebarWidth = useSettings((state) => state.sidebarWidth);
   const branchPattern = useSettings((state) => state.gitBranchPattern);
   const aiConfig = useAI((state) => state.config);
-  const aiPanelWidth = useSettings((state) => state.aiPanelWidth);
-  const updateSettings = useSettings((state) => state.update);
 
   const [showRepoPicker, setShowRepoPicker] = useState(false);
   const [version, setVersion] = useState("0.1.0");
   const [gitStatus, setGitStatus] = useState("");
-  const [mobilePanelOpen, setMobilePanelOpen] = useState(false);
   const [projectsSheetOpen, setProjectsSheetOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsCategory, setSettingsCategory] = useState<"general" | "ai" | "workspace" | "git" | "server">("general");
@@ -98,6 +107,8 @@ export default function Workbench() {
   const [cursor, setCursor] = useState({ line: 1, column: 1, language: "" });
   const loadedProject = useRef<string | null>(null);
   const mobile = document.documentElement.classList.contains("mobile-client");
+  const { isMobile, setOpenMobile } = useSidebar();
+  const narrow = mobile || isMobile;
 
   const project = projects.find((item) => item.id === activeProjectId) ?? null;
   const branch = gitStatus.split("\n")[0]?.replace(/^##\s*/, "").split("...")[0] ?? "";
@@ -135,7 +146,7 @@ export default function Workbench() {
         event.preventDefault();
         setSidebar("files");
         if (mobile) {
-          setMobilePanelOpen(true);
+          setOpenMobile(true);
           setProjectsSheetOpen(false);
           setAiPanelOpen(false);
           setTerminalOpen(false);
@@ -145,7 +156,7 @@ export default function Workbench() {
       }
       if (event.key !== "Escape" || !mobile) return;
       if (document.querySelector(".modal-backdrop, .avatar-menu")) return;
-      setMobilePanelOpen(false);
+      setOpenMobile(false);
       setProjectsSheetOpen(false);
       setAiPanelOpen(false);
       setTerminalOpen(false);
@@ -428,7 +439,7 @@ export default function Workbench() {
             layout.sidebar === "search" || layout.sidebar === "scm" || layout.sidebar === "settings"
               ? "files"
               : layout.sidebar;
-          setSidebar(savedSidebar as Sidebar);
+          setSidebar(savedSidebar as SidebarSection);
         }
         setTerminalOpen(Boolean(layout.terminalOpen));
         loadedProject.current = activeProjectId;
@@ -501,7 +512,7 @@ export default function Workbench() {
 
   function switchProject(next: string) {
     if (next === activeProjectId) return;
-    if (mobile) setMobilePanelOpen(false);
+    if (mobile) setOpenMobile(false);
     if (project && loadedProject.current === project.id) {
       void api.saveLayout(project.id, {
         tabs: layoutTabs,
@@ -514,36 +525,18 @@ export default function Workbench() {
     setActiveProject(next);
   }
 
-  function openMobileSidebar(next: Sidebar) {
-    if (mobilePanelOpen && sidebar === next) {
-      setMobilePanelOpen(false);
-      return;
-    }
-    setSidebar(next);
-    setMobilePanelOpen(true);
-    setAiPanelOpen(false);
-    setTerminalOpen(false);
-  }
+
 
   function openMobileSettings() {
-    setMobilePanelOpen(false);
+    setOpenMobile(false);
     setAiPanelOpen(false);
     setTerminalOpen(false);
     setSettingsOpen(true);
   }
 
-  function openMobileAI() {
-    setMobilePanelOpen(false);
-    setTerminalOpen(false);
-    if (aiPanelOpen) setAiPanelOpen(false);
-    else openAI();
-  }
 
-  function openMobileTerminal() {
-    setMobilePanelOpen(false);
-    setAiPanelOpen(false);
-    setTerminalOpen(!terminalOpen);
-  }
+
+
 
   async function toggleBranchMenu() {
     if (branchMenuOpen) {
@@ -637,7 +630,7 @@ export default function Workbench() {
 
   function openFile(path: string, line?: number) {
     if (!project) return;
-    if (mobile) setMobilePanelOpen(false);
+    if (mobile) setOpenMobile(false);
     openTab({
       id: `editor:${project.id}:${path}`,
       kind: "editor",
@@ -650,7 +643,7 @@ export default function Workbench() {
 
   function openQuery(profileId: string, sql: string) {
     if (!project) return;
-    if (mobile) setMobilePanelOpen(false);
+    if (mobile) setOpenMobile(false);
     openTab({
       id: `db:${project.id}:${crypto.randomUUID()}`,
       kind: "db",
@@ -663,7 +656,7 @@ export default function Workbench() {
 
   function openDiff(path: string, staged: boolean) {
     if (!project) return;
-    if (mobile) setMobilePanelOpen(false);
+    if (mobile) setOpenMobile(false);
     openTab({
       id: `diff:${project.id}:${staged ? "staged" : "worktree"}:${path}`,
       kind: "diff",
@@ -676,7 +669,7 @@ export default function Workbench() {
 
   function openTable(profileId: string, table: SchemaTable, driver: string) {
     if (!project) return;
-    if (mobile) setMobilePanelOpen(false);
+    if (mobile) setOpenMobile(false);
     const schema = table.schema;
     let sql = "";
     if (driver === "mongodb") {
@@ -737,7 +730,7 @@ export default function Workbench() {
   function newAiSession() {
     if (!project) return;
     markProjectNotificationsRead(project.id);
-    if (mobile) setMobilePanelOpen(false);
+    if (mobile) setOpenMobile(false);
     setAiDockTab({
       id: `ai:dock:${project.id}`,
       kind: "ai",
@@ -758,7 +751,7 @@ export default function Workbench() {
   function openAiSession(session: { id: string; title?: string }) {
     if (!project) return;
     markProjectNotificationsRead(project.id);
-    if (mobile) setMobilePanelOpen(false);
+    if (mobile) setOpenMobile(false);
     setAiDockTab({
       id: `ai:dock:${project.id}`,
       kind: "ai",
@@ -782,7 +775,7 @@ export default function Workbench() {
       projectId: notification.projectId,
       sessionId: notification.sessionId,
     });
-    if (mobile) setMobilePanelOpen(false);
+    if (mobile) setOpenMobile(false);
     setTerminalOpen(false);
     setAiPanelOpen(true);
   }
@@ -797,7 +790,7 @@ export default function Workbench() {
 
   function openWeb(target: WebTarget) {
     if (!project) return;
-    if (mobile) setMobilePanelOpen(false);
+    if (mobile) setOpenMobile(false);
     openTab({
       id: `web:${project.id}:${target.id}`,
       kind: "web",
@@ -808,7 +801,7 @@ export default function Workbench() {
   }
 
   async function openRepo(repo: Repository) {
-    if (mobile) setMobilePanelOpen(false);
+    if (mobile) setOpenMobile(false);
     const existing = projects.find((item) => item.root === repo.path);
     if (existing) {
       switchProject(existing.id);
@@ -858,133 +851,151 @@ export default function Workbench() {
   }
 
   const activeProjectUnread = activeUnread.length;
+  const navItems: Array<{ id: SidebarSection; label: string; icon: typeof FilesIcon }> = [
+    { id: "files", label: "Arquivos", icon: FilesIcon },
+    { id: "db", label: "Bancos", icon: DatabaseIcon },
+    { id: "ai", label: "Agente", icon: Bot },
+    { id: "web", label: "Web apps", icon: GlobeIcon },
+  ];
 
   return (
-    <div className="flex h-dvh flex-col overflow-hidden bg-background">
-      {mobile && (
-        <header className="flex h-12 shrink-0 items-center justify-between border-b bg-muted/20 px-2">
-          <div className="flex min-w-0 items-center gap-2">
-            <button type="button" className="flex min-w-0 items-center gap-2 rounded-lg px-1.5 py-1 text-start hover:bg-accent" onClick={() => setProjectsSheetOpen(true)} aria-label="Abrir projetos">
-              <Avatar className="size-6"><AvatarFallback className="bg-primary/15 text-[10px] font-semibold text-primary" style={{ color: project.color }}>{project.name.slice(0, 1).toUpperCase()}</AvatarFallback></Avatar>
-              <span className="truncate text-sm font-medium">{project.name}</span>
-              <Badge variant="secondary">{openProjectIds.length}</Badge>
-              <ChevronDown size={16} className="text-muted-foreground" />
-            </button>
-            {activeProjectUnread > 0 && (
-              <Button variant="ghost" size="sm" className="relative" onClick={() => openLatestProjectNotification(project.id)} aria-label="Abrir notificação mais recente">
-                <Bell size={17} />
-                <span className="absolute -end-0.5 -top-0.5 flex min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-semibold text-primary-foreground">{activeProjectUnread > 9 ? "9+" : activeProjectUnread}</span>
-              </Button>
-            )}
-          </div>
-          <AvatarMenu user={user} variant="titlebar" active={settingsOpen} onSettings={openMobileSettings} />
-        </header>
-      )}
-
-      <div className="flex min-h-0 flex-1 overflow-hidden">
-        {!mobile && <ActivityBar onOpenAI={toggleAI} onOpenSettings={() => setSettingsOpen(true)} />}
-        {!mobile && (
-          <ResizeHandle className="sidebar-resize" orientation="vertical" value={sidebarWidth} min={220} max={460} label="Resize sidebar" onChange={(width) => document.documentElement.style.setProperty("--sidebar-width", `${width}px`)} onCommit={(width) => updateSettings({ sidebarWidth: width })} />
-        )}
-        <aside
-          className={cn(
-            "flex min-h-0 min-w-0 flex-col overflow-hidden border-e bg-muted/20",
-            mobile ? (mobilePanelOpen ? "fixed inset-x-0 bottom-14 top-12 z-40 w-full border-e-0 bg-background" : "hidden") : "w-[var(--sidebar-width)] shrink-0",
-          )}
-        >
-          {mobile && mobilePanelOpen && (
-            <div className="flex h-11 shrink-0 items-center gap-2 border-b px-2">
-              <Button variant="ghost" size="icon-sm" aria-label="Voltar" onClick={() => setMobilePanelOpen(false)}><ArrowLeft size={18} /></Button>
-              <span className="text-sm font-medium">{sidebar === "db" ? "Bancos" : sidebar === "web" ? "Web apps" : "Arquivos"}</span>
+    <>
+      <Sidebar collapsible="offcanvas" className="border-e">
+        <SidebarHeader className="gap-3 border-b p-3">
+          <div className="flex items-center gap-2">
+            <BrandMark size="small" />
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold">Toph</p>
+              <p className="truncate text-[11px] text-muted-foreground">{project.name}</p>
             </div>
-          )}
-          {project && sidebar === "files" && <ExplorerPanel project={project} onOpenFile={openFile} searchFocusToken={searchFocusToken} onOpenDiff={openDiff} onStatusChange={setGitStatus} />}
-          {project && sidebar === "db" && <DatabasesPanel project={project} onOpenQuery={openQuery} onOpenTable={openTable} />}
-          {project && sidebar === "ai" && <AiSidebar project={project} onNewSession={newAiSession} onOpenSession={openAiSession} />}
-          {project && sidebar === "web" && <WebSidebar onOpenWeb={openWeb} />}
-        </aside>
-
-        <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
-          <Tabs />
-          <div className="relative flex min-h-0 flex-1 overflow-hidden">
-            {!activeTab && project && (
-              <div className="flex h-full w-full flex-col items-center justify-center gap-4 p-8 text-center">
-                <BrandMark size="large" />
-                <h2 className="text-xl font-semibold">{project.name}</h2>
-                <p className="max-w-lg text-sm text-muted-foreground">{project.root}</p>
-                <div className="flex flex-wrap items-center justify-center gap-2">
-                  <Button variant="outline" size="sm" onClick={() => setSidebar("files")}>Explorer</Button>
-                  <Button variant="outline" size="sm" onClick={() => setSidebar("db")}>Database</Button>
-                  <Button variant="outline" size="sm" onClick={openAI}>Agente</Button>
-                </div>
-              </div>
-            )}
-            {activeTab?.kind === "editor" && project && <EditorPanel tab={activeTab} project={project} onOpenChanges={(path) => openDiff(path, false)} />}
-            {activeTab?.kind === "db" && <DbPanelTab tab={activeTab} />}
-            {activeTab?.kind === "ai" && project && <AiPanelTab tab={activeTab} project={project} />}
-            {activeTab?.kind === "web" && <WebPanelTab tab={activeTab} />}
-            {activeTab?.kind === "diff" && project && <DiffPanelTab tab={activeTab} project={project} />}
           </div>
-          {terminalOpen && project && <TerminalPanel project={project} />}
-        </main>
+          <SidebarMenu>
+            {navItems.map((item) => {
+              const Icon = item.icon;
+              const active = sidebar === item.id;
+              return (
+                <SidebarMenuItem key={item.id}>
+                  <SidebarMenuButton
+                    isActive={active}
+                    tooltip={item.label}
+                    onClick={() => { if (item.id === "ai") { setSidebar("ai"); toggleAI(); } else setSidebar(item.id); }}
+                  >
+                    <Icon size={16} />
+                    <span>{item.label}</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              );
+            })}
+            <SidebarMenuItem>
+              <SidebarMenuButton tooltip="Terminal" onClick={toggleTerminal}>
+                <TerminalSquare size={16} />
+                <span>Terminal</span>
+                {terminalOpen && <span className="ms-auto size-1.5 rounded-full bg-primary" />}
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarHeader>
+        <SidebarContent className="p-0">
+          <div className="flex h-full min-h-0 flex-col overflow-hidden">
+            {project && sidebar === "files" && <ExplorerPanel project={project} onOpenFile={openFile} searchFocusToken={searchFocusToken} onOpenDiff={openDiff} onStatusChange={setGitStatus} />}
+            {project && sidebar === "db" && <DatabasesPanel project={project} onOpenQuery={openQuery} onOpenTable={openTable} />}
+            {project && sidebar === "ai" && <AiSidebar project={project} onNewSession={newAiSession} onOpenSession={openAiSession} />}
+            {project && sidebar === "web" && <WebSidebar onOpenWeb={openWeb} />}
+          </div>
+        </SidebarContent>
+        <SidebarFooter className="border-t p-2">
+          <div className="flex items-center justify-between gap-2">
+            <AvatarMenu user={user} variant="activity" onSettings={() => setSettingsOpen(true)} />
+            <Button variant="ghost" size="icon-sm" aria-label="Configurações" title="Configurações" onClick={() => setSettingsOpen(true)}><Settings2 size={16} /></Button>
+          </div>
+        </SidebarFooter>
+      </Sidebar>
 
-        {!mobile && project && aiPanelOpen && aiDockTab && (
-          <>
-            <ResizeHandle className="ai-resize" orientation="vertical" value={aiPanelWidth} min={300} max={620} label="Resize agent panel" onChange={(width) => document.documentElement.style.setProperty("--ai-panel-width", `${width}px`)} onCommit={(width) => updateSettings({ aiPanelWidth: width })} />
-            <aside className="flex w-[var(--ai-panel-width)] shrink-0 flex-col overflow-hidden border-s bg-muted/20">
-              <AiPanelTab tab={aiDockTab} project={project} onClose={() => setAiPanelOpen(false)} />
-            </aside>
-          </>
-        )}
-        {mobile && project && aiDockTab && aiPanelOpen && (
-          <aside className="fixed inset-x-0 bottom-14 top-12 z-40 flex flex-col overflow-hidden bg-background">
-            <AiPanelTab tab={aiDockTab} project={project} onClose={() => setAiPanelOpen(false)} />
-          </aside>
-        )}
-      </div>
+      <SidebarInset className="min-w-0 overflow-hidden">
+        <header className="flex h-12 shrink-0 items-center gap-2 border-b px-2">
+          <SidebarTrigger />
+          <Separator orientation="vertical" className="mx-1 h-5" />
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className="max-w-[260px] gap-2 px-1.5">
+                <Avatar className="size-5"><AvatarFallback className="bg-primary/15 text-[9px] font-semibold text-primary">{project.name.slice(0, 1).toUpperCase()}</AvatarFallback></Avatar>
+                <span className="truncate text-xs font-medium">{project.name}</span>
+                <ChevronDown size={13} className="text-muted-foreground" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-80">
+              <DropdownMenuLabel className="flex items-center justify-between">Projetos abertos <Badge variant="secondary">{openProjectIds.length}</Badge></DropdownMenuLabel>
+              {openProjectIds.map((id) => {
+                const item = projects.find((projectItem) => projectItem.id === id);
+                if (!item) return null;
+                const unread = unreadForProject(item.id);
+                return (
+                  <DropdownMenuItem key={item.id} onSelect={() => switchProject(item.id)} className="gap-2">
+                    <Avatar className="size-6"><AvatarFallback className="bg-primary/15 text-[10px] font-semibold text-primary">{item.name.slice(0, 1).toUpperCase()}</AvatarFallback></Avatar>
+                    <span className="flex min-w-0 flex-1 flex-col"><span className="truncate text-sm">{item.name}</span><span className="truncate text-[11px] text-muted-foreground">{item.root}</span></span>
+                    {unread.length > 0 && <Badge>{unread.length > 9 ? "9+" : unread.length}</Badge>}
+                    {item.id === activeProjectId && <Check size={14} className="text-primary" />}
+                  </DropdownMenuItem>
+                );
+              })}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={() => setShowRepoPicker(true)} className="gap-2"><FolderPlus size={14} /> Abrir repositório</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <div className="flex-1" />
+          {activeProjectUnread > 0 && (
+            <Button variant="ghost" size="icon-sm" className="relative" aria-label="Notificações" onClick={() => openLatestProjectNotification(project.id)}>
+              <Bell size={16} />
+              <span className="absolute -end-0.5 -top-0.5 flex min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-semibold text-primary-foreground">{activeProjectUnread > 9 ? "9+" : activeProjectUnread}</span>
+            </Button>
+          )}
+          <Button variant="ghost" size="icon-sm" aria-label="Configurações" onClick={() => setSettingsOpen(true)}><Settings2 size={16} /></Button>
+        </header>
 
-      {!mobile && (
+        <Tabs />
+        <ResizablePanelGroup orientation="horizontal" className="min-h-0 flex-1">
+          <ResizablePanel defaultSize={aiPanelOpen && !narrow ? "68" : "100"} minSize="30">
+            <ResizablePanelGroup orientation="vertical" className="min-h-0">
+              <ResizablePanel defaultSize={terminalOpen ? "70" : "100"} minSize="30">
+                <div className="relative flex h-full min-h-0 flex-col overflow-hidden">
+                  {!activeTab && project && (
+                    <Empty className="h-full">
+                      <EmptyHeader><EmptyMedia variant="icon"><BrandMark size="large" /></EmptyMedia><EmptyTitle>{project.name}</EmptyTitle><EmptyDescription>{project.root}</EmptyDescription></EmptyHeader>
+                      <EmptyContent><div className="flex flex-wrap items-center justify-center gap-2"><Button variant="outline" size="sm" onClick={() => setSidebar("files")}>Explorer</Button><Button variant="outline" size="sm" onClick={() => setSidebar("db")}>Database</Button><Button variant="outline" size="sm" onClick={openAI}>Agente</Button></div></EmptyContent>
+                    </Empty>
+                  )}
+                  {activeTab?.kind === "editor" && project && <EditorPanel tab={activeTab} project={project} onOpenChanges={(path) => openDiff(path, false)} />}
+                  {activeTab?.kind === "db" && <DbPanelTab tab={activeTab} />}
+                  {activeTab?.kind === "ai" && project && <AiPanelTab tab={activeTab} project={project} />}
+                  {activeTab?.kind === "web" && <WebPanelTab tab={activeTab} />}
+                  {activeTab?.kind === "diff" && project && <DiffPanelTab tab={activeTab} project={project} />}
+                </div>
+              </ResizablePanel>
+              {terminalOpen && project && (
+                <>
+                  <ResizableHandle withHandle />
+                  <ResizablePanel defaultSize="30" minSize="15">
+                    <TerminalPanel project={project} />
+                  </ResizablePanel>
+                </>
+              )}
+            </ResizablePanelGroup>
+          </ResizablePanel>
+          {aiPanelOpen && aiDockTab && !narrow && (
+            <>
+              <ResizableHandle withHandle />
+              <ResizablePanel defaultSize="32" minSize="22" maxSize="50">
+                <div className="flex h-full min-h-0 flex-col overflow-hidden border-s bg-background">
+                  <AiPanelTab tab={aiDockTab} project={project} onClose={() => setAiPanelOpen(false)} />
+                </div>
+              </ResizablePanel>
+            </>
+          )}
+        </ResizablePanelGroup>
+
         <footer className="flex h-7 shrink-0 items-center justify-between border-t bg-muted/20 px-2 text-[11px] text-muted-foreground">
           <div className="flex min-w-0 items-center gap-1.5">
-            <Button variant="ghost" size="xs" className="h-6 gap-1 px-1.5" onClick={() => void toggleBranchMenu()} aria-expanded={branchMenuOpen}>
-              <GitBranch size={12} /><span className="max-w-[220px] truncate">{branch || "detached"}</span><ChevronDown size={12} />
-            </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button type="button" className="flex min-w-0 items-center gap-1.5 rounded-md px-1.5 py-0.5 hover:bg-accent">
-                  <Avatar className="size-5"><AvatarFallback className="bg-primary/15 text-[9px] font-semibold text-primary" style={{ color: project.color }}>{project.name.slice(0, 1).toUpperCase()}</AvatarFallback></Avatar>
-                  <span className="max-w-[150px] truncate text-[11px]">{project.name}</span>
-                  <Badge variant="secondary" className="h-4 px-1 text-[9px]">{openProjectIds.length}</Badge>
-                  <ChevronDown size={12} />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" side="top" className="w-80">
-                <DropdownMenuLabel className="flex items-center justify-between">Projetos abertos <Badge variant="secondary">{openProjectIds.length}</Badge></DropdownMenuLabel>
-                {openProjectIds.map((id) => {
-                  const item = projects.find((projectItem) => projectItem.id === id);
-                  if (!item) return null;
-                  const unread = unreadForProject(item.id);
-                  return (
-                    <DropdownMenuItem key={item.id} onSelect={() => switchProject(item.id)} className="gap-2">
-                      <Avatar className="size-6"><AvatarFallback className="bg-primary/15 text-[10px] font-semibold text-primary" style={{ color: item.color }}>{item.name.slice(0, 1).toUpperCase()}</AvatarFallback></Avatar>
-                      <span className="flex min-w-0 flex-1 flex-col">
-                        <span className="truncate text-sm">{item.name}</span>
-                        <span className="truncate text-[11px] text-muted-foreground">{item.root}</span>
-                      </span>
-                      {unread.length > 0 && <Badge>{unread.length > 9 ? "9+" : unread.length}</Badge>}
-                      {item.id === activeProjectId && <Check size={14} className="text-primary" />}
-                    </DropdownMenuItem>
-                  );
-                })}
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onSelect={() => setShowRepoPicker(true)} className="gap-2"><FolderPlus size={14} /> Abrir repositório</DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            {activeProjectUnread > 0 && (
-              <Button variant="ghost" size="xs" className="h-6 gap-1 px-1.5" onClick={() => openLatestProjectNotification(project.id)}>
-                <Bell size={11} /> {activeProjectUnread > 9 ? "9+" : activeProjectUnread}
-              </Button>
-            )}
+            <Button variant="ghost" size="xs" className="h-6 gap-1 px-1.5" onClick={() => void toggleBranchMenu()} aria-expanded={branchMenuOpen}><GitBranch size={12} /><span className="max-w-[220px] truncate">{branch || "detached"}</span><ChevronDown size={12} /></Button>
           </div>
           <div className="flex shrink-0 items-center gap-2">
             {activeTab?.kind === "editor" && <span>Ln {cursor.line}, Col {cursor.column}</span>}
@@ -992,41 +1003,37 @@ export default function Workbench() {
             <span>UTF-8</span><span>LF</span><span>v{version}</span>
           </div>
         </footer>
-      )}
+      </SidebarInset>
+
+      <Sheet open={narrow && aiPanelOpen && Boolean(aiDockTab)} onOpenChange={(open) => !open && setAiPanelOpen(false)}>
+        <SheetContent side="right" className="w-full p-0 sm:max-w-md">
+          <SheetHeader className="sr-only"><SheetTitle>Agente</SheetTitle><SheetDescription>Painel do agente de IA.</SheetDescription></SheetHeader>
+          {aiDockTab && <AiPanelTab tab={aiDockTab} project={project} onClose={() => setAiPanelOpen(false)} />}
+        </SheetContent>
+      </Sheet>
 
       <Dialog open={branchMenuOpen && Boolean(project)} onOpenChange={(open) => !open && setBranchMenuOpen(false)}>
         <DialogContent className="max-h-[calc(100dvh-2rem)] max-w-[calc(100vw-2rem)] overflow-hidden p-0 sm:max-w-5xl">
           <DialogHeader className="sr-only"><DialogTitle>Git</DialogTitle><DialogDescription>Branches e commit.</DialogDescription></DialogHeader>
           <div className="grid min-h-[520px] grid-cols-1 md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
             <section className="flex min-h-0 flex-col border-b md:border-b-0 md:border-e">
-              <div className="flex items-center justify-between border-b px-3 py-2">
-                <div className="flex items-center gap-2"><GitBranch size={14} /><span className="text-sm font-medium">Branches</span><Badge variant="secondary">{branchInfo ? branchInfo.branches.length : "..."}</Badge></div>
-                <span className="truncate text-xs text-muted-foreground">{branchInfo?.current || branch || "detached"}</span>
-              </div>
+              <div className="flex items-center justify-between border-b px-3 py-2"><div className="flex items-center gap-2"><GitBranch size={14} /><span className="text-sm font-medium">Branches</span><Badge variant="secondary">{branchInfo ? branchInfo.branches.length : "..."}</Badge></div><span className="truncate text-xs text-muted-foreground">{branchInfo?.current || branch || "detached"}</span></div>
               <div className="min-h-0 flex-1 overflow-y-auto p-2">
                 {branchInfo ? sortedBranches.map((name) => (
-                  <Button key={name} variant={name === branchInfo.current ? "secondary" : "ghost"} className="mb-0.5 h-8 w-full justify-start px-2" disabled={Boolean(branchBusy)} onClick={() => void checkoutBranch(name)}>
-                    <GitBranch size={13} className="text-muted-foreground" /><span className="min-w-0 flex-1 truncate text-start">{name}</span>{name === branchInfo.current && <Check size={14} className="text-primary" />}
-                  </Button>
+                  <Button key={name} variant={name === branchInfo.current ? "secondary" : "ghost"} className="mb-0.5 h-8 w-full justify-start px-2" disabled={Boolean(branchBusy)} onClick={() => void checkoutBranch(name)}><GitBranch size={13} className="text-muted-foreground" /><span className="min-w-0 flex-1 truncate text-start">{name}</span>{name === branchInfo.current && <Check size={14} className="text-primary" />}</Button>
                 )) : <p className="px-2 py-6 text-center text-sm text-muted-foreground">Carregando branches...</p>}
               </div>
               <form className="flex flex-col gap-2 border-t p-2" onSubmit={(event) => void createBranchFromMenu(event)}>
                 <Input value={newBranchName} onChange={(event) => setNewBranchName(event.target.value)} placeholder="nome-da-branch" aria-label="Nome da nova branch" />
-                <div className="flex items-center gap-2">
-                  <Button type="button" variant="ghost" size="sm" disabled={Boolean(branchBusy)} onClick={() => void generateBranchName()}><Bot size={13} /> Gerar</Button>
-                  <Button type="submit" size="sm" className="ms-auto" disabled={!newBranchName.trim() || Boolean(branchBusy)}>Criar branch</Button>
-                </div>
+                <div className="flex items-center gap-2"><Button type="button" variant="ghost" size="sm" disabled={Boolean(branchBusy)} onClick={() => void generateBranchName()}><Bot size={13} /> Gerar</Button><Button type="submit" size="sm" className="ms-auto" disabled={!newBranchName.trim() || Boolean(branchBusy)}>Criar branch</Button></div>
               </form>
             </section>
-            <section className="flex min-h-0 flex-col">
-              <div className="border-b px-3 py-2 text-sm font-medium">Commit</div>
-              <div className="min-h-0 flex-1 overflow-y-auto p-2"><SourceControlPanel project={project} embedded view="commit" onOpenDiff={openDiff} onStatusChange={setGitStatus} /></div>
-            </section>
+            <section className="flex min-h-0 flex-col"><div className="border-b px-3 py-2 text-sm font-medium">Commit</div><div className="min-h-0 flex-1 overflow-y-auto p-2"><SourceControlPanel project={project} embedded view="commit" onOpenDiff={openDiff} onStatusChange={setGitStatus} /></div></section>
           </div>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={mobile && projectsSheetOpen} onOpenChange={(open) => !open && setProjectsSheetOpen(false)}>
+      <Dialog open={narrow && projectsSheetOpen} onOpenChange={(open) => !open && setProjectsSheetOpen(false)}>
         <DialogContent className="max-w-md">
           <DialogHeader><DialogTitle>Projetos abertos</DialogTitle><DialogDescription>Alterne entre os projetos deste workspace.</DialogDescription></DialogHeader>
           <div className="flex flex-col gap-1">
@@ -1036,11 +1043,7 @@ export default function Workbench() {
               const unread = unreadForProject(item.id);
               return (
                 <div key={item.id} className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-accent">
-                  <button type="button" className="flex min-w-0 flex-1 items-center gap-3 text-start" onClick={() => { setProjectsSheetOpen(false); switchProject(item.id); }}>
-                    <Avatar className="size-7"><AvatarFallback className="bg-primary/15 text-[10px] font-semibold text-primary" style={{ color: item.color }}>{item.name.slice(0, 1).toUpperCase()}</AvatarFallback></Avatar>
-                    <span className="flex min-w-0 flex-col"><span className="truncate text-sm">{item.name}</span><span className="truncate text-[11px] text-muted-foreground">{item.root}</span></span>
-                    {item.id === activeProjectId && <Check size={16} className="ms-auto text-primary" />}
-                  </button>
+                  <button type="button" className="flex min-w-0 flex-1 items-center gap-3 text-start" onClick={() => { setProjectsSheetOpen(false); switchProject(item.id); }}><Avatar className="size-7"><AvatarFallback className="bg-primary/15 text-[10px] font-semibold text-primary">{item.name.slice(0, 1).toUpperCase()}</AvatarFallback></Avatar><span className="flex min-w-0 flex-col"><span className="truncate text-sm">{item.name}</span><span className="truncate text-[11px] text-muted-foreground">{item.root}</span></span>{item.id === activeProjectId && <Check size={16} className="ms-auto text-primary" />}</button>
                   {unread.length > 0 && <Button variant="ghost" size="icon-sm" onClick={() => { setProjectsSheetOpen(false); switchProject(item.id); openLatestProjectNotification(item.id); }}><Bell size={15} /></Button>}
                   <Button variant="ghost" size="icon-sm" aria-label={`Fechar ${item.name}`} onClick={() => void closeProject(item.id)}><X size={15} /></Button>
                 </div>
@@ -1052,12 +1055,9 @@ export default function Workbench() {
         </DialogContent>
       </Dialog>
 
-      {mobile && (
-        <MobileNav sidebar={sidebar} panelOpen={mobilePanelOpen} terminalOpen={terminalOpen} aiPanelOpen={aiPanelOpen} onSidebar={openMobileSidebar} onAI={openMobileAI} onWeb={() => openMobileSidebar("web")} onTerminal={openMobileTerminal} />
-      )}
       {showRepoPicker && <RepoPicker onClose={() => setShowRepoPicker(false)} onOpen={openRepo} />}
       <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} version={version} initialCategory={settingsCategory} />
       <Toasts />
-    </div>
+    </>
   );
 }

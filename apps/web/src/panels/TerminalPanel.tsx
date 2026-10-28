@@ -7,7 +7,6 @@ import { useApp } from "../store";
 import { useSettings } from "../settings";
 import { CODE_FONT_FAMILY } from "../editorThemes";
 import { Button } from "@/components/ui/button";
-import ResizeHandle from "../ui/resize";
 
 interface Props {
   project: Project;
@@ -20,8 +19,6 @@ export default function TerminalPanel({ project }: Props) {
   const [status, setStatus] = useState<"connecting" | "open" | "closed" | "error">("connecting");
   const [attempt, setAttempt] = useState(0);
   const [error, setError] = useState("");
-  const terminalHeight = useSettings((state) => state.terminalHeight);
-  const updateSettings = useSettings((state) => state.update);
   const theme = useSettings((state) => state.theme);
 
   useEffect(() => {
@@ -187,8 +184,7 @@ export default function TerminalPanel({ project }: Props) {
   }, [attempt, project.id, setTerminalId, theme]);
 
   return (
-    <section className="flex h-[var(--terminal-height)] min-h-[180px] shrink-0 flex-col border-t bg-muted/20">
-      <ResizeHandle className="terminal-resize" orientation="horizontal" value={terminalHeight} min={180} max={640} invert label="Resize terminal" onChange={(height) => document.documentElement.style.setProperty("--terminal-height", `${height}px`)} onCommit={(height) => updateSettings({ terminalHeight: height })} />
+    <section className="flex h-full min-h-0 flex-col border-t bg-muted/20">
       <div className="flex h-8 shrink-0 items-center justify-between border-b px-2">
         <span className="flex h-6 items-center rounded border bg-background px-2 text-[11px] font-medium">Terminal</span>
         <div className="flex items-center gap-1.5">

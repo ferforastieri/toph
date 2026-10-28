@@ -4,6 +4,8 @@ import { languageFor } from "../lib";
 import { useApp, type Tab } from "../store";
 import CodeEditor from "../components/CodeEditor";
 import FileIcon from "../ui/FileIcon";
+import { Breadcrumb, BreadcrumbItem, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
+import { Badge } from "@/components/ui/badge";
 import { useProjectEvents } from "../projectEvents";
 
 interface Props {
@@ -102,12 +104,16 @@ export default function EditorPanel({ tab, project, onOpenChanges }: Props) {
 
   return (
     <div className="flex h-full min-h-0 w-full flex-1 flex-col">
-      <div className="flex h-8 min-w-0 shrink-0 items-center gap-1.5 border-b px-2 text-[11px] text-muted-foreground">
-        <span className="shrink-0">{project.name}</span><span>/</span><FileIcon name={tab.path ?? tab.title} path={tab.path} size={13} />
-        <span className="truncate">{tab.path}</span>
-        {tab.dirty && <span className="ms-1 rounded bg-primary/15 px-1.5 py-0.5 text-[10px] text-primary">modified</span>}
-        {stale && <span className="ms-1 rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] text-amber-500">changed on disk</span>}
-      </div>
+      <Breadcrumb className="flex h-8 min-w-0 shrink-0 items-center border-b px-2">
+        <BreadcrumbList className="min-w-0 gap-1.5 text-[11px]">
+          <BreadcrumbItem className="shrink-0">{project.name}</BreadcrumbItem>
+          <BreadcrumbSeparator />
+          <BreadcrumbItem><FileIcon name={tab.path ?? tab.title} path={tab.path} size={13} /></BreadcrumbItem>
+          <BreadcrumbItem className="min-w-0"><BreadcrumbPage className="truncate">{tab.path}</BreadcrumbPage></BreadcrumbItem>
+        {tab.dirty && <BreadcrumbItem><Badge className="text-[10px]">modified</Badge></BreadcrumbItem>}
+        {stale && <BreadcrumbItem><Badge variant="secondary" className="text-[10px] text-amber-500">changed on disk</Badge></BreadcrumbItem>}
+        </BreadcrumbList>
+      </Breadcrumb>
       <div className="min-h-0 flex-1 overflow-hidden">
         <CodeEditor path={tab.path ?? tab.title} projectId={project.id} projectRoot={project.root} onOpenChanges={onOpenChanges} value={tab.content} language={languageFor(tab.path ?? tab.title)} line={tab.line} blame={blame} onChange={(content) => updateTab(tab.id, { content, dirty: true })} onCursorPosition={(line, column) => { window.dispatchEvent(new CustomEvent("toph:cursor", { detail: { line, column, language: languageFor(tab.path ?? tab.title) } })); }} onSave={() => void save()} />
       </div>

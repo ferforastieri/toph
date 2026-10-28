@@ -7,6 +7,11 @@ import type { Project } from "../api";
 import OpenCodePanelTab from "./OpenCodePanelTab";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { Message, MessageContent, MessageGroup, MessageHeader } from "@/components/ui/message";
+import { Bubble, BubbleContent } from "@/components/ui/bubble";
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import { Marker } from "@/components/ui/marker";
+import { Spinner } from "@/components/ui/spinner";
 import { AgentComposer } from "../ui/AgentComposer";
 import { notifyAiResponse } from "../aiNotifications";
 
@@ -105,21 +110,30 @@ function GenericAiPanel({ tab, project, config, onClose }: Props & { config: AIC
           <span className="flex items-center gap-1.5 rounded border px-2 py-1 text-[11px] text-muted-foreground">YOLO <Switch checked={yolo} onCheckedChange={setYolo} className="scale-75" /></span>
         </div>
       </div>
-      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3">
-        {messages.length === 0 && (
-          <div className="flex flex-col items-center gap-2 py-10 text-center text-muted-foreground">
-            <Bot size={26} /><p className="text-sm">Pergunte ao {label} sobre este projeto.</p>
-            <span className="max-w-[320px] text-xs">O agente pode ler {project.root} através do servidor.</span>
-          </div>
-        )}
-        {messages.map((message) => (
-          <div key={message.id} className={`flex max-w-[92%] flex-col gap-1 rounded-xl px-3 py-2 ${message.role === "user" ? "ms-auto bg-primary/15" : message.role === "error" ? "border border-destructive/40 bg-destructive/10 text-destructive" : "bg-card"}`}>
-            <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{message.role === "user" ? "Você" : message.role === "assistant" ? label : "Erro"}</div>
-            <pre className="whitespace-pre-wrap break-words font-sans text-xs">{message.text}</pre>
-          </div>
-        ))}
-        {streaming && <div className="flex items-center gap-2 px-1 text-xs text-muted-foreground"><span className="size-2 animate-pulse rounded-full bg-primary" /> Trabalhando...</div>}
-        <div ref={bottomRef} />
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <MessageGroup className="p-3">
+          {messages.length === 0 && (
+            <Empty className="border-0">
+              <EmptyHeader><EmptyMedia variant="icon"><Bot size={20} /></EmptyMedia><EmptyTitle>Pergunte ao {label}</EmptyTitle><EmptyDescription>O agente pode ler {project.root} através do servidor.</EmptyDescription></EmptyHeader>
+            </Empty>
+          )}
+          {messages.map((message) => {
+            const isUser = message.role === "user";
+            const isError = message.role === "error";
+            return (
+              <Message key={message.id} align={isUser ? "end" : "start"}>
+                <MessageContent>
+                  <MessageHeader>{isUser ? "Você" : isError ? "Erro" : label}</MessageHeader>
+                  <Bubble align={isUser ? "end" : "start"} variant={isError ? "destructive" : isUser ? "default" : "muted"}>
+                    <BubbleContent><pre className="whitespace-pre-wrap break-words font-sans text-sm">{message.text}</pre></BubbleContent>
+                  </Bubble>
+                </MessageContent>
+              </Message>
+            );
+          })}
+          {streaming && <Marker><Spinner /> Trabalhando...</Marker>}
+          <div ref={bottomRef} />
+        </MessageGroup>
       </div>
       {error && <div className="mx-2 rounded-md bg-destructive/10 px-2 py-1 text-[11px] text-destructive">{error}</div>}
       <AgentComposer value={input} onChange={setInput} onSend={(text) => void send(text)} busy={streaming} models={models} model={model} onModelChange={setModel} effort={effort} efforts={[]} onEffortChange={setEffort} placeholder={`Pergunte ao ${label} sobre este projeto...`} allowAttachments={false} />

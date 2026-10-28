@@ -9,6 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useProjectEvents } from "../projectEvents";
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 
 interface Props {
   project: Project;
@@ -128,10 +129,10 @@ export default function DatabasesPanel({ project, onOpenQuery, onOpenTable }: Pr
           });
         })()}
         {!busy && profiles.length === 0 && !showForm && (
-          <div className="flex flex-col items-center gap-2 px-4 py-10 text-center">
-            <Database size={22} className="text-muted-foreground" /><p className="text-sm text-muted-foreground">Nenhuma conexão ainda.</p>
-            <Button variant="outline" size="sm" onClick={() => setShowForm(true)}>Adicionar conexão</Button>
-          </div>
+          <Empty className="border-0">
+            <EmptyHeader><EmptyMedia variant="icon"><Database size={20} /></EmptyMedia><EmptyTitle>Nenhuma conexão</EmptyTitle><EmptyDescription>Adicione um banco para consultar tabelas e rodar SQL.</EmptyDescription></EmptyHeader>
+            <EmptyContent><Button variant="outline" size="sm" onClick={() => setShowForm(true)}>Adicionar conexão</Button></EmptyContent>
+          </Empty>
         )}
       </div>
     </div>

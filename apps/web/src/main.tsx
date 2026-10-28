@@ -7,7 +7,7 @@ import "@toph/icons/styles.css";
 import "./index.css";
 import { initAppearance } from "./settings";
 import { ConfirmProvider } from "./ui/confirm";
-import { Toaster } from "./ui/toaster";
+import { Toaster } from "./components/ui/sonner";
 import App from "./App";
 import { installNativeInsets } from "./nativeInsets";
 

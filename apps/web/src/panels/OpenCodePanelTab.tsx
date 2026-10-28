@@ -8,6 +8,13 @@ import { useAI } from "../ai";
 import { useApp, type AiMessage, type Tab } from "../store";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Message, MessageContent, MessageGroup, MessageHeader } from "@/components/ui/message";
+import { Bubble, BubbleContent } from "@/components/ui/bubble";
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import { Marker } from "@/components/ui/marker";
+import { Spinner } from "@/components/ui/spinner";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AgentComposer, type AgentAttachment } from "../ui/AgentComposer";
@@ -669,39 +676,80 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
         </div>
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3">
-        {messages.length === 0 && (
-          <div className="flex flex-col items-center gap-2 py-10 text-center text-muted-foreground">
-            <Bot size={26} /><p className="text-sm">Pergunte ao OpenCode sobre este projeto.</p>
-            <span className="max-w-[320px] text-xs">A sessão roda no servidor e pode ler {project.root}.</span>
-          </div>
-        )}
-        {messages.map((message) => {
-          if (message.role === "reasoning") {
-            return <details className="rounded-lg border bg-card px-3 py-2" key={message.id}><summary className="cursor-pointer text-[11px] font-medium text-muted-foreground">{message.title ?? "Reasoning"}</summary><pre className="mt-2 whitespace-pre-wrap break-words text-[11px] text-muted-foreground">{message.text}</pre></details>;
-          }
-          if (message.role === "step") return <div className="px-1 text-[11px] text-muted-foreground" key={message.id}>{message.text}</div>;
-          if (message.role === "tool") {
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <MessageGroup className="p-3">
+          {messages.length === 0 && (
+            <Empty className="border-0">
+              <EmptyHeader>
+                <EmptyMedia variant="icon"><Bot size={20} /></EmptyMedia>
+                <EmptyTitle>Pergunte ao OpenCode</EmptyTitle>
+                <EmptyDescription>A sessão roda no servidor e pode ler {project.root}.</EmptyDescription>
+              </EmptyHeader>
+            </Empty>
+          )}
+          {messages.map((message) => {
+            if (message.role === "reasoning") {
+              return (
+                <Collapsible key={message.id}>
+                  <CollapsibleTrigger asChild>
+                    <Button variant="ghost" size="sm" className="h-auto justify-start px-0 text-xs text-muted-foreground">
+                      <ChevronDown size={13} /> {message.title ?? "Reasoning"}
+                    </Button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <pre className="mt-2 whitespace-pre-wrap break-words rounded-lg bg-muted p-3 text-xs text-muted-foreground">{message.text}</pre>
+                  </CollapsibleContent>
+                </Collapsible>
+              );
+            }
+            if (message.role === "step") {
+              return <Marker variant="separator" key={message.id}>{message.text}</Marker>;
+            }
+            if (message.role === "tool") {
+              return (
+                <Card key={message.id} className="gap-0 py-0">
+                  <CardHeader className="flex-row items-center gap-2 space-y-0 border-b px-3 py-2">
+                    <Wrench size={14} className="text-muted-foreground" />
+                    <CardTitle className="min-w-0 flex-1 truncate text-xs">{message.title ?? "Tool"}</CardTitle>
+                    {message.status && <Badge variant="secondary" className="text-[10px]">{message.status}</Badge>}
+                  </CardHeader>
+                  {message.text && <CardContent className="px-3 py-2"><pre className="whitespace-pre-wrap break-words text-xs">{message.text}</pre></CardContent>}
+                  {message.detail && <CardContent className="border-t px-3 py-2"><pre className="max-h-48 overflow-auto text-[11px] text-muted-foreground">{message.detail}</pre></CardContent>}
+                  {message.permissionId && (
+                    <CardFooter className="flex flex-wrap gap-1.5 border-t px-3 py-2">
+                      <Button variant="outline" size="xs" onClick={() => void replyPermission(message.id, message.permissionId!, "once")}>Allow once</Button>
+                      <Button variant="outline" size="xs" onClick={() => void replyPermission(message.id, message.permissionId!, "always")}><Check size={13} /> Always</Button>
+                      <Button variant="destructive" size="xs" onClick={() => void replyPermission(message.id, message.permissionId!, "reject")}><X size={13} /> Reject</Button>
+                    </CardFooter>
+                  )}
+                </Card>
+              );
+            }
+            const isUser = message.role === "user";
+            const isError = message.role === "error";
             return (
-              <div className="rounded-lg border bg-card" key={message.id}>
-                <div className="flex items-center gap-2 border-b px-3 py-1.5"><Wrench size={13} className="text-muted-foreground" /><span className="min-w-0 flex-1 truncate text-[11px] font-medium">{message.title ?? "Tool"}</span>{message.status && <span className="text-[10px] text-muted-foreground">{message.status}</span>}</div>
-                {message.text && <pre className="whitespace-pre-wrap break-words px-3 py-2 text-[11px]">{message.text}</pre>}
-                {message.detail && <pre className="max-h-48 overflow-auto border-t px-3 py-2 text-[10px] text-muted-foreground">{message.detail}</pre>}
-                {message.permissionId && <div className="flex flex-wrap gap-1.5 border-t p-2"><Button variant="outline" size="xs" onClick={() => void replyPermission(message.id, message.permissionId!, "once")}>Allow once</Button><Button variant="outline" size="xs" onClick={() => void replyPermission(message.id, message.permissionId!, "always")}><Check size={13} /> Always</Button><Button variant="destructive" size="xs" onClick={() => void replyPermission(message.id, message.permissionId!, "reject")}><X size={13} /> Reject</Button></div>}
-              </div>
+              <Message key={message.id} align={isUser ? "end" : "start"}>
+                <MessageContent>
+                  <MessageHeader>{isUser ? "Você" : message.role === "assistant" ? "OpenCode" : message.role === "subagent" ? `Subagent · ${message.title ?? ""}` : "Erro"}</MessageHeader>
+                  <Bubble align={isUser ? "end" : "start"} variant={isError ? "destructive" : isUser ? "default" : "muted"}>
+                    <BubbleContent>
+                      {isError ? <pre className="whitespace-pre-wrap break-words text-sm">{message.text}</pre> : <div className="prose prose-sm max-w-none text-sm prose-a:text-primary prose-code:text-foreground prose-pre:bg-background"><ReactMarkdown remarkPlugins={[remarkGfm]}>{message.text}</ReactMarkdown></div>}
+                    </BubbleContent>
+                  </Bubble>
+                  {message.permissionId && (
+                    <div className="flex flex-wrap gap-1.5">
+                      <Button variant="outline" size="xs" onClick={() => void replyPermission(message.id, message.permissionId!, "once")}>Allow once</Button>
+                      <Button variant="outline" size="xs" onClick={() => void replyPermission(message.id, message.permissionId!, "always")}><Check size={13} /> Always</Button>
+                      <Button variant="destructive" size="xs" onClick={() => void replyPermission(message.id, message.permissionId!, "reject")}><X size={13} /> Reject</Button>
+                    </div>
+                  )}
+                </MessageContent>
+              </Message>
             );
-          }
-          const isUser = message.role === "user";
-          return (
-            <div className={`flex max-w-[92%] flex-col gap-1 rounded-xl px-3 py-2 ${isUser ? "ms-auto bg-primary/15" : message.role === "error" ? "border border-destructive/40 bg-destructive/10 text-destructive" : "bg-card"}`} key={message.id}>
-              <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{isUser ? "Você" : message.role === "assistant" ? "OpenCode" : message.role === "subagent" ? `Subagent · ${message.title ?? ""}` : "Erro"}</div>
-              {isUser || message.role === "assistant" || message.role === "subagent" ? <div className="prose prose-sm max-w-none text-xs prose-a:text-primary prose-code:text-foreground prose-pre:bg-background"><ReactMarkdown remarkPlugins={[remarkGfm]}>{message.text}</ReactMarkdown></div> : <pre className="whitespace-pre-wrap break-words text-xs">{message.text}</pre>}
-              {message.permissionId && <div className="mt-1 flex flex-wrap gap-1.5"><Button variant="outline" size="xs" onClick={() => void replyPermission(message.id, message.permissionId!, "once")}>Allow once</Button><Button variant="outline" size="xs" onClick={() => void replyPermission(message.id, message.permissionId!, "always")}><Check size={13} /> Always</Button><Button variant="destructive" size="xs" onClick={() => void replyPermission(message.id, message.permissionId!, "reject")}><X size={13} /> Reject</Button></div>}
-            </div>
-          );
-        })}
-        {streaming && <div className="flex items-center gap-2 px-1 text-xs text-muted-foreground"><span className="size-2 animate-pulse rounded-full bg-primary" /> OpenCode está trabalhando...</div>}
-        <div ref={bottomRef} />
+          })}
+          {streaming && <Marker><Spinner /> OpenCode está trabalhando...</Marker>}
+          <div ref={bottomRef} />
+        </MessageGroup>
       </div>
       {error && <div className="mx-2 rounded-md bg-destructive/10 px-2 py-1 text-[11px] text-destructive">{error}</div>}
       <AgentComposer value={input} onChange={setInput} onSend={(text, attachments) => void send(text, attachments)} onStop={() => void stop()} busy={streaming} models={models} model={model} onModelChange={(next) => void chooseModel(next)} effort={effort} efforts={efforts} onEffortChange={(next) => void chooseEffort(next)} placeholder="Pergunte ao OpenCode... (/ comandos, @ contexto, ! shell)" allowAttachments />

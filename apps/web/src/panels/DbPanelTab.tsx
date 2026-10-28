@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useConfirm } from "../ui/confirm";
 import { useProjectEvents } from "../projectEvents";
 
@@ -227,19 +228,22 @@ export default function DbPanelTab({ tab }: Props) {
             </div>
             {result.columns.length === 0 ? <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">Statement executed.</div> : (
               <div className="min-h-0 flex-1 overflow-auto">
-                <table className="w-full border-collapse text-xs">
-                  <thead className="sticky top-0 bg-muted">
-                    <tr>{result.columns.map((column, index) => <th key={`${column.name}:${index}`} className="border-b px-3 py-2 text-start font-medium"><span className="flex flex-col"><span>{column.name}</span>{column.type && <small className="text-[10px] font-normal text-muted-foreground">{column.type}</small>}</span></th>)}{canEdit && <th className="border-b px-3 py-2 text-start font-medium">Actions</th>}</tr>
-                  </thead>
-                  <tbody>
+                <Table>
+                  <TableHeader className="sticky top-0 bg-muted">
+                    <TableRow>
+                      {result.columns.map((column, index) => <TableHead key={`${column.name}:${index}`}><span className="flex flex-col"><span>{column.name}</span>{column.type && <span className="text-[10px] font-normal text-muted-foreground">{column.type}</span>}</span></TableHead>)}
+                      {canEdit && <TableHead>Actions</TableHead>}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
                     {result.rows.map((row, rowIndex) => (
-                      <tr key={rowIndex} className="border-b last:border-0 hover:bg-accent/50">
-                        {row.map((value, columnIndex) => <td key={columnIndex} title={formatValue(value)} className="max-w-[360px] truncate px-3 py-1.5"><span className={value === null ? "italic text-muted-foreground" : ""}>{value === null ? "NULL" : formatValue(value)}</span></td>)}
-                        {canEdit && <td className="px-1 py-1"><span className="flex items-center gap-0.5"><Button variant="ghost" size="icon-xs" aria-label="Edit row" onClick={() => startEdit(rowIndex)}><Pencil size={13} /></Button><Button variant="ghost" size="icon-xs" aria-label="Delete row" onClick={() => void deleteRow(rowIndex)}><Trash2 size={13} /></Button></span></td>}
-                      </tr>
+                      <TableRow key={rowIndex}>
+                        {row.map((value, columnIndex) => <TableCell key={columnIndex} title={formatValue(value)} className="max-w-[360px] truncate"><span className={value === null ? "italic text-muted-foreground" : ""}>{value === null ? "NULL" : formatValue(value)}</span></TableCell>)}
+                        {canEdit && <TableCell><span className="flex items-center gap-0.5"><Button variant="ghost" size="icon-xs" aria-label="Edit row" onClick={() => startEdit(rowIndex)}><Pencil size={13} /></Button><Button variant="ghost" size="icon-xs" aria-label="Delete row" onClick={() => void deleteRow(rowIndex)}><Trash2 size={13} /></Button></span></TableCell>}
+                      </TableRow>
                     ))}
-                  </tbody>
-                </table>
+                  </TableBody>
+                </Table>
               </div>
             )}
           </>
