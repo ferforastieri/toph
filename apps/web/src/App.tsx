@@ -6,7 +6,6 @@ import ServerSetup from "./components/ServerSetup";
 import UpdateToast from "./components/UpdateToast";
 import Workbench from "./components/Workbench";
 import BrandMark from "@toph/brand";
-import { SidebarProvider } from "./components/ui/sidebar";
 
 const SERVER_KEY = "toph_server_url";
 
@@ -85,9 +84,7 @@ function AppShell() {
 
   return (
     <>
-      <SidebarProvider defaultOpen>
-        <Workbench />
-      </SidebarProvider>
+      <Workbench />
       <UpdateToast />
     </>
   );
