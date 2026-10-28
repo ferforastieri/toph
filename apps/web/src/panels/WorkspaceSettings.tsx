@@ -1,10 +1,11 @@
-import { FormEvent, useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { AlertTriangle, FolderOpen, FolderPlus, HardDrive, Plus, Trash2 } from "@toph/icons";
 import { api } from "../api";
 import { basename } from "../lib";
 import { useApp } from "../store";
-import { useConfirm } from "@toph/ui";
-import { Button } from "@toph/ui";
+import { useConfirm } from "../ui/confirm";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 export default function WorkspaceSettings() {
   const projects = useApp((state) => state.projects);
@@ -48,9 +49,9 @@ export default function WorkspaceSettings() {
 
   async function removeRoot(value: string) {
     const ok = await confirm({
-      title: "Remove workspace folder?",
-      message: `Remove ${value} from the allowed workspace folders?`,
-      confirmLabel: "Remove",
+      title: "Remover pasta do workspace?",
+      message: `Remover ${value} das pastas permitidas?`,
+      confirmLabel: "Remover",
       danger: true,
     });
     if (!ok) return;
@@ -73,11 +74,7 @@ export default function WorkspaceSettings() {
     setBusy(true);
     setError("");
     try {
-      const project = await api.createProject(
-        projectName.trim() || basename(path),
-        path,
-        getComputedStyle(document.documentElement).getPropertyValue("--primary").trim() || "#A8C66C",
-      );
+      const project = await api.createProject(projectName.trim() || basename(path), path, "#FF50FF");
       const next = await api.projects();
       setProjects(next);
       setActiveProject(project.id);
@@ -88,7 +85,7 @@ export default function WorkspaceSettings() {
     } catch (err) {
       setError(
         err instanceof Error && err.message.includes("outside")
-          ? "That folder is outside the allowed roots. Add it below first."
+          ? "Essa pasta está fora das raízes permitidas. Adicione-a abaixo primeiro."
           : err instanceof Error
             ? err.message
             : "Could not create project.",
@@ -99,72 +96,53 @@ export default function WorkspaceSettings() {
   }
 
   return (
-    <div className="settings-page">
-      <div className="settings-page-title"><HardDrive size={15} /> Workspace</div>
-      <p className="settings-note">
-        Folders are read directly from the server. On a native install this avoids bind mounts:
-        add the parent folder once, then open any project inside it.
-      </p>
+    <div className="flex flex-col gap-5">
+      <div>
+        <h3 className="flex items-center gap-2 text-sm font-medium"><HardDrive size={16} /> Workspace</h3>
+        <p className="mt-1 text-xs text-muted-foreground">As pastas são lidas diretamente do servidor.</p>
+      </div>
 
       {current && (
-        <div className="settings-callout">
-          <FolderOpen size={15} />
-          <div>
-            <strong>{current.name}</strong>
-            <code>{current.root}</code>
+        <div className="flex items-start gap-2 rounded-xl border bg-card p-4">
+          <FolderOpen size={16} className="mt-0.5 text-muted-foreground" />
+          <div className="min-w-0">
+            <p className="text-sm font-medium">{current.name}</p>
+            <code className="text-xs text-muted-foreground">{current.root}</code>
           </div>
         </div>
       )}
 
-      <form className="settings-form" onSubmit={(event) => void createProject(event)}>
-        <label>
-          Folder path
-          <input
-            value={projectPath}
-            onChange={(event) => setProjectPath(event.target.value)}
-            placeholder="/srv/repos/my-project"
-          />
-        </label>
-        <label>
-          Project name
-          <input
-            value={projectName}
-            onChange={(event) => setProjectName(event.target.value)}
-            placeholder={projectPath ? basename(projectPath) : "Optional"}
-          />
-        </label>
-        <Button className="primary small" disabled={busy || !projectPath.trim()}>
-          <Plus size={14} /> {busy ? "Opening..." : "Open as project"}
+      <form className="flex flex-col gap-3 rounded-xl border bg-card p-4" onSubmit={(event) => void createProject(event)}>
+        <label className="flex flex-col gap-1.5 text-sm">Caminho da pasta<Input value={projectPath} onChange={(event) => setProjectPath(event.target.value)} placeholder="/srv/repos/my-project" /></label>
+        <label className="flex flex-col gap-1.5 text-sm">Nome do projeto<Input value={projectName} onChange={(event) => setProjectName(event.target.value)} placeholder={projectPath ? basename(projectPath) : "Opcional"} /></label>
+        <Button type="submit" className="self-start" disabled={busy || !projectPath.trim()}>
+          <Plus size={14} /> {busy ? "Abrindo..." : "Abrir como projeto"}
         </Button>
       </form>
 
-      <div className="settings-subtitle"><FolderPlus size={13} /> Allowed folders</div>
-      <div className="settings-roots">
+      <section className="flex flex-col gap-2">
+        <h4 className="flex items-center gap-2 text-sm font-medium"><FolderPlus size={14} /> Pastas permitidas</h4>
         {roots.map((value) => (
-          <div className="settings-root" key={value}>
-            <code>{value}</code>
-            <Button className="icon-button danger" title="Remove" onClick={() => void removeRoot(value)}>
-              <Trash2 size={13} />
+          <div key={value} className="flex items-center gap-2 rounded-lg border bg-card px-3 py-2">
+            <code className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{value}</code>
+            <Button type="button" variant="ghost" size="icon-sm" onClick={() => void removeRoot(value)} aria-label="Remover">
+              <Trash2 size={14} />
             </Button>
           </div>
         ))}
-        {roots.length === 0 && <div className="settings-empty">No allowed folders configured.</div>}
-      </div>
-      <form className="settings-inline-form" onSubmit={(event) => void addRoot(event)}>
-        <input
-          value={root}
-          onChange={(event) => setRoot(event.target.value)}
-          placeholder="/srv/repos"
-        />
-        <Button className="ghost small" disabled={busy || !root.trim()}>
-          <FolderPlus size={14} /> Add folder
-        </Button>
+        {roots.length === 0 && <p className="rounded-lg border border-dashed px-3 py-6 text-center text-xs text-muted-foreground">Nenhuma pasta configurada.</p>}
+      </section>
+
+      <form className="flex items-end gap-2" onSubmit={(event) => void addRoot(event)}>
+        <Input value={root} onChange={(event) => setRoot(event.target.value)} placeholder="/srv/repos" className="flex-1" />
+        <Button type="submit" variant="outline" disabled={busy || !root.trim()}><FolderPlus size={14} /> Adicionar</Button>
       </form>
-      <div className="settings-warning">
-        <AlertTriangle size={13} />
-        <span>Only add directories you trust. The server process can read and write inside them.</span>
+
+      <div className="flex items-start gap-2 rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
+        <AlertTriangle size={14} className="mt-0.5 shrink-0 text-amber-500" />
+        Adicione apenas diretórios confiáveis. O servidor pode ler e escrever dentro deles.
       </div>
-      {error && <div className="form-error">{error}</div>}
+      {error && <div className="rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive">{error}</div>}
     </div>
   );
 }

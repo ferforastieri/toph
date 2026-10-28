@@ -19,7 +19,22 @@ export const useAI = create<AIState>((set) => ({
   async load() {
     set({ loading: true });
     try {
-      set({ config: await api.aiConfig(), loading: false });
+      let config = await api.aiConfig();
+      if (!config.autocomplete && !localStorage.getItem("toph_autocomplete_enabled_v1")) {
+        config = await api.saveAIConfig({
+          provider: config.provider,
+          baseUrl: config.baseUrl,
+          model: config.model,
+          maxTokens: config.maxTokens,
+          temperature: config.temperature,
+          autocomplete: true,
+          systemPrompt: config.systemPrompt,
+          apiKey: "",
+          clearKey: false,
+        }).catch(() => config);
+        localStorage.setItem("toph_autocomplete_enabled_v1", "1");
+      }
+      set({ config, loading: false });
     } catch {
       set({ loading: false });
     }

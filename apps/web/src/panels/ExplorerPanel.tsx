@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, ChevronRight, FolderOpen } from "@toph/icons";
 import { createPortal } from "react-dom";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { FileEntry, GitHistoryEntry, Project, SearchMatch } from "../api";
 import { api } from "../api";
 import { changeStatusByPath } from "../gitStatus";
@@ -257,178 +258,108 @@ export default function ExplorerPanel({
     action();
   }
 
+  function MenuItem({ label, onClick, disabled = false, shortcut }: { label: string; onClick: () => void; disabled?: boolean; shortcut?: string }) {
+    return (
+      <button type="button" role="menuitem" disabled={disabled} onClick={onClick} className="flex h-8 w-full items-center justify-between gap-3 rounded px-2 text-start text-xs text-foreground hover:bg-accent disabled:cursor-not-allowed disabled:text-muted-foreground disabled:hover:bg-transparent">
+        <span className="truncate">{label}</span>
+        {shortcut && <span className="shrink-0 text-[10px] text-muted-foreground">{shortcut}</span>}
+      </button>
+    );
+  }
+
   const menu = contextMenu && createPortal(
-    <div
-      className="explorer-context-menu"
-      style={{ left: contextMenu.x, top: contextMenu.y }}
-      role="menu"
-      onMouseDown={(event) => event.stopPropagation()}
-    >
-      <button type="button" onClick={() => menuAction(() => void newFile(contextMenu.entry))}>New File...</button>
-      <button type="button" onClick={() => menuAction(() => void newFolder(contextMenu.entry))}>New Folder...</button>
-      <button type="button" disabled={contextMenu.entry.dir} onClick={() => menuAction(() => IMAGE_EXTENSIONS.test(contextMenu.entry.path) ? window.open(api.rawUrl(project.id, contextMenu.entry.path), "_blank", "noopener,noreferrer") : onOpenFile(contextMenu.entry.path))}>Open in Images Preview</button>
-      <button type="button" onClick={() => menuAction(() => setTerminalOpen(true))}>Open in Integrated Terminal</button>
-      <div className="explorer-context-separator" />
-      <button type="button" disabled={!contextMenu.entry.dir} onClick={() => menuAction(() => void addWorkspaceFolder(contextMenu.entry))}>Add Folder to Workspace...</button>
-      <button type="button" onClick={() => menuAction(() => { setSidebar("settings"); window.dispatchEvent(new CustomEvent("toph:settings-category", { detail: "workspace" })); })}>Open Folder Settings</button>
-      <button type="button" disabled={!contextMenu.entry.dir} onClick={() => menuAction(() => void removeWorkspaceFolder(contextMenu.entry))}>Remove Folder from Workspace</button>
-      <div className="explorer-context-separator" />
-      <button type="button" disabled={!contextMenu.entry.dir} onClick={() => menuAction(() => void findInFolder(contextMenu.entry))}>Find in Folder...</button>
-      <button type="button" disabled={!contextMenu.entry.dir} onClick={() => menuAction(() => void showHistory(contextMenu.entry))}>Folder History</button>
-      <button type="button" disabled={!contextMenu.entry.dir} onClick={() => menuAction(() => addFolderToChat(contextMenu.entry))}>Add Folder to Chat</button>
-      <div className="explorer-context-separator" />
-      <button type="button" onClick={() => menuAction(() => void pasteImage(contextMenu.entry))}>Paste <kbd>Ctrl+V</kbd></button>
-      <button type="button" onClick={() => menuAction(() => uploadRef.current?.click())}>Upload...</button>
-      <button type="button" disabled={contextMenu.entry.dir} onClick={() => menuAction(() => download(contextMenu.entry))}>Download...</button>
-      <div className="explorer-context-separator" />
-      <button type="button" onClick={() => menuAction(() => copy(absolutePath(contextMenu.entry)))}>Copy Path <kbd>Shift+Alt+C</kbd></button>
-      <button type="button" onClick={() => menuAction(() => copy(contextMenu.entry.path))}>Copy Relative Path</button>
+    <div className="fixed z-50 w-[280px] rounded-lg border bg-popover p-1.5 text-popover-foreground shadow-lg" style={{ left: contextMenu.x, top: contextMenu.y }} role="menu" onMouseDown={(event) => event.stopPropagation()}>
+      <MenuItem label="New File..." onClick={() => menuAction(() => void newFile(contextMenu.entry))} />
+      <MenuItem label="New Folder..." onClick={() => menuAction(() => void newFolder(contextMenu.entry))} />
+      <MenuItem label="Open in Images Preview" disabled={contextMenu.entry.dir} onClick={() => menuAction(() => IMAGE_EXTENSIONS.test(contextMenu.entry.path) ? window.open(api.rawUrl(project.id, contextMenu.entry.path), "_blank", "noopener,noreferrer") : onOpenFile(contextMenu.entry.path))} />
+      <MenuItem label="Open in Integrated Terminal" onClick={() => menuAction(() => setTerminalOpen(true))} />
+      <div className="my-1 h-px bg-border" />
+      <MenuItem label="Add Folder to Workspace..." disabled={!contextMenu.entry.dir} onClick={() => menuAction(() => void addWorkspaceFolder(contextMenu.entry))} />
+      <MenuItem label="Open Folder Settings" onClick={() => menuAction(() => { window.dispatchEvent(new CustomEvent("toph:open-settings", { detail: "workspace" })); })} />
+      <MenuItem label="Remove Folder from Workspace" disabled={!contextMenu.entry.dir} onClick={() => menuAction(() => void removeWorkspaceFolder(contextMenu.entry))} />
+      <div className="my-1 h-px bg-border" />
+      <MenuItem label="Find in Folder..." disabled={!contextMenu.entry.dir} onClick={() => menuAction(() => void findInFolder(contextMenu.entry))} />
+      <MenuItem label="Folder History" disabled={!contextMenu.entry.dir} onClick={() => menuAction(() => void showHistory(contextMenu.entry))} />
+      <MenuItem label="Add Folder to Chat" disabled={!contextMenu.entry.dir} onClick={() => menuAction(() => addFolderToChat(contextMenu.entry))} />
+      <div className="my-1 h-px bg-border" />
+      <MenuItem label="Paste" shortcut="Ctrl+V" onClick={() => menuAction(() => void pasteImage(contextMenu.entry))} />
+      <MenuItem label="Upload..." onClick={() => menuAction(() => uploadRef.current?.click())} />
+      <MenuItem label="Download..." disabled={contextMenu.entry.dir} onClick={() => menuAction(() => download(contextMenu.entry))} />
+      <div className="my-1 h-px bg-border" />
+      <MenuItem label="Copy Path" shortcut="Shift+Alt+C" onClick={() => menuAction(() => copy(absolutePath(contextMenu.entry)))} />
+      <MenuItem label="Copy Relative Path" onClick={() => menuAction(() => copy(contextMenu.entry.path))} />
     </div>,
     document.body,
   );
 
-  const rootEntry: FileEntry = {
-    name: project.name,
-    path: "",
-    dir: true,
-    size: 0,
-    modTime: "",
-  };
+  const rootEntry: FileEntry = { name: project.name, path: "", dir: true, size: 0, modTime: "" };
 
   return (
     <div
-      className="panel explorer-panel"
+      className="flex h-full min-h-0 flex-col bg-muted/20"
       tabIndex={-1}
       onContextMenu={(event) => {
-        if ((event.target as HTMLElement).closest(".tree-item, .project-search, .explorer-changes")) return;
+        if ((event.target as HTMLElement).closest("[data-tree-item], .project-search, .explorer-changes")) return;
         event.preventDefault();
         setSelected(rootEntry);
-        setContextMenu({
-          entry: rootEntry,
-          x: Math.min(event.clientX, window.innerWidth - 250),
-          y: Math.min(event.clientY, window.innerHeight - 420),
-        });
+        setContextMenu({ entry: rootEntry, x: Math.min(event.clientX, window.innerWidth - 290), y: Math.min(event.clientY, window.innerHeight - 460) });
       }}
       onPaste={(event) => {
         const target = event.target as HTMLElement;
         if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target.isContentEditable) return;
         const clipboard = event.clipboardData;
-        const files = clipboard.files.length > 0
-          ? clipboard.files
-          : Array.from(clipboard.items)
-              .map((item) => item.kind === "file" ? item.getAsFile() : null)
-              .filter((file): file is File => Boolean(file));
-        if (files.length > 0) {
-          event.preventDefault();
-          void uploadFiles(files);
-        }
+        const files = clipboard.files.length > 0 ? clipboard.files : Array.from(clipboard.items).map((item) => item.kind === "file" ? item.getAsFile() : null).filter((file): file is File => Boolean(file));
+        if (files.length > 0) { event.preventDefault(); void uploadFiles(files); }
       }}
     >
-      <input
-        ref={uploadRef}
-        type="file"
-        multiple
-        hidden
-        onChange={(event) => {
-          if (event.target.files) void uploadFiles(event.target.files);
-          event.target.value = "";
-        }}
-      />
-      <div className="panel-heading">
-        <span>Arquivos</span>
-      </div>
-      <button
-        type="button"
-        className="explorer-project"
-        title={project.root}
-        aria-expanded={rootOpen}
-        onClick={() => setRootOpen((current) => !current)}
-      >
-        {rootOpen
-          ? <ChevronDown size={13} className="explorer-project-chevron" />
-          : <ChevronRight size={13} className="explorer-project-chevron" />}
-        <FolderOpen size={15} className="explorer-project-icon" />
-        <span>{project.name}</span>
+      <input ref={uploadRef} type="file" multiple hidden onChange={(event) => { if (event.target.files) void uploadFiles(event.target.files); event.target.value = ""; }} />
+      <div className="flex h-9 shrink-0 items-center border-b px-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Arquivos</div>
+      <button type="button" className="flex h-7 w-full shrink-0 items-center gap-1.5 border-b px-2.5 text-start text-xs hover:bg-accent" title={project.root} aria-expanded={rootOpen} onClick={() => setRootOpen((current) => !current)}>
+        {rootOpen ? <ChevronDown size={13} className="text-muted-foreground" /> : <ChevronRight size={13} className="text-muted-foreground" />}
+        <FolderOpen size={15} className="text-primary" />
+        <span className="truncate">{project.name}</span>
       </button>
-      <div className="explorer-files">
-        <ProjectSearch
-          project={project}
-          onOpenFile={onOpenFile}
-          focusToken={searchFocusToken}
-        />
-        {rootOpen && (
-          <FileTree
-            project={project}
-            onOpenFile={onOpenFile}
-            embedded
-            statuses={statuses}
-            onSelect={setSelected}
-            onContextMenu={openContextMenu}
-          />
-        )}
-      </div>
-      <div className="explorer-changes">
-        <div className="explorer-changes-head">
-          <span>Alterações</span>
-          {statuses.size > 0 && <b>{statuses.size}</b>}
-        </div>
-        <SourceControlPanel
-          project={project}
-          embedded
-          view="changes"
-          onOpenDiff={onOpenDiff}
-          onStatusChange={handleStatusChange}
-        />
+      <div className="shrink-0 p-2 pb-1 project-search"><ProjectSearch project={project} onOpenFile={onOpenFile} focusToken={searchFocusToken} /></div>
+      <div className="min-h-0 flex-1 overflow-y-auto pb-2">{rootOpen && <FileTree project={project} onOpenFile={onOpenFile} embedded statuses={statuses} onSelect={setSelected} onContextMenu={openContextMenu} />}</div>
+      <div className="explorer-changes flex min-h-[120px] max-h-[46%] shrink-0 flex-col border-t">
+        <div className="min-h-0 flex-1 overflow-y-auto"><SourceControlPanel project={project} embedded view="changes" onOpenDiff={onOpenDiff} onStatusChange={handleStatusChange} /></div>
       </div>
       {menu}
-      {historyDialog && createPortal(
-        <div className="editor-dialog-backdrop" role="presentation" onMouseDown={() => setHistoryDialog(null)}>
-          <div className="editor-dialog" role="dialog" aria-modal="true" onMouseDown={(event) => event.stopPropagation()}>
-            <header>
-              <strong>{historyDialog.title}</strong>
-              <button type="button" className="icon-button" onClick={() => setHistoryDialog(null)} aria-label="Close"><span aria-hidden="true">×</span></button>
-            </header>
-            {!historyDialog.entries && !historyDialog.error && <div className="editor-dialog-state">Carregando histórico...</div>}
-            {historyDialog.error && <div className="editor-dialog-error">{historyDialog.error}</div>}
-            {historyDialog.entries?.length === 0 && <div className="editor-dialog-state">Sem commits.</div>}
-            {historyDialog.entries?.map((entry) => (
-              <div className="editor-history-row" key={entry.hash}>
-                <code>{entry.hash.slice(0, 8)}</code>
-                <span>{entry.subject}</span>
-                <small>{entry.author} · {new Date(entry.date).toLocaleString()}</small>
-              </div>
-            ))}
-          </div>
-        </div>,
-        document.body,
+      {historyDialog && (
+        <Dialog open onOpenChange={(open) => !open && setHistoryDialog(null)}>
+          <DialogContent className="max-w-xl">
+            <DialogHeader><DialogTitle>{historyDialog.title}</DialogTitle><DialogDescription>Histórico de commits.</DialogDescription></DialogHeader>
+            {!historyDialog.entries && !historyDialog.error && <p className="py-6 text-center text-sm text-muted-foreground">Carregando histórico...</p>}
+            {historyDialog.error && <p className="rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">{historyDialog.error}</p>}
+            {historyDialog.entries?.length === 0 && <p className="py-6 text-center text-sm text-muted-foreground">Sem commits.</p>}
+            <div className="flex flex-col gap-1">
+              {historyDialog.entries?.map((entry) => (
+                <div className="flex flex-col gap-1 rounded-lg border px-3 py-2" key={entry.hash}>
+                  <div className="flex items-center gap-2"><code className="rounded bg-muted px-1 text-[11px]">{entry.hash.slice(0, 8)}</code><span className="truncate text-xs font-medium">{entry.subject}</span></div>
+                  <small className="text-[11px] text-muted-foreground">{entry.author} · {new Date(entry.date).toLocaleString()}</small>
+                </div>
+              ))}
+            </div>
+          </DialogContent>
+        </Dialog>
       )}
-      {searchDialog && createPortal(
-        <div className="editor-dialog-backdrop" role="presentation" onMouseDown={() => setSearchDialog(null)}>
-          <div className="editor-dialog" role="dialog" aria-modal="true" onMouseDown={(event) => event.stopPropagation()}>
-            <header>
-              <strong>{searchDialog.title}</strong>
-              <button type="button" className="icon-button" onClick={() => setSearchDialog(null)} aria-label="Close"><span aria-hidden="true">×</span></button>
-            </header>
-            {!searchDialog.results && !searchDialog.error && <div className="editor-dialog-state">Buscando...</div>}
-            {searchDialog.error && <div className="editor-dialog-error">{searchDialog.error}</div>}
-            {searchDialog.results?.length === 0 && <div className="editor-dialog-state">Nada encontrado.</div>}
-            {searchDialog.results?.map((result) => (
-              <button
-                type="button"
-                className="explorer-search-result"
-                key={`${result.path}:${result.line}:${result.column}`}
-                onClick={() => {
-                  setSearchDialog(null);
-                  onOpenFile(result.path, result.line);
-                }}
-              >
-                <code>{result.path}:{result.line}</code>
-                <span>{result.preview}</span>
-              </button>
-            ))}
-          </div>
-        </div>,
-        document.body,
+      {searchDialog && (
+        <Dialog open onOpenChange={(open) => !open && setSearchDialog(null)}>
+          <DialogContent className="max-w-xl">
+            <DialogHeader><DialogTitle>{searchDialog.title}</DialogTitle><DialogDescription>Resultados da busca.</DialogDescription></DialogHeader>
+            {!searchDialog.results && !searchDialog.error && <p className="py-6 text-center text-sm text-muted-foreground">Buscando...</p>}
+            {searchDialog.error && <p className="rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">{searchDialog.error}</p>}
+            {searchDialog.results?.length === 0 && <p className="py-6 text-center text-sm text-muted-foreground">Nada encontrado.</p>}
+            <div className="flex flex-col gap-1">
+              {searchDialog.results?.map((result) => (
+                <button type="button" className="flex flex-col gap-0.5 rounded-lg px-3 py-2 text-start hover:bg-accent" key={`${result.path}:${result.line}:${result.column}`} onClick={() => { setSearchDialog(null); onOpenFile(result.path, result.line); }}>
+                  <code className="text-[11px] text-primary">{result.path}:{result.line}</code>
+                  <span className="truncate text-xs text-muted-foreground">{result.preview}</span>
+                </button>
+              ))}
+            </div>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   );

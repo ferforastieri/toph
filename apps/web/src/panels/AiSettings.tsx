@@ -1,11 +1,14 @@
-import { FormEvent, useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Check, CircleAlert, PlugZap, Save, Bot } from "@toph/icons";
 import { api, type AIConfigInput } from "../api";
-import { Checkbox } from "@toph/ui";
-import { Select } from "@toph/ui";
 import { useAI } from "../ai";
 import { useApp } from "../store";
-import { Button } from "@toph/ui";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const providers = [
   { id: "opencode", label: "OpenCode", base: "" },
@@ -24,7 +27,7 @@ const empty: AIConfigInput = {
   model: "",
   maxTokens: 1024,
   temperature: 0.2,
-  autocomplete: false,
+  autocomplete: true,
   systemPrompt: "",
 };
 
@@ -102,132 +105,105 @@ export default function AiSettings() {
     }
   }
 
+  const uniqueModels = [...new Map(models.map((model) => [model.id, model])).values()];
+
   return (
-    <div className="settings-page">
-      <div className="settings-page-title"><Bot size={15} /> AI agent</div>
-      <p className="settings-note">
-        The selected provider is used by the Agent tab and, when supported, by editor autocomplete.
-        Keys and URLs are stored on the server, not baked into the image or environment.
-      </p>
-      <form className="settings-form" onSubmit={(event) => void save(event)}>
-        <div className="settings-field">
-          <span>Provider</span>
-          <Select
-            value={form.provider}
-            options={providers.map((provider) => ({ value: provider.id, label: provider.label }))}
-            onChange={chooseProvider}
-            label="Provider"
-          />
-        </div>
-        <label>
-          Base URL
-          <input
-            value={form.baseUrl}
-            onChange={(event) => patch({ baseUrl: event.target.value })}
-            placeholder="https://api.example.com"
-            autoComplete="url"
-          />
-        </label>
-        <div className="settings-field">
-          <span className="settings-field-head">Model</span>
-          <Select
-            value={form.model}
-            options={[
-              ...(form.model && !models.some((model) => model.id === form.model)
-                ? [{ value: form.model, label: form.model }]
-                : []),
-              ...models.map((model) => ({
-                value: model.id,
-                label: model.label + (model.provider ? ` · ${model.provider}` : ""),
-              })),
-            ]}
-            onChange={(model) => patch({ model })}
-            label="Model"
-            placeholder={models.length ? "Choose a model" : "Models load after saving settings"}
-            disabled={loadingModels || models.length === 0}
-          />
-        </div>
-        <label>
-          API key {config?.hasKey && <span className="settings-inline-badge">stored</span>}
-          <input
-            type="password"
-            value={form.apiKey}
-            onChange={(event) => patch({ apiKey: event.target.value })}
-            placeholder={config?.hasKey ? "Leave blank to keep current key" : form.provider === "opencode" ? "Basic <base64>" : "Optional for local providers"}
-            autoComplete="off"
-          />
-          {form.provider === "opencode" && (
-            <small className="settings-hint">
-              OpenCode uses Basic auth: <code>Basic base64("opencode:" + server password)</code>.
-            </small>
+    <div className="flex flex-col gap-5">
+      <div>
+        <h3 className="flex items-center gap-2 text-sm font-medium"><Bot size={16} /> Agente de IA</h3>
+        <p className="mt-1 text-xs text-muted-foreground">
+          O provider selecionado é usado pelo painel do agente e pelo autocomplete do editor.
+        </p>
+      </div>
+
+      <form className="flex flex-col gap-4" onSubmit={(event) => void save(event)}>
+        <div className="flex flex-col gap-4 rounded-xl border bg-card p-4">
+          <label className="flex flex-col gap-1.5 text-sm">
+            Provider
+            <Select value={form.provider} onValueChange={chooseProvider}>
+              <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {providers.map((provider) => (
+                  <SelectItem key={provider.id} value={provider.id}>{provider.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </label>
+          <label className="flex flex-col gap-1.5 text-sm">
+            Base URL
+            <Input value={form.baseUrl} onChange={(event) => patch({ baseUrl: event.target.value })} placeholder="https://api.example.com" />
+          </label>
+          <label className="flex flex-col gap-1.5 text-sm">
+            Modelo
+            <Select value={form.model} onValueChange={(model) => patch({ model })} disabled={loadingModels || uniqueModels.length === 0}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder={uniqueModels.length ? "Escolha um modelo" : "Salve para carregar os modelos"} />
+              </SelectTrigger>
+              <SelectContent>
+                {form.model && !uniqueModels.some((model) => model.id === form.model) && (
+                  <SelectItem value={form.model}>{form.model}</SelectItem>
+                )}
+                {uniqueModels.map((model) => (
+                  <SelectItem key={model.id} value={model.id}>
+                    {model.label}{model.provider ? ` · ${model.provider}` : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </label>
+          <label className="flex flex-col gap-1.5 text-sm">
+            API key {config?.hasKey && <span className="text-xs text-muted-foreground">(salva)</span>}
+            <Input
+              type="password"
+              value={form.apiKey}
+              onChange={(event) => patch({ apiKey: event.target.value })}
+              placeholder={config?.hasKey ? "Deixe em branco para manter a chave atual" : "Opcional para providers locais"}
+              autoComplete="off"
+            />
+          </label>
+          {config?.hasKey && (
+            <label className="flex items-center gap-2 text-sm">
+              <Checkbox checked={Boolean(form.clearKey)} onCheckedChange={(value) => patch({ clearKey: value === true })} />
+              Remover chave salva
+            </label>
           )}
-        </label>
-        {config?.hasKey && (
-          <Checkbox
-            checked={Boolean(form.clearKey)}
-            onChange={(clearKey) => patch({ clearKey })}
-            label="Remove stored key"
-          />
-        )}
-        <div className="settings-form-grid">
-          <label>
+        </div>
+
+        <div className="grid gap-4 rounded-xl border bg-card p-4 sm:grid-cols-2">
+          <label className="flex flex-col gap-1.5 text-sm">
             Max tokens
-            <input
-              type="number"
-              min={1}
-              max={8192}
-              value={form.maxTokens}
-              onChange={(event) => patch({ maxTokens: Number(event.target.value) })}
-            />
+            <Input type="number" value={form.maxTokens} onChange={(event) => patch({ maxTokens: Number(event.target.value) || 1 })} />
           </label>
-          <label>
+          <label className="flex flex-col gap-1.5 text-sm">
             Temperature
-            <input
-              type="number"
-              min={0}
-              max={2}
-              step={0.1}
-              value={form.temperature}
-              onChange={(event) => patch({ temperature: Number(event.target.value) })}
-            />
+            <Input type="number" step="0.1" value={form.temperature} onChange={(event) => patch({ temperature: Number(event.target.value) || 0 })} />
+          </label>
+          <label className="flex flex-col gap-1.5 text-sm sm:col-span-2">
+            System prompt
+            <Textarea rows={3} value={form.systemPrompt} onChange={(event) => patch({ systemPrompt: event.target.value })} />
           </label>
         </div>
-        <label>
-          System prompt
-          <textarea
-            rows={3}
-            value={form.systemPrompt}
-            onChange={(event) => patch({ systemPrompt: event.target.value })}
-            placeholder="Optional instructions for the agent and autocomplete."
-          />
-        </label>
-        <div className={`settings-toggle ${form.autocomplete ? "on" : ""}`}>
-          <span>
-            Editor autocomplete
-            <small>Uses the configured provider and model.</small>
-          </span>
-          <Button
-            type="button"
-            className="switch-track"
-            role="switch"
-            aria-checked={form.autocomplete}
-            onClick={() => patch({ autocomplete: !form.autocomplete })}
-          >
-            <span className="switch-thumb" />
-          </Button>
+
+        <div className="flex items-center justify-between gap-4 rounded-xl border bg-card p-4">
+          <div>
+            <p className="text-sm font-medium">Autocomplete do editor</p>
+            <p className="text-xs text-muted-foreground">Usa o provider e o modelo configurados.</p>
+          </div>
+          <Switch checked={form.autocomplete} onCheckedChange={(value) => patch({ autocomplete: value })} />
         </div>
-        {error && <div className="form-error"><CircleAlert size={13} /> {error}</div>}
-        {tested && (
-          <div className={`settings-test ${tested ? "ok" : "fail"}`}>
-            <Check size={13} /> {tested ? "Provider reachable." : "Provider test failed."}
+
+        {error && <div className="flex items-center gap-2 rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive"><CircleAlert size={13} /> {error}</div>}
+        {tested !== null && (
+          <div className={`flex items-center gap-2 rounded-lg px-3 py-2 text-xs ${tested ? "bg-emerald-500/10 text-emerald-500" : "bg-destructive/10 text-destructive"}`}>
+            <Check size={13} /> {tested ? "Provider acessível." : "Falha ao testar o provider."}
           </div>
         )}
-        <div className="settings-actions">
-          <Button type="button" className="ghost small" disabled={busy} onClick={() => void save(undefined, true)}>
-            <PlugZap size={14} /> Save and test
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <Button type="button" variant="outline" disabled={busy} onClick={() => void save(undefined, true)}>
+            <PlugZap size={14} /> Salvar e testar
           </Button>
-          <Button className="primary small" disabled={busy}>
-            <Save size={14} /> {busy ? "Saving..." : "Save AI settings"}
+          <Button type="submit" disabled={busy}>
+            <Save size={14} /> {busy ? "Salvando..." : "Salvar configurações"}
           </Button>
         </div>
       </form>

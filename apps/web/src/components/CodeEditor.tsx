@@ -1,7 +1,8 @@
 import Editor, { type Monaco, type OnMount } from "@monaco-editor/react";
 import { useEffect, useRef, useState } from "react";
 import type { CancellationToken, IPosition, editor, languages } from "monaco-editor";
-import { useResolvedTheme, useSettings } from "../settings";
+import { useSettings } from "../settings";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { CODE_FONT_FAMILY, codeLineHeight, monacoThemeName, registerEditorThemes } from "../editorThemes";
 import { registerEditorTextMate } from "../editorTextMate";
 import { relativeTime } from "../lib";
@@ -49,12 +50,10 @@ export default function CodeEditor({
   const [aiDialog, setAiDialog] = useState<{ title: string; text: string; busy: boolean; error: string } | null>(null);
   const [historyDialog, setHistoryDialog] = useState<{ title: string; entries: GitHistoryEntry[] | null; error: string } | null>(null);
   const [cursorLine, setCursorLine] = useState(1);
-  const settings = useSettings();
-  const accent = settings.accent;
-  const resolved = useResolvedTheme();
+  const theme = useSettings((state) => state.theme);
   const aiConfig = useAI((state) => state.config);
   const loadAI = useAI((state) => state.load);
-  const themeName = monacoThemeName(resolved);
+  const themeName = monacoThemeName(theme);
   const saveRef = useRef(onSave);
   saveRef.current = onSave;
   const runRef = useRef(onRun);
@@ -257,9 +256,9 @@ export default function CodeEditor({
   useEffect(() => {
     const monaco = monacoRef.current;
     if (!monaco) return;
-    registerEditorThemes(monaco, accent);
+    registerEditorThemes(monaco);
     monaco.editor.setTheme(themeName);
-  }, [accent, resolved, themeName]);
+  }, [themeName]);
 
   useEffect(() => {
     const monaco = monacoRef.current;
@@ -274,7 +273,7 @@ export default function CodeEditor({
     const model = instance.getModel();
     if (!current || !model) return;
     const dom = document.createElement("span");
-    dom.className = "blame-inline-widget";
+    dom.className = "pointer-events-none ml-[18px] flex h-[19px] -translate-y-px items-center whitespace-nowrap font-mono text-[9.5px] italic text-muted-foreground opacity-80";
     dom.textContent = `${current.author} · ${relativeTime(current.authorTime)} · ${current.summary}`;
     dom.title = `${current.commit.slice(0, 8)} · ${current.summary}`;
     const widget: editor.IContentWidget = {
@@ -361,18 +360,18 @@ export default function CodeEditor({
       value={value}
       theme={themeName}
       beforeMount={(monaco) => {
-        registerEditorThemes(monaco, accent);
+        registerEditorThemes(monaco);
         registerEditorTextMate(monaco);
       }}
       onMount={onMount}
       onChange={(next) => onChange(next ?? "")}
-      loading={<div className="editor-loading">Loading editor...</div>}
+      loading={<div className="flex h-full items-center justify-center text-sm text-muted-foreground">Loading editor...</div>}
       options={{
         readOnly,
         fontFamily: CODE_FONT_FAMILY,
-        fontSize: settings.editorFontSize,
-        lineHeight: codeLineHeight(settings.editorFontSize),
-        minimap: { enabled: settings.minimap },
+        fontSize: 14,
+        lineHeight: codeLineHeight(14),
+        minimap: { enabled: false },
         automaticLayout: true,
         scrollBeyondLastLine: true,
         smoothScrolling: false,
@@ -382,42 +381,41 @@ export default function CodeEditor({
         glyphMargin: false,
         padding: { top: 0, bottom: 0 },
         tabSize: 2,
-        wordWrap: settings.wordWrap ? "on" : "off",
+        wordWrap: "off",
+        quickSuggestions: { other: true, comments: false, strings: true },
+        suggestOnTriggerCharacters: true,
+        inlineSuggest: { enabled: true },
+        wordBasedSuggestions: "currentDocument",
         fixedOverflowWidgets: true,
       }}
     />
     {aiDialog && (
-      <div className="editor-dialog-backdrop" role="presentation" onMouseDown={() => setAiDialog(null)}>
-        <div className="editor-dialog" role="dialog" aria-modal="true" onMouseDown={(event) => event.stopPropagation()}>
-          <header>
-            <strong>{aiDialog.title}</strong>
-            <button type="button" className="icon-button" onClick={() => setAiDialog(null)} aria-label="Close"><span aria-hidden="true">×</span></button>
-          </header>
-          {aiDialog.busy && <div className="editor-dialog-state">Consultando IA...</div>}
-          {aiDialog.error && <div className="editor-dialog-error">{aiDialog.error}</div>}
-          {aiDialog.text && <pre>{aiDialog.text}</pre>}
-        </div>
-      </div>
+      <Dialog open onOpenChange={(open) => !open && setAiDialog(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader><DialogTitle>{aiDialog.title}</DialogTitle><DialogDescription>Resposta da IA.</DialogDescription></DialogHeader>
+          {aiDialog.busy && <p className="py-6 text-center text-sm text-muted-foreground">Consultando IA...</p>}
+          {aiDialog.error && <p className="rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">{aiDialog.error}</p>}
+          {aiDialog.text && <pre className="whitespace-pre-wrap break-words text-sm">{aiDialog.text}</pre>}
+        </DialogContent>
+      </Dialog>
     )}
     {historyDialog && (
-      <div className="editor-dialog-backdrop" role="presentation" onMouseDown={() => setHistoryDialog(null)}>
-        <div className="editor-dialog" role="dialog" aria-modal="true" onMouseDown={(event) => event.stopPropagation()}>
-          <header>
-            <strong>{historyDialog.title}</strong>
-            <button type="button" className="icon-button" onClick={() => setHistoryDialog(null)} aria-label="Close"><span aria-hidden="true">×</span></button>
-          </header>
-          {!historyDialog.entries && !historyDialog.error && <div className="editor-dialog-state">Carregando histórico...</div>}
-          {historyDialog.error && <div className="editor-dialog-error">{historyDialog.error}</div>}
-          {historyDialog.entries?.length === 0 && <div className="editor-dialog-state">Sem commits.</div>}
-          {historyDialog.entries?.map((entry) => (
-            <div className="editor-history-row" key={entry.hash}>
-              <code>{entry.hash.slice(0, 8)}</code>
-              <span>{entry.subject}</span>
-              <small>{entry.author} · {new Date(entry.date).toLocaleString()}</small>
-            </div>
-          ))}
-        </div>
-      </div>
+      <Dialog open onOpenChange={(open) => !open && setHistoryDialog(null)}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader><DialogTitle>{historyDialog.title}</DialogTitle><DialogDescription>Histórico de commits.</DialogDescription></DialogHeader>
+          {!historyDialog.entries && !historyDialog.error && <p className="py-6 text-center text-sm text-muted-foreground">Carregando histórico...</p>}
+          {historyDialog.error && <p className="rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">{historyDialog.error}</p>}
+          {historyDialog.entries?.length === 0 && <p className="py-6 text-center text-sm text-muted-foreground">Sem commits.</p>}
+          <div className="flex flex-col gap-1">
+            {historyDialog.entries?.map((entry) => (
+              <div className="flex flex-col gap-1 rounded-lg border px-3 py-2" key={entry.hash}>
+                <div className="flex items-center gap-2"><code className="rounded bg-muted px-1 text-[11px]">{entry.hash.slice(0, 8)}</code><span className="truncate text-xs font-medium">{entry.subject}</span></div>
+                <small className="text-[11px] text-muted-foreground">{entry.author} · {new Date(entry.date).toLocaleString()}</small>
+              </div>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
     )}
     </>
   );

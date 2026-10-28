@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState } from "react";
-import { Check, Pencil, Play, Square, Timer, Rows3, Trash2, X } from "@toph/icons";
+import { Check, Pencil, Play, Square, Timer, Rows3, Trash2 } from "@toph/icons";
 import { api, type DBProfile, type QueryResult } from "../api";
 import { useApp, type Tab } from "../store";
 import CodeEditor from "../components/CodeEditor";
-import { Button } from "@toph/ui";
-import { useConfirm } from "@toph/ui";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
+import { useConfirm } from "../ui/confirm";
 import { useProjectEvents } from "../projectEvents";
 
 interface Props {
@@ -193,114 +196,46 @@ export default function DbPanelTab({ tab }: Props) {
   }
 
   return (
-    <div className="db-tab">
-      <div className="db-tab-toolbar">
-        <div className="db-tab-title">
-          <span className="db-dot" />
-          <strong>{profile?.name ?? "Database"}</strong>
-          {profile && <span className="driver-badge">{profile.driver}</span>}
-          {profile?.readOnly && <span className="readonly-badge">read-only</span>}
+    <div className="flex h-full min-h-0 w-full flex-1 flex-col">
+      <div className="flex h-10 shrink-0 items-center justify-between gap-3 border-b bg-muted/20 px-3">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="size-2 rounded-full bg-primary" />
+          <strong className="truncate text-xs font-medium">{profile?.name ?? "Database"}</strong>
+          {profile && <Badge variant="outline" className="px-1 text-[9px] uppercase">{profile.driver}</Badge>}
+          {profile?.readOnly && <span className="text-[10px] text-muted-foreground">read-only</span>}
         </div>
-        <div className="db-tab-actions">
-          <span className="kbd-hint">
-            {profile?.driver === "mongodb" || profile?.driver === "elasticsearch"
-              ? "JSON query"
-              : profile?.driver === "redis"
-                ? "Redis command"
-                : profile?.driver === "neo4j"
-                  ? "Cypher"
-                  : profile?.driver === "cassandra"
-                    ? "CQL"
-                    : "Ctrl/Cmd + Enter"}
+        <div className="flex shrink-0 items-center gap-2">
+          <span className="hidden text-[11px] text-muted-foreground sm:inline">
+            {profile?.driver === "mongodb" || profile?.driver === "elasticsearch" ? "JSON query" : profile?.driver === "redis" ? "Redis command" : profile?.driver === "neo4j" ? "Cypher" : profile?.driver === "cassandra" ? "CQL" : "Ctrl/Cmd + Enter"}
           </span>
-          <Button className="primary small" onClick={() => void run()} disabled={busy || !sql.trim()}>
-            {busy ? <Timer size={14} className="spin" /> : <Play size={14} />}
-            {busy ? "Running" : "Run"}
-          </Button>
-          {busy && (
-            <Button className="ghost small" disabled title="Query cancellation is coming next">
-              <Square size={13} /> Stop
-            </Button>
-          )}
+          <Button size="sm" onClick={() => void run()} disabled={busy || !sql.trim()}>{busy ? <Timer size={14} className="animate-spin" /> : <Play size={14} />}{busy ? "Running" : "Run"}</Button>
+          {busy && <Button variant="outline" size="sm" disabled title="Query cancellation is coming next"><Square size={13} /> Stop</Button>}
         </div>
       </div>
-
-      <div className="sql-editor">
-        <CodeEditor
-          path={`sql:${tab.id}`}
-          value={sql}
-          language={
-            profile?.driver === "mongodb" || profile?.driver === "elasticsearch"
-              ? "json"
-              : profile?.driver === "neo4j"
-                ? "cypher"
-                : "sql"
-          }
-          onChange={updateSql}
-          onRun={() => void run()}
-        />
+      <div className="h-[180px] shrink-0 border-b">
+        <CodeEditor path={`sql:${tab.id}`} value={sql} language={profile?.driver === "mongodb" || profile?.driver === "elasticsearch" ? "json" : profile?.driver === "neo4j" ? "cypher" : "sql"} onChange={updateSql} onRun={() => void run()} />
       </div>
-
-      <div className="db-results">
-        {error && <div className="db-error">{error}</div>}
-        {!error && !result && (
-          <div className="empty-hint compact">
-            <Rows3 size={20} />
-            <p>Run a query to see results here.</p>
-          </div>
-        )}
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        {error && <div className="m-2 rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">{error}</div>}
+        {!error && !result && <div className="flex flex-1 flex-col items-center justify-center gap-2 text-muted-foreground"><Rows3 size={20} /><p className="text-sm">Run a query to see results here.</p></div>}
         {result && (
           <>
-            <div className="result-meta">
-              <span>{result.rowCount} rows</span>
-              <span>{result.durationMs} ms</span>
-              {result.truncated && <span className="truncated">truncated at 500 rows</span>}
-              {stale && <span className="truncated">data changed — run again</span>}
+            <div className="flex shrink-0 items-center gap-3 border-b px-3 py-1.5 text-[11px] text-muted-foreground">
+              <span>{result.rowCount} rows</span><span>{result.durationMs} ms</span>
+              {result.truncated && <span className="text-amber-500">truncated at 500 rows</span>}
+              {stale && <span className="text-amber-500">data changed — run again</span>}
             </div>
-            {result.columns.length === 0 ? (
-              <div className="empty-hint compact">
-                <p>Statement executed.</p>
-              </div>
-            ) : (
-              <div className="result-grid-wrap">
-                <table className="result-grid">
-                  <thead>
-                    <tr>
-                      {result.columns.map((column, index) => (
-                        <th key={`${column.name}:${index}`}>
-                          <span>{column.name}</span>
-                          {column.type && <small>{column.type}</small>}
-                        </th>
-                      ))}
-                      {canEdit && <th className="row-actions">Actions</th>}
-                    </tr>
+            {result.columns.length === 0 ? <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">Statement executed.</div> : (
+              <div className="min-h-0 flex-1 overflow-auto">
+                <table className="w-full border-collapse text-xs">
+                  <thead className="sticky top-0 bg-muted">
+                    <tr>{result.columns.map((column, index) => <th key={`${column.name}:${index}`} className="border-b px-3 py-2 text-start font-medium"><span className="flex flex-col"><span>{column.name}</span>{column.type && <small className="text-[10px] font-normal text-muted-foreground">{column.type}</small>}</span></th>)}{canEdit && <th className="border-b px-3 py-2 text-start font-medium">Actions</th>}</tr>
                   </thead>
                   <tbody>
                     {result.rows.map((row, rowIndex) => (
-                      <tr key={rowIndex}>
-                        {row.map((value, columnIndex) => (
-                          <td key={columnIndex} title={formatValue(value)}>
-                            {value === null ? (
-                              <span className="null">NULL</span>
-                            ) : (
-                              formatValue(value)
-                            )}
-                          </td>
-                        ))}
-                        {canEdit && (
-                          <td className="row-actions">
-                            <Button className="icon-button" title="Edit row" onClick={() => startEdit(rowIndex)}>
-                              <Pencil size={13} />
-                            </Button>
-                            <Button
-                              className="icon-button danger"
-                              title="Delete row"
-                              onClick={() => void deleteRow(rowIndex)}
-                            >
-                              <Trash2 size={13} />
-                            </Button>
-                          </td>
-                        )}
+                      <tr key={rowIndex} className="border-b last:border-0 hover:bg-accent/50">
+                        {row.map((value, columnIndex) => <td key={columnIndex} title={formatValue(value)} className="max-w-[360px] truncate px-3 py-1.5"><span className={value === null ? "italic text-muted-foreground" : ""}>{value === null ? "NULL" : formatValue(value)}</span></td>)}
+                        {canEdit && <td className="px-1 py-1"><span className="flex items-center gap-0.5"><Button variant="ghost" size="icon-xs" aria-label="Edit row" onClick={() => startEdit(rowIndex)}><Pencil size={13} /></Button><Button variant="ghost" size="icon-xs" aria-label="Delete row" onClick={() => void deleteRow(rowIndex)}><Trash2 size={13} /></Button></span></td>}
                       </tr>
                     ))}
                   </tbody>
@@ -310,50 +245,23 @@ export default function DbPanelTab({ tab }: Props) {
           </>
         )}
       </div>
-
-      {editing && tab.table && (
-        <div className="row-editor-backdrop" onClick={() => setEditing(null)}>
-          <div className="row-editor" onClick={(event) => event.stopPropagation()}>
-            <div className="row-editor-header">
-              <div>
-                <strong>Edit {tab.table.name}</strong>
-                <span>Primary key: {tab.table.primary.join(", ")}</span>
-              </div>
-              <Button className="icon-button" onClick={() => setEditing(null)}>
-                <X size={15} />
-              </Button>
-            </div>
-            <div className="row-editor-fields">
-              {result?.columns.map((column) => (
-                <label key={column.name}>
-                  <span>
-                    {column.name}
-                    {tab.table?.primary.includes(column.name) && <em>PK</em>}
-                  </span>
-                  <input
-                    value={editing.values[column.name] ?? ""}
-                    disabled={tab.table?.primary.includes(column.name)}
-                    onChange={(event) =>
-                      setEditing({
-                        ...editing,
-                        values: { ...editing.values, [column.name]: event.target.value },
-                      })
-                    }
-                  />
-                </label>
-              ))}
-            </div>
-            <div className="row-editor-actions">
-              <Button className="ghost small" onClick={() => setEditing(null)}>
-                Cancel
-              </Button>
-              <Button className="primary small" disabled={mutationBusy} onClick={() => void saveEdit()}>
-                <Check size={14} /> {mutationBusy ? "Saving..." : "Save row"}
-              </Button>
-            </div>
+      <Dialog open={Boolean(editing && tab.table)} onOpenChange={(open) => !open && setEditing(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader><DialogTitle>Edit {tab.table?.name}</DialogTitle><DialogDescription>Primary key: {tab.table?.primary.join(", ")}</DialogDescription></DialogHeader>
+          <div className="flex flex-col gap-3">
+            {result?.columns.map((column) => (
+              <label key={column.name} className="flex flex-col gap-1.5 text-sm">
+                {column.name}{tab.table?.primary.includes(column.name) ? " (PK)" : ""}
+                <Input value={editing?.values[column.name] ?? ""} disabled={tab.table?.primary.includes(column.name)} onChange={(event) => editing && setEditing({ ...editing, values: { ...editing.values, [column.name]: event.target.value } })} />
+              </label>
+            ))}
           </div>
-        </div>
-      )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditing(null)}>Cancel</Button>
+            <Button disabled={mutationBusy} onClick={() => void saveEdit()}><Check size={14} /> {mutationBusy ? "Saving..." : "Save row"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

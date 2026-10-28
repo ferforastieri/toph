@@ -6,8 +6,8 @@ describe("Login", () => {
   it("renders the self-hosted sign-in form", () => {
     render(<Login />);
     expect(screen.getByRole("heading", { name: "Toph" })).toBeInTheDocument();
-    expect(screen.getByLabelText("Username")).toHaveValue("admin");
-    expect(screen.getByRole("button", { name: "Sign in" })).toBeDisabled();
+    expect(screen.getByLabelText("Usuário")).toHaveValue("admin");
+    expect(screen.getByRole("button", { name: "Entrar" })).toBeDisabled();
     expect(screen.getByText(/self-hosted/i)).toBeInTheDocument();
   });
 });

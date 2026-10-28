@@ -1,8 +1,9 @@
-import { FormEvent, useState } from "react";
+import { useState, type FormEvent } from "react";
 import { api, ApiError, type Project } from "../api";
 import { useApp } from "../store";
-import { Button } from "@toph/ui";
-import { Modal } from "@toph/ui";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 interface Props {
   onClose: () => void;
@@ -21,54 +22,35 @@ export default function ProjectModal({ onClose, onCreated }: Props) {
     setBusy(true);
     setError("");
     try {
-      const project = await api.createProject(name, root, "#A8C66C");
+      const project = await api.createProject(name, root, "#FF50FF");
       onCreated(project);
     } catch (err) {
       const message =
         err instanceof ApiError && err.status === 403
-          ? "That path is outside the allowed workspace folders."
-          : err instanceof Error
-            ? err.message
-            : "Could not create project.";
+          ? "O caminho está fora das pastas permitidas."
+          : err instanceof Error ? err.message : "Não foi possível criar o projeto.";
       setError(message);
       notify("error", message);
-    } finally {
-      setBusy(false);
-    }
+    } finally { setBusy(false); }
   }
 
   return (
-    <Modal
-      title="New project"
-      onClose={onClose}
-      footer={
-        <>
-          <Button type="button" className="ghost" onClick={onClose}>Cancel</Button>
-          <Button type="submit" form="new-project-form" className="primary" disabled={busy}>
-            {busy ? "Creating..." : "Create project"}
-          </Button>
-        </>
-      }
-    >
-      <form id="new-project-form" className="modal-form" onSubmit={submit}>
-        <label>
-          Name
-          <input value={name} onChange={(event) => setName(event.target.value)} required autoFocus />
-        </label>
-        <label>
-          Server path
-          <input
-            value={root}
-            onChange={(event) => setRoot(event.target.value)}
-            placeholder="/srv/repos/my-project"
-            required
-          />
-        </label>
-        <p className="muted small">
-          The path must exist and be inside one of the folders allowed in Settings → Workspace.
-        </p>
-        {error && <div className="form-error">{error}</div>}
-      </form>
-    </Modal>
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Novo projeto</DialogTitle>
+          <DialogDescription>Abra uma pasta do servidor como projeto.</DialogDescription>
+        </DialogHeader>
+        <form id="new-project-form" className="flex flex-col gap-4" onSubmit={submit}>
+          <label className="flex flex-col gap-1.5 text-sm">Nome<Input value={name} onChange={(event) => setName(event.target.value)} required autoFocus /></label>
+          <label className="flex flex-col gap-1.5 text-sm">Caminho no servidor<Input value={root} onChange={(event) => setRoot(event.target.value)} placeholder="/srv/repos/my-project" required /></label>
+          {error && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive">{error}</p>}
+        </form>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cancelar</Button>
+          <Button type="submit" form="new-project-form" disabled={busy}>{busy ? "Criando..." : "Criar projeto"}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

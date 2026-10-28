@@ -1,13 +1,11 @@
-TOPH — PALETA DE CORES
+TOPH — NIGHT WOLF
 
-Background: #041310
-Surface: #0A201B
-Surface 2: #0F2B25
-Border: #174035
-Text: #E7FFF7
-Muted: #7FB3A3
-Accent: #43E6A0
-Accent 2: #2DD4BF
-Accent 3: #22D3EE
-
-Tipografia sugerida: Inter ou Montserrat
+Background: #000000
+Surface: #141414
+Surface 2: #1E1E1E
+Border: #282828
+Text: #C8C8C8
+Muted: #969696
+Accent: #FF50FF
+Accent 2: #DC8CFF
+Accent 3: #00DCDC

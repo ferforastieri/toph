@@ -67,9 +67,9 @@ function AppShell() {
 
   if (!authReady) {
     return (
-      <div className="boot">
-        <BrandMark className="boot-mark" />
-        <p>Connecting to Toph...</p>
+      <div className="flex min-h-dvh flex-col items-center justify-center gap-4 bg-background">
+        <BrandMark size="large" />
+        <p className="text-sm text-muted-foreground">Conectando ao Toph...</p>
       </div>
     );
   }

@@ -17,9 +17,11 @@ import { parseGitStatus, statusLabel } from "../gitStatus";
 import { useSettings } from "../settings";
 import { useApp } from "../store";
 import { useAI } from "../ai";
-import { Button } from "@toph/ui";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
 import FileIcon from "../ui/FileIcon";
-import { useConfirm } from "@toph/ui";
+import { useConfirm } from "../ui/confirm";
 import { useProjectEvents } from "../projectEvents";
 
 interface Props {
@@ -41,7 +43,6 @@ export default function SourceControlPanel({
   const user = useApp((state) => state.user);
   const aiConfig = useAI((state) => state.config);
   const settings = useSettings();
-  const iconTheme = useSettings((state) => state.iconTheme);
   const confirm = useConfirm();
   const [status, setStatus] = useState("");
   const [message, setMessage] = useState("");
@@ -240,151 +241,68 @@ export default function SourceControlPanel({
   }
 
   return (
-    <div className={embedded ? "scm-embedded" : "panel scm-panel"}>
-      {!embedded && (
-        <div className="panel-heading">
-          <span>Source Control</span>
+    <div className="flex min-h-0 flex-col">
+      {!embedded && <div className="flex h-9 shrink-0 items-center border-b px-3 text-xs font-medium text-muted-foreground">Source Control</div>}
+      {showBranch && (
+        <div className="flex shrink-0 items-center gap-1.5 border-b px-2 py-1.5">
+          <GitBranch size={13} className="shrink-0 text-muted-foreground" />
+          <span className="min-w-0 flex-1 truncate text-xs">{parsed.branch || "detached"}</span>
+          <Badge variant="secondary">{parsed.changes.length}</Badge>
+          <Button variant="ghost" size="icon-xs" aria-label={changesOpen ? "Recolher alterações" : "Expandir alterações"} onClick={() => setChangesOpen((current) => !current)}>
+            {changesOpen ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+          </Button>
+          <Button variant="ghost" size="icon-xs" aria-label="Discard all changes" disabled={Boolean(busy) || parsed.changes.length === 0} onClick={() => void discardAll()}><Undo2 size={13} /></Button>
+          <Button variant="ghost" size="icon-xs" aria-label="Create branch from pattern" disabled={Boolean(busy)} onClick={() => void createBranch()}><GitBranch size={13} /></Button>
         </div>
       )}
-      {showBranch && (
-      <div className="scm-branch">
-        <GitBranch size={13} />
-        <span>{parsed.branch || "detached"}</span>
-        <b>{parsed.changes.length}</b>
-        <Button
-          className="icon-button scm-collapse"
-          title={changesOpen ? "Recolher alterações" : "Expandir alterações"}
-          aria-label={changesOpen ? "Recolher alterações" : "Expandir alterações"}
-          aria-expanded={changesOpen}
-          onClick={() => setChangesOpen((current) => !current)}
-        >
-          {changesOpen ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
-        </Button>
-        <Button
-          className="icon-button scm-branch-button"
-          title="Discard all changes"
-          aria-label="Discard all changes"
-          disabled={Boolean(busy) || parsed.changes.length === 0}
-          onClick={() => void discardAll()}
-        >
-          <Undo2 size={13} />
-        </Button>
-        <Button
-          className="icon-button scm-branch-button"
-          title="Create branch from pattern"
-          aria-label="Create branch from pattern"
-          disabled={Boolean(busy)}
-          onClick={() => void createBranch()}
-        >
-          <GitBranch size={13} />
-          <Plus size={9} className="scm-branch-plus" />
-        </Button>
-      </div>
-      )}
-
-      {error && <div className="panel-error">{error}</div>}
-
+      {error && <div className="mx-2 mt-2 rounded-md bg-destructive/10 px-2 py-1 text-[11px] text-destructive">{error}</div>}
       {showCommit && (
-          <div className="scm-commit">
-            <div className="scm-commit-input">
-              <textarea
-                value={message}
-                onChange={(event) => setMessage(event.target.value)}
-                placeholder="Message (Ctrl+Enter to commit)"
-                aria-label="Commit message"
-                onKeyDown={(event) => {
-                  if ((event.ctrlKey || event.metaKey) && event.key === "Enter") void commit();
-                }}
-              />
-              <Button
-                className="icon-button scm-generate"
-                title="Generate message from pattern"
-                aria-label="Generate message from pattern"
-                disabled={Boolean(busy)}
-                onClick={() => void generateMessage()}
-              >
-                <Bot size={13} />
-              </Button>
-            </div>
-            <Button
-              className="primary scm-commit-button"
-              disabled={staged.length === 0 || Boolean(busy)}
-              onClick={() => void commit()}
-            >
-              <Check size={13} /> Commit
-            </Button>
+        <div className="flex shrink-0 flex-col gap-2 border-b p-2">
+          <div className="relative">
+            <Textarea value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Message (Ctrl+Enter to commit)" aria-label="Commit message" rows={3} className="pe-9" onKeyDown={(event) => { if ((event.ctrlKey || event.metaKey) && event.key === "Enter") void commit(); }} />
+            <Button type="button" variant="ghost" size="icon-xs" className="absolute end-1.5 top-1.5" aria-label="Generate message from pattern" disabled={Boolean(busy)} onClick={() => void generateMessage()}><Bot size={13} /></Button>
           </div>
+          <Button size="sm" className="w-full" disabled={staged.length === 0 || Boolean(busy)} onClick={() => void commit()}><Check size={13} /> Commit</Button>
+        </div>
       )}
-
       {showChanges && (view === "changes" || changesOpen) && (
-          <div className={`scm-sections ${embedded ? "embedded" : ""}`}>
-        {staged.length > 0 && (
-          <section className="scm-section">
-            <div className="scm-section-head">
-              <span>Staged Changes</span>
-              <span className="scm-section-actions">
-                <Button className="icon-button" title="Unstage all" onClick={() => void unstage(staged.map((change) => change.path))}>
-                  <Minus size={13} />
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          {staged.length > 0 && (
+            <section className="border-b pb-1">
+              <div className="flex h-8 items-center justify-between px-2"><span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Alterações preparadas</span><span className="flex items-center gap-0.5"><Button variant="ghost" size="icon-xs" aria-label="Unstage all" onClick={() => void unstage(staged.map((change) => change.path))}><Minus size={13} /></Button><Button variant="ghost" size="icon-xs" aria-label="Discard all staged changes" onClick={() => void discard(staged.map((change) => change.path), true)}><Trash2 size={13} /></Button></span></div>
+              {staged.map((change) => (
+                <div className="group flex items-center gap-0.5 px-1" key={`staged:${change.path}`}>
+                  <Button variant="ghost" size="sm" className="h-7 min-w-0 flex-1 justify-start px-1.5" title={change.path} onClick={() => onOpenDiff(change.path, true)}>
+                    <span className="w-3 text-center text-[10px] font-semibold text-emerald-500">{statusLabel(change)}</span>
+                    <FileIcon name={change.path} path={change.path} size={13} />
+                    <span className="truncate text-[11px]">{change.path}</span>
+                  </Button>
+                  <span className="flex shrink-0 opacity-0 group-hover:opacity-100">
+                    <Button variant="ghost" size="icon-xs" aria-label="Unstage" onClick={() => void unstage([change.path])}><Minus size={12} /></Button>
+                    <Button variant="ghost" size="icon-xs" aria-label="Discard changes" onClick={() => void discard([change.path], true)}><Trash2 size={12} /></Button>
+                  </span>
+                </div>
+              ))}
+            </section>
+          )}
+          <section className="pb-1">
+            <div className="flex h-8 items-center justify-between px-2"><span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Alterações</span>{unstaged.length > 0 && <span className="flex items-center gap-0.5"><Button variant="ghost" size="icon-xs" aria-label="Stage all" onClick={() => void stage(unstaged.map((change) => change.path))}><Plus size={13} /></Button><Button variant="ghost" size="icon-xs" aria-label="Discard all changes" onClick={() => void discard(unstaged.map((change) => change.path), false)}><Trash2 size={13} /></Button></span>}</div>
+            {unstaged.length === 0 && staged.length === 0 && !error && <div className="px-2 py-3 text-[11px] text-muted-foreground">Nenhuma alteração.</div>}
+            {unstaged.map((change) => (
+              <div className="group flex items-center gap-0.5 px-1" key={`unstaged:${change.path}`}>
+                <Button variant="ghost" size="sm" className="h-7 min-w-0 flex-1 justify-start px-1.5" title={change.path} onClick={() => onOpenDiff(change.path, false)}>
+                  <span className="w-3 text-center text-[10px] font-semibold text-amber-500">{change.index === "?" ? "U" : statusLabel(change)}</span>
+                  <FileIcon name={change.path} path={change.path} size={13} />
+                  <span className="truncate text-[11px]">{change.path}</span>
                 </Button>
-                <Button className="icon-button danger" title="Discard all staged changes" onClick={() => void discard(staged.map((change) => change.path), true)}>
-                  <Trash2 size={13} />
-                </Button>
-              </span>
-            </div>
-            {staged.map((change) => (
-              <div className="scm-file" key={`staged:${change.path}`}>
-                <Button className="scm-file-main" title={change.path} onClick={() => onOpenDiff(change.path, true)}>
-                  <span className={`scm-status ${change.index.trim() || "M"}`}>{statusLabel(change)}</span>
-                  <FileIcon name={change.path} path={change.path} iconTheme={iconTheme} size={13} />
-                  <span className="scm-path">{change.path}</span>
-                </Button>
-                <Button className="scm-action" title="Unstage" onClick={() => void unstage([change.path])}>
-                  <Minus size={12} />
-                </Button>
-                <Button className="scm-action danger" title="Discard changes" onClick={() => void discard([change.path], true)}>
-                  <Trash2 size={12} />
-                </Button>
+                <span className="flex shrink-0 opacity-0 group-hover:opacity-100">
+                  <Button variant="ghost" size="icon-xs" aria-label="Stage" onClick={() => void stage([change.path])}><Plus size={12} /></Button>
+                  <Button variant="ghost" size="icon-xs" aria-label="Discard changes" onClick={() => void discard([change.path], false)}><Trash2 size={12} /></Button>
+                </span>
               </div>
             ))}
           </section>
-        )}
-
-        <section className="scm-section">
-          <div className="scm-section-head">
-            <span>Changes</span>
-            {unstaged.length > 0 && (
-              <span className="scm-section-actions">
-                <Button className="icon-button" title="Stage all" onClick={() => void stage(unstaged.map((change) => change.path))}>
-                  <Plus size={13} />
-                </Button>
-                <Button className="icon-button danger" title="Discard all changes" onClick={() => void discard(unstaged.map((change) => change.path), false)}>
-                  <Trash2 size={13} />
-                </Button>
-              </span>
-            )}
-          </div>
-          {unstaged.length === 0 && staged.length === 0 && !error && (
-            <div className="scm-empty">No changes.</div>
-          )}
-          {unstaged.map((change) => (
-            <div className="scm-file" key={`unstaged:${change.path}`}>
-              <Button className="scm-file-main" title={change.path} onClick={() => onOpenDiff(change.path, false)}>
-                <span className={`scm-status ${change.index === "?" ? "U" : change.worktree.trim() || "M"}`}>
-                  {statusLabel(change)}
-                </span>
-                <FileIcon name={change.path} path={change.path} iconTheme={iconTheme} size={13} />
-                <span className="scm-path">{change.path}</span>
-              </Button>
-              <Button className="scm-action" title="Stage" onClick={() => void stage([change.path])}>
-                <Plus size={12} />
-              </Button>
-              <Button className="scm-action danger" title="Discard changes" onClick={() => void discard([change.path], false)}>
-                <Trash2 size={12} />
-              </Button>
-            </div>
-          ))}
-        </section>
-          </div>
+        </div>
       )}
     </div>
   );
