@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { Check, CircleAlert, PlugZap, Save, Bot, UserRound } from "@toph/icons";
+import { Check, CircleAlert, PlugZap, Save, Bot } from "@toph/icons";
 import { api, type AIConfigInput } from "../api";
 import { useAI } from "../ai";
 import { useApp } from "../store";
@@ -10,7 +10,6 @@ import { Switch } from "@/boardui/base/switch/switch";
 import { Checkbox } from "@/boardui/base/checkbox/checkbox";
 import { Select, SelectItem } from "@/boardui/base/select/select";
 import { Chip } from "@/boardui/base/badges/chip";
-import OpenCodeAuthDialog from "../components/OpenCodeAuthDialog";
 
 const providers = [
   { id: "opencode", label: "OpenCode", base: "" },
@@ -33,11 +32,7 @@ const empty: AIConfigInput = {
   systemPrompt: "",
 };
 
-interface AiSettingsProps {
-  projectRoot?: string;
-}
-
-export default function AiSettings({ projectRoot }: AiSettingsProps) {
+export default function AiSettings() {
   const config = useAI((state) => state.config);
   const setConfig = useAI((state) => state.setConfig);
   const models = useAI((state) => state.models);
@@ -48,7 +43,6 @@ export default function AiSettings({ projectRoot }: AiSettingsProps) {
   const [busy, setBusy] = useState(false);
   const [tested, setTested] = useState<boolean | null>(null);
   const [error, setError] = useState("");
-  const [authOpen, setAuthOpen] = useState(false);
 
   useEffect(() => {
     api
@@ -134,22 +128,6 @@ export default function AiSettings({ projectRoot }: AiSettingsProps) {
               ))}
             </Select>
           </div>
-          {isOpenCode && (
-            <div className="flex flex-col gap-3 rounded-lg border border-accent-500/30 bg-accent-500/5 p-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-start gap-2">
-                <UserRound size={17} className="mt-0.5 shrink-0 text-accent-500" />
-                <div>
-                  <p className="text-body-medium text-text-primary">Conta e provedores</p>
-                  <p className="text-caption-1-regular text-text-secondary">
-                    Entre no OpenCode Console ou conecte OpenAI, Anthropic, OpenRouter e outros provedores.
-                  </p>
-                </div>
-              </div>
-              <Button type="button" variant="secondary" size="small" leadingIcon={UserRound} onClick={() => setAuthOpen(true)}>
-                Entrar / conectar
-              </Button>
-            </div>
-          )}
           <Input
             label={isOpenCode ? "URL do servidor OpenCode" : "Base URL"}
             value={form.baseUrl}
@@ -232,7 +210,6 @@ export default function AiSettings({ projectRoot }: AiSettingsProps) {
           <Button type="submit" disabled={busy} leadingIcon={Save}>{busy ? "Salvando..." : "Salvar configurações"}</Button>
         </div>
       </form>
-      <OpenCodeAuthDialog open={authOpen} projectRoot={projectRoot} onClose={() => setAuthOpen(false)} />
     </div>
   );
 }
