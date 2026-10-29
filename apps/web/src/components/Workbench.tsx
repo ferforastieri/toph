@@ -1124,7 +1124,7 @@ export default function Workbench() {
         />
       )}
 
-      <div className={cx("flex min-h-0 flex-1 p-1", sidebar === "bots" ? "gap-2" : "gap-1")}>
+      <div className={cx("flex min-h-0 flex-1 p-1", sidebar === "bots" ? "gap-3" : "gap-1")}>
         {primaryOnLeft && primarySidebar}
         {primaryOnLeft && primaryResize}
         {!primaryOnLeft && aiSidebar}
@@ -1139,51 +1139,54 @@ export default function Workbench() {
           </aside>
         )}
 
-        <main className={cx(
-          "flex min-w-0 flex-1 flex-col overflow-hidden",
-          sidebar === "bots" && project ? "bg-transparent" : "rounded-3xl border border-border-button-white bg-background-primary-default shadow-sidebar",
-        )}>
-          {sidebar === "bots" && project ? (
-            <BotStudioTab project={project} />
-          ) : (
-            <>
-              <Tabs />
-              <div className="relative flex min-h-0 flex-1 overflow-hidden">
-                {!activeTab && project && (
-                  <div className="flex h-full w-full flex-col items-center justify-center gap-4 p-8 text-center">
-                    <BrandMark size="large" />
-                    <h2 className="text-title-2-medium text-text-primary">{project.name}</h2>
-                    <p className="max-w-lg text-body-regular text-text-secondary">{project.root}</p>
-                    <div className="flex flex-wrap items-center justify-center gap-2">
-                      <Button variant="secondary" size="small" onClick={() => setSidebar("files")}>Explorer</Button>
-                      <Button variant="secondary" size="small" onClick={() => setSidebar("db")}>Database</Button>
-                      <Button variant="secondary" size="small" onClick={openAI}>Agente</Button>
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-hidden">
+          <main className={cx(
+            "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden",
+            sidebar === "bots" && project ? "bg-transparent" : "rounded-3xl border border-border-button-white bg-background-primary-default shadow-sidebar",
+          )}>
+            {sidebar === "bots" && project ? (
+              <BotStudioTab project={project} />
+            ) : (
+              <>
+                <Tabs />
+                <div className="relative flex min-h-0 flex-1 overflow-hidden">
+                  {!activeTab && project && (
+                    <div className="flex h-full w-full flex-col items-center justify-center gap-4 p-8 text-center">
+                      <BrandMark size="large" />
+                      <h2 className="text-title-2-medium text-text-primary">{project.name}</h2>
+                      <p className="max-w-lg text-body-regular text-text-secondary">{project.root}</p>
+                      <div className="flex flex-wrap items-center justify-center gap-2">
+                        <Button variant="secondary" size="small" onClick={() => setSidebar("files")}>Explorer</Button>
+                        <Button variant="secondary" size="small" onClick={() => setSidebar("db")}>Database</Button>
+                        <Button variant="secondary" size="small" onClick={openAI}>Agente</Button>
+                      </div>
                     </div>
-                  </div>
-                )}
-                {activeTab?.kind === "editor" && project && <EditorPanel tab={activeTab} project={project} onOpenChanges={(path) => openDiff(path, false)} />}
-                {activeTab?.kind === "db" && <DbPanelTab tab={activeTab} />}
-                {activeTab?.kind === "ai" && project && <AiPanelTab tab={activeTab} project={project} />}
-                {activeTab?.kind === "web" && <WebPanelTab tab={activeTab} />}
-                {activeTab?.kind === "diff" && project && <DiffPanelTab tab={activeTab} project={project} />}
-                {quickInputPosition === "center" && !mobile && (
-                  <div className="pointer-events-none absolute inset-0 z-40 flex items-center justify-center px-4">
-                    <div className="pointer-events-auto w-[min(640px,82%)]">
-                      <QuickOpen project={project} focusToken={quickOpenToken} onOpenFile={openFile} floating />
+                  )}
+                  {activeTab?.kind === "editor" && project && <EditorPanel tab={activeTab} project={project} onOpenChanges={(path) => openDiff(path, false)} />}
+                  {activeTab?.kind === "db" && <DbPanelTab tab={activeTab} />}
+                  {activeTab?.kind === "ai" && project && <AiPanelTab tab={activeTab} project={project} />}
+                  {activeTab?.kind === "web" && <WebPanelTab tab={activeTab} />}
+                  {activeTab?.kind === "diff" && project && <DiffPanelTab tab={activeTab} project={project} />}
+                  {quickInputPosition === "center" && !mobile && (
+                    <div className="pointer-events-none absolute inset-0 z-40 flex items-center justify-center px-4">
+                      <div className="pointer-events-auto w-[min(640px,82%)]">
+                        <QuickOpen project={project} focusToken={quickOpenToken} onOpenFile={openFile} floating />
+                      </div>
                     </div>
-                  </div>
-                )}
-              </div>
-              {project && !mobile && (
-                <div className={terminalOpen ? `mt-2 flex w-full shrink-0 px-2 pb-2 ${panelJustifyClass}` : "hidden"}>
-                  <div className={panelWidthClass}>
-                    <TerminalPanel key={project.id} project={project} onOpenFile={openFile} />
-                  </div>
+                  )}
                 </div>
-              )}
-            </>
+              </>
+            )}
+          </main>
+
+          {project && !mobile && sidebar !== "bots" && (
+            <div className={terminalOpen ? `flex w-full shrink-0 ${panelJustifyClass}` : "hidden"}>
+              <div className={panelWidthClass}>
+                <TerminalPanel key={project.id} project={project} onOpenFile={openFile} />
+              </div>
+            </div>
           )}
-        </main>
+        </div>
 
         {primaryOnLeft && aiResize}
         {primaryOnLeft && aiSidebar}

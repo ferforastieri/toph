@@ -312,7 +312,7 @@ export default function BotStudioTab({ project }: Props) {
   }
 
   return (
-    <div className="flex h-full min-h-0 w-full flex-1 gap-2">
+    <div className="flex h-full min-h-0 w-full flex-1 gap-3">
       <section className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-3xl border border-border-button-white bg-background-primary-default shadow-sidebar">
         <header className="flex h-11 shrink-0 items-center gap-2 border-b px-3">
           <Bot size={15} className="text-accent-500" />

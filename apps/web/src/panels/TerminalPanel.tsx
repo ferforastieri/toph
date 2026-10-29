@@ -267,7 +267,7 @@ export default function TerminalPanel({ project, onOpenFile, sheet = false, onCl
       style={sheet ? { height: "100%" } : { height: maximized ? "calc(100dvh - 120px)" : "var(--terminal-height)" }}
     >
       {!sheet && <ResizeHandle className="terminal-resize -mb-1" orientation="horizontal" value={terminalHeight} min={180} max={640} invert label="Resize terminal" onChange={(height) => document.documentElement.style.setProperty("--terminal-height", `${height}px`)} onCommit={(height) => updateSettings({ terminalHeight: height })} />}
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2lg border border-border-button-default bg-background-inner-default shadow-xs">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-3xl border border-border-button-white bg-background-inner-default shadow-sidebar">
       <div className="bg-background-tertiary-default flex h-9 shrink-0 items-center justify-between border-b border-border-button-default pe-2">
         <PillTabList className="h-full px-2" aria-label="Terminal panel">
           {terminalTabs.map((item) => (
