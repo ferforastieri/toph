@@ -2,6 +2,7 @@ use std::env;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
+use base64::{engine::general_purpose::STANDARD, Engine as _};
 use ipnet::IpNet;
 use std::net::IpAddr;
 
@@ -44,6 +45,7 @@ impl Config {
         }
 
         let update_repo = env_or("TOPH_UPDATE_REPO", "ferforastieri/toph");
+        let (opencode_url, opencode_auth) = opencode_defaults();
         Ok(Self {
             addr: env_or("TOPH_ADDR", "127.0.0.1:8787"),
             workspace_roots: roots,
@@ -52,10 +54,8 @@ impl Config {
             trusted_proxies: parse_trusted_proxies(
                 &env::var("TOPH_TRUSTED_PROXIES").unwrap_or_default(),
             ),
-            opencode_url: env_or("TOPH_OPENCODE_URL", "http://127.0.0.1:3005")
-                .trim_end_matches('/')
-                .to_string(),
-            opencode_auth: env::var("TOPH_OPENCODE_AUTH").unwrap_or_default(),
+            opencode_url,
+            opencode_auth,
             web_dir: non_empty_env("TOPH_WEB_DIR").map(PathBuf::from),
             firebase_file: non_empty_env("TOPH_FIREBASE_CREDENTIALS_FILE").map(PathBuf::from),
             firebase_project: env::var("TOPH_FIREBASE_PROJECT_ID").unwrap_or_default(),
@@ -93,6 +93,7 @@ impl Config {
         admin_password: String,
         addr: String,
     ) -> Self {
+        let (opencode_url, opencode_auth) = opencode_defaults();
         Self {
             addr,
             data_dir: data_dir.clone(),
@@ -100,11 +101,8 @@ impl Config {
             admin_password,
             secure_cookies: false,
             trusted_proxies: vec!["127.0.0.1/32".parse().expect("valid loopback prefix")],
-            opencode_url: env::var("TOPH_OPENCODE_URL")
-                .unwrap_or_else(|_| "http://127.0.0.1:3005".into())
-                .trim_end_matches('/')
-                .to_string(),
-            opencode_auth: env::var("TOPH_OPENCODE_AUTH").unwrap_or_default(),
+            opencode_url,
+            opencode_auth,
             web_dir: None,
             firebase_file: env::var("TOPH_FIREBASE_CREDENTIALS_FILE")
                 .ok()
@@ -137,6 +135,64 @@ impl Config {
         }
         Ok(())
     }
+}
+
+/// OpenCode saves its local server address and password in
+/// `~/.config/opencode/service.json`. When Toph starts on the same machine,
+/// use those values so the built-in agent works without a manual setup step.
+/// Explicit `TOPH_OPENCODE_*` values always win.
+fn opencode_defaults() -> (String, String) {
+    let url_env = non_empty_env("TOPH_OPENCODE_URL");
+    let auth_env = non_empty_env("TOPH_OPENCODE_AUTH");
+    let mut url = url_env
+        .clone()
+        .unwrap_or_else(|| "http://127.0.0.1:3005".to_string());
+    let mut auth = auth_env.unwrap_or_default();
+
+    if auth.is_empty() && is_local_url(&url) {
+        if let Some((host, port, password)) = local_opencode_service() {
+            if url_env.is_none() {
+                url = format!("http://{host}:{port}");
+            }
+            if let Some(password) = password {
+                auth = format!("Basic {}", STANDARD.encode(format!("opencode:{password}")));
+            }
+        }
+    }
+
+    (url.trim_end_matches('/').to_string(), auth)
+}
+
+fn is_local_url(raw: &str) -> bool {
+    let raw = raw.trim().to_ascii_lowercase();
+    raw.starts_with("http://127.0.0.1")
+        || raw.starts_with("http://localhost")
+        || raw.starts_with("http://[::1]")
+}
+
+fn local_opencode_service() -> Option<(String, u16, Option<String>)> {
+    let config_home = env::var_os("XDG_CONFIG_HOME")
+        .map(PathBuf::from)
+        .or_else(|| env::var_os("HOME").map(|home| PathBuf::from(home).join(".config")))?;
+    let raw = std::fs::read_to_string(config_home.join("opencode/service.json")).ok()?;
+    let value: serde_json::Value = serde_json::from_str(&raw).ok()?;
+    let port = u16::try_from(value.get("port")?.as_u64()?).ok()?;
+    let host = value
+        .get("hostname")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or("127.0.0.1");
+    let host = match host {
+        "0.0.0.0" | "::" | "[::]" => "127.0.0.1".to_string(),
+        value if value.contains(':') && !value.starts_with('[') => format!("[{value}]"),
+        value => value.to_string(),
+    };
+    let password = value
+        .get("password")
+        .and_then(serde_json::Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToOwned::to_owned);
+    Some((host, port, password))
 }
 
 fn absolute_path(path: impl AsRef<Path>) -> PathBuf {

@@ -1,6 +1,7 @@
 use std::path::Path;
 use std::time::Duration;
 
+use base64::{engine::general_purpose::STANDARD, Engine as _};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -138,6 +139,16 @@ impl AiService {
             config.api_key = decrypt(&self.key, &config.api_key_enc)
                 .map_err(|error| AppError::Internal(error.into()))?;
         }
+        if config.provider == "opencode" {
+            if config.base_url.is_empty() {
+                config.base_url = self.default_opencode_url.trim_end_matches('/').to_string();
+            }
+            if config.api_key.is_empty() && config.api_key_enc.is_empty() {
+                config.api_key = self.default_opencode_auth.clone();
+            } else {
+                config.api_key = normalize_opencode_auth(&config.api_key);
+            }
+        }
         config.normalize();
         Ok(config)
     }
@@ -195,8 +206,15 @@ impl AiService {
             String::new()
         } else if let Some(key) = input.api_key.filter(|key| !key.trim().is_empty()) {
             key.trim().to_string()
+        } else if provider == "opencode" && old.api_key.is_empty() {
+            self.default_opencode_auth.clone()
         } else {
             old.api_key
+        };
+        let api_key = if provider == "opencode" {
+            normalize_opencode_auth(&api_key)
+        } else {
+            api_key
         };
         let api_key_enc =
             encrypt(&self.key, &api_key).map_err(|error| AppError::Internal(error.into()))?;
@@ -680,6 +698,23 @@ impl AiConfig {
             self.max_tokens = 1024;
         }
         self.temperature = self.temperature.clamp(0.0, 2.0);
+    }
+}
+
+/// Accept either the raw OpenCode service password or a complete
+/// Authorization header. OpenCode's local server uses HTTP Basic auth with the
+/// `opencode` user, so a pasted password is converted for convenience.
+fn normalize_opencode_auth(key: &str) -> String {
+    let key = key.trim();
+    if key.is_empty()
+        || key.starts_with("Basic ")
+        || key.starts_with("Bearer ")
+        || key.starts_with("basic ")
+        || key.starts_with("bearer ")
+    {
+        key.to_string()
+    } else {
+        format!("Basic {}", STANDARD.encode(format!("opencode:{key}")))
     }
 }
 

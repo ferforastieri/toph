@@ -42,6 +42,8 @@ export {
   Image,
   ImagePlus,
   Info,
+  KeyRound,
+  LogIn,
   PanelLeft as LayoutPanelLeft,
   LoaderCircle,
   Lock,

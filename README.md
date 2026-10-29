@@ -26,6 +26,7 @@ The installed server does not serve the landing page or documentation. The landi
 - Connect to PostgreSQL, MySQL/MariaDB, SQLite, SQL Server, Oracle, ClickHouse, Cassandra, MongoDB, Redis, Elasticsearch and Neo4j, inspect schemas, run queries and inspect results.
 - Talk to OpenCode, OpenAI-compatible endpoints, Codex, Claude or Ollama from the Agent tab without leaving the workbench.
 - Configure the AI URL, API key and model in Settings → AI; API keys are encrypted at rest.
+- OpenCode users can sign in to OpenCode Console or connect provider API keys from Settings → AI → Entrar / conectar. A local OpenCode server is detected automatically from `~/.config/opencode/service.json`; use `TOPH_OPENCODE_URL` and `TOPH_OPENCODE_AUTH` for remote servers.
 - Enable editor autocomplete backed by the configured AI provider.
 - Add server folders as workspace roots in Settings → Workspace, without Docker bind mounts.
 - Keep self-hosted and external web apps in their own tabs, including pages that block iframes, through a server-side preview proxy.
@@ -212,8 +213,8 @@ The generated Android project is not committed; `tauri android init` recreates i
 | `TOPH_ADMIN_PASSWORD` | generated on first run | Initial admin password |
 | `TOPH_SECURE_COOKIES` | `false` | Require HTTPS for browser sessions; the installer sets `true` |
 | `TOPH_TRUSTED_PROXIES` | empty | Comma-separated proxy IPs/CIDRs allowed to supply `X-Forwarded-For` |
-| `TOPH_OPENCODE_URL` | `http://127.0.0.1:3005` | Fallback OpenCode server; Settings → AI overrides it |
-| `TOPH_OPENCODE_AUTH` | empty | Fallback raw `Authorization` value for OpenCode |
+| `TOPH_OPENCODE_URL` | `http://127.0.0.1:3005` | Fallback OpenCode server; Settings → AI overrides it. When unset, a local `~/.config/opencode/service.json` port is used |
+| `TOPH_OPENCODE_AUTH` | auto-detected locally | Fallback raw `Authorization` value for OpenCode. A local service password is read from `~/.config/opencode/service.json`; set this for remote servers |
 | `TOPH_FIREBASE_CREDENTIALS_FILE` | empty | Firebase service-account JSON used by the server for Android push |
 | `TOPH_FIREBASE_PROJECT_ID` | service-account project | Firebase project ID for Cloud Messaging |
 | `TOPH_WEB_DIR` | embedded build | Serve a web build from disk in development |

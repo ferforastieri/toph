@@ -105,7 +105,7 @@ function GenericAiPanel({ tab, project, config, onClose }: Props & { config: AIC
           <Button variant="ghost" size="xs" iconOnly leadingIcon={ArrowLeft} aria-label="Voltar" onClick={() => setShowSettings(false)} />
           <span className="text-body-2-medium text-text-primary">Configurações da IA</span>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto p-3"><AiSettings /></div>
+        <div className="min-h-0 flex-1 overflow-y-auto p-3"><AiSettings projectRoot={project.root} /></div>
       </div>
     );
   }

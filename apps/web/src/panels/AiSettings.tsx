@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { Check, CircleAlert, PlugZap, Save, Bot } from "@toph/icons";
+import { Check, CircleAlert, PlugZap, Save, Bot, UserRound } from "@toph/icons";
 import { api, type AIConfigInput } from "../api";
 import { useAI } from "../ai";
 import { useApp } from "../store";
@@ -10,6 +10,7 @@ import { Switch } from "@/boardui/base/switch/switch";
 import { Checkbox } from "@/boardui/base/checkbox/checkbox";
 import { Select, SelectItem } from "@/boardui/base/select/select";
 import { Chip } from "@/boardui/base/badges/chip";
+import OpenCodeAuthDialog from "../components/OpenCodeAuthDialog";
 
 const providers = [
   { id: "opencode", label: "OpenCode", base: "" },
@@ -32,7 +33,11 @@ const empty: AIConfigInput = {
   systemPrompt: "",
 };
 
-export default function AiSettings() {
+interface AiSettingsProps {
+  projectRoot?: string;
+}
+
+export default function AiSettings({ projectRoot }: AiSettingsProps) {
   const config = useAI((state) => state.config);
   const setConfig = useAI((state) => state.setConfig);
   const models = useAI((state) => state.models);
@@ -43,6 +48,7 @@ export default function AiSettings() {
   const [busy, setBusy] = useState(false);
   const [tested, setTested] = useState<boolean | null>(null);
   const [error, setError] = useState("");
+  const [authOpen, setAuthOpen] = useState(false);
 
   useEffect(() => {
     api
@@ -107,6 +113,7 @@ export default function AiSettings() {
   }
 
   const uniqueModels = [...new Map(models.map((model) => [model.id, model])).values()];
+  const isOpenCode = form.provider === "opencode";
 
   return (
     <div className="flex flex-col gap-5">
@@ -127,7 +134,28 @@ export default function AiSettings() {
               ))}
             </Select>
           </div>
-          <Input label="Base URL" value={form.baseUrl} onChange={(value) => patch({ baseUrl: value })} placeholder="https://api.example.com" />
+          {isOpenCode && (
+            <div className="flex flex-col gap-3 rounded-lg border border-accent-500/30 bg-accent-500/5 p-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-2">
+                <UserRound size={17} className="mt-0.5 shrink-0 text-accent-500" />
+                <div>
+                  <p className="text-body-medium text-text-primary">Conta e provedores</p>
+                  <p className="text-caption-1-regular text-text-secondary">
+                    Entre no OpenCode Console ou conecte OpenAI, Anthropic, OpenRouter e outros provedores.
+                  </p>
+                </div>
+              </div>
+              <Button type="button" variant="secondary" size="small" leadingIcon={UserRound} onClick={() => setAuthOpen(true)}>
+                Entrar / conectar
+              </Button>
+            </div>
+          )}
+          <Input
+            label={isOpenCode ? "URL do servidor OpenCode" : "Base URL"}
+            value={form.baseUrl}
+            onChange={(value) => patch({ baseUrl: value })}
+            placeholder={isOpenCode ? "http://127.0.0.1:3005" : "https://api.example.com"}
+          />
           <div className="flex flex-col gap-1.5">
             <span className="text-body-medium text-text-secondary">Modelo</span>
             <Select selectedKey={form.model || null} onSelectionChange={(key) => patch({ model: key ? String(key) : "" })} isDisabled={loadingModels || uniqueModels.length === 0} aria-label="Modelo" className="w-full" renderValue={({ selectedText }) => selectedText || "Escolha um modelo"}>
@@ -142,16 +170,39 @@ export default function AiSettings() {
             </Select>
           </div>
           <Input
-            label={config?.hasKey ? "API key (salva)" : "API key"}
+            label={
+              isOpenCode
+                ? config?.hasKey
+                  ? "Senha do servidor OpenCode (salva)"
+                  : "Senha do servidor OpenCode"
+                : config?.hasKey
+                  ? "API key (salva)"
+                  : "API key"
+            }
             type="password"
             value={form.apiKey}
             onChange={(value) => patch({ apiKey: value })}
-            placeholder={config?.hasKey ? "Deixe em branco para manter a chave atual" : "Opcional para providers locais"}
+            placeholder={
+              isOpenCode
+                ? config?.hasKey
+                  ? "Deixe em branco para manter a senha atual"
+                  : "Detectada automaticamente no OpenCode local"
+                : config?.hasKey
+                  ? "Deixe em branco para manter a chave atual"
+                  : "Opcional para providers locais"
+            }
             autoComplete="off"
           />
+          {isOpenCode && (
+            <p className="text-caption-2-regular text-text-secondary">
+              O Toph tenta autenticar automaticamente no OpenCode local usando o
+              <code className="mx-1 rounded bg-background-tertiary-default px-1 py-0.5 text-caption-2-regular">service.json</code>
+              do OpenCode. Informe a senha do servidor somente se ele estiver em outra máquina ou tiver autenticação própria.
+            </p>
+          )}
           {config?.hasKey && (
             <Checkbox isSelected={Boolean(form.clearKey)} onChange={(value) => patch({ clearKey: value })}>
-              Remover chave salva
+              {isOpenCode ? "Remover senha salva" : "Remover chave salva"}
             </Checkbox>
           )}
         </div>
@@ -181,6 +232,7 @@ export default function AiSettings() {
           <Button type="submit" disabled={busy} leadingIcon={Save}>{busy ? "Salvando..." : "Salvar configurações"}</Button>
         </div>
       </form>
+      <OpenCodeAuthDialog open={authOpen} projectRoot={projectRoot} onClose={() => setAuthOpen(false)} />
     </div>
   );
 }
