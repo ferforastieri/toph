@@ -5,19 +5,20 @@ import {
   Check,
   CircleAlert,
   ExternalLink,
+  Info,
   KeyRound,
   LoaderCircle,
   LogIn,
   RefreshCw,
   Search,
-  UserRound,
+  Sparkles,
 } from "@toph/icons";
 import { openCodeBase } from "../api";
 import { useApp } from "../store";
 import { Button } from "@/boardui/base/buttons/button";
 import { Chip } from "@/boardui/base/badges/chip";
 import { Input } from "@/boardui/base/input/input";
-import { Modal } from "@/boardui/base/modal/modal";
+
 
 interface FormOption {
   value: string;
@@ -53,7 +54,7 @@ interface IntegrationConnection {
   };
 }
 
-export interface IntegrationInfo {
+interface IntegrationInfo {
   id: string;
   name: string;
   metadata?: Record<string, unknown>;
@@ -79,9 +80,8 @@ interface OAuthStatus {
 }
 
 interface Props {
-  open: boolean;
   projectRoot?: string;
-  onClose: () => void;
+  onConnectionsChanged?: () => void;
 }
 
 const COMMON_PROVIDERS = [
@@ -108,20 +108,24 @@ function cookie(name: string): string {
 function errorMessage(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
   if (/unauthorized|401/i.test(message)) {
-    return "O OpenCode recusou a autenticação. Confira a senha do servidor em Configurações da IA.";
+    return "Não foi possível autenticar no servidor do agente. Confira a conexão em Configurações da IA.";
   }
   if (/unavailable|502|bad gateway/i.test(message)) {
-    return "Não foi possível falar com o OpenCode. Confira se o servidor está rodando e se a URL está correta.";
+    return "Não foi possível falar com o servidor do agente. Confira se ele está rodando e se a URL está correta.";
   }
   return message;
 }
 
-function connectionLabel(connections: IntegrationConnection[]): string | null {
-  if (connections.length === 0) return null;
-  if (connections.some((connection) => connection.status?.status === "needs_auth")) {
-    return "Precisa reconectar";
-  }
-  return connections.map((connection) => connection.label).filter(Boolean).join(", ") || "Conectado";
+function providerSubtitle(integration: IntegrationInfo): string {
+  return integration.id === "opencode" ? "Conta do agente" : "Provedor de modelos";
+}
+
+function providerAccounts(connections: IntegrationConnection[]): string {
+  return connections.map((connection) => connection.label).filter(Boolean).join(" · ") || "Conta conectada";
+}
+
+function needsReconnect(connections: IntegrationConnection[]): boolean {
+  return connections.some((connection) => connection.status?.status === "needs_auth");
 }
 
 function defaultAnswers(method: IntegrationMethod): Record<string, string | number | boolean | string[]> {
@@ -140,7 +144,7 @@ function defaultAnswers(method: IntegrationMethod): Record<string, string | numb
   return answer;
 }
 
-export default function OpenCodeAuthDialog({ open, projectRoot, onClose }: Props) {
+export default function AiConnectionsPanel({ projectRoot, onConnectionsChanged }: Props) {
   const notify = useApp((state) => state.notify);
   const client = useMemo(
     () =>
@@ -166,6 +170,8 @@ export default function OpenCodeAuthDialog({ open, projectRoot, onClose }: Props
     [projectRoot],
   );
   const selected = items.find((item) => item.id === selectedID) ?? null;
+  const aiItems = items.filter((item) => item.metadata?.source !== "mcp");
+  const connectedCount = aiItems.filter((item) => item.connections.length > 0).length;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -183,16 +189,8 @@ export default function OpenCodeAuthDialog({ open, projectRoot, onClose }: Props
   }, [client, location]);
 
   useEffect(() => {
-    if (!open) return;
-    setError("");
-    setNotice("");
-    setAttempt(null);
-    setApiKey("");
-    setOauthCode("");
-    setSelectedID(null);
-    setSearch("");
     void load();
-  }, [open, load]);
+  }, [load]);
 
   useEffect(() => {
     if (!attempt) return;
@@ -207,9 +205,10 @@ export default function OpenCodeAuthDialog({ open, projectRoot, onClose }: Props
         if (cancelled || !result.data) return;
         if (result.data.status === "complete") {
           setAttempt(null);
-          setNotice("Conta conectada.");
-          notify("success", "Conta conectada ao OpenCode.");
+          setNotice("Provedor conectado. Feche as configurações e escolha o modelo no seletor do agente.");
+          notify("success", "Provedor conectado.");
           await load();
+          onConnectionsChanged?.();
         } else if (result.data.status === "failed" || result.data.status === "expired") {
           setAttempt(null);
           setError(
@@ -265,9 +264,10 @@ export default function OpenCodeAuthDialog({ open, projectRoot, onClose }: Props
         location,
       } as never);
       setApiKey("");
-      setNotice("API key conectada.");
-      notify("success", "API key conectada ao OpenCode.");
+      setNotice("Provedor conectado. Feche as configurações e escolha o modelo no seletor do agente.");
+      notify("success", "Provedor conectado.");
       await load();
+      onConnectionsChanged?.();
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -289,7 +289,7 @@ export default function OpenCodeAuthDialog({ open, projectRoot, onClose }: Props
         answer: defaultAnswers(method),
         location,
       } as never)) as unknown as { data?: Omit<OAuthAttempt, "integrationID"> };
-      if (!result.data) throw new Error("O OpenCode não retornou os dados da autenticação.");
+      if (!result.data) throw new Error("O servidor não retornou os dados da autenticação.");
       setAttempt({ ...result.data, integrationID: selected.id });
     } catch (err) {
       setError(errorMessage(err));
@@ -311,9 +311,10 @@ export default function OpenCodeAuthDialog({ open, projectRoot, onClose }: Props
       } as never);
       setAttempt(null);
       setOauthCode("");
-      setNotice("Conta conectada.");
-      notify("success", "Conta conectada ao OpenCode.");
+      setNotice("Provedor conectado. Feche as configurações e escolha o modelo no seletor do agente.");
+      notify("success", "Provedor conectado.");
       await load();
+      onConnectionsChanged?.();
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -337,7 +338,7 @@ export default function OpenCodeAuthDialog({ open, projectRoot, onClose }: Props
   }
 
   const query = search.trim().toLowerCase();
-  const visible = items
+  const visible = aiItems
     .filter((item) => {
       if (query) return `${item.name} ${item.id}`.toLowerCase().includes(query);
       return item.connections.length > 0 || COMMON_PROVIDERS.includes(item.id);
@@ -354,35 +355,24 @@ export default function OpenCodeAuthDialog({ open, projectRoot, onClose }: Props
       }
       return a.name.localeCompare(b.name);
     })
-    .slice(0, query ? 80 : 30);
+    .slice(0, query ? 80 : 40);
 
   return (
-    <Modal
-      isOpen={open}
-      onClose={onClose}
-      title="Conta e provedores OpenCode"
-      description="Use o OpenCode Console ou conecte as contas e API keys dos modelos."
-      size="lg"
-      footer={
-        <>
-          <Button variant="secondary" leadingIcon={RefreshCw} onClick={() => void load()} disabled={loading || busy}>
-            Atualizar
-          </Button>
-          <Button variant="primary" onClick={onClose}>Fechar</Button>
-        </>
-      }
-    >
-      <div className="flex min-h-0 flex-col gap-4">
-        <div className="flex items-start gap-2 rounded-lg border border-border-button-default bg-background-secondary-default p-3">
-          <UserRound size={18} className="mt-0.5 shrink-0 text-accent-500" />
-          <p className="text-caption-1-regular text-text-secondary">
-            O Toph usa a sessão do OpenCode para conversar com o agente. As credenciais ficam no
-            servidor OpenCode, não no navegador. Em celular, prefira API key ou login por código.
+    <div className="flex min-h-0 flex-col gap-4">
+        <div className="rounded-lg border border-accent-500/30 bg-accent-500/5 p-3">
+          <div className="flex items-center gap-2 text-body-medium text-text-primary">
+            <Info size={16} className="text-accent-500" />
+            Como usar
+          </div>
+          <p className="mt-1 text-caption-1-regular text-text-secondary">
+            {connectedCount > 0
+              ? `${connectedCount} ${connectedCount === 1 ? "provedor conectado" : "provedores conectados"}. Para usar, feche as configurações e escolha o modelo no seletor do agente.`
+              : "Conecte um provedor abaixo. Depois feche as configurações e escolha o modelo no seletor do agente."}
           </p>
         </div>
 
         {error && <Chip color="rose" variant="subtle" className="justify-start gap-2 whitespace-normal px-2 py-1.5"><CircleAlert size={13} /> {error}</Chip>}
-        {notice && <Chip color="lime" variant="subtle" className="justify-start gap-2 px-2 py-1.5"><Check size={13} /> {notice}</Chip>}
+        {notice && <Chip color="lime" variant="subtle" className="justify-start gap-2 whitespace-normal px-2 py-1.5"><Check size={13} /> {notice}</Chip>}
 
         {selected ? (
           <div className="flex flex-col gap-4">
@@ -391,18 +381,20 @@ export default function OpenCodeAuthDialog({ open, projectRoot, onClose }: Props
               <div className="min-w-0">
                 <h3 className="truncate text-body-medium text-text-primary">{selected.name}</h3>
                 <p className="text-caption-2-regular text-text-secondary">
-                  {connectionLabel(selected.connections) ?? "Ainda não conectado"}
+                  {selected.connections.length > 0
+                    ? `Conectado como ${providerAccounts(selected.connections)}`
+                    : "Ainda não conectado"}
                 </p>
               </div>
             </div>
 
             {selected.connections.length > 0 && (
               <div className="flex flex-col gap-2 rounded-lg border border-border-button-default bg-background-secondary-default p-3">
-                <p className="text-caption-1-medium text-text-secondary">Conexões ativas</p>
+                <p className="text-caption-1-medium text-text-secondary">Contas conectadas</p>
                 {selected.connections.map((connection, index) => (
                   <div key={`${connection.type}-${connection.label ?? index}`} className="flex items-center gap-2 text-caption-1-regular text-text-primary">
                     <Check size={14} className="text-accent-500" />
-                    <span className="truncate">{connection.label || connection.type}</span>
+                    <span className="truncate">{connection.label || "Conta"}</span>
                     {connection.method && <span className="text-text-tertiary">· {connection.method}</span>}
                   </div>
                 ))}
@@ -411,11 +403,19 @@ export default function OpenCodeAuthDialog({ open, projectRoot, onClose }: Props
 
             {selected.methods.filter((method) => method.type === "key").map((method, index) => (
               <div key={`key-${index}`} className="flex flex-col gap-2 rounded-lg border border-border-button-default bg-background-secondary-default p-3">
-                <p className="text-body-medium text-text-primary">{method.label || "API key"}</p>
+                <div>
+                  <p className="text-body-medium text-text-primary">{method.label || "API key"}</p>
+                  <p className="text-caption-2-regular text-text-secondary">
+                    A chave fica salva no servidor do agente, não no navegador.
+                  </p>
+                </div>
                 <Input label="API key" type="password" value={apiKey} onChange={setApiKey} placeholder="Cole a API key do provedor" autoComplete="off" />
+                {method.form?.some((field) => !field.hidden) && (
+                  <p className="text-caption-2-regular text-text-tertiary">Este provedor também pode exigir configuração adicional no servidor.</p>
+                )}
                 <div className="flex justify-end">
                   <Button size="small" leadingIcon={KeyRound} disabled={busy || !apiKey.trim()} onClick={() => void connectKey(method)}>
-                    {busy ? "Conectando..." : "Conectar API key"}
+                    {busy ? "Conectando..." : selected.connections.length > 0 ? "Adicionar API key" : "Conectar API key"}
                   </Button>
                 </div>
               </div>
@@ -423,14 +423,27 @@ export default function OpenCodeAuthDialog({ open, projectRoot, onClose }: Props
 
             {selected.methods.filter((method) => method.type === "oauth").map((method) => (
               <div key={method.id ?? method.label} className="flex flex-col gap-2 rounded-lg border border-border-button-default bg-background-secondary-default p-3">
-                <p className="text-body-medium text-text-primary">{method.label || "Entrar com provedor"}</p>
+                <div>
+                  <p className="text-body-medium text-text-primary">{method.label || "Entrar com provedor"}</p>
+                  <p className="text-caption-2-regular text-text-secondary">
+                    {method.id === "device"
+                      ? "Você receberá um link e um código para concluir o login."
+                      : "O provedor abrirá uma página de autorização."}
+                  </p>
+                </div>
                 <div className="flex justify-end">
                   <Button size="small" variant="secondary" leadingIcon={LogIn} disabled={busy || Boolean(attempt)} onClick={() => void connectOAuth(method)}>
-                    Entrar
+                    {selected.connections.length > 0 ? "Entrar com outra conta" : "Entrar"}
                   </Button>
                 </div>
               </div>
             ))}
+
+            {selected.methods.every((method) => method.type !== "key" && method.type !== "oauth") && (
+              <p className="rounded-lg border border-border-button-default bg-background-secondary-default p-3 text-caption-1-regular text-text-secondary">
+                Este provedor é configurado por variável de ambiente no servidor do agente.
+              </p>
+            )}
 
             {attempt && (
               <div className="flex flex-col gap-3 rounded-lg border border-accent-500/40 bg-accent-500/5 p-3">
@@ -460,37 +473,48 @@ export default function OpenCodeAuthDialog({ open, projectRoot, onClose }: Props
           </div>
         ) : (
           <div className="flex min-h-0 flex-col gap-3">
-            <Input
-              label="Buscar provedor"
-              value={search}
-              onChange={setSearch}
-              placeholder="OpenAI, Anthropic, OpenCode..."
-              leadingIcon={Search}
-              autoComplete="off"
-            />
+            <div className="flex items-end gap-2">
+              <Input
+                label="Buscar provedor"
+                value={search}
+                onChange={setSearch}
+                placeholder="OpenAI, Anthropic, Google..."
+                leadingIcon={Search}
+                autoComplete="off"
+                className="flex-1"
+              />
+              <Button variant="secondary" size="small" leadingIcon={RefreshCw} onClick={() => void load()} disabled={loading || busy}>
+                Atualizar
+              </Button>
+            </div>
             {loading && <p className="py-6 text-center text-body-regular text-text-secondary">Carregando provedores...</p>}
             {!loading && !error && visible.length === 0 && <p className="py-6 text-center text-body-regular text-text-secondary">Nenhum provedor encontrado.</p>}
             <div className="flex max-h-[440px] flex-col gap-1 overflow-y-auto">
               {visible.map((integration) => {
-                const connected = connectionLabel(integration.connections);
+                const connected = integration.connections.length > 0;
+                const reconnect = needsReconnect(integration.connections);
                 return (
                   <button
                     key={integration.id}
                     type="button"
-                    className="flex items-center gap-3 rounded-2lg border border-transparent px-3 py-2 text-start hover:border-border-button-default hover:bg-background-primary-hover"
+                    className="group flex items-center gap-3 rounded-2lg border border-transparent px-3 py-2 text-start hover:border-border-button-default hover:bg-background-primary-hover"
                     onClick={() => openIntegration(integration)}
                   >
                     <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-background-tertiary-default text-foreground-icon-secondary">
-                      <UserRound size={16} />
+                      <Sparkles size={16} />
                     </span>
                     <span className="flex min-w-0 flex-1 flex-col">
                       <strong className="truncate text-caption-1-semibold text-text-primary">{integration.name}</strong>
-                      <small className="truncate text-caption-2-regular text-text-secondary">{integration.id}</small>
+                      <small className="truncate text-caption-2-regular text-text-secondary">{providerSubtitle(integration)}</small>
                     </span>
-                    {connected ? (
-                      <Chip color="lime" variant="subtle" className="shrink-0">{connected}</Chip>
+                    {reconnect ? (
+                      <Chip color="yellow" variant="subtle" className="shrink-0">Reconectar</Chip>
+                    ) : connected ? (
+                      <Chip color="lime" variant="subtle" className="shrink-0">Conectado</Chip>
                     ) : (
-                      <span className="shrink-0 text-caption-2-regular text-text-tertiary">Conectar</span>
+                      <span className="shrink-0 rounded-lg border border-border-button-default px-2 py-1 text-caption-1-medium text-text-primary transition-colors group-hover:bg-background-primary-hover">
+                        Conectar
+                      </span>
                     )}
                   </button>
                 );
@@ -498,8 +522,6 @@ export default function OpenCodeAuthDialog({ open, projectRoot, onClose }: Props
             </div>
           </div>
         )}
-
-      </div>
-    </Modal>
+    </div>
   );
 }

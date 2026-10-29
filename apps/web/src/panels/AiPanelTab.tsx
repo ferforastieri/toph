@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, Bot, Settings2, X } from "@toph/icons";
+import { Bot, Settings2, X } from "@toph/icons";
 import { api, type AIConfig } from "../api";
 import { providerLabel, useAI } from "../ai";
 import { useApp, type AiMessage, type Tab } from "../store";
@@ -12,7 +12,7 @@ import { AgentMessage } from "@/boardui/application/agent-chat/agent-chat-messag
 import { AgentThinking } from "@/boardui/application/agent-thinking/agent-thinking";
 import { AgentComposer } from "../ui/AgentComposer";
 import { notifyAiResponse } from "../aiNotifications";
-import AiSettings from "./AiSettings";
+import AiSettingsModal from "../components/AiSettingsModal";
 
 const EMPTY_MESSAGES: AiMessage[] = [];
 
@@ -35,7 +35,7 @@ function GenericAiPanel({ tab, project, config, onClose }: Props & { config: AIC
   const [model, setModel] = useState(config.model);
   const [effort, setEffort] = useState("");
   const [yolo, setYolo] = useState(true);
-  const [showSettings, setShowSettings] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   useEffect(() => {
     const handleContext = (event: Event) => {
@@ -98,24 +98,12 @@ function GenericAiPanel({ tab, project, config, onClose }: Props & { config: AIC
     }
   }
 
-  if (showSettings) {
-    return (
-      <div className="flex h-full min-h-0 w-full flex-1 flex-col">
-        <div className="flex h-9 shrink-0 items-center gap-2 border-b px-2">
-          <Button variant="ghost" size="xs" iconOnly leadingIcon={ArrowLeft} aria-label="Voltar" onClick={() => setShowSettings(false)} />
-          <span className="text-body-2-medium text-text-primary">Configurações da IA</span>
-        </div>
-        <div className="min-h-0 flex-1 overflow-y-auto p-3"><AiSettings projectRoot={project.root} /></div>
-      </div>
-    );
-  }
-
   return (
     <div className="flex h-full min-h-0 w-full flex-1 flex-col">
       <div className="bg-background-secondary-default flex shrink-0 flex-col gap-2 border-b p-2">
         <div className="flex items-center gap-2">
           <div className="flex min-w-0 flex-1 items-center gap-2 px-1.5"><Bot size={16} className="text-accent-500" /><strong className="truncate text-body-medium text-text-primary">{label}</strong></div>
-          <Button variant="ghost" size="xs" iconOnly leadingIcon={Settings2} aria-label="Configurações da IA" title="Configurações da IA" onClick={() => setShowSettings(true)} />
+          <Button variant="ghost" size="xs" iconOnly leadingIcon={Settings2} aria-label="Configurações da IA" title="Configurações da IA" onClick={() => setSettingsOpen(true)} />
           {onClose && <Button variant="ghost" size="xs" iconOnly leadingIcon={X} aria-label="Fechar agente" onClick={onClose} />}
         </div>
         <div className="flex items-center gap-2">
@@ -143,6 +131,7 @@ function GenericAiPanel({ tab, project, config, onClose }: Props & { config: AIC
       </div>
       {error && <Chip color="rose" variant="subtle" className="mx-2 justify-start whitespace-normal px-2 py-1">{error}</Chip>}
       <AgentComposer value={input} onChange={setInput} onSend={(text) => void send(text)} busy={streaming} models={models} model={model} onModelChange={setModel} effort={effort} efforts={[]} onEffortChange={setEffort} placeholder={`Pergunte ao ${label}...`} allowAttachments={false} />
+      <AiSettingsModal open={settingsOpen} projectRoot={project.root} showConnections={false} onClose={() => setSettingsOpen(false)} />
     </div>
   );
 }

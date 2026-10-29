@@ -88,7 +88,7 @@ TOPH_WORKSPACES is a colon-separated list of existing directories. Projects must
 
 TOPH_OPENCODE_AUTH is a raw Authorization header sent by the server-side OpenCode proxy. When OpenCode runs on the same host, Toph reads ~/.config/opencode/service.json and authenticates automatically.
 
-OpenCode provider accounts and API keys can be connected from Settings → AI → Entrar / conectar in the web or Android client.
+AI provider accounts and API keys can be connected from Settings → AI → Conexões de IA in the web or Android client. The same screen lists every model provider available to the agent.
 
 ## Databases
 

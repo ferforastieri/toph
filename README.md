@@ -26,7 +26,7 @@ The installed server does not serve the landing page or documentation. The landi
 - Connect to PostgreSQL, MySQL/MariaDB, SQLite, SQL Server, Oracle, ClickHouse, Cassandra, MongoDB, Redis, Elasticsearch and Neo4j, inspect schemas, run queries and inspect results.
 - Talk to OpenCode, OpenAI-compatible endpoints, Codex, Claude or Ollama from the Agent tab without leaving the workbench.
 - Configure the AI URL, API key and model in Settings → AI; API keys are encrypted at rest.
-- OpenCode users can sign in to OpenCode Console or connect provider API keys from Settings → AI → Entrar / conectar. A local OpenCode server is detected automatically from `~/.config/opencode/service.json`; use `TOPH_OPENCODE_URL` and `TOPH_OPENCODE_AUTH` for remote servers.
+- Manage AI accounts and provider API keys from Settings → AI → Conexões de IA. The same screen connects OpenCode Console, OpenAI, Anthropic, Google, OpenRouter and other model providers. A local OpenCode server is detected automatically from `~/.config/opencode/service.json`; use `TOPH_OPENCODE_URL` and `TOPH_OPENCODE_AUTH` for remote servers.
 - Enable editor autocomplete backed by the configured AI provider.
 - Add server folders as workspace roots in Settings → Workspace, without Docker bind mounts.
 - Keep self-hosted and external web apps in their own tabs, including pages that block iframes, through a server-side preview proxy.

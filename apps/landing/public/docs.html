@@ -292,10 +292,11 @@ Neo4j         MATCH (n:User) RETURN n LIMIT 100;</code></pre>
         AI model inside the phone.
       </p>
       <p>
-        In <strong>Settings → AI → Entrar / conectar</strong>, sign in to OpenCode Console
-        or connect provider accounts and API keys. Credentials stay on the OpenCode
-        server, never in the browser. On a phone, prefer provider API keys or device-code
-        login when the OAuth callback points at the server's localhost.
+        In <strong>Settings → AI → Conexões de IA</strong>, sign in to OpenCode Console
+        or connect provider accounts and API keys. This is the shared account screen for
+        every model provider exposed by the agent. Credentials stay on the server, never
+        in the browser. On a phone, prefer provider API keys or device-code login when the
+        OAuth callback points at the server's localhost.
       </p>
 
       <h2>Web app tabs</h2>
@@ -384,7 +385,7 @@ cd ../mobile
         <code>TOPH_OPENCODE_AUTH</code> to a complete <code>Basic …</code> or
         <code>Bearer …</code> value. The proxy is authenticated; the browser never talks
         to OpenCode directly. Provider credentials can be managed in
-        <strong>Settings → AI → Entrar / conectar</strong>.
+        <strong>Settings → AI → Conexões de IA</strong>.
       </p>
       <h3>The Android app cannot connect</h3>
       <p>
