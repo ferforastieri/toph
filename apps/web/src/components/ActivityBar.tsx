@@ -1,4 +1,4 @@
-import { Database, Files, GitBranch, Globe2, Moon, Sun, TerminalSquare } from "@toph/icons";
+import { Bot, Database, Files, GitBranch, Globe2, Moon, Sun, TerminalSquare } from "@toph/icons";
 import { useApp, type Sidebar } from "../store";
 import { useSettings } from "../settings";
 import { Button } from "@/boardui/base/buttons/button";
@@ -11,6 +11,7 @@ const items: Array<{ id: Sidebar; label: string; icon: typeof Files }> = [
   { id: "files", label: "Explorer", icon: Files },
   { id: "scm", label: "Source Control", icon: GitBranch },
   { id: "db", label: "Databases", icon: Database },
+  { id: "bots", label: "Bots", icon: Bot },
   { id: "web", label: "Web apps", icon: Globe2 },
 ];
 
@@ -38,7 +39,10 @@ export default function ActivityBar() {
                 className={cx("size-9", active && "text-accent-500")}
                 aria-label={item.label}
                 aria-pressed={active}
-                onClick={() => setSidebar(item.id)}
+                onClick={() => {
+                  setSidebar(item.id);
+                  if (item.id === "bots") window.dispatchEvent(new CustomEvent("toph:open-bots"));
+                }}
               />
               <Tooltip>{item.label}</Tooltip>
             </TooltipTrigger>

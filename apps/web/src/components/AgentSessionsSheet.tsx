@@ -27,7 +27,9 @@ export default function AgentSessionsSheet({ open, project, activeSessionId, onC
     let cancelled = false;
     setLoading(true); setError("");
     listOpenCodeSessions(project.root, 50)
-      .then((items) => { if (!cancelled) setSessions(items); })
+      .then((items) => {
+        if (!cancelled) setSessions(items.filter((session) => !session.metadata?.tophBotId && !session.parentID));
+      })
       .catch((err) => { if (!cancelled) { setSessions([]); setError(err instanceof Error ? err.message : "Could not load sessions."); } })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };

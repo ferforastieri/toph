@@ -4,10 +4,15 @@ import { openCodeBase } from "./api";
 export interface OpenCodeSessionSummary {
   id: string;
   title?: string;
+  parentID?: string;
   time?: {
     created?: number;
     updated?: number;
     idle?: number;
+  };
+  metadata?: {
+    tophBotId?: string;
+    [key: string]: unknown;
   };
 }
 

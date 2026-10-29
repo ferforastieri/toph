@@ -3,6 +3,7 @@ interface NativeInsets {
   bottom: number;
   left: number;
   right: number;
+  keyboard?: number;
 }
 
 interface TophInsetsBridge {
@@ -25,6 +26,7 @@ function readInsets(): NativeInsets | null {
       bottom: Math.max(0, parsed.bottom ?? 0),
       left: Math.max(0, parsed.left ?? 0),
       right: Math.max(0, parsed.right ?? 0),
+      keyboard: Math.max(0, parsed.keyboard ?? 0),
     };
   } catch {
     return null;
@@ -35,9 +37,22 @@ export function installNativeInsets(): void {
   if (installed) return;
   installed = true;
   const root = document.documentElement;
+  let frame = 0;
 
   const apply = () => {
+    frame = 0;
     const insets = readInsets();
+    const viewport = window.visualViewport;
+    const viewportHeight = viewport?.height ?? window.innerHeight;
+    const viewportOffsetTop = viewport?.offsetTop ?? 0;
+    const visualKeyboard = Math.max(0, window.innerHeight - viewportHeight - viewportOffsetTop);
+    const keyboard = Math.max(visualKeyboard, insets?.keyboard ?? 0);
+
+    root.style.setProperty("--visual-viewport-height", `${viewportHeight}px`);
+    root.style.setProperty("--visual-viewport-offset-top", `${viewportOffsetTop}px`);
+    root.style.setProperty("--keyboard-inset", `${keyboard}px`);
+    root.classList.toggle("keyboard-open", keyboard > 80);
+
     if (!insets) return;
     root.style.setProperty("--native-safe-top", `${insets.top}px`);
     root.style.setProperty("--native-safe-bottom", `${insets.bottom}px`);
@@ -45,10 +60,19 @@ export function installNativeInsets(): void {
     root.style.setProperty("--native-safe-right", `${insets.right}px`);
   };
 
+  const schedule = () => {
+    if (frame) return;
+    frame = window.requestAnimationFrame(apply);
+  };
+
   apply();
-  window.addEventListener("resize", apply, { passive: true });
-  window.addEventListener("orientationchange", apply, { passive: true });
+  window.addEventListener("resize", schedule, { passive: true });
+  window.addEventListener("orientationchange", schedule, { passive: true });
+  window.addEventListener("focusin", schedule, { passive: true });
+  window.addEventListener("focusout", schedule, { passive: true });
+  window.visualViewport?.addEventListener("resize", schedule, { passive: true });
+  window.visualViewport?.addEventListener("scroll", schedule, { passive: true });
   document.addEventListener("visibilitychange", () => {
-    if (!document.hidden) apply();
+    if (!document.hidden) schedule();
   });
 }

@@ -206,6 +206,10 @@ export interface WorkspaceLayout {
   activeTabId: string | null;
   sidebar?: string;
   terminalOpen?: boolean;
+  aiSessionId?: string;
+  aiSessionTitle?: string;
+  aiPanelOpen?: boolean;
+  bots?: unknown;
 }
 
 export class ApiError extends Error {

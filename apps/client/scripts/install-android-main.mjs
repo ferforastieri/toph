@@ -64,6 +64,12 @@ if (!manifest.includes("android.permission.POST_NOTIFICATIONS")) {
     '    <uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />',
   );
 }
+if (!manifest.includes('android:windowSoftInputMode="adjustResize"')) {
+  manifest = manifest.replace(
+    'android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode"',
+    'android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode"\n            android:windowSoftInputMode="adjustResize"',
+  );
+}
 if (!manifest.includes("TophMessagingService")) {
   manifest = manifest.replace(
     "    </application>",

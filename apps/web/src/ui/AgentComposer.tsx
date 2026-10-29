@@ -131,6 +131,7 @@ export function AgentComposer({ value, onChange, onSend, onStop, busy, models, m
               </DropdownPopover>
             </Dropdown>
             <ModelPicker models={models} model={model} onModelChange={onModelChange} effort={effort} efforts={efforts} onEffortChange={onEffortChange} />
+            {modeControls && <div className="flex shrink-0 items-center gap-0.5">{modeControls}</div>}
             <span className="min-w-2 flex-1" />
             {busy && onStop ? (
               <Button type="button" variant="secondary" size="small" iconOnly leadingIcon={Square} onClick={onStop} aria-label="Parar" className="size-8 shrink-0 rounded-lg" />
@@ -138,7 +139,6 @@ export function AgentComposer({ value, onChange, onSend, onStop, busy, models, m
               <Button type="submit" size="small" iconOnly leadingIcon={ArrowUp} disabled={!value.trim() && attachments.length === 0} aria-label="Enviar" className="size-8 shrink-0 rounded-lg" />
             )}
           </div>
-          {modeControls && <div className="flex min-w-0 flex-wrap items-center gap-1.5 ps-8">{modeControls}</div>}
         </form>
       </ComposerLoader>
       {allowAttachments && <input ref={fileRef} type="file" hidden multiple accept="image/*,.pdf,.txt,.md,.json,.csv,.log" onChange={(event) => void pickFiles(event.target.files)} />}

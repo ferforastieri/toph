@@ -1,4 +1,4 @@
-import { Database, Files, GitBranch, Globe2, TerminalSquare } from "@toph/icons";
+import { Bot, Database, Files, GitBranch, Globe2, TerminalSquare } from "@toph/icons";
 import type { Sidebar } from "../store";
 import { Button } from "@/boardui/base/buttons/button";
 import { cx } from "@/boardui/utils/cx";
@@ -9,14 +9,16 @@ interface Props {
   terminalOpen: boolean;
   onSidebar: (sidebar: Sidebar) => void;
   onWeb: () => void;
+  onBots: () => void;
   onTerminal: () => void;
 }
 
-export default function MobileNav({ sidebar, panelOpen, terminalOpen, onSidebar, onWeb, onTerminal }: Props) {
+export default function MobileNav({ sidebar, panelOpen, terminalOpen, onSidebar, onWeb, onBots, onTerminal }: Props) {
   const nav = [
     { key: "files", label: "Arquivos", icon: Files, active: panelOpen && sidebar === "files", onClick: () => onSidebar("files") },
     { key: "scm", label: "Git", icon: GitBranch, active: panelOpen && sidebar === "scm", onClick: () => onSidebar("scm") },
     { key: "db", label: "Bancos", icon: Database, active: panelOpen && sidebar === "db", onClick: () => onSidebar("db") },
+    { key: "bots", label: "Bots", icon: Bot, active: sidebar === "bots", onClick: onBots },
     { key: "web", label: "Web", icon: Globe2, active: panelOpen && sidebar === "web", onClick: onWeb },
     { key: "terminal", label: "Terminal", icon: TerminalSquare, active: terminalOpen, onClick: onTerminal },
   ];

@@ -28,10 +28,11 @@ class MainActivity : TauriActivity() {
     val top: Int,
     val right: Int,
     val bottom: Int,
+    val keyboard: Int,
   )
 
   @Volatile
-  private var safeInsets = SafeInsets(0, 0, 0, 0)
+  private var safeInsets = SafeInsets(0, 0, 0, 0, 0)
 
   override fun onCreate(savedInstanceState: Bundle?) {
     enableEdgeToEdge()
@@ -119,14 +120,18 @@ class MainActivity : TauriActivity() {
       val bars = insets.getInsets(
         WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout(),
       )
-      safeInsets = SafeInsets(bars.left, bars.top, bars.right, bars.bottom)
-      webView.evaluateJavascript(insetScript(bars.left, bars.top, bars.right, bars.bottom), null)
+      val keyboard = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
+      safeInsets = SafeInsets(bars.left, bars.top, bars.right, bars.bottom, keyboard)
+      webView.evaluateJavascript(
+        insetScript(bars.left, bars.top, bars.right, bars.bottom, keyboard),
+        null,
+      )
       insets
     }
     ViewCompat.requestApplyInsets(webView)
   }
 
-  private fun insetScript(left: Int, top: Int, right: Int, bottom: Int): String {
+  private fun insetScript(left: Int, top: Int, right: Int, bottom: Int, keyboard: Int): String {
     val script = """
       (function() {
         var root = document.documentElement;
@@ -135,6 +140,9 @@ class MainActivity : TauriActivity() {
         root.style.setProperty('--native-safe-bottom', '${dp(bottom)}px');
         root.style.setProperty('--native-safe-left', '${dp(left)}px');
         root.style.setProperty('--native-safe-right', '${dp(right)}px');
+        root.style.setProperty('--native-keyboard-inset', '${dp(keyboard)}px');
+        root.style.setProperty('--keyboard-inset', '${dp(keyboard)}px');
+        root.classList.toggle('keyboard-open', ${dp(keyboard)} > 80);
       })();
     """.trimIndent()
     return script
@@ -150,7 +158,7 @@ class MainActivity : TauriActivity() {
     @JavascriptInterface
     fun insets(): String {
       val current = safeInsets
-      return """{"top":${dp(current.top)},"bottom":${dp(current.bottom)},"left":${dp(current.left)},"right":${dp(current.right)}}"""
+      return """{"top":${dp(current.top)},"bottom":${dp(current.bottom)},"left":${dp(current.left)},"right":${dp(current.right)},"keyboard":${dp(current.keyboard)}}"""
     }
   }
 
