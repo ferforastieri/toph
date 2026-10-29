@@ -173,8 +173,8 @@ export default function AiSettings() {
           />
           {isOpenCode && (
             <p className="text-caption-2-regular text-text-secondary">
-              O Toph tenta autenticar automaticamente no OpenCode local usando o
-              <code className="mx-1 rounded bg-background-tertiary-default px-1 py-0.5 text-caption-2-regular">service.json</code>
+              O Toph tenta autenticar automaticamente no OpenCode local usando o{" "}
+              <code className="rounded bg-background-tertiary-default px-1 py-0.5 text-caption-2-regular">service.json</code>{" "}
               do OpenCode. Informe a senha do servidor somente se ele estiver em outra máquina ou tiver autenticação própria.
             </p>
           )}
