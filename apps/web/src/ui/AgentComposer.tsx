@@ -74,11 +74,11 @@ export function AgentComposer({ value, onChange, onSend, onStop, busy, models, m
   }
 
   return (
-    <div className="flex w-full flex-col gap-2 p-2">
-      <ComposerLoader active={busy} radius={24}>
+    <div className="flex w-full flex-col p-2">
+      <ComposerLoader active={busy} radius={14} surface={false}>
         <form
           onSubmit={(event) => { event.preventDefault(); submit(); }}
-          className="flex flex-col gap-2 p-2"
+          className="flex flex-col gap-2 rounded-[14px] border border-border-button-default bg-background-primary-default p-3 pb-2 shadow-xs"
           onKeyDownCapture={(event) => { if (event.key === "Enter" && !event.shiftKey && event.target === areaRef.current) { event.preventDefault(); submit(); } }}
           onPaste={(event) => {
             if (!allowAttachments) return;
@@ -88,7 +88,7 @@ export function AgentComposer({ value, onChange, onSend, onStop, busy, models, m
           }}
         >
           {attachments.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 px-1">
+            <div className="flex flex-wrap gap-1.5">
               {attachments.map((file) => (
                 <span key={`${file.name}-${file.size}`} className="flex items-center gap-1.5 rounded-lg bg-background-secondary-default px-2 py-1">
                   <FilePlus2 size={13} className="text-foreground-icon-secondary" />
@@ -99,11 +99,24 @@ export function AgentComposer({ value, onChange, onSend, onStop, busy, models, m
               ))}
             </div>
           )}
-          {error && <p className="px-1 text-caption-2-regular text-text-error-primary">{error}</p>}
-          <div className="flex min-w-0 items-center gap-2">
+          {error && <p className="text-caption-2-regular text-text-error-primary">{error}</p>}
+          <Textarea
+            ref={areaRef}
+            value={value}
+            onChange={onChange}
+            placeholder={placeholder}
+            aria-label="Mensagem para o agente"
+            rows={1}
+            autoResize
+            maxRows={6}
+            resize="none"
+            fieldClassName="flex min-h-[38px] items-start rounded-none bg-transparent p-0 ring-0 shadow-none"
+            className="min-h-[38px] px-0 py-0 text-[13.5px] leading-[1.5]"
+          />
+          <div className="flex min-w-0 items-center gap-1">
             <Dropdown isOpen={addMenuOpen} onOpenChange={setAddMenuOpen}>
-              <DropdownTrigger aria-label="Adicionar contexto ou arquivo" className="flex size-9 shrink-0 items-center justify-center rounded-full bg-background-secondary-default text-foreground-icon-secondary transition-colors hover:bg-background-secondary-hover">
-                <Plus size={18} />
+              <DropdownTrigger aria-label="Adicionar contexto ou arquivo" className="flex size-7 shrink-0 items-center justify-center rounded-md bg-transparent text-foreground-icon-secondary transition-colors hover:bg-background-secondary-hover">
+                <Plus size={17} />
               </DropdownTrigger>
               <DropdownPopover aria-label="Adicionar contexto" placement="top start" className="w-56">
                 <DropdownGroup>
@@ -117,30 +130,14 @@ export function AgentComposer({ value, onChange, onSend, onStop, busy, models, m
                 </DropdownGroup>
               </DropdownPopover>
             </Dropdown>
-            <div className="min-w-0 flex-1">
-              <Textarea
-                ref={areaRef}
-                value={value}
-                onChange={onChange}
-                placeholder={placeholder}
-                aria-label="Mensagem para o agente"
-                rows={1}
-                autoResize
-                maxRows={6}
-                resize="none"
-                fieldClassName="flex min-h-9 items-center justify-center rounded-none bg-transparent p-0 ring-0 shadow-none"
-                className="min-h-5 px-0 text-body-regular"
-              />
-            </div>
-            {busy && onStop ? (
-              <Button type="button" variant="secondary" size="medium" iconOnly leadingIcon={Square} onClick={onStop} aria-label="Parar" className="shrink-0 rounded-full" />
-            ) : (
-              <Button type="submit" size="medium" iconOnly leadingIcon={ArrowUp} disabled={!value.trim() && attachments.length === 0} aria-label="Enviar" className="shrink-0 rounded-full" />
-            )}
-          </div>
-          <div className="flex min-w-0 flex-wrap items-center gap-1.5 ps-11">
-            {modeControls}
             <ModelPicker models={models} model={model} onModelChange={onModelChange} effort={effort} efforts={efforts} onEffortChange={onEffortChange} />
+            {modeControls && <div className="flex min-w-0 items-center gap-0.5">{modeControls}</div>}
+            <span className="min-w-2 flex-1" />
+            {busy && onStop ? (
+              <Button type="button" variant="secondary" size="small" iconOnly leadingIcon={Square} onClick={onStop} aria-label="Parar" className="size-8 shrink-0 rounded-lg" />
+            ) : (
+              <Button type="submit" size="small" iconOnly leadingIcon={ArrowUp} disabled={!value.trim() && attachments.length === 0} aria-label="Enviar" className="size-8 shrink-0 rounded-lg" />
+            )}
           </div>
         </form>
       </ComposerLoader>

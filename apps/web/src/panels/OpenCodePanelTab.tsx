@@ -690,7 +690,7 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
         effort={effort}
         efforts={efforts}
         onEffortChange={(next) => void chooseEffort(next)}
-        placeholder="Pergunte ao OpenCode..."
+        placeholder="Pergunte qualquer coisa, / para comandos, @ para contexto..."
         allowAttachments
         modeControls={
           <>

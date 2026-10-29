@@ -622,14 +622,15 @@ impl AiService {
             add(&cached);
         }
         for model in [
-            "opencode-go/deepseek-v4.1-flash",
-            "opencode-go/glm-5.3-flash",
+            "opencode-go/claude-haiku-5-5",
             "opencode-go/minimax-m3.1-flash",
+            "opencode-go/step-5-preview",
+            "opencode-go/mimo-v2.6-flash",
+            "opencode-go/gemini-4-argon",
+            "opencode-go/deepseek-v4.1-flash",
             "opencode-go/beam-free",
             "opencode/beam-free",
             "opencode/deepseek-v4.1-flash-free",
-            "opencode/claude-haiku-5-5",
-            "opencode/gemini-3.5-flash-lite",
         ] {
             add(model);
         }
