@@ -109,7 +109,7 @@ export function Modal({
           "transform-gpu transition-[opacity,transform,filter] duration-200 ease-[cubic-bezier(0.32,0.72,0,1)]",
           visible ? "scale-100 opacity-100 blur-0" : "scale-[0.97] opacity-0 blur-[3px]",
           placement === "bottom"
-            ? "max-h-[calc(100dvh-8px)] max-w-none rounded-t-3xl pb-[env(safe-area-inset-bottom)]"
+            ? "max-h-[calc(100dvh-8px)] max-w-none rounded-t-3xl pb-[var(--safe-bottom)]"
             : cx("max-h-[calc(100dvh-32px)] rounded-3xl", sizes[size]),
           className,
         )}

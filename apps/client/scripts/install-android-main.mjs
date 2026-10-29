@@ -18,6 +18,17 @@ for (const file of ["MainActivity.kt", "TophPush.kt", "TophMessagingService.kt"]
 }
 await copyFile(resolve(source, "ic_stat_toph.xml"), resolve(drawableDir, "ic_stat_toph.xml"));
 await copyFile(resolve(source, "google-services.json"), resolve(generated, "app/google-services.json"));
+for (const [relative, destination] of [
+  ["values/colors.xml", "app/src/main/res/values/colors.xml"],
+  ["values/themes.xml", "app/src/main/res/values/themes.xml"],
+  ["values-night/themes.xml", "app/src/main/res/values-night/themes.xml"],
+  ["values-v31/themes.xml", "app/src/main/res/values-v31/themes.xml"],
+  ["drawable/ic_launcher_background.xml", "app/src/main/res/drawable/ic_launcher_background.xml"],
+]) {
+  const target = resolve(generated, destination);
+  await mkdir(resolve(target, ".."), { recursive: true });
+  await copyFile(resolve(source, relative), target);
+}
 
 const rootGradlePath = resolve(generated, "build.gradle.kts");
 let rootGradle = await readFile(rootGradlePath, "utf8");

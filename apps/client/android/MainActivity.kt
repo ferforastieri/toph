@@ -36,7 +36,7 @@ class MainActivity : TauriActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     enableEdgeToEdge()
     super.onCreate(savedInstanceState)
-    window.setBackgroundDrawable(ColorDrawable(Color.parseColor("#041310")))
+    window.setBackgroundDrawable(ColorDrawable(Color.parseColor("#000000")))
     window.statusBarColor = Color.TRANSPARENT
     window.navigationBarColor = Color.TRANSPARENT
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
