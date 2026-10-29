@@ -3,12 +3,13 @@ import { Check, CircleAlert, PlugZap, Save, Bot } from "@toph/icons";
 import { api, type AIConfigInput } from "../api";
 import { useAI } from "../ai";
 import { useApp } from "../store";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button } from "@/boardui/base/buttons/button";
+import { Input } from "@/boardui/base/input/input";
+import { Textarea } from "@/boardui/base/textarea/textarea";
+import { Switch } from "@/boardui/base/switch/switch";
+import { Checkbox } from "@/boardui/base/checkbox/checkbox";
+import { Select, SelectItem } from "@/boardui/base/select/select";
+import { Chip } from "@/boardui/base/badges/chip";
 
 const providers = [
   { id: "opencode", label: "OpenCode", base: "" },
@@ -110,101 +111,74 @@ export default function AiSettings() {
   return (
     <div className="flex flex-col gap-5">
       <div>
-        <h3 className="flex items-center gap-2 text-sm font-medium"><Bot size={16} /> Agente de IA</h3>
-        <p className="mt-1 text-xs text-muted-foreground">
+        <h3 className="flex items-center gap-2 text-body-medium text-text-primary"><Bot size={16} /> Agente de IA</h3>
+        <p className="mt-1 text-caption-1-regular text-text-secondary">
           O provider selecionado é usado pelo painel do agente e pelo autocomplete do editor.
         </p>
       </div>
 
       <form className="flex flex-col gap-4" onSubmit={(event) => void save(event)}>
-        <div className="flex flex-col gap-4 rounded-xl border bg-card p-4">
-          <label className="flex flex-col gap-1.5 text-sm">
-            Provider
-            <Select value={form.provider} onValueChange={chooseProvider}>
-              <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {providers.map((provider) => (
-                  <SelectItem key={provider.id} value={provider.id}>{provider.label}</SelectItem>
-                ))}
-              </SelectContent>
+        <div className="bg-background-secondary-default flex flex-col gap-4 rounded-lg border p-4">
+          <div className="flex flex-col gap-1.5">
+            <span className="text-body-medium text-text-secondary">Provider</span>
+            <Select selectedKey={form.provider} onSelectionChange={(key) => chooseProvider(String(key))} aria-label="Provider" className="w-full">
+              {providers.map((provider) => (
+                <SelectItem key={provider.id} id={provider.id}>{provider.label}</SelectItem>
+              ))}
             </Select>
-          </label>
-          <label className="flex flex-col gap-1.5 text-sm">
-            Base URL
-            <Input value={form.baseUrl} onChange={(event) => patch({ baseUrl: event.target.value })} placeholder="https://api.example.com" />
-          </label>
-          <label className="flex flex-col gap-1.5 text-sm">
-            Modelo
-            <Select value={form.model} onValueChange={(model) => patch({ model })} disabled={loadingModels || uniqueModels.length === 0}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder={uniqueModels.length ? "Escolha um modelo" : "Salve para carregar os modelos"} />
-              </SelectTrigger>
-              <SelectContent>
-                {form.model && !uniqueModels.some((model) => model.id === form.model) && (
-                  <SelectItem value={form.model}>{form.model}</SelectItem>
-                )}
-                {uniqueModels.map((model) => (
-                  <SelectItem key={model.id} value={model.id}>
-                    {model.label}{model.provider ? ` · ${model.provider}` : ""}
-                  </SelectItem>
-                ))}
-              </SelectContent>
+          </div>
+          <Input label="Base URL" value={form.baseUrl} onChange={(value) => patch({ baseUrl: value })} placeholder="https://api.example.com" />
+          <div className="flex flex-col gap-1.5">
+            <span className="text-body-medium text-text-secondary">Modelo</span>
+            <Select selectedKey={form.model || null} onSelectionChange={(key) => patch({ model: key ? String(key) : "" })} isDisabled={loadingModels || uniqueModels.length === 0} aria-label="Modelo" className="w-full" renderValue={({ selectedText }) => selectedText || "Escolha um modelo"}>
+              {form.model && !uniqueModels.some((model) => model.id === form.model) && (
+                <SelectItem id={form.model}>{form.model}</SelectItem>
+              )}
+              {uniqueModels.map((model) => (
+                <SelectItem key={model.id} id={model.id}>
+                  {model.label}{model.provider ? ` · ${model.provider}` : ""}
+                </SelectItem>
+              ))}
             </Select>
-          </label>
-          <label className="flex flex-col gap-1.5 text-sm">
-            API key {config?.hasKey && <span className="text-xs text-muted-foreground">(salva)</span>}
-            <Input
-              type="password"
-              value={form.apiKey}
-              onChange={(event) => patch({ apiKey: event.target.value })}
-              placeholder={config?.hasKey ? "Deixe em branco para manter a chave atual" : "Opcional para providers locais"}
-              autoComplete="off"
-            />
-          </label>
+          </div>
+          <Input
+            label={config?.hasKey ? "API key (salva)" : "API key"}
+            type="password"
+            value={form.apiKey}
+            onChange={(value) => patch({ apiKey: value })}
+            placeholder={config?.hasKey ? "Deixe em branco para manter a chave atual" : "Opcional para providers locais"}
+            autoComplete="off"
+          />
           {config?.hasKey && (
-            <label className="flex items-center gap-2 text-sm">
-              <Checkbox checked={Boolean(form.clearKey)} onCheckedChange={(value) => patch({ clearKey: value === true })} />
+            <Checkbox isSelected={Boolean(form.clearKey)} onChange={(value) => patch({ clearKey: value })}>
               Remover chave salva
-            </label>
+            </Checkbox>
           )}
         </div>
 
-        <div className="grid gap-4 rounded-xl border bg-card p-4 sm:grid-cols-2">
-          <label className="flex flex-col gap-1.5 text-sm">
-            Max tokens
-            <Input type="number" value={form.maxTokens} onChange={(event) => patch({ maxTokens: Number(event.target.value) || 1 })} />
-          </label>
-          <label className="flex flex-col gap-1.5 text-sm">
-            Temperature
-            <Input type="number" step="0.1" value={form.temperature} onChange={(event) => patch({ temperature: Number(event.target.value) || 0 })} />
-          </label>
-          <label className="flex flex-col gap-1.5 text-sm sm:col-span-2">
-            System prompt
-            <Textarea rows={3} value={form.systemPrompt} onChange={(event) => patch({ systemPrompt: event.target.value })} />
-          </label>
+        <div className="bg-background-secondary-default grid gap-4 rounded-lg border p-4 sm:grid-cols-2">
+          <Input label="Max tokens" type="number" value={String(form.maxTokens)} onChange={(value) => patch({ maxTokens: Number(value) || 1 })} />
+          <Input label="Temperature" type="number" value={String(form.temperature)} onChange={(value) => patch({ temperature: Number(value) || 0 })} />
+          <div className="sm:col-span-2"><Textarea label="System prompt" rows={3} value={form.systemPrompt} onChange={(value) => patch({ systemPrompt: value })} /></div>
         </div>
 
-        <div className="flex items-center justify-between gap-4 rounded-xl border bg-card p-4">
+        <div className="bg-background-secondary-default flex items-center justify-between gap-4 rounded-lg border p-4">
           <div>
-            <p className="text-sm font-medium">Autocomplete do editor</p>
-            <p className="text-xs text-muted-foreground">Usa o provider e o modelo configurados.</p>
+            <p className="text-body-medium text-text-primary">Autocomplete do editor</p>
+            <p className="text-caption-1-regular text-text-secondary">Usa o provider e o modelo configurados.</p>
           </div>
-          <Switch checked={form.autocomplete} onCheckedChange={(value) => patch({ autocomplete: value })} />
+          <Switch isSelected={form.autocomplete} onChange={(value) => patch({ autocomplete: value })} />
         </div>
 
-        {error && <div className="flex items-center gap-2 rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive"><CircleAlert size={13} /> {error}</div>}
+        {error && <Chip color="rose" variant="subtle" className="justify-start gap-2 whitespace-normal px-2 py-1.5"><CircleAlert size={13} /> {error}</Chip>}
         {tested !== null && (
-          <div className={`flex items-center gap-2 rounded-lg px-3 py-2 text-xs ${tested ? "bg-emerald-500/10 text-emerald-500" : "bg-destructive/10 text-destructive"}`}>
+          <Chip color={tested ? "lime" : "rose"} variant="subtle" className="justify-start gap-2 px-2 py-1.5">
             <Check size={13} /> {tested ? "Provider acessível." : "Falha ao testar o provider."}
-          </div>
+          </Chip>
         )}
         <div className="flex flex-wrap items-center justify-end gap-2">
-          <Button type="button" variant="outline" disabled={busy} onClick={() => void save(undefined, true)}>
-            <PlugZap size={14} /> Salvar e testar
-          </Button>
-          <Button type="submit" disabled={busy}>
-            <Save size={14} /> {busy ? "Salvando..." : "Salvar configurações"}
-          </Button>
+          <Button type="button" variant="secondary" disabled={busy} leadingIcon={PlugZap} onClick={() => void save(undefined, true)}>Salvar e testar</Button>
+          <Button type="submit" disabled={busy} leadingIcon={Save}>{busy ? "Salvando..." : "Salvar configurações"}</Button>
         </div>
       </form>
     </div>

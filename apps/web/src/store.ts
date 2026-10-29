@@ -175,7 +175,7 @@ export const useApp = create<AppState>((set, get) => ({
   tabs: [],
   activeTabId: null,
   sidebar: "files",
-  terminalOpen: false,
+  terminalOpen: true,
   aiPanelOpen: false,
   aiDockTab: null,
   terminalIds: {},
@@ -219,10 +219,24 @@ export const useApp = create<AppState>((set, get) => ({
         activeProjectId =
           openProjectIds[Math.min(index, openProjectIds.length - 1)] ?? null;
       }
+      const tabs = state.tabs.filter((tab) => tab.projectId !== id);
+      let activeTabId = state.activeTabId;
+      if (!tabs.some((tab) => tab.id === activeTabId)) {
+        activeTabId = tabs[tabs.length - 1]?.id ?? null;
+      }
+      const aiDockTab = state.aiDockTab?.projectId === id ? null : state.aiDockTab;
       const terminalIds = { ...state.terminalIds };
       delete terminalIds[id];
       persistProjectState(activeProjectId, openProjectIds);
-      return { openProjectIds, activeProjectId, terminalIds };
+      return {
+        openProjectIds,
+        activeProjectId,
+        terminalIds,
+        tabs,
+        activeTabId,
+        aiDockTab,
+        aiPanelOpen: aiDockTab ? state.aiPanelOpen : false,
+      };
     }),
   openTab: (tab) =>
     set((state) => {

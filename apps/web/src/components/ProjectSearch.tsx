@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { FileText } from "@toph/icons";
+import { FileText, LoaderCircle, Search } from "@toph/icons";
 import { api, type Project, type SearchMatch } from "../api";
 import { basename } from "../lib";
 import FileIcon from "../ui/FileIcon";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Spinner } from "@/components/ui/spinner";
+import { Input } from "@/boardui/base/input/input";
+import { cx } from "@/boardui/utils/cx";
 
 interface Props {
   project: Project;
@@ -21,6 +21,7 @@ export default function ProjectSearch({ project, onOpenFile, focusToken = 0 }: P
   const [matches, setMatches] = useState<SearchMatch[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -46,6 +47,8 @@ export default function ProjectSearch({ project, onOpenFile, focusToken = 0 }: P
   const results = useMemo<SearchResult[]>(() => [...files.map((path) => ({ kind: "file" as const, path })), ...matches.map((match) => ({ kind: "match" as const, match }))], [files, matches]);
   const searching = query.trim().length > 0;
 
+  useEffect(() => { setActive(0); }, [query]);
+
   function open(result: SearchResult) {
     if (result.kind === "file") onOpenFile(result.path);
     else onOpenFile(result.match.path, result.match.line);
@@ -53,33 +56,60 @@ export default function ProjectSearch({ project, onOpenFile, focusToken = 0 }: P
   }
 
   return (
-    <Command shouldFilter={false} className="rounded-lg border bg-popover">
-      <CommandInput ref={inputRef} value={query} onValueChange={setQuery} placeholder="Buscar" aria-label="Buscar arquivos ou conteúdo" />
-      <CommandList>
-        {busy && <div className="flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground"><Spinner /> Buscando...</div>}
-        {error && <div className="px-3 py-2 text-xs text-destructive">{error}</div>}
-        {searching && !busy && !error && results.length === 0 && <CommandEmpty>Nenhum resultado.</CommandEmpty>}
-        {files.length > 0 && (
-          <CommandGroup heading="Arquivos">
-            {files.map((path) => (
-              <CommandItem key={`file:${path}`} value={`file:${path}`} onSelect={() => open({ kind: "file", path })}>
-                <FileIcon name={basename(path)} size={14} />
-                <span className="truncate">{path}</span>
-              </CommandItem>
-            ))}
-          </CommandGroup>
-        )}
-        {matches.length > 0 && (
-          <CommandGroup heading="Conteúdo">
-            {matches.map((match) => (
-              <CommandItem key={`match:${match.path}:${match.line}:${match.preview}`} value={`match:${match.path}:${match.line}:${match.preview}`} onSelect={() => open({ kind: "match", match })} className="flex-col items-start gap-0.5">
-                <span className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground"><FileText size={12} /><span className="truncate">{match.path}</span><span>:{match.line}</span></span>
-                <span className="truncate text-xs text-muted-foreground">{match.preview}</span>
-              </CommandItem>
-            ))}
-          </CommandGroup>
-        )}
-      </CommandList>
-    </Command>
+    <div
+      className="relative"
+      onKeyDownCapture={(event) => {
+        if (event.key === "ArrowDown") { event.preventDefault(); setActive((current) => Math.min(results.length - 1, current + 1)); }
+        else if (event.key === "ArrowUp") { event.preventDefault(); setActive((current) => Math.max(0, current - 1)); }
+        else if (event.key === "Enter" && results[active]) { event.preventDefault(); open(results[active]); }
+        else if (event.key === "Escape") setQuery("");
+      }}
+    >
+      <Input
+        ref={inputRef}
+        value={query}
+        onChange={setQuery}
+        placeholder="Buscar"
+        aria-label="Buscar arquivos ou conteúdo"
+        leadingIcon={Search}
+        fieldClassName="h-8 rounded-lg"
+        className="text-caption-1-regular"
+      />
+      {searching && (
+        <div className="bg-background-primary-default shadow-dropdown absolute inset-x-0 top-full z-50 mt-1 max-h-80 overflow-y-auto rounded-lg border p-1">
+          {busy && <div className="flex items-center gap-2 px-2 py-1.5 text-caption-1-regular text-text-secondary"><LoaderCircle size={13} className="animate-spin" /> Buscando...</div>}
+          {error && <div className="px-2 py-1.5 text-caption-1-regular text-text-error-primary">{error}</div>}
+          {!busy && !error && results.length === 0 && <div className="px-2 py-1.5 text-caption-1-regular text-text-secondary">Nenhum resultado.</div>}
+          {files.length > 0 && (
+            <div className="flex flex-col gap-0.5">
+              <span className="px-2 py-1 text-caption-2-semibold uppercase tracking-wide text-text-tertiary">Arquivos</span>
+              {files.map((path) => {
+                const index = results.findIndex((item) => item.kind === "file" && item.path === path);
+                return (
+                  <button key={`file:${path}`} type="button" className={cx("flex w-full items-center gap-2 rounded-2lg px-2 py-1.5 text-start text-caption-1-regular", index === active ? "bg-dropdown-item-hover-background text-text-primary" : "text-text-secondary hover:bg-dropdown-item-hover-background hover:text-text-primary")} onMouseEnter={() => setActive(index)} onClick={() => open({ kind: "file", path })}>
+                    <FileIcon name={basename(path)} size={14} />
+                    <span className="truncate">{path}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          {matches.length > 0 && (
+            <div className="mt-1 flex flex-col gap-0.5">
+              <span className="px-2 py-1 text-caption-2-semibold uppercase tracking-wide text-text-tertiary">Conteúdo</span>
+              {matches.map((match) => {
+                const index = results.findIndex((item) => item.kind === "match" && item.match === match);
+                return (
+                  <button key={`match:${match.path}:${match.line}:${match.preview}`} type="button" className={cx("flex w-full flex-col gap-0.5 rounded-2lg px-2 py-1.5 text-start", index === active ? "bg-dropdown-item-hover-background text-text-primary" : "text-text-secondary hover:bg-dropdown-item-hover-background hover:text-text-primary")} onMouseEnter={() => setActive(index)} onClick={() => open({ kind: "match", match })}>
+                    <span className="flex min-w-0 items-center gap-1.5 text-caption-1-medium"><FileText size={12} /><span className="truncate">{match.path}</span><span>:{match.line}</span></span>
+                    <span className="truncate text-caption-1-regular text-text-secondary">{match.preview}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }

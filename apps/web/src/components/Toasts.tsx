@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
-import { toast } from "sonner";
 import { useApp } from "../store";
+import { Notification, NotificationViewport } from "@/boardui/base/notification/notification";
 
 export default function Toasts() {
   const toasts = useApp((state) => state.toasts);
@@ -11,12 +11,21 @@ export default function Toasts() {
     for (const item of toasts) {
       if (seen.current.has(item.id)) continue;
       seen.current.add(item.id);
-      if (item.kind === "error") toast.error(item.message);
-      else if (item.kind === "success") toast.success(item.message);
-      else toast(item.message);
-      dismiss(item.id);
+      window.dispatchEvent(new CustomEvent("toph:output", { detail: { text: `[app] ${item.message}` } }));
     }
-  }, [dismiss, toasts]);
+  }, [toasts]);
 
-  return null;
+  return (
+    <NotificationViewport position="bottom-end">
+      {toasts.map((item) => (
+        <Notification
+          key={item.id}
+          title={item.message}
+          status={item.kind === "error" ? "error" : item.kind === "success" ? "success" : "information"}
+          onDismiss={() => dismiss(item.id)}
+          className="bg-background-primary-default shadow-dropdown"
+        />
+      ))}
+    </NotificationViewport>
+  );
 }

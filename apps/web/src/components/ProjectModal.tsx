@@ -1,9 +1,10 @@
 import { useState, type FormEvent } from "react";
 import { api, ApiError, type Project } from "../api";
 import { useApp } from "../store";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/boardui/base/buttons/button";
+import { Input } from "@/boardui/base/input/input";
+import { Chip } from "@/boardui/base/badges/chip";
+import { Modal } from "@/boardui/base/modal/modal";
 
 interface Props {
   onClose: () => void;
@@ -22,7 +23,7 @@ export default function ProjectModal({ onClose, onCreated }: Props) {
     setBusy(true);
     setError("");
     try {
-      const project = await api.createProject(name, root, "#FF50FF");
+      const project = await api.createProject(name, root, "#FFB547");
       onCreated(project);
     } catch (err) {
       const message =
@@ -35,22 +36,24 @@ export default function ProjectModal({ onClose, onCreated }: Props) {
   }
 
   return (
-    <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>Novo projeto</DialogTitle>
-          <DialogDescription>Abra uma pasta do servidor como projeto.</DialogDescription>
-        </DialogHeader>
-        <form id="new-project-form" className="flex flex-col gap-4" onSubmit={submit}>
-          <label className="flex flex-col gap-1.5 text-sm">Nome<Input value={name} onChange={(event) => setName(event.target.value)} required autoFocus /></label>
-          <label className="flex flex-col gap-1.5 text-sm">Caminho no servidor<Input value={root} onChange={(event) => setRoot(event.target.value)} placeholder="/srv/repos/my-project" required /></label>
-          {error && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive">{error}</p>}
-        </form>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancelar</Button>
+    <Modal
+      isOpen
+      onClose={onClose}
+      title="Novo projeto"
+      description="Abra uma pasta do servidor como projeto."
+      size="sm"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>Cancelar</Button>
           <Button type="submit" form="new-project-form" disabled={busy}>{busy ? "Criando..." : "Criar projeto"}</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </>
+      }
+    >
+      <form id="new-project-form" className="flex flex-col gap-4" onSubmit={submit}>
+        <Input label="Nome" value={name} onChange={setName} isRequired autoFocus />
+        <Input label="Caminho no servidor" value={root} onChange={setRoot} placeholder="/srv/repos/my-project" isRequired />
+        {error && <Chip color="rose" variant="subtle" className="justify-start whitespace-normal px-2 py-1.5">{error}</Chip>}
+      </form>
+    </Modal>
   );
 }

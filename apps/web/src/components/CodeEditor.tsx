@@ -1,8 +1,9 @@
 import Editor, { type Monaco, type OnMount } from "@monaco-editor/react";
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { CancellationToken, IPosition, editor, languages } from "monaco-editor";
 import { useSettings } from "../settings";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Modal } from "@/boardui/base/modal/modal";
 import { CODE_FONT_FAMILY, codeLineHeight, monacoThemeName, registerEditorThemes } from "../editorThemes";
 import { registerEditorTextMate } from "../editorTextMate";
 import { relativeTime } from "../lib";
@@ -50,6 +51,7 @@ export default function CodeEditor({
   const [aiDialog, setAiDialog] = useState<{ title: string; text: string; busy: boolean; error: string } | null>(null);
   const [historyDialog, setHistoryDialog] = useState<{ title: string; entries: GitHistoryEntry[] | null; error: string } | null>(null);
   const [cursorLine, setCursorLine] = useState(1);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const theme = useSettings((state) => state.theme);
   const aiConfig = useAI((state) => state.config);
   const loadAI = useAI((state) => state.load);
@@ -125,6 +127,22 @@ export default function CodeEditor({
     if (!projectIdRef.current) return;
     window.open(api.rawUrl(projectIdRef.current, pathRef.current), "_blank", "noopener,noreferrer");
   }
+
+  useEffect(() => {
+    const handleCommand = (event: Event) => {
+      const command = (event as CustomEvent<{ command?: string }>).detail?.command;
+      const instance = editorRef.current;
+      if (!command || !instance) return;
+      if (command === "save") { saveRef.current?.(); return; }
+      if (command === "run") { runRef.current?.(); return; }
+      if (command === "editor.action.goBack" || command === "editor.action.goForward") return;
+      const action = instance.getAction(command);
+      if (action) void action.run();
+      else if (command === "undo" || command === "redo" || command === "actions.find") instance.trigger("menu", command, null);
+    };
+    window.addEventListener("toph:editor-command", handleCommand);
+    return () => window.removeEventListener("toph:editor-command", handleCommand);
+  }, []);
 
   function addContextActions(instance: editor.IStandaloneCodeEditor) {
     instance.addAction({
@@ -218,6 +236,39 @@ export default function CodeEditor({
     });
   }
 
+  useEffect(() => {
+    if (!contextMenu) return;
+    const close = () => setContextMenu(null);
+    const escape = (event: KeyboardEvent) => { if (event.key === "Escape") close(); };
+    window.addEventListener("mousedown", close);
+    window.addEventListener("keydown", escape);
+    return () => {
+      window.removeEventListener("mousedown", close);
+      window.removeEventListener("keydown", escape);
+    };
+  }, [contextMenu]);
+
+  function runContextAction(id: string) {
+    setContextMenu(null);
+    void editorRef.current?.getAction(id)?.run();
+  }
+
+  function triggerContextAction(id: string) {
+    setContextMenu(null);
+    editorRef.current?.trigger("contextmenu", id, null);
+  }
+
+  function openEditorContextMenu(event: MouseEvent, instance: editor.IStandaloneCodeEditor) {
+    event.preventDefault();
+    event.stopPropagation();
+    const target = instance.getTargetAtClientPoint(event.clientX, event.clientY);
+    if (target?.position) instance.setPosition(target.position);
+    setContextMenu({
+      x: Math.min(event.clientX, window.innerWidth - 320),
+      y: Math.min(event.clientY, window.innerHeight - 520),
+    });
+  }
+
   const onMount: OnMount = (instance, monaco) => {
     editorRef.current = instance;
     monacoRef.current = monaco;
@@ -239,6 +290,10 @@ export default function CodeEditor({
       runRef.current?.();
     });
     addContextActions(instance);
+    const dom = instance.getDomNode();
+    const handleContextMenu = (event: MouseEvent) => openEditorContextMenu(event, instance);
+    dom?.addEventListener("contextmenu", handleContextMenu, true);
+    instance.onDidDispose(() => dom?.removeEventListener("contextmenu", handleContextMenu, true));
     if (line && line > 0) {
       instance.revealLineInCenter(line);
       instance.setPosition({ lineNumber: line, column: 1 });
@@ -272,8 +327,14 @@ export default function CodeEditor({
     const current = blame?.find((item) => item.line === cursorLine);
     const model = instance.getModel();
     if (!current || !model) return;
+    const lineHeight = instance.getOption(monaco.editor.EditorOption.lineHeight);
     const dom = document.createElement("span");
-    dom.className = "pointer-events-none ml-[18px] flex h-[19px] -translate-y-px items-center whitespace-nowrap font-mono text-[9.5px] italic text-muted-foreground opacity-80";
+    dom.className = "pointer-events-none ml-[18px] flex items-center whitespace-nowrap font-mono text-[9.5px] italic leading-none text-muted-foreground opacity-80";
+    dom.style.height = `${lineHeight}px`;
+    // Monaco anchors content widgets to the top of the line. Flex centers the
+    // line box, but the 9.5px italic face has a smaller optical center; nudge
+    // the glyphs down so the blame sits on the same visual center as code.
+    dom.style.transform = `translateY(${Math.max(0, Math.round((lineHeight - 11) / 2) + 2)}px)`;
     dom.textContent = `${current.author} · ${relativeTime(current.authorTime)} · ${current.summary}`;
     dom.title = `${current.commit.slice(0, 8)} · ${current.summary}`;
     const widget: editor.IContentWidget = {
@@ -352,6 +413,31 @@ export default function CodeEditor({
     return () => provider.dispose();
   }, [aiConfig?.autocomplete, language, monacoReady, path]);
 
+  useEffect(() => {
+    const monaco = monacoRef.current;
+    const instance = editorRef.current;
+    if (!monaco || !instance || !monacoReady) return;
+    const publish = () => {
+      const model = instance.getModel();
+      if (!model) return;
+      const markers = monaco.editor.getModelMarkers({ resource: model.uri }).map((marker: editor.IMarker) => ({
+        path,
+        line: marker.startLineNumber,
+        column: marker.startColumn,
+        severity: marker.severity,
+        message: marker.message,
+        source: marker.source ?? "",
+      }));
+      window.dispatchEvent(new CustomEvent("toph:diagnostics", { detail: { path, items: markers } }));
+    };
+    const subscription = monaco.editor.onDidChangeMarkers(publish);
+    publish();
+    return () => {
+      subscription.dispose();
+      window.dispatchEvent(new CustomEvent("toph:diagnostics", { detail: { path, items: [] } }));
+    };
+  }, [monacoReady, path]);
+
   return (
     <>
     <Editor
@@ -386,26 +472,54 @@ export default function CodeEditor({
         suggestOnTriggerCharacters: true,
         inlineSuggest: { enabled: true },
         wordBasedSuggestions: "currentDocument",
+        contextmenu: false,
         fixedOverflowWidgets: true,
       }}
     />
+    {contextMenu && createPortal(
+      <div className="fixed inset-0 z-100" onMouseDown={() => setContextMenu(null)}>
+        <div
+          className="absolute w-[300px] max-h-[calc(100dvh-16px)] overflow-y-auto rounded-2xl border border-border-button-default bg-background-primary-default p-1.5 shadow-dropdown"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+          onMouseDown={(event) => event.stopPropagation()}
+          onContextMenu={(event) => event.preventDefault()}
+        >
+          <EditorContextAction label="Go to Type Definition" onClick={() => runContextAction("toph.go-type-definition")} />
+          <EditorContextAction label="Go to Source Definition" onClick={() => runContextAction("toph.go-source-definition")} />
+          <EditorContextAction label="Find All References" onClick={() => runContextAction("toph.find-all-references")} />
+          <EditorContextAction label="Open Changes" onClick={() => runContextAction("toph.open-changes")} />
+          <EditorContextAction label="File Annotations" onClick={() => runContextAction("toph.file-annotations")} />
+          <EditorContextAction label="File History" onClick={() => runContextAction("toph.file-history")} />
+          <EditorContextSeparator />
+          <EditorContextAction label="Change All Occurrences" shortcut="Ctrl+F2" onClick={() => triggerContextAction("editor.action.changeAll")} />
+          <EditorContextAction label="Explain" onClick={() => runContextAction("toph.explain")} />
+          <EditorContextAction label="Review" onClick={() => runContextAction("toph.review")} />
+          <EditorContextSeparator />
+          <EditorContextAction label="Cut" shortcut="Ctrl+X" onClick={() => triggerContextAction("editor.action.clipboardCutAction")} />
+          <EditorContextAction label="Copy" shortcut="Ctrl+C" onClick={() => triggerContextAction("editor.action.clipboardCopyAction")} />
+          <EditorContextAction label="Paste" shortcut="Ctrl+V" onClick={() => triggerContextAction("editor.action.clipboardPasteAction")} />
+          <EditorContextAction label="Open Remote (Web)" onClick={() => runContextAction("toph.open-remote")} disabled={!projectId} />
+          <EditorContextAction label="Copy As" onClick={() => runContextAction("toph.copy-as")} />
+          <EditorContextAction label="Copy Path" onClick={() => runContextAction("toph.copy-path")} />
+          <EditorContextAction label="Copy Relative Path" onClick={() => runContextAction("toph.copy-relative-path")} />
+          <EditorContextSeparator />
+          <EditorContextAction label="Command Palette" shortcut="F1" onClick={() => triggerContextAction("editor.action.quickCommand")} />
+        </div>
+      </div>,
+      document.body,
+    )}
     {aiDialog && (
-      <Dialog open onOpenChange={(open) => !open && setAiDialog(null)}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader><DialogTitle>{aiDialog.title}</DialogTitle><DialogDescription>Resposta da IA.</DialogDescription></DialogHeader>
-          {aiDialog.busy && <p className="py-6 text-center text-sm text-muted-foreground">Consultando IA...</p>}
-          {aiDialog.error && <p className="rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">{aiDialog.error}</p>}
-          {aiDialog.text && <pre className="whitespace-pre-wrap break-words text-sm">{aiDialog.text}</pre>}
-        </DialogContent>
-      </Dialog>
+      <Modal isOpen onClose={() => setAiDialog(null)} title={aiDialog.title} description="Resposta da IA." size="lg">
+        {aiDialog.busy && <p className="py-6 text-center text-body-regular text-text-secondary">Consultando IA...</p>}
+        {aiDialog.error && <p className="rounded-lg bg-status-rose-background px-3 py-2 text-caption-1-regular text-status-rose-text">{aiDialog.error}</p>}
+        {aiDialog.text && <pre className="whitespace-pre-wrap break-words text-body-regular text-text-primary">{aiDialog.text}</pre>}
+      </Modal>
     )}
     {historyDialog && (
-      <Dialog open onOpenChange={(open) => !open && setHistoryDialog(null)}>
-        <DialogContent className="max-w-xl">
-          <DialogHeader><DialogTitle>{historyDialog.title}</DialogTitle><DialogDescription>Histórico de commits.</DialogDescription></DialogHeader>
-          {!historyDialog.entries && !historyDialog.error && <p className="py-6 text-center text-sm text-muted-foreground">Carregando histórico...</p>}
-          {historyDialog.error && <p className="rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">{historyDialog.error}</p>}
-          {historyDialog.entries?.length === 0 && <p className="py-6 text-center text-sm text-muted-foreground">Sem commits.</p>}
+      <Modal isOpen onClose={() => setHistoryDialog(null)} title={historyDialog.title} description="Histórico de commits." size="lg">
+          {!historyDialog.entries && !historyDialog.error && <p className="py-6 text-center text-body-regular text-text-secondary">Carregando histórico...</p>}
+          {historyDialog.error && <p className="rounded-lg bg-status-rose-background px-3 py-2 text-caption-1-regular text-status-rose-text">{historyDialog.error}</p>}
+          {historyDialog.entries?.length === 0 && <p className="py-6 text-center text-body-regular text-text-secondary">Sem commits.</p>}
           <div className="flex flex-col gap-1">
             {historyDialog.entries?.map((entry) => (
               <div className="flex flex-col gap-1 rounded-lg border px-3 py-2" key={entry.hash}>
@@ -414,9 +528,27 @@ export default function CodeEditor({
               </div>
             ))}
           </div>
-        </DialogContent>
-      </Dialog>
+      </Modal>
     )}
     </>
   );
+}
+
+
+function EditorContextAction({ label, shortcut, disabled, onClick }: { label: string; shortcut?: string; disabled?: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className="flex w-full cursor-pointer items-center gap-2 rounded-2lg px-2 py-1.5 text-start text-body-2-medium text-text-primary outline-none transition-colors hover:bg-dropdown-item-hover-background focus-visible:bg-dropdown-item-hover-background disabled:cursor-not-allowed disabled:opacity-45"
+    >
+      {label}
+      {shortcut && <span className="ms-auto text-caption-2-regular text-text-tertiary">{shortcut}</span>}
+    </button>
+  );
+}
+
+function EditorContextSeparator() {
+  return <div className="my-1 h-px bg-separator-border" />;
 }

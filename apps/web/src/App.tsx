@@ -5,6 +5,8 @@ import Login from "./components/Login";
 import ServerSetup from "./components/ServerSetup";
 import UpdateToast from "./components/UpdateToast";
 import Workbench from "./components/Workbench";
+import PetPicker from "./components/PetPicker";
+import { usePet } from "./pet";
 import BrandMark from "@toph/brand";
 
 const SERVER_KEY = "toph_server_url";
@@ -23,7 +25,12 @@ function AppShell() {
   const authReady = useApp((state) => state.authReady);
   const setUser = useApp((state) => state.setUser);
   const setAuthReady = useApp((state) => state.setAuthReady);
+  const hydratePet = usePet((state) => state.hydrate);
   const [serverUrl, setServerUrl] = useState<string | null>(initialServerUrl);
+
+  useEffect(() => {
+    hydratePet(user?.username ?? "");
+  }, [hydratePet, user?.username]);
 
   useEffect(() => {
     if (!serverUrl) {
@@ -86,6 +93,7 @@ function AppShell() {
     <>
       <Workbench />
       <UpdateToast />
+      <PetPicker />
     </>
   );
 }

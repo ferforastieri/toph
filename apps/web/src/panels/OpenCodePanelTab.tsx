@@ -1,22 +1,20 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { OpenCode } from "@opencode/client";
-import { Bot, Check, ChevronDown, History, Wrench, X } from "@toph/icons";
+import { ArrowLeft, Bot, Check, ChevronDown, History, Settings2, Wrench, X } from "@toph/icons";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { openCodeBase, type Project } from "../api";
 import { useAI } from "../ai";
 import { useApp, type AiMessage, type Tab } from "../store";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Message, MessageContent, MessageGroup, MessageHeader } from "@/components/ui/message";
-import { Bubble, BubbleContent } from "@/components/ui/bubble";
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
-import { Marker } from "@/components/ui/marker";
-import { Spinner } from "@/components/ui/spinner";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Switch } from "@/components/ui/switch";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button } from "@/boardui/base/buttons/button";
+import { Badge } from "@/boardui/base/badges/badge";
+import { Chip } from "@/boardui/base/badges/chip";
+import { Select, SelectItem } from "@/boardui/base/select/select";
+import { AgentMessage } from "@/boardui/application/agent-chat/agent-chat-message";
+import { AgentThinking } from "@/boardui/application/agent-thinking/agent-thinking";
+import { AgentProgress } from "@/boardui/application/agent-progress/agent-progress";
+import { AgentLimitsCard } from "@/boardui/application/agent-limits-card/agent-limits-card";
+import AiSettings from "./AiSettings";
 import { AgentComposer, type AgentAttachment } from "../ui/AgentComposer";
 import AgentSessionsSheet from "../components/AgentSessionsSheet";
 import type { OpenCodeSessionSummary } from "../opencodeSessions";
@@ -61,6 +59,7 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
   const [model, setModel] = useState(aiConfig?.model ?? "");
   const [effort, setEffort] = useState("");
   const [sessionsOpen, setSessionsOpen] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
 
   useEffect(() => {
     const handleContext = (event: Event) => {
@@ -72,11 +71,11 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
     return () => window.removeEventListener("toph:ai-context", handleContext);
   }, []);
   const [usage, setUsage] = useState<{ cost?: number; tokens?: unknown } | null>(null);
-  const [yolo, setYolo] = useState(true);
-  const yoloRef = useRef(yolo);
+  const [permissionMode, setPermissionMode] = useState<"yolo" | "ask" | "deny">("yolo");
+  const permissionModeRef = useRef(permissionMode);
   const [agents, setAgents] = useState<Array<{ id: string; name: string; mode: string }>>([]);
   const [agent, setAgent] = useState("build");
-  useEffect(() => { yoloRef.current = yolo; }, [yolo]);
+  useEffect(() => { permissionModeRef.current = permissionMode; }, [permissionMode]);
   const bottomRef = useRef<HTMLDivElement>(null);
   const subagents = useRef(new Map<string, string>());
   const notifyPending = useRef(false);
@@ -416,20 +415,23 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
               break;
             }
             case "permission.asked": {
+              const mode = permissionModeRef.current;
+              const autoApprove = mode === "yolo";
+              const autoDeny = mode === "deny";
               addMessage(tab.id, {
                 id: `permission-${String(data.id)}`,
                 role: "tool",
                 text: `Permission requested: ${String(data.action)} ${JSON.stringify(data.resources ?? [])}`,
-                title: yoloRef.current ? "Permission auto-approved" : "Permission",
+                title: autoApprove ? "Permission auto-approved" : autoDeny ? "Permission auto-denied" : "Permission",
                 createdAt: Date.now(),
-                permissionId: yoloRef.current ? undefined : String(data.id),
+                permissionId: mode === "ask" ? String(data.id) : undefined,
                 permissionAction: String(data.action ?? ""),
               });
-              if (yoloRef.current) {
+              if (mode !== "ask") {
                 void client.permission.reply({
                   sessionID: sessionId,
                   requestID: String(data.id),
-                  decision: "always",
+                  decision: autoApprove ? "always" : "reject",
                 } as never).catch(() => undefined);
               }
               break;
@@ -628,131 +630,154 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
     setStreaming(tab.id, false);
   }
 
-  const usageText = (() => {
-    if (!usage) return null;
-    const tokens = usage.tokens as { input?: number; output?: number; reasoning?: number } | undefined;
-    const total = tokens ? (tokens.input ?? 0) + (tokens.output ?? 0) + (tokens.reasoning ?? 0) : 0;
-    const tokenLabel = total > 999 ? `${(total / 1000).toFixed(1)}k` : String(total);
-    return { tokenLabel, cost: typeof usage.cost === "number" ? usage.cost : undefined };
-  })();
+  const progressSteps = messages
+    .filter((message) => message.role === "tool" || message.role === "step")
+    .slice(-5)
+    .map((message) => ({
+      id: message.id,
+      label: message.title || message.text || "Etapa",
+      status: message.status === "complete" ? "done" as const : message.status === "running" ? "running" as const : "pending" as const,
+    }));
+
+  const usageTokens = usage?.tokens as { input?: number; output?: number; reasoning?: number } | undefined;
+  const usageBuckets = [
+    { label: "Entrada", value: usageTokens?.input ?? 0, color: "var(--color-chart-6)" },
+    { label: "Saída", value: usageTokens?.output ?? 0, color: "var(--color-chart-5)" },
+    { label: "Raciocínio", value: usageTokens?.reasoning ?? 0, color: "var(--color-chart-3)" },
+  ];
+  const usageTotal = usageBuckets.reduce((total, bucket) => total + bucket.value, 0);
+
+  if (showSettings) {
+    return (
+      <div className="flex h-full min-h-0 w-full flex-1 flex-col">
+        <div className="flex h-9 shrink-0 items-center gap-2 border-b px-2">
+          <Button variant="ghost" size="xs" iconOnly leadingIcon={ArrowLeft} aria-label="Voltar" onClick={() => setShowSettings(false)} />
+          <span className="text-body-2-medium text-text-primary">Configurações da IA</span>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto p-3"><AiSettings /></div>
+      </div>
+    );
+  }
 
   return (
-    <div className="flex h-full min-h-0 w-full flex-1 flex-col bg-background">
-      <div className="flex shrink-0 flex-col gap-2 border-b p-2">
+    <div className="flex h-full min-h-0 w-full flex-1 flex-col">
+      <div className="bg-background-secondary-default flex shrink-0 flex-col gap-2 border-b p-2">
         <div className="flex items-center gap-2">
           <button type="button" className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-1.5 py-1 text-start hover:bg-accent" onClick={() => setSessionsOpen(true)} aria-label="Abrir listagem de sessões">
-            <History size={14} className="shrink-0 text-muted-foreground" />
-            <span className="min-w-0 max-w-[60%] truncate text-sm font-medium">{tab.sessionId ? tab.title || `Sessão ${tab.sessionId.slice(0, 8)}` : "Nova sessão"}</span>
-            <ChevronDown size={13} className="shrink-0 text-muted-foreground" />
+            <History size={14} className="shrink-0 text-foreground-icon-secondary" />
+            <span className="min-w-0 max-w-[60%] truncate text-body-medium text-text-primary">{tab.sessionId ? tab.title || `Sessão ${tab.sessionId.slice(0, 8)}` : "Nova sessão"}</span>
+            <ChevronDown size={13} className="shrink-0 text-foreground-icon-secondary" />
             <span className="flex-1" />
           </button>
-          {onClose && <Button variant="ghost" size="icon-sm" aria-label="Fechar agente" onClick={onClose}><X size={15} /></Button>}
-        </div>
-        <div className="flex flex-wrap items-center gap-1.5">
-          <Select value={agent} onValueChange={(value) => void chooseAgent(value)}>
-            <SelectTrigger size="sm" className="h-7 w-auto min-w-[96px] gap-1 text-[11px]">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {agents.length === 0 && (
-                <>
-                  <SelectItem value="build">Build</SelectItem>
-                  <SelectItem value="plan">Plano</SelectItem>
-                </>
-              )}
-              {agents.map((item) => <SelectItem key={item.id} value={item.id}>{item.id === "plan" ? "Plano" : item.name || item.id}</SelectItem>)}
-              {!agents.some((item) => item.id === "plan") && <SelectItem value="plan">Plano</SelectItem>}
-            </SelectContent>
-          </Select>
-          <label className="flex h-7 items-center gap-1.5 rounded-md border px-2 text-[11px] text-muted-foreground">
-            YOLO
-            <Switch checked={yolo} onCheckedChange={setYolo} className="scale-75" aria-label="YOLO" />
-          </label>
-          {usageText && (
-            <Badge variant="secondary" className="h-7 gap-1 px-2 text-[10px] font-normal">
-              {usageText.tokenLabel} tokens{usageText.cost !== undefined ? ` · $${usageText.cost.toFixed(4)}` : ""}
-            </Badge>
-          )}
+          <Button variant="ghost" size="xs" iconOnly leadingIcon={Settings2} aria-label="Configurações da IA" title="Configurações da IA" onClick={() => setShowSettings(true)} />
+          {onClose && <Button variant="ghost" size="xs" iconOnly leadingIcon={X} aria-label="Fechar agente" onClick={onClose} />}
         </div>
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <MessageGroup className="p-3">
+        <div className="flex min-h-full flex-col gap-4 p-3">
           {messages.length === 0 && (
-            <Empty className="border-0">
-              <EmptyHeader>
-                <EmptyMedia variant="icon"><Bot size={20} /></EmptyMedia>
-                <EmptyTitle>Pergunte ao OpenCode</EmptyTitle>
-                <EmptyDescription>A sessão roda no servidor e pode ler {project.root}.</EmptyDescription>
-              </EmptyHeader>
-            </Empty>
+            <div className="bg-background-secondary-default my-auto mx-auto flex w-full max-w-sm flex-col items-center gap-2 rounded-lg border p-6 text-center">
+              <span className="flex size-9 items-center justify-center rounded-full bg-background-tertiary-default text-foreground-icon-secondary"><Bot size={20} /></span>
+              <strong className="text-body-medium text-text-primary">Pergunte ao OpenCode</strong>
+              <p className="text-caption-1-regular text-text-secondary">A sessão roda no servidor e pode ler {project.root}.</p>
+            </div>
           )}
           {messages.map((message) => {
             if (message.role === "reasoning") {
               return (
-                <Collapsible key={message.id}>
-                  <CollapsibleTrigger asChild>
-                    <Button variant="ghost" size="sm" className="h-auto justify-start px-0 text-xs text-muted-foreground">
-                      <ChevronDown size={13} /> {message.title ?? "Reasoning"}
-                    </Button>
-                  </CollapsibleTrigger>
-                  <CollapsibleContent>
-                    <pre className="mt-2 whitespace-pre-wrap break-words rounded-lg bg-muted p-3 text-xs text-muted-foreground">{message.text}</pre>
-                  </CollapsibleContent>
-                </Collapsible>
+                <details key={message.id} className="group rounded-lg border border-border-button-default bg-background-secondary-default px-3 py-2">
+                  <summary className="flex cursor-pointer list-none items-center gap-1 text-caption-1-medium text-text-secondary">
+                    <ChevronDown size={13} className="transition-transform group-open:rotate-180" /> {message.title ?? "Reasoning"}
+                  </summary>
+                  <pre className="mt-2 whitespace-pre-wrap break-words text-caption-1-regular text-text-secondary">{message.text}</pre>
+                </details>
               );
             }
             if (message.role === "step") {
-              return <Marker variant="separator" key={message.id}>{message.text}</Marker>;
+              return <div key={message.id} className="flex items-center gap-2 text-caption-1-regular text-text-secondary"><span className="h-px flex-1 bg-separator-border" /><span>{message.text}</span><span className="h-px flex-1 bg-separator-border" /></div>;
             }
             if (message.role === "tool") {
               return (
-                <Card key={message.id} className="gap-0 py-0">
-                  <CardHeader className="flex-row items-center gap-2 space-y-0 border-b px-3 py-2">
-                    <Wrench size={14} className="text-muted-foreground" />
-                    <CardTitle className="min-w-0 flex-1 truncate text-xs">{message.title ?? "Tool"}</CardTitle>
-                    {message.status && <Badge variant="secondary" className="text-[10px]">{message.status}</Badge>}
-                  </CardHeader>
-                  {message.text && <CardContent className="px-3 py-2"><pre className="whitespace-pre-wrap break-words text-xs">{message.text}</pre></CardContent>}
-                  {message.detail && <CardContent className="border-t px-3 py-2"><pre className="max-h-48 overflow-auto text-[11px] text-muted-foreground">{message.detail}</pre></CardContent>}
+                <div key={message.id} className="flex flex-col overflow-hidden rounded-2lg border border-border-button-default bg-background-primary-default">
+                  <div className="flex items-center gap-2 border-b border-separator-border px-3 py-2">
+                    <Wrench size={14} className="text-foreground-icon-secondary" />
+                    <strong className="min-w-0 flex-1 truncate text-caption-1-medium text-text-primary">{message.title ?? "Tool"}</strong>
+                    {message.status && <Badge color="neutral" className="text-caption-2-regular">{message.status}</Badge>}
+                  </div>
+                  {message.text && <pre className="whitespace-pre-wrap break-words px-3 py-2 text-caption-1-regular">{message.text}</pre>}
+                  {message.detail && <pre className="max-h-48 overflow-auto border-t border-separator-border px-3 py-2 text-caption-2-regular text-text-secondary">{message.detail}</pre>}
                   {message.permissionId && (
-                    <CardFooter className="flex flex-wrap gap-1.5 border-t px-3 py-2">
-                      <Button variant="outline" size="xs" onClick={() => void replyPermission(message.id, message.permissionId!, "once")}>Allow once</Button>
-                      <Button variant="outline" size="xs" onClick={() => void replyPermission(message.id, message.permissionId!, "always")}><Check size={13} /> Always</Button>
-                      <Button variant="destructive" size="xs" onClick={() => void replyPermission(message.id, message.permissionId!, "reject")}><X size={13} /> Reject</Button>
-                    </CardFooter>
+                    <div className="flex flex-wrap gap-1.5 border-t border-separator-border px-3 py-2">
+                      <Button variant="secondary" size="xs" onClick={() => void replyPermission(message.id, message.permissionId!, "once")}>Allow once</Button>
+                      <Button variant="secondary" size="xs" leadingIcon={Check} onClick={() => void replyPermission(message.id, message.permissionId!, "always")}>Always</Button>
+                      <Button variant="danger" size="xs" leadingIcon={X} onClick={() => void replyPermission(message.id, message.permissionId!, "reject")}>Reject</Button>
+                    </div>
                   )}
-                </Card>
+                </div>
               );
             }
             const isUser = message.role === "user";
             const isError = message.role === "error";
+            if (isError) return <Chip key={message.id} color="rose" variant="subtle" className="justify-start whitespace-normal px-2 py-1.5">{message.text}</Chip>;
             return (
-              <Message key={message.id} align={isUser ? "end" : "start"}>
-                <MessageContent>
-                  <MessageHeader>{isUser ? "Você" : message.role === "assistant" ? "OpenCode" : message.role === "subagent" ? `Subagent · ${message.title ?? ""}` : "Erro"}</MessageHeader>
-                  <Bubble align={isUser ? "end" : "start"} variant={isError ? "destructive" : isUser ? "default" : "muted"}>
-                    <BubbleContent>
-                      {isError ? <pre className="whitespace-pre-wrap break-words text-sm">{message.text}</pre> : <div className="prose prose-sm max-w-none text-sm prose-a:text-primary prose-code:text-foreground prose-pre:bg-background"><ReactMarkdown remarkPlugins={[remarkGfm]}>{message.text}</ReactMarkdown></div>}
-                    </BubbleContent>
-                  </Bubble>
-                  {message.permissionId && (
-                    <div className="flex flex-wrap gap-1.5">
-                      <Button variant="outline" size="xs" onClick={() => void replyPermission(message.id, message.permissionId!, "once")}>Allow once</Button>
-                      <Button variant="outline" size="xs" onClick={() => void replyPermission(message.id, message.permissionId!, "always")}><Check size={13} /> Always</Button>
-                      <Button variant="destructive" size="xs" onClick={() => void replyPermission(message.id, message.permissionId!, "reject")}><X size={13} /> Reject</Button>
-                    </div>
-                  )}
-                </MessageContent>
-              </Message>
+              <div key={message.id} className="flex flex-col gap-1">
+                <span className="px-1 text-caption-2-regular text-text-tertiary">{isUser ? "Você" : message.role === "assistant" ? "OpenCode" : `Subagent · ${message.title ?? ""}`}</span>
+                {isUser ? <AgentMessage role="user" text={message.text} at={message.createdAt} /> : <div className="prose prose-sm max-w-none rounded-2lg border border-border-button-default bg-background-primary-default p-3 text-body-regular text-text-primary prose-a:text-accent-500 prose-code:text-text-primary prose-pre:bg-background-primary-default"><ReactMarkdown remarkPlugins={[remarkGfm]}>{message.text}</ReactMarkdown></div>}
+                {message.permissionId && (
+                  <div className="flex flex-wrap gap-1.5">
+                    <Button variant="secondary" size="xs" onClick={() => void replyPermission(message.id, message.permissionId!, "once")}>Allow once</Button>
+                    <Button variant="secondary" size="xs" leadingIcon={Check} onClick={() => void replyPermission(message.id, message.permissionId!, "always")}>Always</Button>
+                    <Button variant="danger" size="xs" leadingIcon={X} onClick={() => void replyPermission(message.id, message.permissionId!, "reject")}>Reject</Button>
+                  </div>
+                )}
+              </div>
             );
           })}
-          {streaming && <Marker><Spinner /> OpenCode está trabalhando...</Marker>}
+          {streaming && <AgentThinking variant="wave" label="Pensar" tone="accent" shimmer showTimer />}
           <div ref={bottomRef} />
-        </MessageGroup>
+        </div>
       </div>
-      {error && <div className="mx-2 rounded-md bg-destructive/10 px-2 py-1 text-[11px] text-destructive">{error}</div>}
-      <AgentComposer value={input} onChange={setInput} onSend={(text, attachments) => void send(text, attachments)} onStop={() => void stop()} busy={streaming} models={models} model={model} onModelChange={(next) => void chooseModel(next)} effort={effort} efforts={efforts} onEffortChange={(next) => void chooseEffort(next)} placeholder="Pergunte ao OpenCode... (/ comandos, @ contexto, ! shell)" allowAttachments />
+      {streaming && progressSteps.length > 0 && <AgentProgress steps={progressSteps} className="mx-2 mb-2" />}
+      {usageTotal > 0 && !streaming && <AgentLimitsCard total={usageTotal} buckets={usageBuckets} cost={typeof usage?.cost === "number" ? usage.cost : undefined} className="mx-2 mb-2" />}
+      {error && <Chip color="rose" variant="subtle" className="mx-2 justify-start whitespace-normal px-2 py-1">{error}</Chip>}
+      <AgentComposer
+        value={input}
+        onChange={setInput}
+        onSend={(text, attachments) => void send(text, attachments)}
+        onStop={() => void stop()}
+        busy={streaming}
+        models={models}
+        model={model}
+        onModelChange={(next) => void chooseModel(next)}
+        effort={effort}
+        efforts={efforts}
+        onEffortChange={(next) => void chooseEffort(next)}
+        placeholder="Pergunte ao OpenCode..."
+        allowAttachments
+        modeControls={
+          <>
+            <Select selectedKey={agent} onSelectionChange={(key) => void chooseAgent(String(key))} aria-label="Modo" className="w-auto" triggerClassName="h-7 gap-1 border-0 bg-transparent px-1.5 text-body-2-medium shadow-none">
+              {agents.length === 0 ? (
+                <>
+                  <SelectItem id="build">Build</SelectItem>
+                  <SelectItem id="plan">Plano</SelectItem>
+                </>
+              ) : (
+                <>
+                  {agents.map((item) => <SelectItem key={item.id} id={item.id}>{item.id === "plan" ? "Plano" : item.name || item.id}</SelectItem>)}
+                  {!agents.some((item) => item.id === "plan") && <SelectItem id="plan">Plano</SelectItem>}
+                </>
+              )}
+            </Select>
+            <Select selectedKey={permissionMode} onSelectionChange={(key) => setPermissionMode(String(key) as "yolo" | "ask" | "deny")} aria-label="Permissões" className="w-auto" triggerClassName="h-7 gap-1 border-0 bg-transparent px-1.5 text-body-2-medium shadow-none">
+              <SelectItem id="yolo">YOLO</SelectItem>
+              <SelectItem id="ask">Perguntar</SelectItem>
+              <SelectItem id="deny">Negar</SelectItem>
+            </Select>
+          </>
+        }
+      />
       <AgentSessionsSheet open={sessionsOpen} project={project} activeSessionId={tab.sessionId} onClose={() => setSessionsOpen(false)} onSelect={selectSession} onNew={newSession} />
     </div>
   );

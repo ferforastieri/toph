@@ -3,7 +3,8 @@ import { ChevronDown, ChevronRight } from "@toph/icons";
 import { api, type FileEntry, type Project } from "../api";
 import { useApp } from "../store";
 import FileIcon from "../ui/FileIcon";
-import { Badge } from "@/components/ui/badge";
+import GitStatusIcon from "../ui/GitStatusIcon";
+import { Badge } from "@/boardui/base/badges/badge";
 import { useProjectEvents } from "../projectEvents";
 import { cn } from "@/lib/utils";
 
@@ -34,8 +35,8 @@ export default function FileTree({ project, onOpenFile, embedded = false, status
 
   return (
     <div className={cn("flex flex-col gap-0.5", embedded ? "px-1 py-1" : "p-2")}>
-      {!embedded && <div className="px-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Explorer</div>}
-      {error && <div className="rounded-md bg-destructive/10 px-2 py-1 text-xs text-destructive">{error}</div>}
+      {!embedded && <div className="px-2 pb-1 text-caption-2-semibold uppercase tracking-wide text-text-tertiary">Explorer</div>}
+      {error && <div className="rounded-lg bg-status-rose-background px-2 py-1 text-caption-1-regular text-status-rose-text">{error}</div>}
       <div role="tree" aria-label="Project files">
         {entries.map((entry) => (
           <TreeNode
@@ -90,8 +91,6 @@ function TreeNode({ project, entry, depth, onOpenFile, statuses, revision, onSel
     setOpen((current) => !current);
   }
 
-  const statusTone = fileStatus === "A" || fileStatus === "U" ? "text-emerald-500" : fileStatus === "D" ? "text-destructive" : "text-amber-500";
-
   return (
     <>
       <button
@@ -101,23 +100,23 @@ function TreeNode({ project, entry, depth, onOpenFile, statuses, revision, onSel
         aria-expanded={entry.dir ? open : undefined}
         aria-selected={selectedPath === entry.path}
         className={cn(
-          "flex h-7 w-full min-w-0 items-center gap-1.5 rounded px-1.5 text-start text-xs outline-none transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring",
-          selectedPath === entry.path && "bg-accent",
+          "flex h-7 w-full min-w-0 items-center gap-1 rounded-lg px-1.5 text-start text-caption-1-regular text-text-primary outline-none transition-colors hover:bg-background-secondary-hover focus-visible:ring-2 focus-visible:ring-border-focus-ring",
+          selectedPath === entry.path && "bg-background-secondary-hover",
         )}
-        style={{ paddingInlineStart: 6 + depth * 14 }}
+        style={{ paddingInlineStart: 4 + depth * 12 }}
         onClick={() => { onSelect?.(entry); void toggle(); }}
         onContextMenu={(event) => onContextMenu?.(entry, event)}
         title={entry.path}
       >
-        <span className="flex size-4 shrink-0 items-center justify-center text-muted-foreground">
-          {entry.dir ? (open ? <ChevronDown size={13} /> : <ChevronRight size={13} />) : null}
+        <span className="flex size-3.5 shrink-0 items-center justify-center text-foreground-icon-tertiary">
+          {entry.dir ? (open ? <ChevronDown size={12} /> : <ChevronRight size={12} />) : null}
         </span>
-        <FileIcon name={entry.name} path={entry.path} dir={entry.dir} open={open} size={15} />
+        <FileIcon name={entry.name} path={entry.path} dir={entry.dir} open={open} size={14} />
         <span className="min-w-0 flex-1 truncate">{entry.name}</span>
-        {fileStatus && <span className={cn("shrink-0 text-[10px] font-semibold", statusTone)}>{fileStatus}</span>}
-        {changedChildren > 0 && <Badge variant="secondary" className="h-4 px-1 text-[9px]">{changedChildren}</Badge>}
+        {fileStatus && <GitStatusIcon status={fileStatus} size={13} />}
+        {changedChildren > 0 && <Badge color="neutral" className="h-3.5 px-1 text-[8px]">{changedChildren}</Badge>}
       </button>
-      {open && loading && <div className="py-1 text-[11px] text-muted-foreground" style={{ paddingInlineStart: 24 + depth * 14 }}>loading...</div>}
+      {open && loading && <div className="py-0.5 text-caption-2-regular text-text-tertiary" style={{ paddingInlineStart: 20 + depth * 12 }}>loading...</div>}
       {open && children?.map((child) => (
         <TreeNode key={child.path} project={project} entry={child} depth={depth + 1} onOpenFile={onOpenFile} statuses={statuses} revision={revision} onSelect={onSelect} onContextMenu={onContextMenu} selectedPath={selectedPath} />
       ))}

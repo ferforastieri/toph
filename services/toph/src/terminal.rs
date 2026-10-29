@@ -21,6 +21,7 @@ pub struct TerminalManager {
 pub struct TerminalSession {
     pub id: String,
     pub project_id: String,
+    pub shell: String,
     writer: Mutex<Box<dyn Write + Send>>,
     master: Mutex<Box<dyn MasterPty + Send>>,
     child: Mutex<Box<dyn portable_pty::Child + Send + Sync>>,
@@ -37,7 +38,20 @@ impl TerminalManager {
         }
     }
 
-    pub fn create(&self, project_id: &str, cwd: &Path) -> AppResult<Arc<TerminalSession>> {
+    pub fn create(
+        &self,
+        project_id: &str,
+        cwd: &Path,
+        shell: Option<&str>,
+    ) -> AppResult<Arc<TerminalSession>> {
+        let shell = shell
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(str::to_string)
+            .unwrap_or_else(|| self.shell.clone());
+        if shell.contains('/') && !Path::new(&shell).exists() {
+            return Err(crate::errors::bad_request("shell not found"));
+        }
         let pty_system = portable_pty::native_pty_system();
         let pair = pty_system
             .openpty(PtySize {
@@ -47,7 +61,7 @@ impl TerminalManager {
                 pixel_height: 0,
             })
             .map_err(|error| AppError::Internal(error.into()))?;
-        let mut command = CommandBuilder::new(&self.shell);
+        let mut command = CommandBuilder::new(&shell);
         #[cfg(unix)]
         command.arg("-l");
         if let Some(parent) = cwd.parent() {
@@ -73,6 +87,7 @@ impl TerminalManager {
         let session = Arc::new(TerminalSession {
             id: new_id(),
             project_id: project_id.to_string(),
+            shell: shell.clone(),
             writer: Mutex::new(writer),
             master: Mutex::new(pair.master),
             child: Mutex::new(child),
@@ -92,6 +107,20 @@ impl TerminalManager {
         self.sessions.lock().ok()?.get(id).cloned()
     }
 
+    pub fn close_session(&self, id: &str) -> bool {
+        let session = self
+            .sessions
+            .lock()
+            .ok()
+            .and_then(|mut sessions| sessions.remove(id));
+        if let Some(session) = session {
+            session.close();
+            true
+        } else {
+            false
+        }
+    }
+
     pub fn close_project(&self, project_id: &str) -> usize {
         let sessions: Vec<Arc<TerminalSession>> = self
             .sessions
@@ -107,6 +136,9 @@ impl TerminalManager {
         for session in &sessions {
             session.close();
         }
+        if let Ok(mut map) = self.sessions.lock() {
+            map.retain(|_, session| session.project_id != project_id);
+        }
         sessions.len()
     }
 
@@ -118,6 +150,9 @@ impl TerminalManager {
             .unwrap_or_default();
         for session in sessions {
             session.close();
+        }
+        if let Ok(mut map) = self.sessions.lock() {
+            map.clear();
         }
     }
 }
@@ -224,4 +259,30 @@ fn default_shell() -> String {
             "/bin/sh".into()
         }
     }
+}
+
+pub fn available_shells() -> Vec<String> {
+    let mut shells = Vec::new();
+    for shell in [
+        "/bin/bash",
+        "/bin/sh",
+        "/bin/zsh",
+        "/usr/bin/fish",
+        "/bin/fish",
+    ] {
+        if Path::new(shell).exists() {
+            let name = Path::new(shell)
+                .file_name()
+                .and_then(|name| name.to_str())
+                .unwrap_or(shell)
+                .to_string();
+            if !shells.contains(&name) {
+                shells.push(name);
+            }
+        }
+    }
+    if shells.is_empty() {
+        shells.push("sh".to_string());
+    }
+    shells
 }

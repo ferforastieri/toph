@@ -2,10 +2,9 @@ import { useState, type FormEvent } from "react";
 import { api, ApiError } from "../api";
 import { useApp } from "../store";
 import BrandMark from "@toph/brand";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Field, FieldLabel } from "@/components/ui/field";
+import { Button } from "@/boardui/base/buttons/button";
+import { Input } from "@/boardui/base/input/input";
+import { Chip } from "@/boardui/base/badges/chip";
 
 interface Props {
   onChangeServer?: () => void;
@@ -38,26 +37,26 @@ export default function Login({ onChangeServer }: Props) {
   }
 
   return (
-    <main className="flex min-h-dvh items-center justify-center bg-muted/30 p-4">
-      <Card className="w-full max-w-sm">
-        <CardHeader className="items-center text-center">
+    <main className="flex min-h-dvh items-center justify-center p-4">
+      <section className="bg-background-primary-default flex w-full max-w-sm flex-col gap-6 rounded-3xl p-7 shadow-xs">
+        <header className="flex flex-col items-center gap-2 text-center">
           <BrandMark size="large" />
-          <CardTitle><h1 className="text-xl font-semibold">Toph</h1></CardTitle>
-          <CardDescription>Código, dados e IA em um só lugar.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form className="flex flex-col gap-4" onSubmit={submit}>
-            <Field><FieldLabel htmlFor="login-username">Usuário</FieldLabel><Input id="login-username" value={username} onChange={(event) => setUsername(event.target.value)} autoComplete="username" /></Field>
-            <Field><FieldLabel htmlFor="login-password">Senha</FieldLabel><Input id="login-password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" autoFocus /></Field>
-            {error && <p className="rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">{error}</p>}
-            <Button type="submit" disabled={busy || !password}>{busy ? "Entrando..." : "Entrar"}</Button>
-          </form>
-        </CardContent>
-        <CardFooter className="flex-col items-stretch gap-2">
-          <p className="text-center text-xs text-muted-foreground">O Toph é self-hosted. Em uma instalação nova, a senha inicial foi impressa no log do servidor.</p>
-          {onChangeServer && <Button type="button" variant="ghost" size="sm" onClick={onChangeServer}>Alterar servidor</Button>}
-        </CardFooter>
-      </Card>
+          <h1 className="text-title-2-medium text-text-primary">Toph</h1>
+          <p className="text-body-regular text-text-secondary">Código, dados e IA em um só lugar.</p>
+        </header>
+        <form className="flex flex-col gap-4" onSubmit={submit}>
+          <Input label="Usuário" value={username} onChange={setUsername} autoComplete="username" />
+          <Input label="Senha" type="password" value={password} onChange={setPassword} autoComplete="current-password" autoFocus />
+          {error && <Chip color="rose" variant="subtle" className="justify-start whitespace-normal px-2 py-1.5">{error}</Chip>}
+          <Button type="submit" disabled={busy || !password} className="w-full">
+            {busy ? "Entrando..." : "Entrar"}
+          </Button>
+        </form>
+        <footer className="flex flex-col gap-2 text-center">
+          <p className="text-caption-1-regular text-text-tertiary">O Toph é self-hosted. Em uma instalação nova, a senha inicial foi impressa no log do servidor.</p>
+          {onChangeServer && <Button type="button" variant="ghost" size="small" onClick={onChangeServer}>Alterar servidor</Button>}
+        </footer>
+      </section>
     </main>
   );
 }

@@ -3,6 +3,8 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { resolve } from "node:path";
 
+const apiTarget = process.env.TOPH_DEV_API || "http://127.0.0.1:8787";
+
 export default defineConfig({
   root: resolve(__dirname),
   base: "/app/",
@@ -13,7 +15,7 @@ export default defineConfig({
     fs: { allow: [resolve(__dirname, "../..")] },
     proxy: {
       "/api": {
-        target: "http://127.0.0.1:8787",
+        target: apiTarget,
         changeOrigin: false,
         ws: true,
       },
