@@ -34,6 +34,8 @@ import { cx } from "@/boardui/utils/cx";
 interface Props {
   project: Project;
   onOpenFile: (path: string, line?: number) => void;
+  sheet?: boolean;
+  onClose?: () => void;
 }
 
 const terminalTabs = [
@@ -55,7 +57,7 @@ function stripAnsi(value: string): string {
     .replace(/\u001b\[[0-9;?]*[ -/]*[@-~]/g, "");
 }
 
-export default function TerminalPanel({ project, onOpenFile }: Props) {
+export default function TerminalPanel({ project, onOpenFile, sheet = false, onClose }: Props) {
   const [tab, setTab] = useState<TerminalTab>("terminal");
   const [sessions, setSessions] = useState<Session[]>([]);
   const [activeId, setActiveId] = useState("");
@@ -261,10 +263,10 @@ export default function TerminalPanel({ project, onOpenFile }: Props) {
 
   return (
     <section
-      className="bg-background-primary-default flex min-h-[180px] shrink-0 flex-col border-t"
-      style={{ height: maximized ? "calc(100dvh - 120px)" : "var(--terminal-height)" }}
+      className={cx("bg-background-primary-default flex flex-col", sheet ? "h-full min-h-0" : "min-h-[180px] shrink-0 border-t")}
+      style={sheet ? { height: "100%" } : { height: maximized ? "calc(100dvh - 120px)" : "var(--terminal-height)" }}
     >
-      <ResizeHandle className="terminal-resize" orientation="horizontal" value={terminalHeight} min={180} max={640} invert label="Resize terminal" onChange={(height) => document.documentElement.style.setProperty("--terminal-height", `${height}px`)} onCommit={(height) => updateSettings({ terminalHeight: height })} />
+      {!sheet && <ResizeHandle className="terminal-resize" orientation="horizontal" value={terminalHeight} min={180} max={640} invert label="Resize terminal" onChange={(height) => document.documentElement.style.setProperty("--terminal-height", `${height}px`)} onCommit={(height) => updateSettings({ terminalHeight: height })} />}
       <div className="bg-background-secondary-default flex h-9 shrink-0 items-center justify-between border-b pe-2">
         <PillTabList className="h-full px-2" aria-label="Terminal panel">
           {terminalTabs.map((item) => (
@@ -307,8 +309,8 @@ export default function TerminalPanel({ project, onOpenFile }: Props) {
               </DropdownGroup>
             </DropdownPopover>
           </Dropdown>
-          <Button variant="ghost" size="xs" iconOnly leadingIcon={maximized ? Minimize : Maximize} aria-label={maximized ? "Restaurar terminal" : "Maximizar terminal"} title={maximized ? "Restaurar" : "Maximizar"} onClick={() => setMaximized((value) => !value)} />
-          <Button variant="ghost" size="xs" iconOnly leadingIcon={X} aria-label="Fechar terminal" title="Fechar painel" onClick={() => setTerminalOpen(false)} />
+          {!sheet && <Button variant="ghost" size="xs" iconOnly leadingIcon={maximized ? Minimize : Maximize} aria-label={maximized ? "Restaurar terminal" : "Maximizar terminal"} title={maximized ? "Restaurar" : "Maximizar"} onClick={() => setMaximized((value) => !value)} />}
+          <Button variant="ghost" size="xs" iconOnly leadingIcon={X} aria-label="Fechar terminal" title="Fechar painel" onClick={onClose ?? (() => setTerminalOpen(false))} />
         </div>
       </div>
 

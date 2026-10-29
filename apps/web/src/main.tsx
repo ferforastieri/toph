@@ -13,10 +13,6 @@ import { ConfirmProvider } from "./ui/confirm";
 import App from "./App";
 import { installNativeInsets } from "./nativeInsets";
 
-if (new URLSearchParams(window.location.search).get("mobile") === "1") {
-  document.documentElement.classList.add("mobile-client");
-}
-
 installNativeInsets();
 initAppearance();
 

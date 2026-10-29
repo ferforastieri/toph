@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api, ApiError, type UpdateInstaller, type UpdateStatus } from "../api";
 import { Notification, NotificationViewport } from "@/boardui/base/notification/notification";
+import { isMobileViewport } from "../ui/useIsMobile";
 
 type Phase = "idle" | "updating" | "error";
 
@@ -34,7 +35,7 @@ function downloadApk(url: string, version: string) {
 }
 
 function isMobile(): boolean {
-  return document.documentElement.classList.contains("mobile-client");
+  return isMobileViewport();
 }
 
 function platform(): "windows" | "linux" | "mac" | "other" {

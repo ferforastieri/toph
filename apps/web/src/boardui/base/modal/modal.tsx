@@ -17,6 +17,8 @@ export interface ModalProps {
   size?: ModalSize;
   className?: string;
   bodyClassName?: string;
+  /** Center on desktop; bottom sheets are used by the compact mobile shell. */
+  placement?: "center" | "bottom";
   /** Accessible name when no visible title is supplied. */
   label?: string;
 }
@@ -39,6 +41,7 @@ export function Modal({
   size = "md",
   className,
   bodyClassName,
+  placement = "center",
   label,
 }: ModalProps) {
   const [mounted, setMounted] = useState(false);
@@ -77,7 +80,13 @@ export function Modal({
   if (!mounted || typeof document === "undefined") return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-100 flex items-center justify-center p-4" role="presentation">
+    <div
+      className={cx(
+        "fixed inset-0 z-100 flex justify-center",
+        placement === "bottom" ? "items-end" : "items-center p-4",
+      )}
+      role="presentation"
+    >
       <button
         type="button"
         tabIndex={-1}
@@ -95,11 +104,13 @@ export function Modal({
         aria-label={label ?? (typeof title === "string" ? title : undefined)}
         tabIndex={-1}
         className={cx(
-          "relative flex max-h-[calc(100dvh-32px)] w-full flex-col overflow-clip rounded-3xl outline-none",
+          "relative flex w-full flex-col overflow-clip outline-none",
           "bg-background-primary-default shadow-xs",
           "transform-gpu transition-[opacity,transform,filter] duration-200 ease-[cubic-bezier(0.32,0.72,0,1)]",
           visible ? "scale-100 opacity-100 blur-0" : "scale-[0.97] opacity-0 blur-[3px]",
-          sizes[size],
+          placement === "bottom"
+            ? "max-h-[calc(100dvh-8px)] max-w-none rounded-t-3xl pb-[env(safe-area-inset-bottom)]"
+            : cx("max-h-[calc(100dvh-32px)] rounded-3xl", sizes[size]),
           className,
         )}
       >

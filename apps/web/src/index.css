@@ -226,3 +226,12 @@
     animation: none;
   }
 }
+
+@media (max-width: 900px) {
+  /* Keep toasts above the mobile navigation but below dialogs, so modal
+     actions remain reachable while a notification is on screen. */
+  [aria-label="Notifications"] {
+    bottom: calc(4rem + env(safe-area-inset-bottom) + 0.5rem) !important;
+    z-index: 30 !important;
+  }
+}
