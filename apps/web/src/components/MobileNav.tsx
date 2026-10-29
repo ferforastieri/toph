@@ -21,7 +21,7 @@ export default function MobileNav({ sidebar, panelOpen, terminalOpen, onSidebar,
     { key: "terminal", label: "Terminal", icon: TerminalSquare, active: terminalOpen, onClick: onTerminal },
   ];
   return (
-    <nav className="flex items-stretch border-t bg-background-primary-default pb-[env(safe-area-inset-bottom)]" aria-label="Navegação principal">
+    <nav className="mx-2 mb-[calc(var(--safe-bottom)+0.5rem)] flex items-stretch overflow-hidden rounded-2xl border border-border-button-white bg-background-secondary-default shadow-xs" aria-label="Navegação principal">
       {nav.map((item) => (
         <Button
           key={item.key}

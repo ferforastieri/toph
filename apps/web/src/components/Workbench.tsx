@@ -1023,7 +1023,7 @@ export default function Workbench() {
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-background-full">
       {mobile && (
-        <header className="bg-background-secondary-default flex shrink-0 items-center justify-between gap-2 border-b px-2 pt-[env(safe-area-inset-top)]">
+        <header className="mx-2 mt-[calc(var(--safe-top)+0.5rem)] flex h-12 shrink-0 items-center justify-between gap-2 rounded-2xl border border-border-button-white bg-background-secondary-default px-2 shadow-xs">
           <div className="flex h-12 min-w-0 items-center gap-1">
             <button type="button" className="flex min-w-0 items-center gap-1.5 rounded-lg px-1.5 py-1 text-start hover:bg-accent" onClick={() => { setMobileTerminalOpen(false); setProjectsSheetOpen(true); }} aria-label="Abrir projetos">
               <Avatar size="sm" initials={project.name.slice(0, 1).toUpperCase()} className="bg-background-tertiary-default text-caption-2-semibold" style={{ color: project.color }} />
@@ -1081,7 +1081,7 @@ export default function Workbench() {
         {!primaryOnLeft && aiSidebar}
         {!primaryOnLeft && aiResize}
         {mobile && mobilePanelOpen && (
-          <aside className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] top-[calc(3rem+env(safe-area-inset-top))] z-40 flex w-full flex-col overflow-hidden border-e-0 bg-background-primary-default">
+          <aside className="fixed inset-x-0 bottom-[calc(4.5rem+var(--safe-bottom))] top-[calc(3.5rem+var(--safe-top))] z-40 flex w-full flex-col overflow-hidden border-e-0 bg-background-primary-default">
             <div className="flex h-11 shrink-0 items-center gap-2 border-b px-2">
               <Button variant="ghost" size="xs" iconOnly leadingIcon={ArrowLeft} aria-label="Voltar" onClick={() => setMobilePanelOpen(false)} />
               <span className="text-body-medium text-text-primary">{sidebar === "db" ? "Bancos" : sidebar === "web" ? "Web apps" : sidebar === "ai" ? "Agente" : sidebar === "scm" ? "Source Control" : "Arquivos"}</span>
@@ -1134,8 +1134,8 @@ export default function Workbench() {
 
         {mobile && project && mobileTerminalOpen && (
           <>
-            <button type="button" aria-label="Fechar terminal" className="fixed inset-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-30 bg-black/40" onClick={() => setMobileTerminalOpen(false)} />
-            <div className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-40 flex h-[72dvh] flex-col overflow-hidden rounded-t-3xl border border-border-button-default bg-background-primary-default shadow-2xl">
+            <button type="button" aria-label="Fechar terminal" className="fixed inset-0 bottom-[calc(4.5rem+var(--safe-bottom))] z-30 bg-black/40" onClick={() => setMobileTerminalOpen(false)} />
+            <div className="fixed inset-x-0 bottom-[calc(4.5rem+var(--safe-bottom))] z-40 flex h-[72dvh] flex-col overflow-hidden rounded-t-3xl border border-border-button-default bg-background-primary-default shadow-2xl">
               <div className="flex h-7 shrink-0 items-center justify-center">
                 <span className="h-1 w-10 rounded-full bg-border-button-default" />
               </div>
@@ -1147,7 +1147,7 @@ export default function Workbench() {
         )}
 
         {mobile && project && aiDockTab && aiPanelOpen && (
-          <aside className="fixed inset-0 z-50 flex flex-col overflow-hidden bg-background-secondary-default pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
+          <aside className="fixed inset-0 z-50 flex flex-col overflow-hidden bg-background-secondary-default pt-[var(--safe-top)] pb-[var(--safe-bottom)]">
             <AiPanelTab tab={aiDockTab} project={project} onClose={() => setAiPanelOpen(false)} />
           </aside>
         )}
@@ -1383,7 +1383,7 @@ export default function Workbench() {
       </Modal>
 
       {mobile && mobileSearchOpen && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center bg-background-full px-3 pt-[calc(env(safe-area-inset-top)+4.5rem)]">
+        <div className="fixed inset-0 z-50 flex items-start justify-center bg-background-full px-3 pt-[calc(var(--safe-top)+4.5rem)]">
           <button type="button" aria-label="Fechar busca" className="absolute inset-0 cursor-default" onClick={() => setMobileSearchOpen(false)} />
           <div className="relative z-10 flex w-full max-w-md flex-col gap-2">
             <div className="flex items-center justify-between px-1 text-caption-1-semibold uppercase tracking-wide text-text-secondary">

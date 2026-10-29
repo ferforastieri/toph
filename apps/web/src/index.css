@@ -12,6 +12,10 @@
 :root {
   --radius: 0.625rem;
   --text-on-accent: #1c1204;
+  --safe-top: max(var(--native-safe-top, 0px), env(safe-area-inset-top, 0px));
+  --safe-bottom: max(var(--native-safe-bottom, 0px), env(safe-area-inset-bottom, 0px));
+  --safe-left: max(var(--native-safe-left, 0px), env(safe-area-inset-left, 0px));
+  --safe-right: max(var(--native-safe-right, 0px), env(safe-area-inset-right, 0px));
 
   /* Toph's brand secondary: amber. It is the interactive accent in both
      themes, so buttons, selections and focus rings all inherit it. */
@@ -231,7 +235,7 @@
   /* Keep toasts above the mobile navigation but below dialogs, so modal
      actions remain reachable while a notification is on screen. */
   [aria-label="Notifications"] {
-    bottom: calc(4rem + env(safe-area-inset-bottom) + 0.5rem) !important;
+    bottom: calc(4rem + var(--safe-bottom) + 0.5rem) !important;
     z-index: 30 !important;
   }
 }

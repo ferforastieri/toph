@@ -51,7 +51,6 @@ function readSavedServer(): string {
 
 function mobileTarget(baseUrl: string): string {
   const target = new URL(`${baseUrl.replace(/\/$/, "")}/app/`);
-  target.searchParams.set("mobile", "1");
   target.searchParams.set("server", baseUrl);
   return target.toString();
 }
