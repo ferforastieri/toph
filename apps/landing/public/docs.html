@@ -287,7 +287,15 @@ Neo4j         MATCH (n:User) RETURN n LIMIT 100;</code></pre>
       <p>
         Run OpenCode on the same host or make it reachable from the Toph container, then
         set <code>TOPH_OPENCODE_URL</code> and, when required,
-        <code>TOPH_OPENCODE_AUTH</code>. Toph does not run an AI model inside the phone.
+        <code>TOPH_OPENCODE_AUTH</code>. On the same machine, Toph reads the local
+        <code>~/.config/opencode/service.json</code> automatically. Toph does not run an
+        AI model inside the phone.
+      </p>
+      <p>
+        In <strong>Settings → AI → Entrar / conectar</strong>, sign in to OpenCode Console
+        or connect provider accounts and API keys. Credentials stay on the OpenCode
+        server, never in the browser. On a phone, prefer provider API keys or device-code
+        login when the OAuth callback points at the server's localhost.
       </p>
 
       <h2>Web app tabs</h2>
@@ -371,8 +379,12 @@ cd ../mobile
       <h3>OpenCode is offline</h3>
       <p>
         Check <code>TOPH_OPENCODE_URL</code>, the OpenCode password and
-        <code>TOPH_OPENCODE_AUTH</code>. The proxy is authenticated; the browser never
-        talks to OpenCode directly.
+        <code>TOPH_OPENCODE_AUTH</code>. If OpenCode runs on the same host, Toph reads the
+        password from <code>~/.config/opencode/service.json</code>; for remote servers set
+        <code>TOPH_OPENCODE_AUTH</code> to a complete <code>Basic …</code> or
+        <code>Bearer …</code> value. The proxy is authenticated; the browser never talks
+        to OpenCode directly. Provider credentials can be managed in
+        <strong>Settings → AI → Entrar / conectar</strong>.
       </p>
       <h3>The Android app cannot connect</h3>
       <p>

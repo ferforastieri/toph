@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { OpenCode } from "@opencode/client";
-import { ArrowLeft, Bot, Check, ChevronDown, History, Settings2, Wrench, X } from "@toph/icons";
+import { ArrowLeft, Bot, Check, ChevronDown, History, Settings2, UserRound, Wrench, X } from "@toph/icons";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { openCodeBase, type Project } from "../api";
@@ -17,6 +17,7 @@ import { AgentLimitsCard } from "@/boardui/application/agent-limits-card/agent-l
 import AiSettings from "./AiSettings";
 import { AgentComposer, type AgentAttachment } from "../ui/AgentComposer";
 import AgentSessionsSheet from "../components/AgentSessionsSheet";
+import OpenCodeAuthDialog from "../components/OpenCodeAuthDialog";
 import type { OpenCodeSessionSummary } from "../opencodeSessions";
 import { notifyAiResponse } from "../aiNotifications";
 
@@ -60,6 +61,7 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
   const [effort, setEffort] = useState("");
   const [sessionsOpen, setSessionsOpen] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [authOpen, setAuthOpen] = useState(false);
 
   useEffect(() => {
     const handleContext = (event: Event) => {
@@ -654,7 +656,7 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
           <Button variant="ghost" size="xs" iconOnly leadingIcon={ArrowLeft} aria-label="Voltar" onClick={() => setShowSettings(false)} />
           <span className="text-body-2-medium text-text-primary">Configurações da IA</span>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto p-3"><AiSettings /></div>
+        <div className="min-h-0 flex-1 overflow-y-auto p-3"><AiSettings projectRoot={project.root} /></div>
       </div>
     );
   }
@@ -669,6 +671,7 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
             <ChevronDown size={13} className="shrink-0 text-foreground-icon-secondary" />
             <span className="flex-1" />
           </button>
+          <Button variant="ghost" size="xs" iconOnly leadingIcon={UserRound} aria-label="Conta e provedores OpenCode" title="Conta e provedores OpenCode" onClick={() => setAuthOpen(true)} />
           <Button variant="ghost" size="xs" iconOnly leadingIcon={Settings2} aria-label="Configurações da IA" title="Configurações da IA" onClick={() => setShowSettings(true)} />
           {onClose && <Button variant="ghost" size="xs" iconOnly leadingIcon={X} aria-label="Fechar agente" onClick={onClose} />}
         </div>
@@ -681,6 +684,7 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
               <span className="flex size-9 items-center justify-center rounded-full bg-background-tertiary-default text-foreground-icon-secondary"><Bot size={20} /></span>
               <strong className="text-body-medium text-text-primary">Pergunte ao OpenCode</strong>
               <p className="text-caption-1-regular text-text-secondary">A sessão roda no servidor e pode ler {project.root}.</p>
+              <Button variant="secondary" size="small" leadingIcon={UserRound} onClick={() => setAuthOpen(true)}>Entrar / conectar provedor</Button>
             </div>
           )}
           {messages.map((message) => {
@@ -779,6 +783,7 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
         }
       />
       <AgentSessionsSheet open={sessionsOpen} project={project} activeSessionId={tab.sessionId} onClose={() => setSessionsOpen(false)} onSelect={selectSession} onNew={newSession} />
+      <OpenCodeAuthDialog open={authOpen} projectRoot={project.root} onClose={() => setAuthOpen(false)} />
     </div>
   );
 }
