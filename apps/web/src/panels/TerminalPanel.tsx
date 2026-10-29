@@ -495,9 +495,13 @@ function TerminalView({ session, theme, clearNonce, onOutput }: { session: Sessi
       lineHeight: 1,
       scrollback: 5000,
       theme: theme === "light" ? {
-        background: "#FFFFFF", foreground: "#0A0A0A", cursor: "#C96A00", selectionBackground: "#FFE2A880", black: "#0A0A0A", red: "#DC2626", green: "#16A34A", yellow: "#CA8A04", blue: "#2563EB", magenta: "#9333EA", cyan: "#0891B2", white: "#FFFFFF", brightBlack: "#737373", brightRed: "#EF4444", brightGreen: "#22C55E", brightYellow: "#EAB308", brightBlue: "#3B82F6", brightMagenta: "#A855F7", brightCyan: "#06B6D4", brightWhite: "#171717",
+        background: "#F7F8F5", foreground: "#22251F", cursor: "#9D3BB5", selectionBackground: "#EBD4F2",
+        black: "#22251F", red: "#B64B40", green: "#3E7A45", yellow: "#9A6A15", blue: "#2F6E76", magenta: "#7A4E8E", cyan: "#2F6E76", white: "#F7F8F5",
+        brightBlack: "#7A8177", brightRed: "#D46355", brightGreen: "#4F914F", brightYellow: "#B8822A", brightBlue: "#4C8C94", brightMagenta: "#9568AA", brightCyan: "#4C8C94", brightWhite: "#11130F",
       } : {
-        background: "#000000", foreground: "#E8E8E8", cursor: "#FFB547", cursorAccent: "#000000", selectionBackground: "#FFB54740", selectionForeground: "#E8E8E8", black: "#141414", red: "#F87171", green: "#86EFAC", yellow: "#FDE047", blue: "#60A5FA", magenta: "#E879F9", cyan: "#67E8F9", white: "#E8E8E8", brightBlack: "#707070", brightRed: "#FCA5A5", brightGreen: "#BBF7D0", brightYellow: "#FEF08A", brightBlue: "#93C5FD", brightMagenta: "#F0ABFC", brightCyan: "#A5F3FC", brightWhite: "#FFFFFF",
+        background: "#000000", foreground: "#C8C8C8", cursor: "#FF50FF", cursorAccent: "#000000", selectionBackground: "#96969659", selectionForeground: "#C8C8C8",
+        black: "#000000", red: "#FF7878", green: "#AAE682", yellow: "#FFDC96", blue: "#00B1FF", magenta: "#FF50FF", cyan: "#00DCDC", white: "#C8C8C8",
+        brightBlack: "#787878", brightRed: "#FF7878", brightGreen: "#AAE682", brightYellow: "#FFDC96", brightBlue: "#00B1FF", brightMagenta: "#FF50FF", brightCyan: "#00DCDC", brightWhite: "#FFFFFF",
       },
     });
     const fit = new FitAddon();

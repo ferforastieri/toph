@@ -90,6 +90,8 @@ TOPH_OPENCODE_AUTH is a raw Authorization header sent by the server-side OpenCod
 
 AI provider accounts and API keys can be connected from Settings → AI → Conexões de IA in the web or Android client. The same screen lists every model provider available to the agent.
 
+The MCP tab in Settings → AI manages local and remote Model Context Protocol servers, including OAuth authentication, connect/disconnect and removal. Editor autocomplete can use an automatic lightweight model or a specific model selected in Settings → AI.
+
 ## Databases
 
 SQL/CQL drivers: PostgreSQL, MySQL/MariaDB, SQLite, SQL Server, Oracle, ClickHouse, Cassandra. Search/graph: Elasticsearch, Neo4j.

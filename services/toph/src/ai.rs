@@ -1,4 +1,5 @@
 use std::path::Path;
+use std::sync::{Arc, RwLock};
 use std::time::Duration;
 
 use base64::{engine::general_purpose::STANDARD, Engine as _};
@@ -26,6 +27,8 @@ pub struct AiConfig {
     )]
     pub api_key_enc: String,
     pub model: String,
+    #[serde(rename = "autocompleteModel", default)]
+    pub autocomplete_model: String,
     #[serde(rename = "maxTokens")]
     pub max_tokens: i32,
     pub temperature: f64,
@@ -40,6 +43,7 @@ pub struct PublicConfig {
     pub provider: String,
     pub base_url: String,
     pub model: String,
+    pub autocomplete_model: String,
     pub max_tokens: i32,
     pub temperature: f64,
     pub autocomplete: bool,
@@ -55,6 +59,8 @@ pub struct AiConfigInput {
     pub api_key: Option<String>,
     pub clear_key: Option<bool>,
     pub model: String,
+    #[serde(default)]
+    pub autocomplete_model: String,
     pub max_tokens: i32,
     pub temperature: f64,
     pub autocomplete: bool,
@@ -94,6 +100,7 @@ pub struct AiService {
     client: Client,
     default_opencode_url: String,
     default_opencode_auth: String,
+    autocomplete_cache: Arc<RwLock<Option<String>>>,
 }
 
 impl AiService {
@@ -112,6 +119,7 @@ impl AiService {
                 .map_err(|error| AppError::Internal(error.into()))?,
             default_opencode_url,
             default_opencode_auth,
+            autocomplete_cache: Arc::new(RwLock::new(None)),
         })
     }
 
@@ -125,6 +133,7 @@ impl AiService {
                     api_key: self.default_opencode_auth.clone(),
                     api_key_enc: String::new(),
                     model: String::new(),
+                    autocomplete_model: String::new(),
                     max_tokens: 1024,
                     temperature: 0.0,
                     autocomplete: false,
@@ -159,6 +168,7 @@ impl AiService {
             provider: config.provider,
             base_url: config.base_url,
             model: config.model,
+            autocomplete_model: config.autocomplete_model,
             max_tokens: config.max_tokens,
             temperature: config.temperature,
             autocomplete: config.autocomplete,
@@ -197,6 +207,7 @@ impl AiService {
             api_key: String::new(),
             api_key_enc: String::new(),
             model: String::new(),
+            autocomplete_model: String::new(),
             max_tokens: 1024,
             temperature: 0.0,
             autocomplete: false,
@@ -224,6 +235,7 @@ impl AiService {
             api_key,
             api_key_enc,
             model: input.model.trim().to_string(),
+            autocomplete_model: input.autocomplete_model.trim().to_string(),
             max_tokens,
             temperature,
             autocomplete: input.autocomplete,
@@ -559,8 +571,13 @@ impl AiService {
         let prefix = tail(&input.prefix, 6000);
         let suffix = head(&input.suffix, 1500);
         let prompt = format!(
-            "File: {}\nLanguage: {}\n\nComplete the code at the cursor. Return only the text to insert, without markdown fences or explanation.\n\n<before>\n{}\n</before>\n<cursor>\n<after>\n{}\n</after>",
-            input.path, input.language, prefix, suffix
+            "You are an inline code completion engine. The user is typing in {language}. Continue the file exactly at <cursor>.\n\
+             Output only the raw characters to insert. Do not use markdown or code fences, do not explain, and do not repeat the text before or after the cursor. If no useful completion is possible, output nothing.\n\n\
+             File: {path}\nLanguage: {language}\n\n<before>\n{prefix}\n</before>\n<cursor>\n<after>\n{suffix}\n</after>",
+            language = input.language,
+            path = input.path,
+            prefix = prefix,
+            suffix = suffix,
         );
         let config = self.load().await?;
         if config.provider == "opencode" {
@@ -587,12 +604,93 @@ impl AiService {
         if config.base_url.is_empty() {
             return Err(crate::errors::bad_request("OpenCode base URL is required"));
         }
-        let mut body = json!({ "prompt": prompt });
-        if !config.model.is_empty() {
-            if let Some((provider, id)) = config.model.split_once('/') {
-                body["model"] = json!({ "providerID": provider, "id": id });
+        let mut candidates = Vec::new();
+        let mut add = |model: &str| {
+            let model = model.trim();
+            if !model.is_empty() && !candidates.iter().any(|current| current == model) {
+                candidates.push(model.to_string());
+            }
+        };
+
+        add(&config.autocomplete_model);
+        if let Some(cached) = self
+            .autocomplete_cache
+            .read()
+            .ok()
+            .and_then(|cache| cache.clone())
+        {
+            add(&cached);
+        }
+        for model in [
+            "opencode-go/deepseek-v4.1-flash",
+            "opencode-go/glm-5.3-flash",
+            "opencode-go/minimax-m3.1-flash",
+            "opencode-go/beam-free",
+            "opencode/beam-free",
+            "opencode/deepseek-v4.1-flash-free",
+            "opencode/claude-haiku-5-5",
+            "opencode/gemini-3.5-flash-lite",
+        ] {
+            add(model);
+        }
+        add(&config.model);
+        drop(add);
+
+        // If the known light models are not available for this account, derive
+        // a short fallback list from the provider catalog instead of failing.
+        if let Ok(models) = self.models_opencode(config).await {
+            let mut added = 0;
+            for model in models {
+                if added >= 6 {
+                    break;
+                }
+                let id = model.id.to_lowercase();
+                if (id.contains("free")
+                    || id.contains("flash")
+                    || id.contains("haiku")
+                    || id.contains("mini")
+                    || id.contains("beam"))
+                    && !candidates.iter().any(|current| current == &model.id)
+                {
+                    candidates.push(model.id);
+                    added += 1;
+                }
             }
         }
+
+        let mut last_error = None;
+        for model in candidates {
+            match self.generate_opencode(config, &model, prompt).await {
+                Ok(text) => {
+                    let completion = clean_completion(&text);
+                    if !completion.trim().is_empty() {
+                        if let Ok(mut cache) = self.autocomplete_cache.write() {
+                            *cache = Some(model);
+                        }
+                        return Ok(completion);
+                    }
+                }
+                Err(error) => last_error = Some(error),
+            }
+        }
+        Err(last_error.unwrap_or_else(|| {
+            AppError::Upstream("OpenCode returned no autocomplete result".into())
+        }))
+    }
+
+    async fn generate_opencode(
+        &self,
+        config: &AiConfig,
+        model: &str,
+        prompt: &str,
+    ) -> AppResult<String> {
+        let Some((provider, id)) = model.split_once('/') else {
+            return Err(crate::errors::bad_request("invalid autocomplete model"));
+        };
+        let body = json!({
+            "prompt": prompt,
+            "model": { "providerID": provider, "id": id },
+        });
         let value = self
             .post_json(
                 &format!(
@@ -603,13 +701,12 @@ impl AiService {
                 &body,
             )
             .await?;
-        let value = value
+        Ok(value
             .get("text")
             .and_then(Value::as_str)
             .or_else(|| value.pointer("/data/text").and_then(Value::as_str))
             .unwrap_or_default()
-            .to_string();
-        Ok(value)
+            .to_string())
     }
 
     async fn get_json(&self, url: &str, headers: &[(&str, String)]) -> AppResult<Value> {
@@ -694,6 +791,7 @@ impl AiConfig {
         }
         self.base_url = self.base_url.trim().trim_end_matches('/').to_string();
         self.model = self.model.trim().to_string();
+        self.autocomplete_model = self.autocomplete_model.trim().to_string();
         if self.max_tokens <= 0 {
             self.max_tokens = 1024;
         }
