@@ -6,7 +6,7 @@ import { CloseButton } from "@/boardui/base/buttons/close-button";
 import FileIcon from "../ui/FileIcon";
 import { cx } from "@/boardui/utils/cx";
 
-const icons = { editor: FileCode2, db: Database, ai: Bot, web: Globe2, diff: FileDiff };
+const icons = { editor: FileCode2, db: Database, ai: Bot, bots: Bot, web: Globe2, diff: FileDiff };
 
 export default function Tabs() {
   const tabs = useApp((state) => state.tabs);

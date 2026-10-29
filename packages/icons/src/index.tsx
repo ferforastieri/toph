@@ -50,6 +50,7 @@ export {
   LogOut,
   Maximize,
   MessageCircleQuestion,
+  MessageSquarePlus,
   Minus,
   Minimize,
   Monitor,

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { OpenCode } from "@opencode/client";
 import { Bot, ChevronDown, History, Settings2, X } from "@toph/icons";
 import { openCodeBase, type Project } from "../api";
@@ -14,6 +14,7 @@ import AgentTranscript from "../components/AgentTranscript";
 import OpenCodeFormCard, { type OpenCodeForm, type OpenCodeFormAnswer } from "../components/OpenCodeFormCard";
 import type { OpenCodeSessionSummary } from "../opencodeSessions";
 import { notifyAiResponse } from "../aiNotifications";
+import { useIsMobile } from "../ui/useIsMobile";
 
 const EMPTY_MESSAGES: AiMessage[] = [];
 
@@ -36,6 +37,72 @@ function toolContent(value: unknown): string {
   return JSON.stringify(value, null, 2);
 }
 
+function sameMessage(a: AiMessage, b: AiMessage): boolean {
+  return a.role === b.role
+    && a.text === b.text
+    && a.title === b.title
+    && a.detail === b.detail
+    && a.status === b.status
+    && a.permissionId === b.permissionId
+    && a.permissionAction === b.permissionAction
+    && a.createdAt === b.createdAt;
+}
+
+function restoreMessages(context: unknown): AiMessage[] {
+  if (!Array.isArray(context)) return [];
+  return (context as Array<Record<string, any>>).flatMap<AiMessage>((message) => {
+    if (message.type === "user") {
+      return [{
+        id: `history-user-${message.id}`,
+        role: "user",
+        text: String(message.text ?? ""),
+        createdAt: Number(message.time?.created ?? Date.now()),
+      }];
+    }
+    if (message.type !== "assistant") return [];
+
+    const parts = (message.content ?? []) as Array<Record<string, any>>;
+    const restored: AiMessage[] = [];
+    const text = parts
+      .filter((part) => part.type === "text" && part.text)
+      .map((part) => String(part.text))
+      .join("");
+    if (text) {
+      restored.push({
+        id: `assistant-${message.id}`,
+        role: "assistant",
+        text,
+        createdAt: Number(message.time?.created ?? Date.now()),
+      });
+    }
+    const reasoning = parts
+      .filter((part) => part.type === "reasoning" && part.text)
+      .map((part) => String(part.text))
+      .join("");
+    if (reasoning) {
+      restored.push({
+        id: `reasoning-${message.id}`,
+        role: "reasoning",
+        text: reasoning,
+        createdAt: Number(message.time?.created ?? Date.now()),
+      });
+    }
+    for (const part of parts) {
+      if (part.type !== "tool") continue;
+      restored.push({
+        id: `tool-${part.id ?? part.name}`,
+        role: "tool",
+        title: `Tool · ${String(part.name ?? "call")}`,
+        text: toolContent(part.input),
+        detail: toolContent(part.content ?? part.output),
+        status: part.state === "error" ? "error" : "complete",
+        createdAt: Number(message.time?.created ?? Date.now()),
+      });
+    }
+    return restored;
+  });
+}
+
 export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
   const updateTab = useApp((state) => state.updateTab);
   const addMessage = useApp((state) => state.addAiMessage);
@@ -46,6 +113,8 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
   const emptyMessages = useApp((state) => state.aiMessages[tab.id]);
   const messages = emptyMessages ?? EMPTY_MESSAGES;
   const streaming = useApp((state) => state.aiStreaming[tab.id] ?? false);
+  const mobile = useIsMobile();
+  const [connectionEpoch, setConnectionEpoch] = useState(0);
   const aiConfig = useAI((state) => state.config);
   const models = useAI((state) => state.models);
   const loadModels = useAI((state) => state.loadModels);
@@ -79,7 +148,11 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
   const [agents, setAgents] = useState<Array<{ id: string; name: string; mode: string }>>([]);
   const [agent, setAgent] = useState("build");
   useEffect(() => { permissionModeRef.current = permissionMode; }, [permissionMode]);
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const stickToBottom = useRef(true);
+  const pendingDeltas = useRef(new Map<string, string>());
+  const flushTimer = useRef<number | null>(null);
+  const sendInFlight = useRef(false);
   const subagents = useRef(new Map<string, string>());
   const notifyPending = useRef(false);
   const client = useMemo(() => {
@@ -89,9 +162,149 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
       headers: { "X-Toph-CSRF": csrf },
     });
   }, []);
-  const loadedHistory = useRef<string | null>(null);
   const selectedModel = models.find((item) => item.id === model);
   const efforts = selectedModel?.variants ?? [];
+
+  const flushDeltas = useCallback(() => {
+    flushTimer.current = null;
+    const pending = pendingDeltas.current;
+    pendingDeltas.current = new Map();
+    for (const [messageId, delta] of pending) {
+      appendText(tab.id, messageId, delta);
+    }
+  }, [appendText, tab.id]);
+
+  const queueDelta = useCallback((messageId: string, delta: string) => {
+    if (!delta) return;
+    pendingDeltas.current.set(messageId, (pendingDeltas.current.get(messageId) ?? "") + delta);
+    if (flushTimer.current !== null) return;
+    const delay = window.matchMedia("(max-width: 900px)").matches ? 100 : 55;
+    flushTimer.current = window.setTimeout(flushDeltas, delay);
+  }, [flushDeltas]);
+
+  const dropPending = useCallback((messageId: string) => {
+    pendingDeltas.current.delete(messageId);
+  }, []);
+
+  const ensureMessage = useCallback((message: AiMessage) => {
+    const existing = useApp.getState().aiMessages[tab.id]?.some((item) => item.id === message.id);
+    if (!existing) addMessage(tab.id, message);
+  }, [addMessage, tab.id]);
+
+  const syncSession = useCallback(async (sessionId: string) => {
+    const [contextResult, activeResult] = await Promise.allSettled([
+      client.session.context({ sessionID: sessionId } as never),
+      client.session.active(),
+    ]);
+    if (contextResult.status === "fulfilled") {
+      if (flushTimer.current !== null) {
+        window.clearTimeout(flushTimer.current);
+        flushTimer.current = null;
+      }
+      pendingDeltas.current.clear();
+      const restored = restoreMessages(contextResult.value);
+      const previous = useApp.getState().aiMessages[tab.id] ?? [];
+      const byId = new Map(previous.map((message) => [message.id, message]));
+      let changed = previous.length !== restored.length;
+      const merged = restored.map((message, index) => {
+        const existing = byId.get(message.id);
+        if (existing && sameMessage(existing, message)) {
+          if (previous[index] !== existing) changed = true;
+          return existing;
+        }
+        changed = true;
+        return message;
+      });
+      if (changed) setMessages(tab.id, merged);
+    }
+    if (activeResult.status === "fulfilled") {
+      const active = activeResult.value as Record<string, { type?: string }>;
+      setStreaming(tab.id, active[sessionId]?.type === "running");
+    }
+  }, [client, setMessages, setStreaming, tab.id]);
+
+  useEffect(() => {
+    return () => {
+      if (flushTimer.current !== null) window.clearTimeout(flushTimer.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!tab.sessionId) return;
+    const sessionId = tab.sessionId;
+    const refresh = () => {
+      if (!document.hidden) void syncSession(sessionId);
+    };
+    refresh();
+    document.addEventListener("visibilitychange", refresh);
+    window.addEventListener("focus", refresh);
+    window.addEventListener("online", refresh);
+    return () => {
+      document.removeEventListener("visibilitychange", refresh);
+      window.removeEventListener("focus", refresh);
+      window.removeEventListener("online", refresh);
+    };
+  }, [syncSession, tab.sessionId]);
+
+  useEffect(() => {
+    if (!mobile || !tab.sessionId || !streaming) return;
+    const timer = window.setInterval(() => {
+      if (!document.hidden) void syncSession(tab.sessionId!);
+    }, 2000);
+    return () => window.clearInterval(timer);
+  }, [mobile, streaming, syncSession, tab.sessionId]);
+
+  useEffect(() => {
+    if (!mobile) return;
+    let cancelled = false;
+    (async () => {
+      const active = await client.session.active().catch(() => null);
+      if (!active || cancelled) return;
+      const running = new Set(
+        Object.entries(active)
+          .filter(([, status]) => status.type === "running")
+          .map(([sessionID]) => sessionID),
+      );
+      if (running.size === 0) return;
+      const response = await client.session.list({
+        directory: project.root,
+        limit: 50,
+        order: "desc",
+      } as never).catch(() => null);
+      if (!response || cancelled) return;
+      const sessions = (response.data ?? []) as OpenCodeSessionSummary[];
+      const current = sessions.find((session) => running.has(session.id) && !session.parentID && !session.metadata?.tophBotId);
+      if (!current || current.id === tab.sessionId) return;
+      setMessages(tab.id, []);
+      setStreaming(tab.id, true);
+      pendingDeltas.current.clear();
+      stickToBottom.current = true;
+      updateTab(tab.id, { sessionId: current.id, title: current.title ?? "OpenCode" });
+    })();
+    return () => { cancelled = true; };
+  }, [client, mobile, project.root, setMessages, setStreaming, tab.id, tab.sessionId, updateTab]);
+
+  useEffect(() => {
+    const refreshConnection = () => {
+      if (!document.hidden) setConnectionEpoch((epoch) => epoch + 1);
+    };
+    document.addEventListener("visibilitychange", refreshConnection);
+    window.addEventListener("online", refreshConnection);
+    return () => {
+      document.removeEventListener("visibilitychange", refreshConnection);
+      window.removeEventListener("online", refreshConnection);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!stickToBottom.current) return;
+    const frame = window.requestAnimationFrame(() => {
+      const element = scrollRef.current;
+      if (!element) return;
+      element.scrollTop = element.scrollHeight;
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [forms.length, messages, streaming]);
 
   useEffect(() => {
     if (models.length === 0) void loadModels();
@@ -152,77 +365,16 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
   }, [effort, efforts]);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [forms.length, messages.length, streaming]);
-
-  useEffect(() => {
     if (!streaming) return;
     const timer = window.setTimeout(() => setStreaming(tab.id, false), 15 * 60_000);
     return () => window.clearTimeout(timer);
   }, [setStreaming, streaming, tab.id]);
 
   useEffect(() => {
-    if (!tab.sessionId || messages.length > 0 || loadedHistory.current === tab.sessionId) return;
-    const sessionId = tab.sessionId;
-    loadedHistory.current = sessionId;
-    (async () => {
-      try {
-        const context = await client.session.context({ sessionID: sessionId } as never);
-        const restored: AiMessage[] = (context as Array<Record<string, any>>).flatMap<AiMessage>((message) => {
-          if (message.type === "user") {
-            return [{
-              id: `history-user-${message.id}`,
-              role: "user",
-              text: String(message.text ?? ""),
-              createdAt: Number(message.time?.created ?? Date.now()),
-            }];
-          }
-          if (message.type === "assistant") {
-            const parts = (message.content ?? []) as Array<Record<string, any>>;
-            return parts.flatMap<AiMessage>((part) => {
-              if (part.type === "text" && part.text) {
-                return [{
-                  id: `history-assistant-${message.id}-${part.ordinal ?? part.text}`,
-                  role: "assistant",
-                  text: String(part.text),
-                  createdAt: Number(message.time?.created ?? Date.now()),
-                }];
-              }
-              if (part.type === "reasoning" && part.text) {
-                return [{
-                  id: `history-reasoning-${message.id}-${part.ordinal ?? part.text}`,
-                  role: "reasoning",
-                  text: String(part.text),
-                  createdAt: Number(message.time?.created ?? Date.now()),
-                }];
-              }
-              if (part.type === "tool") {
-                return [{
-                  id: `history-tool-${message.id}-${part.id ?? part.name}`,
-                  role: "tool",
-                  title: `Tool · ${String(part.name ?? "call")}`,
-                  text: toolContent(part.input),
-                  detail: toolContent(part.content ?? part.output),
-                  status: part.state === "error" ? "error" : "complete",
-                  createdAt: Number(message.time?.created ?? Date.now()),
-                }];
-              }
-              return [];
-            });
-          }
-          return [];
-        });
-        if (restored.length > 0) setMessages(tab.id, restored);
-      } catch {
-        // A session may have been archived or the server may still be starting.
-      }
-    })();
-  }, [client, messages.length, setMessages, tab.id, tab.sessionId]);
-
-  useEffect(() => {
     if (!tab.sessionId) return;
     const sessionId = tab.sessionId;
     const controller = new AbortController();
+    let retry: number | undefined;
     const notifyCompletion = () => {
       if (!notifyPending.current) return;
       notifyPending.current = false;
@@ -239,6 +391,7 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
     };
     (async () => {
       try {
+        setError("");
         for await (const event of client.event.subscribe({ signal: controller.signal })) {
           const data = (event as { data?: Record<string, unknown> }).data;
           if (!data) continue;
@@ -278,7 +431,7 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
 
           switch (event.type) {
             case "session.text.started": {
-              addMessage(tab.id, {
+              ensureMessage({
                 id: messageID("assistant"),
                 role: isSubagent ? "subagent" : "assistant",
                 title: subagentTitle,
@@ -290,26 +443,25 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
             }
             case "session.text.delta": {
               const id = messageID("assistant");
-              const existing = useApp.getState().aiMessages[tab.id]?.some((message) => message.id === id);
-              if (!existing) {
-                addMessage(tab.id, {
-                  id,
-                  role: isSubagent ? "subagent" : "assistant",
-                  title: subagentTitle,
-                  text: "",
-                  status: "running",
-                  createdAt: Date.now(),
-                });
-              }
-              appendText(tab.id, id, String(data.delta ?? ""));
+              ensureMessage({
+                id,
+                role: isSubagent ? "subagent" : "assistant",
+                title: subagentTitle,
+                text: "",
+                status: "running",
+                createdAt: Date.now(),
+              });
+              queueDelta(id, String(data.delta ?? ""));
               break;
             }
             case "session.text.ended": {
-              updateMessage(tab.id, messageID("assistant"), { text: String(data.text ?? ""), status: "complete" });
+              const id = messageID("assistant");
+              dropPending(id);
+              updateMessage(tab.id, id, { text: String(data.text ?? ""), status: "complete" });
               break;
             }
             case "session.reasoning.started": {
-              addMessage(tab.id, {
+              ensureMessage({
                 id: messageID("reasoning"),
                 role: "reasoning",
                 title: isSubagent ? `Reasoning · ${subagentTitle}` : "Reasoning",
@@ -321,26 +473,25 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
             }
             case "session.reasoning.delta": {
               const id = messageID("reasoning");
-              const existing = useApp.getState().aiMessages[tab.id]?.some((message) => message.id === id);
-              if (!existing) {
-                addMessage(tab.id, {
-                  id,
-                  role: "reasoning",
-                  title: isSubagent ? `Reasoning · ${subagentTitle}` : "Reasoning",
-                  text: "",
-                  status: "running",
-                  createdAt: Date.now(),
-                });
-              }
-              appendText(tab.id, id, String(data.delta ?? ""));
+              ensureMessage({
+                id,
+                role: "reasoning",
+                title: isSubagent ? `Reasoning · ${subagentTitle}` : "Reasoning",
+                text: "",
+                status: "running",
+                createdAt: Date.now(),
+              });
+              queueDelta(id, String(data.delta ?? ""));
               break;
             }
             case "session.reasoning.ended": {
-              updateMessage(tab.id, messageID("reasoning"), { text: String(data.text ?? ""), status: "complete" });
+              const id = messageID("reasoning");
+              dropPending(id);
+              updateMessage(tab.id, id, { text: String(data.text ?? ""), status: "complete" });
               break;
             }
             case "session.tool.input.started": {
-              addMessage(tab.id, {
+              ensureMessage({
                 id: messageID("tool", String(data.id ?? "")),
                 role: "tool",
                 title: `Tool · ${String(data.name ?? "call")}`,
@@ -353,11 +504,13 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
             }
             case "session.tool.input.delta": {
               const id = messageID("tool", String(data.id ?? ""));
-              appendText(tab.id, id, String(data.delta ?? ""));
+              queueDelta(id, String(data.delta ?? ""));
               break;
             }
             case "session.tool.input.ended": {
-              updateMessage(tab.id, messageID("tool", String(data.id ?? "")), {
+              const id = messageID("tool", String(data.id ?? ""));
+              dropPending(id);
+              updateMessage(tab.id, id, {
                 text: String(data.text ?? ""),
                 status: "running",
               });
@@ -396,7 +549,7 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
               break;
             }
             case "session.step.started": {
-              addMessage(tab.id, {
+              ensureMessage({
                 id: messageID("step"),
                 role: "step",
                 title: "Agent",
@@ -514,16 +667,21 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
         if (!controller.signal.aborted) {
           setError(err instanceof Error ? err.message : "Event stream closed.");
           setStreaming(tab.id, false);
+          retry = window.setTimeout(() => setConnectionEpoch((epoch) => epoch + 1), 2000);
         }
       }
     })();
-    return () => controller.abort();
-  }, [addMessage, appendText, client, project.id, setMessages, setStreaming, tab.id, tab.sessionId, updateMessage]);
+    return () => {
+      controller.abort();
+      if (retry !== undefined) window.clearTimeout(retry);
+    };
+  }, [addMessage, client, connectionEpoch, dropPending, ensureMessage, project.id, queueDelta, setStreaming, tab.id, tab.sessionId, updateMessage]);
 
   function selectSession(session: OpenCodeSessionSummary) {
     setMessages(tab.id, []);
     setStreaming(tab.id, false);
-    loadedHistory.current = null;
+    pendingDeltas.current.clear();
+    stickToBottom.current = true;
     updateTab(tab.id, { sessionId: session.id, title: session.title ?? "OpenCode" });
     setSessionsOpen(false);
   }
@@ -531,7 +689,8 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
   function newSession() {
     setMessages(tab.id, []);
     setStreaming(tab.id, false);
-    loadedHistory.current = null;
+    pendingDeltas.current.clear();
+    stickToBottom.current = true;
     updateTab(tab.id, { sessionId: undefined, title: "OpenCode" });
     setSessionsOpen(false);
   }
@@ -593,9 +752,21 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
   }
 
   async function send(text: string, attachments: AgentAttachment[]) {
-    if ((!text && attachments.length === 0) || streaming) return;
+    if ((!text && attachments.length === 0) || streaming || sendInFlight.current) return;
+    sendInFlight.current = true;
+    if (tab.sessionId) {
+      const active = await client.session.active().catch(() => null);
+      if (active?.[tab.sessionId]?.type === "running") {
+        setStreaming(tab.id, true);
+        setError("O agente já está trabalhando nesta sessão. O progresso será sincronizado.");
+        void syncSession(tab.sessionId);
+        sendInFlight.current = false;
+        return;
+      }
+    }
     setInput("");
     setError("");
+    stickToBottom.current = true;
     addMessage(tab.id, {
       id: `user-${Date.now()}`,
       role: "user",
@@ -626,6 +797,8 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
         text: message,
         createdAt: Date.now(),
       });
+    } finally {
+      sendInFlight.current = false;
     }
   }
 
@@ -719,7 +892,14 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      <div
+        ref={scrollRef}
+        className="min-h-0 flex-1 overflow-y-auto"
+        onScroll={(event) => {
+          const element = event.currentTarget;
+          stickToBottom.current = element.scrollHeight - element.scrollTop - element.clientHeight < 80;
+        }}
+      >
         <div className="flex min-h-full flex-col gap-4 p-3">
           {messages.length === 0 && (
             <div className="bg-background-secondary-default my-auto mx-auto flex w-full max-w-sm flex-col items-center gap-2 rounded-lg border p-6 text-center">
@@ -743,7 +923,6 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
               onCancel={() => void cancelForm(form)}
             />
           ))}
-          <div ref={bottomRef} />
         </div>
       </div>
       {usageTotal > 0 && !streaming && (

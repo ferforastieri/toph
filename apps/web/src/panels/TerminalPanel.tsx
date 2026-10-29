@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Terminal } from "@xterm/xterm";
+import { Terminal, type ILink } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import {
   ChevronDown,
@@ -263,7 +263,7 @@ export default function TerminalPanel({ project, onOpenFile, sheet = false, onCl
 
   return (
     <section
-      className={cx("bg-background-primary-default flex flex-col", sheet ? "h-full min-h-0" : "min-h-[180px] shrink-0 border-t")}
+      className={cx("bg-background-primary-default flex flex-col", sheet ? "h-full min-h-0" : "min-h-[180px] shrink-0")}
       style={sheet ? { height: "100%" } : { height: maximized ? "calc(100dvh - 120px)" : "var(--terminal-height)" }}
     >
       {!sheet && <ResizeHandle className="terminal-resize" orientation="horizontal" value={terminalHeight} min={180} max={640} invert label="Resize terminal" onChange={(height) => document.documentElement.style.setProperty("--terminal-height", `${height}px`)} onCommit={(height) => updateSettings({ terminalHeight: height })} />}
@@ -322,16 +322,16 @@ export default function TerminalPanel({ project, onOpenFile, sheet = false, onCl
             {split && paneSessions.length >= 2 ? (
               <Group orientation="horizontal" className="min-h-0 flex-1">
                 <Panel defaultSize="50" minSize="20">
-                  <TerminalView key={`${paneSessions[0].id}:${reconnectNonce}`} session={paneSessions[0]} theme={theme} clearNonce={clearNonce} onOutput={appendOutput} />
+                  <TerminalView key={`${paneSessions[0].id}:${reconnectNonce}`} session={paneSessions[0]} theme={theme} clearNonce={clearNonce} onOutput={appendOutput} onOpenFile={onOpenFile} />
                 </Panel>
                 <Separator className="relative w-px bg-separator-border after:absolute after:inset-y-0 after:left-1/2 after:w-2 after:-translate-x-1/2 focus-visible:ring-2 focus-visible:ring-border-focus-ring" />
                 <Panel defaultSize="50" minSize="20">
-                  <TerminalView key={`${paneSessions[1].id}:${reconnectNonce}`} session={paneSessions[1]} theme={theme} clearNonce={clearNonce} onOutput={appendOutput} />
+                  <TerminalView key={`${paneSessions[1].id}:${reconnectNonce}`} session={paneSessions[1]} theme={theme} clearNonce={clearNonce} onOutput={appendOutput} onOpenFile={onOpenFile} />
                 </Panel>
               </Group>
             ) : (
               <div className="min-h-0 flex-1">
-                {paneSessions[0] ? <TerminalView key={`${paneSessions[0].id}:${reconnectNonce}`} session={paneSessions[0]} theme={theme} clearNonce={clearNonce} onOutput={appendOutput} /> : <div className="flex h-full items-center justify-center text-caption-1-regular text-text-secondary">Nenhum terminal aberto.</div>}
+                {paneSessions[0] ? <TerminalView key={`${paneSessions[0].id}:${reconnectNonce}`} session={paneSessions[0]} theme={theme} clearNonce={clearNonce} onOutput={appendOutput} onOpenFile={onOpenFile} /> : <div className="flex h-full items-center justify-center text-caption-1-regular text-text-secondary">Nenhum terminal aberto.</div>}
               </div>
             )}
             {sessions.length > 1 && (
@@ -471,11 +471,13 @@ export default function TerminalPanel({ project, onOpenFile, sheet = false, onCl
   );
 }
 
-function TerminalView({ session, theme, clearNonce, onOutput }: { session: Session; theme: "light" | "dark"; clearNonce: number; onOutput: (text: string) => void; }) {
+function TerminalView({ session, theme, clearNonce, onOutput, onOpenFile }: { session: Session; theme: "light" | "dark"; clearNonce: number; onOutput: (text: string) => void; onOpenFile: (path: string, line?: number) => void; }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
   const outputCallback = useRef(onOutput);
   outputCallback.current = onOutput;
+  const openFileCallback = useRef(onOpenFile);
+  openFileCallback.current = onOpenFile;
 
   useEffect(() => {
     if (!hostRef.current) return;
@@ -488,7 +490,7 @@ function TerminalView({ session, theme, clearNonce, onOutput }: { session: Sessi
       cursorStyle: "block",
       drawBoldTextInBrightColors: true,
       fontFamily: CODE_FONT_FAMILY,
-      fontSize: 14,
+      fontSize: 12,
       fontWeight: "normal",
       fontWeightBold: "bold",
       letterSpacing: 0,
@@ -508,6 +510,53 @@ function TerminalView({ session, theme, clearNonce, onOutput }: { session: Sessi
     term.loadAddon(fit);
     term.open(hostRef.current);
     termRef.current = term;
+    const linkDisposable = term.registerLinkProvider({
+      provideLinks: (lineNumber, callback) => {
+        const line = term.buffer.active.getLine(lineNumber)?.translateToString(true) ?? "";
+        if (!line) {
+          callback(undefined);
+          return;
+        }
+        const links: ILink[] = [];
+        const occupied: Array<[number, number]> = [];
+        const overlaps = (start: number, end: number) => occupied.some(([left, right]) => start < right && end > left);
+        const add = (start: number, end: number, text: string, activate: () => void) => {
+          if (text.length === 0 || overlaps(start, end)) return;
+          occupied.push([start, end]);
+          links.push({
+            text,
+            range: {
+              start: { x: start + 1, y: lineNumber },
+              end: { x: end + 1, y: lineNumber },
+            },
+            decorations: { underline: true, pointerCursor: true },
+            activate,
+          });
+        };
+
+        for (const match of line.matchAll(/https?:\/\/[^\s"'`<>()[\]{}]+/g)) {
+          const text = match[0].replace(/[.,;:!?]+$/, "");
+          if (!text || match.index === undefined) continue;
+          add(match.index, match.index + text.length, text, () => {
+            window.open(text, "_blank", "noopener,noreferrer");
+          });
+        }
+
+        const filePattern = /(?:^|[\s([{"'`])((?:\.{0,2}\/|\/)?(?:[\w@.+-]+\/)*[\w@.+-]+\.(?:tsx?|jsx?|mjs|cjs|json|rs|go|py|rb|php|java|kt|kts|swift|c|h|cpp|hpp|cs|css|scss|sass|less|html?|vue|svelte|md|mdx|ya?ml|toml|ini|sql|sh|bash|zsh|fish|lua|dart|ex|exs|erl|hrl|scala|clj|cljs|r|jl|tf|proto|graphql|gql|txt|log|lock))(?::(\d+))?(?::(\d+))?/g;
+        for (const match of line.matchAll(filePattern)) {
+          const path = match[1];
+          if (!path || match.index === undefined) continue;
+          const raw = match[0];
+          const offset = raw.indexOf(path);
+          const start = match.index + Math.max(0, offset);
+          const text = raw.slice(Math.max(0, offset));
+          const targetLine = match[2] ? Number(match[2]) : undefined;
+          add(start, start + text.length, text, () => openFileCallback.current(path, targetLine));
+        }
+
+        callback(links.length > 0 ? links : undefined);
+      },
+    });
     fit.fit();
     term.focus();
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
@@ -525,7 +574,7 @@ function TerminalView({ session, theme, clearNonce, onOutput }: { session: Sessi
     term.onResize(({ cols, rows }) => { if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: "resize", cols, rows })); });
     resizeObserver = new ResizeObserver(() => fit.fit());
     resizeObserver.observe(hostRef.current);
-    return () => { disposed = true; resizeObserver?.disconnect(); socket?.close(); term.dispose(); termRef.current = null; };
+    return () => { disposed = true; linkDisposable.dispose(); resizeObserver?.disconnect(); socket?.close(); term.dispose(); termRef.current = null; };
   }, [session.id, theme]);
 
   useEffect(() => {

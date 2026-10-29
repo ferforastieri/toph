@@ -16,6 +16,9 @@
   --safe-bottom: max(var(--native-safe-bottom, 0px), env(safe-area-inset-bottom, 0px));
   --safe-left: max(var(--native-safe-left, 0px), env(safe-area-inset-left, 0px));
   --safe-right: max(var(--native-safe-right, 0px), env(safe-area-inset-right, 0px));
+  --visual-viewport-height: 100dvh;
+  --visual-viewport-offset-top: 0px;
+  --keyboard-inset: 0px;
 
   /* Toph's brand secondary: amber. It is the interactive accent in both
      themes, so buttons, selections and focus rings all inherit it. */

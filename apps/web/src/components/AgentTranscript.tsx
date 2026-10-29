@@ -1,3 +1,4 @@
+import { memo } from "react";
 import type { Components } from "react-markdown";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -56,70 +57,89 @@ const markdownComponents: Components = {
   td: ({ children }) => <td className="border-b border-separator-border px-2 py-1.5 text-text-secondary last:border-0">{children}</td>,
 };
 
+interface MessageProps {
+  message: AiMessage;
+  showCaret: boolean;
+  onPermission?: (messageId: string, permissionId: string, decision: "once" | "always" | "reject") => void;
+}
+
+const TranscriptMessage = memo(function TranscriptMessage({ message, showCaret, onPermission }: MessageProps) {
+  if (message.role === "error") {
+    return <Chip color="rose" variant="subtle" className="justify-start gap-1.5 whitespace-normal px-2 py-1.5"><CircleAlert size={13} /> {message.text}</Chip>;
+  }
+  if (message.role === "user") {
+    return (
+      <p className="ms-auto max-w-[88%] rounded-2xl border border-accent-500/20 bg-accent-500/10 px-3.5 py-2 text-[13.5px] leading-[1.5] whitespace-pre-wrap break-words text-text-primary">
+        {message.text}
+      </p>
+    );
+  }
+  if (message.role === "reasoning") {
+    return (
+      <details className="group -my-1">
+        <summary className="flex cursor-pointer list-none items-center gap-1 text-caption-1-medium text-text-tertiary hover:text-text-secondary">
+          <ChevronDown size={12} className="transition-transform group-open:rotate-180" />
+          {message.title ?? "Thought"}
+          {message.status === "running" && <span className="text-caption-2-regular text-text-tertiary">· pensando</span>}
+        </summary>
+        {message.text && <p className="mt-1.5 whitespace-pre-wrap break-words border-l border-separator-border pl-3 text-caption-1-regular leading-relaxed text-text-secondary">{message.text}</p>}
+      </details>
+    );
+  }
+  if (message.role === "step") {
+    return <p className="text-caption-2-regular text-text-tertiary">{message.text}</p>;
+  }
+  if (message.role === "tool") {
+    return (
+      <details className="group overflow-hidden rounded-lg border border-border-button-default bg-background-secondary-default">
+        <summary className="flex cursor-pointer list-none items-center gap-2 px-2.5 py-1.5 text-caption-1-medium text-text-secondary hover:text-text-primary">
+          <Wrench size={13} className="shrink-0" />
+          <span className="min-w-0 flex-1 truncate">{message.title ?? "Tool"}</span>
+          {message.status && <Badge color="neutral" className="text-caption-2-regular">{message.status}</Badge>}
+          <ChevronDown size={12} className="shrink-0 transition-transform group-open:rotate-180" />
+        </summary>
+        <div className="border-t border-separator-border">
+          {message.text && <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words px-2.5 py-2 text-[12px] leading-relaxed text-text-secondary">{message.text}</pre>}
+          {message.detail && <pre className="max-h-56 overflow-auto border-t border-separator-border px-2.5 py-2 text-[11.5px] leading-relaxed text-text-tertiary">{message.detail}</pre>}
+          {message.permissionId && onPermission && (
+            <div className="flex flex-wrap gap-1.5 border-t border-separator-border px-2.5 py-2">
+              <Button variant="secondary" size="xs" onClick={() => onPermission(message.id, message.permissionId!, "once")}>Permitir uma vez</Button>
+              <Button variant="secondary" size="xs" leadingIcon={Check} onClick={() => onPermission(message.id, message.permissionId!, "always")}>Sempre</Button>
+              <Button variant="danger" size="xs" leadingIcon={X} onClick={() => onPermission(message.id, message.permissionId!, "reject")}>Rejeitar</Button>
+            </div>
+          )}
+        </div>
+      </details>
+    );
+  }
+  return (
+    <div className="min-w-0">
+      {showCaret ? (
+        <p className="whitespace-pre-wrap break-words text-[13.5px] leading-[1.6] text-text-primary">{message.text}</p>
+      ) : (
+        <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+          {message.text}
+        </ReactMarkdown>
+      )}
+      {showCaret && (
+        <span className="ml-0.5 inline-block h-3.5 w-[2px] animate-pulse bg-accent-500 align-middle" aria-hidden />
+      )}
+    </div>
+  );
+}, (prev, next) => prev.message === next.message && prev.showCaret === next.showCaret);
+
 export default function AgentTranscript({ messages, streaming, onPermission, className }: Props) {
   const lastMessage = messages[messages.length - 1];
   return (
     <div className={className ?? "flex flex-col gap-5 px-1 py-1"}>
-      {messages.map((message) => {
-        if (message.role === "error") {
-          return <Chip key={message.id} color="rose" variant="subtle" className="justify-start gap-1.5 whitespace-normal px-2 py-1.5"><CircleAlert size={13} /> {message.text}</Chip>;
-        }
-        if (message.role === "user") {
-          return (
-            <p key={message.id} className="ms-auto max-w-[88%] rounded-2xl border border-accent-500/20 bg-accent-500/10 px-3.5 py-2 text-[13.5px] leading-[1.5] whitespace-pre-wrap break-words text-text-primary">
-              {message.text}
-            </p>
-          );
-        }
-        if (message.role === "reasoning") {
-          return (
-            <details key={message.id} className="group -my-1">
-              <summary className="flex cursor-pointer list-none items-center gap-1 text-caption-1-medium text-text-tertiary hover:text-text-secondary">
-                <ChevronDown size={12} className="transition-transform group-open:rotate-180" />
-                {message.title ?? "Thought"}
-                {message.status === "running" && <span className="text-caption-2-regular text-text-tertiary">· pensando</span>}
-              </summary>
-              {message.text && <p className="mt-1.5 whitespace-pre-wrap break-words border-l border-separator-border pl-3 text-caption-1-regular leading-relaxed text-text-secondary">{message.text}</p>}
-            </details>
-          );
-        }
-        if (message.role === "step") {
-          return <p key={message.id} className="text-caption-2-regular text-text-tertiary">{message.text}</p>;
-        }
-        if (message.role === "tool") {
-          return (
-            <details key={message.id} className="group overflow-hidden rounded-lg border border-border-button-default bg-background-secondary-default">
-              <summary className="flex cursor-pointer list-none items-center gap-2 px-2.5 py-1.5 text-caption-1-medium text-text-secondary hover:text-text-primary">
-                <Wrench size={13} className="shrink-0" />
-                <span className="min-w-0 flex-1 truncate">{message.title ?? "Tool"}</span>
-                {message.status && <Badge color="neutral" className="text-caption-2-regular">{message.status}</Badge>}
-                <ChevronDown size={12} className="shrink-0 transition-transform group-open:rotate-180" />
-              </summary>
-              <div className="border-t border-separator-border">
-                {message.text && <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words px-2.5 py-2 text-[12px] leading-relaxed text-text-secondary">{message.text}</pre>}
-                {message.detail && <pre className="max-h-56 overflow-auto border-t border-separator-border px-2.5 py-2 text-[11.5px] leading-relaxed text-text-tertiary">{message.detail}</pre>}
-                {message.permissionId && onPermission && (
-                  <div className="flex flex-wrap gap-1.5 border-t border-separator-border px-2.5 py-2">
-                    <Button variant="secondary" size="xs" onClick={() => onPermission(message.id, message.permissionId!, "once")}>Permitir uma vez</Button>
-                    <Button variant="secondary" size="xs" leadingIcon={Check} onClick={() => onPermission(message.id, message.permissionId!, "always")}>Sempre</Button>
-                    <Button variant="danger" size="xs" leadingIcon={X} onClick={() => onPermission(message.id, message.permissionId!, "reject")}>Rejeitar</Button>
-                  </div>
-                )}
-              </div>
-            </details>
-          );
-        }
-        return (
-          <div key={message.id} className="min-w-0">
-            <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-              {message.text}
-            </ReactMarkdown>
-            {streaming && message.id === lastMessage?.id && (
-              <span className="ml-0.5 inline-block h-3.5 w-[2px] animate-pulse bg-accent-500 align-middle" aria-hidden />
-            )}
-          </div>
-        );
-      })}
+      {messages.map((message) => (
+        <TranscriptMessage
+          key={message.id}
+          message={message}
+          showCaret={streaming && message.id === lastMessage?.id}
+          onPermission={onPermission}
+        />
+      ))}
       {streaming && <AgentThinking variant="wave" label="Trabalhando" tone="accent" shimmer showTimer />}
     </div>
   );
