@@ -30,7 +30,7 @@ export default function Tabs() {
   }
 
   return (
-    <div className="flex min-h-10 items-end border-b bg-background-secondary-default px-1 pt-1">
+    <div className="flex min-h-10 items-center border-b bg-background-secondary-default px-1">
       <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto" role="tablist">
         {tabs.map((tab) => {
           const Icon = icons[tab.kind as keyof typeof icons] ?? icons.editor;
@@ -46,9 +46,9 @@ export default function Tabs() {
               onAuxClick={(event) => { if (event.button === 1) void requestClose(tab); }}
               title={tab.path ?? tab.url ?? tab.title}
               className={cx(
-                "group flex h-9 max-w-[240px] shrink-0 cursor-pointer items-center gap-2 rounded-t-[10px] border border-b-0 px-2 text-body-2-medium",
+                "group flex h-8 max-w-[240px] shrink-0 cursor-pointer items-center gap-2 rounded-md border px-2 text-body-2-medium",
                 active
-                  ? "border-border-button-default bg-background-primary-default text-text-primary"
+                  ? "border-border-button-default bg-background-tertiary-default text-text-primary shadow-xs"
                   : "border-transparent text-text-secondary hover:bg-background-primary-hover hover:text-text-primary",
               )}
             >

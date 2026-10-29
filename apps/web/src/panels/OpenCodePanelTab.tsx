@@ -11,6 +11,7 @@ import { AgentComposer, type AgentAttachment } from "../ui/AgentComposer";
 import AgentSessionsSheet from "../components/AgentSessionsSheet";
 import AiSettingsModal, { type AiSettingsTab } from "../components/AiSettingsModal";
 import AgentTranscript from "../components/AgentTranscript";
+import OpenCodeFormCard, { type OpenCodeForm, type OpenCodeFormAnswer } from "../components/OpenCodeFormCard";
 import type { OpenCodeSessionSummary } from "../opencodeSessions";
 import { notifyAiResponse } from "../aiNotifications";
 
@@ -55,6 +56,8 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
   const [sessionsOpen, setSessionsOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsTab, setSettingsTab] = useState<AiSettingsTab>("general");
+  const [forms, setForms] = useState<OpenCodeForm[]>([]);
+  const [formBusy, setFormBusy] = useState<string | null>(null);
 
   function openSettings(tab: AiSettingsTab = "general") {
     setSettingsTab(tab);
@@ -128,6 +131,20 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
   }, [client, tab.sessionId]);
 
   useEffect(() => {
+    if (!tab.sessionId) {
+      setForms([]);
+      return;
+    }
+    let cancelled = false;
+    client.session.form.list({ sessionID: tab.sessionId } as never)
+      .then((result) => {
+        if (!cancelled) setForms((result as unknown as OpenCodeForm[]) ?? []);
+      })
+      .catch(() => undefined);
+    return () => { cancelled = true; };
+  }, [client, tab.sessionId]);
+
+  useEffect(() => {
     if (efforts.length === 0) return;
     if (!efforts.includes(effort)) {
       setEffort(efforts.includes("max") ? "max" : efforts[efforts.length - 1]);
@@ -136,7 +153,7 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages.length, streaming]);
+  }, [forms.length, messages.length, streaming]);
 
   useEffect(() => {
     if (!streaming) return;
@@ -239,6 +256,14 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
                 status: "running",
                 createdAt: Date.now(),
               });
+            }
+            continue;
+          }
+
+          if (event.type === "form.created") {
+            const form = (data as { form?: OpenCodeForm }).form;
+            if (form && form.sessionID === sessionId) {
+              setForms((current) => current.some((item) => item.id === form.id) ? current : [...current, form]);
             }
             continue;
           }
@@ -412,6 +437,12 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
                 status: "running",
                 createdAt: Date.now(),
               });
+              break;
+            }
+            case "form.replied":
+            case "form.cancelled": {
+              const formID = String(data.id ?? "");
+              setForms((current) => current.filter((form) => form.id !== formID));
               break;
             }
             case "permission.asked": {
@@ -620,6 +651,41 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
     }
   }
 
+  async function answerForm(form: OpenCodeForm, answer: OpenCodeFormAnswer) {
+    if (!tab.sessionId) return;
+    setFormBusy(form.id);
+    setError("");
+    try {
+      await client.session.form.reply({
+        sessionID: tab.sessionId,
+        formID: form.id,
+        answer,
+      } as never);
+      setForms((current) => current.filter((item) => item.id !== form.id));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Não foi possível responder à pergunta.");
+    } finally {
+      setFormBusy(null);
+    }
+  }
+
+  async function cancelForm(form: OpenCodeForm) {
+    if (!tab.sessionId) return;
+    setFormBusy(form.id);
+    try {
+      await client.session.form.cancel({
+        sessionID: tab.sessionId,
+        formID: form.id,
+        message: "Cancelado pelo usuário",
+      } as never);
+      setForms((current) => current.filter((item) => item.id !== form.id));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Não foi possível cancelar a pergunta.");
+    } finally {
+      setFormBusy(null);
+    }
+  }
+
   async function stop() {
     if (!tab.sessionId) return;
     try {
@@ -651,26 +717,6 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
           <Button variant="ghost" size="xs" iconOnly leadingIcon={Settings2} aria-label="Configurações da IA" title="Configurações da IA" onClick={() => openSettings("general")} />
           {onClose && <Button variant="ghost" size="xs" iconOnly leadingIcon={X} aria-label="Fechar agente" onClick={onClose} />}
         </div>
-        <div className="flex min-w-0 items-center gap-1 px-1">
-          <Select selectedKey={agent} onSelectionChange={(key) => void chooseAgent(String(key))} aria-label="Modo" className="w-auto" triggerClassName="h-7 gap-1 border-0 bg-transparent px-1.5 text-body-2-medium shadow-none">
-            {agents.length === 0 ? (
-              <>
-                <SelectItem id="build">Build</SelectItem>
-                <SelectItem id="plan">Plano</SelectItem>
-              </>
-            ) : (
-              <>
-                {agents.map((item) => <SelectItem key={item.id} id={item.id}>{item.id === "plan" ? "Plano" : item.name || item.id}</SelectItem>)}
-                {!agents.some((item) => item.id === "plan") && <SelectItem id="plan">Plano</SelectItem>}
-              </>
-            )}
-          </Select>
-          <Select selectedKey={permissionMode} onSelectionChange={(key) => setPermissionMode(String(key) as "yolo" | "ask" | "deny")} aria-label="Permissões" className="w-auto" triggerClassName="h-7 gap-1 border-0 bg-transparent px-1.5 text-body-2-medium shadow-none">
-            <SelectItem id="yolo">YOLO</SelectItem>
-            <SelectItem id="ask">Perguntar</SelectItem>
-            <SelectItem id="deny">Negar</SelectItem>
-          </Select>
-        </div>
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
@@ -688,6 +734,15 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
             streaming={streaming}
             onPermission={(messageId, permissionId, decision) => void replyPermission(messageId, permissionId, decision)}
           />
+          {forms.map((form) => (
+            <OpenCodeFormCard
+              key={form.id}
+              form={form}
+              busy={formBusy === form.id}
+              onSubmit={(answer) => void answerForm(form, answer)}
+              onCancel={() => void cancelForm(form)}
+            />
+          ))}
           <div ref={bottomRef} />
         </div>
       </div>
@@ -712,6 +767,28 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
         onEffortChange={(next) => void chooseEffort(next)}
         placeholder="Pergunte qualquer coisa, / para comandos, @ para contexto..."
         allowAttachments
+        modeControls={
+          <>
+            <Select selectedKey={agent} onSelectionChange={(key) => void chooseAgent(String(key))} aria-label="Modo" className="w-auto" triggerClassName="h-7 gap-1 border-0 bg-transparent px-1.5 text-body-2-medium shadow-none">
+              {agents.length === 0 ? (
+                <>
+                  <SelectItem id="build">Build</SelectItem>
+                  <SelectItem id="plan">Plano</SelectItem>
+                </>
+              ) : (
+                <>
+                  {agents.map((item) => <SelectItem key={item.id} id={item.id}>{item.id === "plan" ? "Plano" : item.name || item.id}</SelectItem>)}
+                  {!agents.some((item) => item.id === "plan") && <SelectItem id="plan">Plano</SelectItem>}
+                </>
+              )}
+            </Select>
+            <Select selectedKey={permissionMode} onSelectionChange={(key) => setPermissionMode(String(key) as "yolo" | "ask" | "deny")} aria-label="Permissões" className="w-auto" triggerClassName="h-7 gap-1 border-0 bg-transparent px-1.5 text-body-2-medium shadow-none">
+              <SelectItem id="yolo">YOLO</SelectItem>
+              <SelectItem id="ask">Perguntar</SelectItem>
+              <SelectItem id="deny">Negar</SelectItem>
+            </Select>
+          </>
+        }
       />
       <AgentSessionsSheet open={sessionsOpen} project={project} activeSessionId={tab.sessionId} onClose={() => setSessionsOpen(false)} onSelect={selectSession} onNew={newSession} />
       <AiSettingsModal open={settingsOpen} initialTab={settingsTab} projectRoot={project.root} onClose={() => setSettingsOpen(false)} />

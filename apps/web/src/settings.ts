@@ -2,12 +2,23 @@ import { create } from "zustand";
 
 export type Theme = "light" | "dark";
 
+export type SideBarPosition = "left" | "right";
+export type PanelAlignment = "left" | "right" | "center" | "justify";
+export type QuickInputPosition = "top" | "center";
+
 export interface SettingsState {
   theme: Theme;
   sidebarWidth: number;
   aiPanelWidth: number;
   terminalHeight: number;
   confirmClose: boolean;
+  menuVisible: boolean;
+  activityVisible: boolean;
+  sidebarVisible: boolean;
+  statusVisible: boolean;
+  primarySideBarPosition: SideBarPosition;
+  panelAlignment: PanelAlignment;
+  quickInputPosition: QuickInputPosition;
   gitBranchPattern: string;
   gitCommitPattern: string;
   update: (patch: Partial<Omit<SettingsState, "update" | "setTheme" | "reset">>) => void;
@@ -23,6 +34,13 @@ export const defaultSettings = {
   aiPanelWidth: 390,
   terminalHeight: 280,
   confirmClose: true,
+  menuVisible: true,
+  activityVisible: true,
+  sidebarVisible: true,
+  statusVisible: true,
+  primarySideBarPosition: "left" as SideBarPosition,
+  panelAlignment: "justify" as PanelAlignment,
+  quickInputPosition: "top" as QuickInputPosition,
   gitBranchPattern: "feature/{task}-{slug}",
   gitCommitPattern: "{task} {summary}",
 };
@@ -33,7 +51,7 @@ function numberIn(value: unknown, min: number, max: number, fallback: number): n
     : fallback;
 }
 
-function readSettings() {
+function readSettings(): Omit<SettingsState, "update" | "setTheme" | "reset"> {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return defaultSettings;
@@ -47,6 +65,16 @@ function readSettings() {
       aiPanelWidth: numberIn(value.aiPanelWidth, 300, 620, defaultSettings.aiPanelWidth),
       terminalHeight: numberIn(value.terminalHeight, 180, 640, defaultSettings.terminalHeight),
       confirmClose: value.confirmClose !== false,
+      menuVisible: value.menuVisible !== false,
+      activityVisible: value.activityVisible !== false,
+      sidebarVisible: value.sidebarVisible !== false,
+      statusVisible: value.statusVisible !== false,
+      primarySideBarPosition: value.primarySideBarPosition === "right" ? "right" : "left",
+      panelAlignment:
+        value.panelAlignment === "left" || value.panelAlignment === "right" || value.panelAlignment === "center"
+          ? value.panelAlignment
+          : "justify",
+      quickInputPosition: value.quickInputPosition === "center" ? "center" : "top",
       gitBranchPattern:
         typeof value.gitBranchPattern === "string" && value.gitBranchPattern.trim()
           ? value.gitBranchPattern
@@ -78,12 +106,19 @@ export function applyLayout(settings: Pick<typeof defaultSettings, "sidebarWidth
 export const useSettings = create<SettingsState>((set, get) => ({
   ...readSettings(),
   update: (patch) => {
-    const next = {
+    const next: Omit<SettingsState, "update" | "setTheme" | "reset"> = {
       theme: get().theme,
       sidebarWidth: patch.sidebarWidth ?? get().sidebarWidth,
       aiPanelWidth: patch.aiPanelWidth ?? get().aiPanelWidth,
       terminalHeight: patch.terminalHeight ?? get().terminalHeight,
       confirmClose: patch.confirmClose ?? get().confirmClose,
+      menuVisible: patch.menuVisible ?? get().menuVisible,
+      activityVisible: patch.activityVisible ?? get().activityVisible,
+      sidebarVisible: patch.sidebarVisible ?? get().sidebarVisible,
+      statusVisible: patch.statusVisible ?? get().statusVisible,
+      primarySideBarPosition: patch.primarySideBarPosition ?? get().primarySideBarPosition,
+      panelAlignment: patch.panelAlignment ?? get().panelAlignment,
+      quickInputPosition: patch.quickInputPosition ?? get().quickInputPosition,
       gitBranchPattern: patch.gitBranchPattern ?? get().gitBranchPattern,
       gitCommitPattern: patch.gitCommitPattern ?? get().gitCommitPattern,
     };
@@ -101,6 +136,13 @@ export const useSettings = create<SettingsState>((set, get) => ({
         aiPanelWidth: next.aiPanelWidth,
         terminalHeight: next.terminalHeight,
         confirmClose: next.confirmClose,
+        menuVisible: next.menuVisible,
+        activityVisible: next.activityVisible,
+        sidebarVisible: next.sidebarVisible,
+        statusVisible: next.statusVisible,
+        primarySideBarPosition: next.primarySideBarPosition,
+        panelAlignment: next.panelAlignment,
+        quickInputPosition: next.quickInputPosition,
         gitBranchPattern: next.gitBranchPattern,
         gitCommitPattern: next.gitCommitPattern,
       }),
