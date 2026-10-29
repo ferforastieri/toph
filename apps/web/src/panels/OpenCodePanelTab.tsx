@@ -651,6 +651,26 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
           <Button variant="ghost" size="xs" iconOnly leadingIcon={Settings2} aria-label="Configurações da IA" title="Configurações da IA" onClick={() => openSettings("general")} />
           {onClose && <Button variant="ghost" size="xs" iconOnly leadingIcon={X} aria-label="Fechar agente" onClick={onClose} />}
         </div>
+        <div className="flex min-w-0 items-center gap-1 px-1">
+          <Select selectedKey={agent} onSelectionChange={(key) => void chooseAgent(String(key))} aria-label="Modo" className="w-auto" triggerClassName="h-7 gap-1 border-0 bg-transparent px-1.5 text-body-2-medium shadow-none">
+            {agents.length === 0 ? (
+              <>
+                <SelectItem id="build">Build</SelectItem>
+                <SelectItem id="plan">Plano</SelectItem>
+              </>
+            ) : (
+              <>
+                {agents.map((item) => <SelectItem key={item.id} id={item.id}>{item.id === "plan" ? "Plano" : item.name || item.id}</SelectItem>)}
+                {!agents.some((item) => item.id === "plan") && <SelectItem id="plan">Plano</SelectItem>}
+              </>
+            )}
+          </Select>
+          <Select selectedKey={permissionMode} onSelectionChange={(key) => setPermissionMode(String(key) as "yolo" | "ask" | "deny")} aria-label="Permissões" className="w-auto" triggerClassName="h-7 gap-1 border-0 bg-transparent px-1.5 text-body-2-medium shadow-none">
+            <SelectItem id="yolo">YOLO</SelectItem>
+            <SelectItem id="ask">Perguntar</SelectItem>
+            <SelectItem id="deny">Negar</SelectItem>
+          </Select>
+        </div>
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
@@ -692,28 +712,6 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
         onEffortChange={(next) => void chooseEffort(next)}
         placeholder="Pergunte qualquer coisa, / para comandos, @ para contexto..."
         allowAttachments
-        modeControls={
-          <>
-            <Select selectedKey={agent} onSelectionChange={(key) => void chooseAgent(String(key))} aria-label="Modo" className="w-auto" triggerClassName="h-7 gap-1 border-0 bg-transparent px-1.5 text-body-2-medium shadow-none">
-              {agents.length === 0 ? (
-                <>
-                  <SelectItem id="build">Build</SelectItem>
-                  <SelectItem id="plan">Plano</SelectItem>
-                </>
-              ) : (
-                <>
-                  {agents.map((item) => <SelectItem key={item.id} id={item.id}>{item.id === "plan" ? "Plano" : item.name || item.id}</SelectItem>)}
-                  {!agents.some((item) => item.id === "plan") && <SelectItem id="plan">Plano</SelectItem>}
-                </>
-              )}
-            </Select>
-            <Select selectedKey={permissionMode} onSelectionChange={(key) => setPermissionMode(String(key) as "yolo" | "ask" | "deny")} aria-label="Permissões" className="w-auto" triggerClassName="h-7 gap-1 border-0 bg-transparent px-1.5 text-body-2-medium shadow-none">
-              <SelectItem id="yolo">YOLO</SelectItem>
-              <SelectItem id="ask">Perguntar</SelectItem>
-              <SelectItem id="deny">Negar</SelectItem>
-            </Select>
-          </>
-        }
       />
       <AgentSessionsSheet open={sessionsOpen} project={project} activeSessionId={tab.sessionId} onClose={() => setSessionsOpen(false)} onSelect={selectSession} onNew={newSession} />
       <AiSettingsModal open={settingsOpen} initialTab={settingsTab} projectRoot={project.root} onClose={() => setSettingsOpen(false)} />
