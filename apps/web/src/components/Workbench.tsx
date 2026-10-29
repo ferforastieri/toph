@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { ArrowLeft, Bell, Bot, Check, ChevronDown, FolderPlus, GitBranch, Plus, Settings2, X } from "@toph/icons";
+import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { ArrowLeft, Bell, Bot, Check, ChevronDown, ChevronRight, CircleAlert, FolderGit2, FolderPlus, GitBranch, Plus, Search, Settings2, X } from "@toph/icons";
 import { api, getApiBase, type Repository, type SchemaTable, type WebTarget } from "../api";
 import { basename, expandGitPattern, languageFor, quoteIdentifier, sanitizeBranchName } from "../lib";
 import { useApp, type AppNotification, type Sidebar, type Tab } from "../store";
@@ -10,11 +10,12 @@ import ActivityBar from "./ActivityBar";
 import AvatarMenu from "./AvatarMenu";
 import MobileNav from "./MobileNav";
 import Tabs from "./Tabs";
+import TopBar from "./TopBar";
+import QuickOpen from "./QuickOpen";
 import Toasts from "./Toasts";
 import RepoPicker from "./RepoPicker";
 import ExplorerPanel from "../panels/ExplorerPanel";
 import DatabasesPanel from "../panels/DatabasesPanel";
-import AiSidebar from "../panels/AiSidebar";
 import WebSidebar from "../panels/WebSidebar";
 import EditorPanel from "../panels/EditorPanel";
 import DbPanelTab from "../panels/DbPanelTab";
@@ -24,30 +25,19 @@ import DiffPanelTab from "../panels/DiffPanelTab";
 import TerminalPanel from "../panels/TerminalPanel";
 import SourceControlPanel from "../panels/SourceControlPanel";
 import BrandMark from "@toph/brand";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Button } from "@/boardui/base/buttons/button";
+import { Input } from "@/boardui/base/input/input";
+import { Badge } from "@/boardui/base/badges/badge";
+import { Avatar } from "@/boardui/base/avatar/avatar";
+import { Checkbox } from "@/boardui/base/checkbox/checkbox";
+import { Radio, RadioGroup } from "@/boardui/base/radio/radio";
+import { Dropdown, DropdownDivider, DropdownGroup, DropdownItem, DropdownPopover, DropdownTrigger } from "@/boardui/base/dropdown/dropdown";
+import { Kbd } from "@/boardui/base/kbd/kbd";
+import { Modal } from "@/boardui/base/modal/modal";
 import ResizeHandle from "../ui/resize";
-import SettingsDialog from "./SettingsDialog";
-import { cn } from "@/lib/utils";
 import { useSettings } from "../settings";
+import { useConfirm } from "../ui/confirm";
+import { cx } from "@/boardui/utils/cx";
 import { suggestGitChanges } from "../gitAi";
 import { parseGitStatus } from "../gitStatus";
 
@@ -62,6 +52,8 @@ export default function Workbench() {
   const tabs = useApp((state) => state.tabs);
   const activeTabId = useApp((state) => state.activeTabId);
   const setTabs = useApp((state) => state.setTabs);
+  const closeTab = useApp((state) => state.closeTab);
+  const setActiveTab = useApp((state) => state.setActiveTab);
   const openTab = useApp((state) => state.openTab);
   const sidebar = useApp((state) => state.sidebar);
   const setSidebar = useApp((state) => state.setSidebar);
@@ -77,29 +69,48 @@ export default function Workbench() {
   const loadAI = useAI((state) => state.load);
   const loadModels = useAI((state) => state.loadModels);
   const aiProvider = useAI((state) => state.config?.provider);
-  const sidebarWidth = useSettings((state) => state.sidebarWidth);
   const branchPattern = useSettings((state) => state.gitBranchPattern);
+  const commitPattern = useSettings((state) => state.gitCommitPattern);
   const aiConfig = useAI((state) => state.config);
+  const sidebarWidth = useSettings((state) => state.sidebarWidth);
   const aiPanelWidth = useSettings((state) => state.aiPanelWidth);
   const updateSettings = useSettings((state) => state.update);
+  const confirm = useConfirm();
 
   const [showRepoPicker, setShowRepoPicker] = useState(false);
   const [version, setVersion] = useState("0.1.0");
   const [gitStatus, setGitStatus] = useState("");
   const [mobilePanelOpen, setMobilePanelOpen] = useState(false);
   const [projectsSheetOpen, setProjectsSheetOpen] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [settingsCategory, setSettingsCategory] = useState<"general" | "ai" | "workspace" | "git" | "server">("general");
   const [branchMenuOpen, setBranchMenuOpen] = useState(false);
+  const [gitSettingsOpen, setGitSettingsOpen] = useState(false);
+  const [quickOpenToken, setQuickOpenToken] = useState(0);
+  const [menuVisible, setMenuVisible] = useState(true);
+  const [activityVisible, setActivityVisible] = useState(true);
+  const [sidebarVisible, setSidebarVisible] = useState(true);
+  const [statusVisible, setStatusVisible] = useState(true);
+  const [layoutOpen, setLayoutOpen] = useState(false);
+  const [aboutOpen, setAboutOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [primarySideBarPosition, setPrimarySideBarPosition] = useState<"left" | "right">("left");
+  const [panelAlignment, setPanelAlignment] = useState<"left" | "right" | "center" | "justify">("justify");
+  const [quickInputPosition, setQuickInputPosition] = useState<"top" | "center">("top");
+  const tabHistory = useRef<string[]>([]);
+  const tabHistoryIndex = useRef(-1);
+  const navigatingHistory = useRef(false);
+  const [projectsMenuOpen, setProjectsMenuOpen] = useState(false);
   const [branchInfo, setBranchInfo] = useState<{ current: string; branches: string[] } | null>(null);
   const [branchBusy, setBranchBusy] = useState("");
   const [newBranchName, setNewBranchName] = useState("");
+  const [branchFilter, setBranchFilter] = useState("");
+  const [branchError, setBranchError] = useState("");
   const [searchFocusToken, setSearchFocusToken] = useState(0);
   const [cursor, setCursor] = useState({ line: 1, column: 1, language: "" });
   const loadedProject = useRef<string | null>(null);
   const mobile = document.documentElement.classList.contains("mobile-client");
 
   const project = projects.find((item) => item.id === activeProjectId) ?? null;
+  const closedProjects = projects.filter((item) => !openProjectIds.includes(item.id));
   const branch = gitStatus.split("\n")[0]?.replace(/^##\s*/, "").split("...")[0] ?? "";
   const activeTab = tabs.find((tab) => tab.id === activeTabId) ?? null;
   const unreadForProject = (projectId: string) =>
@@ -112,35 +123,78 @@ export default function Workbench() {
         return a.localeCompare(b);
       })
     : [];
+  const visibleBranches = sortedBranches.filter((name) =>
+    name.toLowerCase().includes(branchFilter.trim().toLowerCase()),
+  );
 
   useEffect(() => {
     void loadAI().then(() => loadModels());
   }, [loadAI, loadModels]);
 
   useEffect(() => {
-    const openSettings = (event: Event) => {
-      const next = (event as CustomEvent<string>).detail;
-      if (next === "general" || next === "ai" || next === "workspace" || next === "git" || next === "server") {
-        setSettingsCategory(next);
-      }
-      setSettingsOpen(true);
-    };
-    window.addEventListener("toph:open-settings", openSettings);
-    return () => window.removeEventListener("toph:open-settings", openSettings);
+    if (!activeTabId) return;
+    if (navigatingHistory.current) { navigatingHistory.current = false; return; }
+    const history = tabHistory.current;
+    const existing = history.indexOf(activeTabId);
+    const next = existing >= 0 ? history.slice(0, existing + 1) : [...history, activeTabId];
+    tabHistory.current = next.slice(-50);
+    tabHistoryIndex.current = tabHistory.current.length - 1;
+  }, [activeTabId]);
+
+  function navigateHistory(direction: -1 | 1) {
+    const nextIndex = tabHistoryIndex.current + direction;
+    const next = tabHistory.current[nextIndex];
+    if (!next) return;
+    navigatingHistory.current = true;
+    tabHistoryIndex.current = nextIndex;
+    setActiveTab(next);
+  }
+
+  useEffect(() => {
+    const openQuick = () => setQuickOpenToken((current) => current + 1);
+    window.addEventListener("toph:quick-open", openQuick);
+    return () => window.removeEventListener("toph:quick-open", openQuick);
   }, []);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "p") {
+      if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === "p") {
         event.preventDefault();
-        setSidebar("files");
+        window.dispatchEvent(new CustomEvent("toph:editor-command", { detail: { command: "editor.action.quickCommand" } }));
+        return;
+      }
+      if ((event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey && event.key.toLowerCase() === "p") {
+        event.preventDefault();
         if (mobile) {
+          setSidebar("files");
           setMobilePanelOpen(true);
           setProjectsSheetOpen(false);
           setAiPanelOpen(false);
           setTerminalOpen(false);
+          setSearchFocusToken((current) => current + 1);
+        } else {
+          setQuickOpenToken((current) => current + 1);
         }
-        setSearchFocusToken((current) => current + 1);
+        return;
+      }
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "b" && !event.altKey) {
+        event.preventDefault();
+        setSidebarVisible((value) => !value);
+        return;
+      }
+      if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === "b") {
+        event.preventDefault();
+        setAiPanelOpen(!useApp.getState().aiPanelOpen);
+        return;
+      }
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "j") {
+        event.preventDefault();
+        setTerminalOpen(!useApp.getState().terminalOpen);
+        return;
+      }
+      if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === "l") {
+        event.preventDefault();
+        setLayoutOpen(true);
         return;
       }
       if (event.key !== "Escape" || !mobile) return;
@@ -407,7 +461,7 @@ export default function Workbench() {
     let cancelled = false;
     loadedProject.current = null;
     setTabs([]);
-    setTerminalOpen(false);
+    setTerminalOpen(true);
     setSidebar("files");
     api
       .layout(activeProjectId)
@@ -430,7 +484,7 @@ export default function Workbench() {
               : layout.sidebar;
           setSidebar(savedSidebar as Sidebar);
         }
-        setTerminalOpen(Boolean(layout.terminalOpen));
+        setTerminalOpen(true);
         loadedProject.current = activeProjectId;
       })
       .catch((error) => {
@@ -525,19 +579,9 @@ export default function Workbench() {
     setTerminalOpen(false);
   }
 
-  function openMobileSettings() {
-    setMobilePanelOpen(false);
-    setAiPanelOpen(false);
-    setTerminalOpen(false);
-    setSettingsOpen(true);
-  }
 
-  function openMobileAI() {
-    setMobilePanelOpen(false);
-    setTerminalOpen(false);
-    if (aiPanelOpen) setAiPanelOpen(false);
-    else openAI();
-  }
+
+
 
   function openMobileTerminal() {
     setMobilePanelOpen(false);
@@ -545,20 +589,34 @@ export default function Workbench() {
     setTerminalOpen(!terminalOpen);
   }
 
-  async function toggleBranchMenu() {
-    if (branchMenuOpen) {
-      setBranchMenuOpen(false);
-      return;
-    }
+  async function loadBranches() {
     if (!project) return;
-    setBranchMenuOpen(true);
-    setNewBranchName("");
     setBranchInfo(null);
+    setBranchError("");
     try {
       setBranchInfo(await api.gitBranches(project.id));
     } catch (error) {
-      notify("error", error instanceof Error ? error.message : "Não foi possível listar as branches.");
+      const message = error instanceof Error ? error.message : "Não foi possível listar as branches.";
+      setBranchError(/not a git repository/i.test(message)
+        ? "Esta pasta não é um repositório Git. Abra um repositório Git para gerenciar branches."
+        : message);
+      setBranchInfo({ current: "", branches: [] });
     }
+  }
+
+  async function toggleBranchMenu() {
+    if (branchMenuOpen) {
+      setBranchMenuOpen(false);
+      setGitSettingsOpen(false);
+      return;
+    }
+    if (!project) return;
+    setGitSettingsOpen(false);
+    setBranchMenuOpen(true);
+    setNewBranchName("");
+    setBranchFilter("");
+    setBranchInfo(null);
+    void loadBranches();
   }
 
   async function checkoutBranch(name: string) {
@@ -734,40 +792,16 @@ export default function Workbench() {
     setAiPanelOpen(true);
   }
 
-  function newAiSession() {
-    if (!project) return;
-    markProjectNotificationsRead(project.id);
-    if (mobile) setMobilePanelOpen(false);
-    setAiDockTab({
-      id: `ai:dock:${project.id}`,
-      kind: "ai",
-      title: providerLabel(aiProvider),
-      projectId: project.id,
-    });
-    setAiPanelOpen(true);
-  }
-
   function toggleAI() {
-    if (aiPanelOpen) {
-      setAiPanelOpen(false);
-    } else {
-      openAI();
-    }
+    if (aiPanelOpen) setAiPanelOpen(false);
+    else openAI();
   }
 
-  function openAiSession(session: { id: string; title?: string }) {
-    if (!project) return;
-    markProjectNotificationsRead(project.id);
-    if (mobile) setMobilePanelOpen(false);
-    setAiDockTab({
-      id: `ai:dock:${project.id}`,
-      kind: "ai",
-      title: session.title ?? providerLabel(aiProvider),
-      projectId: project.id,
-      sessionId: session.id,
-    });
-    setAiPanelOpen(true);
-  }
+
+
+
+
+
 
   function openNotification(notification: AppNotification) {
     if (!notification.projectId) return;
@@ -815,7 +849,7 @@ export default function Workbench() {
       setShowRepoPicker(false);
       return;
     }
-    const next = await api.createProject(repo.name, repo.path, "#43E6A0");
+    const next = await api.createProject(repo.name, repo.path, "#FFB547");
     setActiveProject(next.id);
     setProjects([...projects, next]);
     setShowRepoPicker(false);
@@ -825,6 +859,12 @@ export default function Workbench() {
   async function closeProject(id: string) {
     const target = projects.find((item) => item.id === id);
     if (!target) return;
+    const ok = await confirm({
+      title: "Fechar projeto?",
+      message: `Fechar ${target.name}? Isso encerra terminais, abas de banco, web e agentes deste projeto. Ele continua disponível para reabrir.`,
+      confirmLabel: "Fechar projeto",
+    });
+    if (!ok) return;
     if (activeProjectId === id && loadedProject.current === id) {
       await api
         .saveLayout(id, { tabs: layoutTabs, activeTabId, sidebar, terminalOpen })
@@ -837,19 +877,26 @@ export default function Workbench() {
     }
     if (activeProjectId === id) loadedProject.current = null;
     closeProjectTab(id);
-    notify("info", `Closed ${target.name}. Terminals stopped.`);
+    notify("info", `Projeto ${target.name} fechado. Processos e abas encerrados.`);
   }
 
   if (projects.length === 0 || !project) {
     return (
-      <main className="flex min-h-dvh items-center justify-center bg-background p-4">
-        <section className="flex w-full max-w-md flex-col items-center gap-4 rounded-2xl border bg-card p-8 text-center shadow-sm">
+      <main className="flex min-h-dvh items-center justify-center p-4">
+        <section className="bg-background-primary-default flex w-full max-w-md flex-col items-center gap-4 rounded-lg border p-8 text-center">
           <BrandMark size="large" />
-          <h1 className="text-xl font-semibold">Bem-vindo ao Toph</h1>
-          <p className="text-sm text-muted-foreground">
-            {projects.length === 0 ? "Abra um repositório Git do servidor." : "Abra uma aba de projeto para continuar."}
+          <h1 className="text-title-2-medium text-text-primary">Bem-vindo ao Toph</h1>
+          <p className="text-body-regular text-text-secondary">
+            {projects.length === 0 ? "Abra um repositório Git do servidor." : "Escolha um projeto para reabrir ou abra outro repositório."}
           </p>
-          <Button onClick={() => setShowRepoPicker(true)}><FolderPlus size={15} /> Abrir repositório</Button>
+          {projects.length > 0 && (
+            <div className="flex max-h-48 w-full flex-col gap-1 overflow-y-auto">
+              {projects.map((item) => (
+                <Button key={item.id} variant="secondary" size="small" className="justify-start" leadingIcon={FolderGit2} onClick={() => switchProject(item.id)}>{item.name}</Button>
+              ))}
+            </div>
+          )}
+          <Button leadingIcon={FolderPlus} onClick={() => setShowRepoPicker(true)}>Abrir repositório</Button>
         </section>
         {showRepoPicker && <RepoPicker onClose={() => setShowRepoPicker(false)} onOpen={openRepo} />}
         <Toasts />
@@ -859,63 +906,195 @@ export default function Workbench() {
 
   const activeProjectUnread = activeUnread.length;
 
+  const SidebarContent = () => (
+    <>
+      {project && sidebar === "files" && <ExplorerPanel project={project} onOpenFile={openFile} searchFocusToken={searchFocusToken} onStatusChange={setGitStatus} />}
+      {project && sidebar === "db" && <DatabasesPanel project={project} onOpenQuery={openQuery} onOpenTable={openTable} />}
+      {project && sidebar === "scm" && <SourceControlPanel project={project} view="scm" onOpenDiff={openDiff} onStatusChange={setGitStatus} />}
+      {project && sidebar === "web" && <WebSidebar onOpenWeb={openWeb} />}
+    </>
+  );
+
+  const primaryOnLeft = primarySideBarPosition === "left";
+  const panelJustifyClass = panelAlignment === "left"
+    ? "justify-start"
+    : panelAlignment === "right"
+      ? "justify-end"
+      : panelAlignment === "center"
+        ? "justify-center"
+        : "justify-start";
+  const panelWidthClass = panelAlignment === "justify" ? "w-full" : "w-[85%]";
+
+  const primarySidebar = !mobile && sidebarVisible && activityVisible ? (
+    <div className="flex min-h-0 shrink-0 overflow-hidden rounded-3xl border border-border-button-white bg-background-primary-default shadow-sidebar">
+      <ActivityBar />
+      <aside className="flex min-h-0 w-[var(--sidebar-width)] shrink-0 flex-col overflow-hidden bg-background-primary-default">
+        <SidebarContent />
+      </aside>
+    </div>
+  ) : null;
+  const primaryResize = !mobile && sidebarVisible && activityVisible ? (
+    <ResizeHandle className="sidebar-resize" orientation="vertical" value={sidebarWidth} min={220} max={460} invert={!primaryOnLeft} label="Resize sidebar" onChange={(width) => document.documentElement.style.setProperty("--sidebar-width", `${width}px`)} onCommit={(width) => updateSettings({ sidebarWidth: width })} />
+  ) : null;
+  const aiSidebar = !mobile && project && aiDockTab && aiPanelOpen ? (
+    <aside className="flex w-[var(--ai-panel-width)] shrink-0 flex-col overflow-hidden rounded-3xl border border-border-button-white bg-background-secondary-default shadow-sidebar">
+      <AiPanelTab tab={aiDockTab} project={project} onClose={() => setAiPanelOpen(false)} />
+    </aside>
+  ) : null;
+  const aiResize = !mobile && project && aiDockTab && aiPanelOpen ? (
+    <ResizeHandle className="ai-resize" orientation="vertical" value={aiPanelWidth} min={300} max={620} invert={primaryOnLeft} label="Resize agent panel" onChange={(width) => document.documentElement.style.setProperty("--ai-panel-width", `${width}px`)} onCommit={(width) => updateSettings({ aiPanelWidth: width })} />
+  ) : null;
+
+  const headerBranch = statusVisible ? (
+    <>
+      <Button variant="ghost" size="xs" className="h-6 max-w-[190px] gap-1 px-1.5" onClick={() => void toggleBranchMenu()} aria-expanded={branchMenuOpen}>
+        <GitBranch size={12} /><span className="truncate">{branch || "detached"}</span><ChevronDown size={12} />
+      </Button>
+      <Dropdown isOpen={projectsMenuOpen} onOpenChange={setProjectsMenuOpen}>
+        <DropdownTrigger className="flex min-w-0 items-center gap-1.5 rounded-md px-1.5 py-0.5 hover:bg-background-primary-hover">
+          <Avatar size="xs" initials={project.name.slice(0, 1).toUpperCase()} className="bg-background-tertiary-default text-caption-2-semibold" style={{ color: project.color }} />
+          <span className="max-w-[110px] truncate text-caption-2-regular">{project.name}</span>
+          <Badge color="neutral" className="h-4 px-1 text-caption-2-regular">{openProjectIds.length}</Badge>
+          <ChevronDown size={12} />
+        </DropdownTrigger>
+        <DropdownPopover aria-label="Projetos abertos" placement="bottom start" className="w-80">
+          <DropdownGroup label={`Projetos abertos · ${openProjectIds.length}`}>
+            {openProjectIds.map((id) => {
+              const item = projects.find((projectItem) => projectItem.id === id);
+              if (!item) return null;
+              const unread = unreadForProject(item.id);
+              return (
+                <div key={item.id} className="flex items-center gap-1">
+                  <DropdownItem className="min-w-0 flex-1" onSelect={() => { setProjectsMenuOpen(false); switchProject(item.id); }}>
+                    <Avatar size="sm" initials={item.name.slice(0, 1).toUpperCase()} className="bg-background-tertiary-default text-caption-2-semibold" style={{ color: item.color }} />
+                    <span className="flex min-w-0 flex-1 flex-col">
+                      <span className="truncate text-body-2-medium text-text-primary">{item.name}</span>
+                      <span className="truncate text-caption-1-regular text-text-secondary">{item.root}</span>
+                    </span>
+                    {unread.length > 0 && <Badge color="primary">{unread.length > 9 ? "9+" : unread.length}</Badge>}
+                    {item.id === activeProjectId && <Check size={14} className="text-accent-500" />}
+                  </DropdownItem>
+                  <Button variant="ghost" size="xs" iconOnly leadingIcon={X} aria-label={`Fechar ${item.name}`} title="Fechar projeto" onClick={(event) => { event.stopPropagation(); setProjectsMenuOpen(false); void closeProject(item.id); }} />
+                </div>
+              );
+            })}
+          </DropdownGroup>
+          {closedProjects.length > 0 && (
+            <>
+              <DropdownDivider />
+              <DropdownGroup label="Projetos fechados">
+                {closedProjects.map((item) => (
+                  <DropdownItem key={item.id} onSelect={() => { setProjectsMenuOpen(false); switchProject(item.id); }}>
+                    <FolderGit2 size={14} />
+                    <span className="flex min-w-0 flex-1 flex-col">
+                      <span className="truncate text-body-2-medium text-text-primary">{item.name}</span>
+                      <span className="truncate text-caption-1-regular text-text-secondary">{item.root}</span>
+                    </span>
+                  </DropdownItem>
+                ))}
+              </DropdownGroup>
+            </>
+          )}
+          <DropdownDivider />
+          <DropdownGroup>
+            <DropdownItem onSelect={() => { setProjectsMenuOpen(false); setShowRepoPicker(true); }}><FolderPlus size={14} /> Abrir repositório</DropdownItem>
+          </DropdownGroup>
+        </DropdownPopover>
+      </Dropdown>
+      {activeProjectUnread > 0 && (
+        <Button variant="ghost" size="xs" className="h-6 gap-1 px-1.5" onClick={() => openLatestProjectNotification(project.id)}>
+          <Bell size={11} /> {activeProjectUnread > 9 ? "9+" : activeProjectUnread}
+        </Button>
+      )}
+    </>
+  ) : null;
+
+  const headerStatus = statusVisible ? (
+    <>
+      {activeTab?.kind === "editor" && <span>Ln {cursor.line}, Col {cursor.column}</span>}
+      {cursor.language && <span>{cursor.language}</span>}
+      <span>v{version}</span>
+    </>
+  ) : null;
+
   return (
-    <div className="flex h-dvh flex-col overflow-hidden bg-background">
+    <div className="flex h-dvh flex-col overflow-hidden bg-background-full">
       {mobile && (
-        <header className="flex h-12 shrink-0 items-center justify-between border-b bg-muted/20 px-2">
+        <header className="bg-background-secondary-default flex h-12 shrink-0 items-center justify-between border-b px-2">
           <div className="flex min-w-0 items-center gap-2">
             <button type="button" className="flex min-w-0 items-center gap-2 rounded-lg px-1.5 py-1 text-start hover:bg-accent" onClick={() => setProjectsSheetOpen(true)} aria-label="Abrir projetos">
-              <Avatar className="size-6"><AvatarFallback className="bg-primary/15 text-[10px] font-semibold text-primary" style={{ color: project.color }}>{project.name.slice(0, 1).toUpperCase()}</AvatarFallback></Avatar>
+              <Avatar size="sm" initials={project.name.slice(0, 1).toUpperCase()} className="bg-background-tertiary-default text-caption-2-semibold" style={{ color: project.color }} />
               <span className="truncate text-sm font-medium">{project.name}</span>
-              <Badge variant="secondary">{openProjectIds.length}</Badge>
+              <Badge color="neutral">{openProjectIds.length}</Badge>
               <ChevronDown size={16} className="text-muted-foreground" />
             </button>
             {activeProjectUnread > 0 && (
-              <Button variant="ghost" size="sm" className="relative" onClick={() => openLatestProjectNotification(project.id)} aria-label="Abrir notificação mais recente">
+              <Button variant="ghost" size="xs" className="relative" onClick={() => openLatestProjectNotification(project.id)} aria-label="Abrir notificação mais recente">
                 <Bell size={17} />
                 <span className="absolute -end-0.5 -top-0.5 flex min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-semibold text-primary-foreground">{activeProjectUnread > 9 ? "9+" : activeProjectUnread}</span>
               </Button>
             )}
           </div>
-          <AvatarMenu user={user} variant="titlebar" active={settingsOpen} onSettings={openMobileSettings} />
+          <AvatarMenu user={user} variant="titlebar" />
         </header>
       )}
 
-      <div className="flex min-h-0 flex-1 overflow-hidden">
-        {!mobile && <ActivityBar onOpenAI={toggleAI} onOpenSettings={() => setSettingsOpen(true)} />}
-        {!mobile && (
-          <ResizeHandle className="sidebar-resize" orientation="vertical" value={sidebarWidth} min={220} max={460} label="Resize sidebar" onChange={(width) => document.documentElement.style.setProperty("--sidebar-width", `${width}px`)} onCommit={(width) => updateSettings({ sidebarWidth: width })} />
-        )}
-        <aside
-          className={cn(
-            "flex min-h-0 min-w-0 flex-col overflow-hidden border-e bg-muted/20",
-            mobile ? (mobilePanelOpen ? "fixed inset-x-0 bottom-14 top-12 z-40 w-full border-e-0 bg-background" : "hidden") : "w-[var(--sidebar-width)] shrink-0",
-          )}
-        >
-          {mobile && mobilePanelOpen && (
-            <div className="flex h-11 shrink-0 items-center gap-2 border-b px-2">
-              <Button variant="ghost" size="icon-sm" aria-label="Voltar" onClick={() => setMobilePanelOpen(false)}><ArrowLeft size={18} /></Button>
-              <span className="text-sm font-medium">{sidebar === "db" ? "Bancos" : sidebar === "web" ? "Web apps" : "Arquivos"}</span>
-            </div>
-          )}
-          {project && sidebar === "files" && <ExplorerPanel project={project} onOpenFile={openFile} searchFocusToken={searchFocusToken} onOpenDiff={openDiff} onStatusChange={setGitStatus} />}
-          {project && sidebar === "db" && <DatabasesPanel project={project} onOpenQuery={openQuery} onOpenTable={openTable} />}
-          {project && sidebar === "ai" && <AiSidebar project={project} onNewSession={newAiSession} onOpenSession={openAiSession} />}
-          {project && sidebar === "web" && <WebSidebar onOpenWeb={openWeb} />}
-        </aside>
+      {!mobile && (
+        <TopBar
+          project={project}
+          quickOpenToken={quickOpenToken}
+          onOpenFile={openFile}
+          onOpenRepo={() => setShowRepoPicker(true)}
+          onCloseTab={() => { if (activeTabId) closeTab(activeTabId); }}
+          onBack={() => navigateHistory(-1)}
+          onForward={() => navigateHistory(1)}
+          onSidebar={setSidebar}
+          onToggleAI={toggleAI}
+          aiOpen={aiPanelOpen}
+          onToggleTerminal={() => setTerminalOpen(!useApp.getState().terminalOpen)}
+          onShowTerminal={() => setTerminalOpen(true)}
+          onCustomizeLayout={() => setLayoutOpen(true)}
+          onToggleActivity={() => setActivityVisible((value) => !value)}
+          onToggleSidebar={() => setSidebarVisible((value) => !value)}
+          sidebarVisible={sidebarVisible}
+          onToggleStatus={() => setStatusVisible((value) => !value)}
+          statusVisible={statusVisible}
+          onAbout={() => setAboutOpen(true)}
+          onShortcuts={() => setShortcutsOpen(true)}
+          menuVisible={menuVisible}
+          showQuickOpen={quickInputPosition === "top"}
+          headerLeft={headerBranch}
+          headerRight={headerStatus}
+        />
+      )}
 
-        <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
+      <div className="flex min-h-0 flex-1 gap-1 p-1">
+        {primaryOnLeft && primarySidebar}
+        {primaryOnLeft && primaryResize}
+        {!primaryOnLeft && aiSidebar}
+        {!primaryOnLeft && aiResize}
+        {mobile && mobilePanelOpen && (
+          <aside className="fixed inset-x-0 bottom-14 top-12 z-40 flex w-full flex-col overflow-hidden border-e-0 bg-background-primary-default">
+            <div className="flex h-11 shrink-0 items-center gap-2 border-b px-2">
+              <Button variant="ghost" size="xs" iconOnly leadingIcon={ArrowLeft} aria-label="Voltar" onClick={() => setMobilePanelOpen(false)} />
+              <span className="text-body-medium text-text-primary">{sidebar === "db" ? "Bancos" : sidebar === "web" ? "Web apps" : sidebar === "ai" ? "Agente" : sidebar === "scm" ? "Source Control" : "Arquivos"}</span>
+            </div>
+            <SidebarContent />
+          </aside>
+        )}
+
+        <main className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-3xl border border-border-button-white bg-background-primary-default shadow-sidebar">
           <Tabs />
           <div className="relative flex min-h-0 flex-1 overflow-hidden">
             {!activeTab && project && (
               <div className="flex h-full w-full flex-col items-center justify-center gap-4 p-8 text-center">
                 <BrandMark size="large" />
-                <h2 className="text-xl font-semibold">{project.name}</h2>
-                <p className="max-w-lg text-sm text-muted-foreground">{project.root}</p>
+                <h2 className="text-title-2-medium text-text-primary">{project.name}</h2>
+                <p className="max-w-lg text-body-regular text-text-secondary">{project.root}</p>
                 <div className="flex flex-wrap items-center justify-center gap-2">
-                  <Button variant="outline" size="sm" onClick={() => setSidebar("files")}>Explorer</Button>
-                  <Button variant="outline" size="sm" onClick={() => setSidebar("db")}>Database</Button>
-                  <Button variant="outline" size="sm" onClick={openAI}>Agente</Button>
+                  <Button variant="secondary" size="small" onClick={() => setSidebar("files")}>Explorer</Button>
+                  <Button variant="secondary" size="small" onClick={() => setSidebar("db")}>Database</Button>
+                  <Button variant="secondary" size="small" onClick={openAI}>Agente</Button>
                 </div>
               </div>
             )}
@@ -924,140 +1103,286 @@ export default function Workbench() {
             {activeTab?.kind === "ai" && project && <AiPanelTab tab={activeTab} project={project} />}
             {activeTab?.kind === "web" && <WebPanelTab tab={activeTab} />}
             {activeTab?.kind === "diff" && project && <DiffPanelTab tab={activeTab} project={project} />}
+            {quickInputPosition === "center" && !mobile && (
+              <div className="pointer-events-none absolute inset-0 z-40 flex items-center justify-center px-4">
+                <div className="pointer-events-auto w-[min(640px,82%)]">
+                  <QuickOpen project={project} focusToken={quickOpenToken} onOpenFile={openFile} floating />
+                </div>
+              </div>
+            )}
           </div>
-          {terminalOpen && project && <TerminalPanel project={project} />}
+          {project && (
+            <div className={terminalOpen ? `flex w-full shrink-0 ${panelJustifyClass}` : "hidden"}>
+              <div className={panelWidthClass}>
+                <TerminalPanel key={project.id} project={project} onOpenFile={openFile} />
+              </div>
+            </div>
+          )}
         </main>
 
-        {!mobile && project && aiPanelOpen && aiDockTab && (
-          <>
-            <ResizeHandle className="ai-resize" orientation="vertical" value={aiPanelWidth} min={300} max={620} label="Resize agent panel" onChange={(width) => document.documentElement.style.setProperty("--ai-panel-width", `${width}px`)} onCommit={(width) => updateSettings({ aiPanelWidth: width })} />
-            <aside className="flex w-[var(--ai-panel-width)] shrink-0 flex-col overflow-hidden border-s bg-muted/20">
-              <AiPanelTab tab={aiDockTab} project={project} onClose={() => setAiPanelOpen(false)} />
-            </aside>
-          </>
-        )}
+        {primaryOnLeft && aiResize}
+        {primaryOnLeft && aiSidebar}
+        {!primaryOnLeft && primaryResize}
+        {!primaryOnLeft && primarySidebar}
+
         {mobile && project && aiDockTab && aiPanelOpen && (
-          <aside className="fixed inset-x-0 bottom-14 top-12 z-40 flex flex-col overflow-hidden bg-background">
+          <aside className="fixed inset-x-0 bottom-14 top-12 z-40 flex flex-col overflow-hidden bg-background-secondary-default">
             <AiPanelTab tab={aiDockTab} project={project} onClose={() => setAiPanelOpen(false)} />
           </aside>
         )}
       </div>
 
-      {!mobile && (
-        <footer className="flex h-7 shrink-0 items-center justify-between border-t bg-muted/20 px-2 text-[11px] text-muted-foreground">
-          <div className="flex min-w-0 items-center gap-1.5">
-            <Button variant="ghost" size="xs" className="h-6 gap-1 px-1.5" onClick={() => void toggleBranchMenu()} aria-expanded={branchMenuOpen}>
-              <GitBranch size={12} /><span className="max-w-[220px] truncate">{branch || "detached"}</span><ChevronDown size={12} />
-            </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button type="button" className="flex min-w-0 items-center gap-1.5 rounded-md px-1.5 py-0.5 hover:bg-accent">
-                  <Avatar className="size-5"><AvatarFallback className="bg-primary/15 text-[9px] font-semibold text-primary" style={{ color: project.color }}>{project.name.slice(0, 1).toUpperCase()}</AvatarFallback></Avatar>
-                  <span className="max-w-[150px] truncate text-[11px]">{project.name}</span>
-                  <Badge variant="secondary" className="h-4 px-1 text-[9px]">{openProjectIds.length}</Badge>
-                  <ChevronDown size={12} />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" side="top" className="w-80">
-                <DropdownMenuLabel className="flex items-center justify-between">Projetos abertos <Badge variant="secondary">{openProjectIds.length}</Badge></DropdownMenuLabel>
-                {openProjectIds.map((id) => {
-                  const item = projects.find((projectItem) => projectItem.id === id);
-                  if (!item) return null;
-                  const unread = unreadForProject(item.id);
-                  return (
-                    <DropdownMenuItem key={item.id} onSelect={() => switchProject(item.id)} className="gap-2">
-                      <Avatar className="size-6"><AvatarFallback className="bg-primary/15 text-[10px] font-semibold text-primary" style={{ color: item.color }}>{item.name.slice(0, 1).toUpperCase()}</AvatarFallback></Avatar>
-                      <span className="flex min-w-0 flex-1 flex-col">
-                        <span className="truncate text-sm">{item.name}</span>
-                        <span className="truncate text-[11px] text-muted-foreground">{item.root}</span>
-                      </span>
-                      {unread.length > 0 && <Badge>{unread.length > 9 ? "9+" : unread.length}</Badge>}
-                      {item.id === activeProjectId && <Check size={14} className="text-primary" />}
-                    </DropdownMenuItem>
-                  );
-                })}
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onSelect={() => setShowRepoPicker(true)} className="gap-2"><FolderPlus size={14} /> Abrir repositório</DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            {activeProjectUnread > 0 && (
-              <Button variant="ghost" size="xs" className="h-6 gap-1 px-1.5" onClick={() => openLatestProjectNotification(project.id)}>
-                <Bell size={11} /> {activeProjectUnread > 9 ? "9+" : activeProjectUnread}
-              </Button>
-            )}
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
-            {activeTab?.kind === "editor" && <span>Ln {cursor.line}, Col {cursor.column}</span>}
-            {cursor.language && <span>{cursor.language}</span>}
-            <span>UTF-8</span><span>LF</span><span>v{version}</span>
-          </div>
-        </footer>
-      )}
 
-      <Dialog open={branchMenuOpen && Boolean(project)} onOpenChange={(open) => !open && setBranchMenuOpen(false)}>
-        <DialogContent className="max-h-[calc(100dvh-2rem)] max-w-[calc(100vw-2rem)] overflow-hidden p-0 sm:max-w-5xl">
-          <DialogHeader className="sr-only"><DialogTitle>Git</DialogTitle><DialogDescription>Branches e commit.</DialogDescription></DialogHeader>
-          <div className="grid min-h-[520px] grid-cols-1 md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-            <section className="flex min-h-0 flex-col border-b md:border-b-0 md:border-e">
-              <div className="flex items-center justify-between border-b px-3 py-2">
-                <div className="flex items-center gap-2"><GitBranch size={14} /><span className="text-sm font-medium">Branches</span><Badge variant="secondary">{branchInfo ? branchInfo.branches.length : "..."}</Badge></div>
-                <span className="truncate text-xs text-muted-foreground">{branchInfo?.current || branch || "detached"}</span>
-              </div>
-              <div className="min-h-0 flex-1 overflow-y-auto p-2">
-                {branchInfo ? sortedBranches.map((name) => (
-                  <Button key={name} variant={name === branchInfo.current ? "secondary" : "ghost"} className="mb-0.5 h-8 w-full justify-start px-2" disabled={Boolean(branchBusy)} onClick={() => void checkoutBranch(name)}>
-                    <GitBranch size={13} className="text-muted-foreground" /><span className="min-w-0 flex-1 truncate text-start">{name}</span>{name === branchInfo.current && <Check size={14} className="text-primary" />}
-                  </Button>
-                )) : <p className="px-2 py-6 text-center text-sm text-muted-foreground">Carregando branches...</p>}
-              </div>
-              <form className="flex flex-col gap-2 border-t p-2" onSubmit={(event) => void createBranchFromMenu(event)}>
-                <Input value={newBranchName} onChange={(event) => setNewBranchName(event.target.value)} placeholder="nome-da-branch" aria-label="Nome da nova branch" />
-                <div className="flex items-center gap-2">
-                  <Button type="button" variant="ghost" size="sm" disabled={Boolean(branchBusy)} onClick={() => void generateBranchName()}><Bot size={13} /> Gerar</Button>
-                  <Button type="submit" size="sm" className="ms-auto" disabled={!newBranchName.trim() || Boolean(branchBusy)}>Criar branch</Button>
+      <Modal
+        isOpen={branchMenuOpen && Boolean(project)}
+        onClose={() => { setBranchMenuOpen(false); setGitSettingsOpen(false); }}
+        title="Git"
+        description="Branches, alterações e commit."
+        size="full"
+        className="max-w-5xl"
+        bodyClassName="p-0"
+      >
+        <div className="grid min-h-[560px] grid-cols-1 md:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+          <section className="flex min-h-0 flex-col border-b bg-background-secondary-default/25 md:border-b-0 md:border-e">
+            <div className="flex items-center justify-between border-b px-4 py-3">
+              <div className="flex min-w-0 items-center gap-2.5">
+                <span className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-accent-500/15 text-accent-500"><GitBranch size={16} /></span>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <strong className="text-body-medium text-text-primary">Branches</strong>
+                    <Badge color="neutral">{branchInfo ? branchInfo.branches.length : "..."}</Badge>
+                  </div>
+                  <p className="truncate text-caption-1-regular text-text-secondary">{branchInfo?.current || branch || "detached"}</p>
                 </div>
-              </form>
-            </section>
-            <section className="flex min-h-0 flex-col">
-              <div className="border-b px-3 py-2 text-sm font-medium">Commit</div>
-              <div className="min-h-0 flex-1 overflow-y-auto p-2"><SourceControlPanel project={project} embedded view="commit" onOpenDiff={openDiff} onStatusChange={setGitStatus} /></div>
-            </section>
-          </div>
-        </DialogContent>
-      </Dialog>
+              </div>
+              <Button variant={gitSettingsOpen ? "secondary" : "ghost"} size="xs" iconOnly leadingIcon={Settings2} aria-label="Configurações Git" title="Configurações Git" onClick={() => setGitSettingsOpen((value) => !value)} />
+            </div>
 
-      <Dialog open={mobile && projectsSheetOpen} onOpenChange={(open) => !open && setProjectsSheetOpen(false)}>
-        <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>Projetos abertos</DialogTitle><DialogDescription>Alterne entre os projetos deste workspace.</DialogDescription></DialogHeader>
+            {gitSettingsOpen ? (
+              <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
+                <div className="flex items-center gap-2">
+                  <Button variant="ghost" size="xs" iconOnly leadingIcon={ArrowLeft} aria-label="Voltar" onClick={() => setGitSettingsOpen(false)} />
+                  <strong className="text-body-2-medium text-text-primary">Configurações Git</strong>
+                </div>
+                <Input label="Padrão de branch" value={branchPattern} onChange={(value) => updateSettings({ gitBranchPattern: value })} />
+                <Input label="Padrão de commit" value={commitPattern} onChange={(value) => updateSettings({ gitCommitPattern: value })} />
+                <p className="rounded-xl border border-border-button-default bg-background-primary-default p-3 text-caption-1-regular leading-relaxed text-text-secondary">
+                  Tokens: {"{date}"}, {"{time}"}, {"{datetime}"}, {"{repo}"}, {"{branch}"}, {"{user}"}, {"{task}"}, {"{slug}"} e {"{summary}"}.
+                </p>
+                <Button variant="secondary" size="small" className="self-start" onClick={() => setGitSettingsOpen(false)}>Voltar para branches</Button>
+              </div>
+            ) : (
+              <>
+                <div className="px-4 py-3">
+                  <Input value={branchFilter} onChange={setBranchFilter} placeholder="Filtrar branches" aria-label="Filtrar branches" leadingIcon={Search} />
+                </div>
+                <div className="min-h-0 flex-1 space-y-1 overflow-y-auto px-2 pb-2">
+                  {branchError ? (
+                    <div className="flex flex-col items-center gap-2 px-4 py-8 text-center">
+                      <span className="flex size-10 items-center justify-center rounded-full bg-rose-500/10 text-rose-500"><CircleAlert size={20} /></span>
+                      <strong className="text-body-2-medium text-text-primary">Não foi possível carregar as branches</strong>
+                      <p className="max-w-xs text-caption-1-regular text-text-secondary">{branchError}</p>
+                      <Button variant="secondary" size="small" onClick={() => void loadBranches()}>Tentar novamente</Button>
+                    </div>
+                  ) : branchInfo ? visibleBranches.map((name) => {
+                    const current = name === branchInfo.current;
+                    return (
+                      <button
+                        key={name}
+                        type="button"
+                        disabled={Boolean(branchBusy)}
+                        onClick={() => void checkoutBranch(name)}
+                        className={cx(
+                          "group flex h-10 w-full items-center gap-2.5 rounded-xl border px-2.5 text-start transition-colors disabled:cursor-not-allowed disabled:opacity-60",
+                          current
+                            ? "border-border-button-default bg-background-primary-default shadow-xs"
+                            : "border-transparent hover:border-border-button-default hover:bg-background-primary-hover",
+                        )}
+                      >
+                        <span className={cx("flex size-7 shrink-0 items-center justify-center rounded-lg", current ? "bg-accent-500/15 text-accent-500" : "bg-background-secondary-default text-foreground-icon-secondary")}>
+                          <GitBranch size={14} />
+                        </span>
+                        <span className="min-w-0 flex-1 truncate text-body-2-medium text-text-primary">{name}</span>
+                        {current ? (
+                          <span className="flex shrink-0 items-center gap-1 text-caption-1-regular text-accent-500"><Check size={13} /> atual</span>
+                        ) : (
+                          <ChevronRight size={13} className="shrink-0 text-text-tertiary opacity-0 transition-opacity group-hover:opacity-100" />
+                        )}
+                      </button>
+                    );
+                  }) : <p className="px-2 py-8 text-center text-body-regular text-text-secondary">Carregando branches...</p>}
+                  {!branchError && branchInfo && visibleBranches.length === 0 && <p className="px-2 py-8 text-center text-body-regular text-text-secondary">Nenhuma branch encontrada.</p>}
+                </div>
+                {!branchError && (
+                  <form className="flex flex-col gap-2 border-t bg-background-primary-default p-3" onSubmit={(event) => void createBranchFromMenu(event)}>
+                    <div className="flex items-center justify-between">
+                      <span className="text-caption-1-semibold uppercase tracking-wide text-text-secondary">Nova branch</span>
+                      <Button type="button" variant="ghost" size="xs" leadingIcon={Bot} disabled={Boolean(branchBusy)} onClick={() => void generateBranchName()}>Gerar nome</Button>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Input value={newBranchName} onChange={setNewBranchName} placeholder="nome-da-branch" aria-label="Nome da nova branch" />
+                      <Button type="submit" size="small" className="shrink-0" disabled={!newBranchName.trim() || Boolean(branchBusy)}>Criar</Button>
+                    </div>
+                  </form>
+                )}
+              </>
+            )}
+          </section>
+
+          <section className="flex min-h-0 flex-col">
+            <div className="border-b px-4 py-3">
+              <strong className="text-body-medium text-text-primary">Commit e alterações</strong>
+              <p className="text-caption-1-regular text-text-secondary">Revise as alterações e descreva o commit.</p>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto p-3"><SourceControlPanel project={project} embedded view="scm" onOpenDiff={openDiff} onStatusChange={setGitStatus} /></div>
+          </section>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={mobile && projectsSheetOpen}
+        onClose={() => setProjectsSheetOpen(false)}
+        title="Projetos abertos"
+        description="Alterne entre os projetos deste workspace."
+        size="sm"
+      >
           <div className="flex flex-col gap-1">
             {openProjectIds.map((id) => {
               const item = projects.find((projectItem) => projectItem.id === id);
               if (!item) return null;
               const unread = unreadForProject(item.id);
               return (
-                <div key={item.id} className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-accent">
+                <div key={item.id} className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-background-primary-hover">
                   <button type="button" className="flex min-w-0 flex-1 items-center gap-3 text-start" onClick={() => { setProjectsSheetOpen(false); switchProject(item.id); }}>
-                    <Avatar className="size-7"><AvatarFallback className="bg-primary/15 text-[10px] font-semibold text-primary" style={{ color: item.color }}>{item.name.slice(0, 1).toUpperCase()}</AvatarFallback></Avatar>
-                    <span className="flex min-w-0 flex-col"><span className="truncate text-sm">{item.name}</span><span className="truncate text-[11px] text-muted-foreground">{item.root}</span></span>
-                    {item.id === activeProjectId && <Check size={16} className="ms-auto text-primary" />}
+                    <Avatar size="sm" initials={item.name.slice(0, 1).toUpperCase()} className="bg-background-tertiary-default text-caption-2-semibold" style={{ color: item.color }} />
+                    <span className="flex min-w-0 flex-col"><span className="truncate text-body-2-medium text-text-primary">{item.name}</span><span className="truncate text-caption-1-regular text-text-secondary">{item.root}</span></span>
+                    {item.id === activeProjectId && <Check size={16} className="ms-auto text-accent-500" />}
                   </button>
-                  {unread.length > 0 && <Button variant="ghost" size="icon-sm" onClick={() => { setProjectsSheetOpen(false); switchProject(item.id); openLatestProjectNotification(item.id); }}><Bell size={15} /></Button>}
-                  <Button variant="ghost" size="icon-sm" aria-label={`Fechar ${item.name}`} onClick={() => void closeProject(item.id)}><X size={15} /></Button>
+                  {unread.length > 0 && <Button variant="ghost" size="xs" iconOnly leadingIcon={Bell} onClick={() => { setProjectsSheetOpen(false); switchProject(item.id); openLatestProjectNotification(item.id); }} />}
+                  <Button variant="ghost" size="xs" iconOnly leadingIcon={X} aria-label={`Fechar ${item.name}`} onClick={() => void closeProject(item.id)} />
                 </div>
               );
             })}
           </div>
-          <Button variant="outline" className="justify-start" onClick={() => { setProjectsSheetOpen(false); setShowRepoPicker(true); }}><Plus size={16} /> Abrir projeto</Button>
-          <DialogFooter><Button variant="ghost" size="sm" onClick={() => { setProjectsSheetOpen(false); openMobileSettings(); }}><Settings2 size={16} /> Configurações</Button></DialogFooter>
-        </DialogContent>
-      </Dialog>
+          <Button variant="secondary" className="justify-start" leadingIcon={Plus} onClick={() => { setProjectsSheetOpen(false); setShowRepoPicker(true); }}>Abrir projeto</Button>
+      </Modal>
+
+      <Modal
+        isOpen={layoutOpen}
+        onClose={() => setLayoutOpen(false)}
+        title="Customize Layout"
+        description="Visibilidade, posições e alinhamento."
+        size="sm"
+        footer={<Button variant="secondary" onClick={() => setLayoutOpen(false)}>Concluir</Button>}
+      >
+        <div className="flex flex-col gap-0.5">
+          <div className="mb-1 px-2 text-right text-caption-1-regular text-text-tertiary">Visibility</div>
+          <LayoutRow label="Menu Bar" checked={menuVisible} onChange={setMenuVisible} />
+          <LayoutRow label="Activity Bar" checked={activityVisible} onChange={setActivityVisible} />
+          <LayoutRow label="Primary Side Bar" shortcut="Ctrl+B" checked={sidebarVisible} onChange={setSidebarVisible} />
+          <LayoutRow label="Secondary Side Bar" shortcut="Ctrl+Alt+B" checked={aiPanelOpen} onChange={setAiPanelOpen} />
+          <LayoutRow label="Panel" shortcut="Ctrl+J" checked={terminalOpen} onChange={setTerminalOpen} />
+          <LayoutRow label="Status Bar" checked={statusVisible} onChange={setStatusVisible} />
+        </div>
+
+        <LayoutSection label="Primary Side Bar Position">
+          <RadioGroup className="flex flex-col gap-0.5" value={primarySideBarPosition} onChange={(value) => setPrimarySideBarPosition(value as "left" | "right")}>
+            <LayoutRadio value="left" label="Left" />
+            <LayoutRadio value="right" label="Right" />
+          </RadioGroup>
+        </LayoutSection>
+
+        <LayoutSection label="Panel Alignment">
+          <RadioGroup className="flex flex-col gap-0.5" value={panelAlignment} onChange={(value) => setPanelAlignment(value as "left" | "right" | "center" | "justify")}>
+            <LayoutRadio value="left" label="Left" />
+            <LayoutRadio value="right" label="Right" />
+            <LayoutRadio value="center" label="Center" />
+            <LayoutRadio value="justify" label="Justify" />
+          </RadioGroup>
+        </LayoutSection>
+
+        <LayoutSection label="Quick Input Position">
+          <RadioGroup className="flex flex-col gap-0.5" value={quickInputPosition} onChange={(value) => setQuickInputPosition(value as "top" | "center")}>
+            <LayoutRadio value="top" label="Top" />
+            <LayoutRadio value="center" label="Center" />
+          </RadioGroup>
+        </LayoutSection>
+      </Modal>
+
+      <Modal isOpen={aboutOpen} onClose={() => setAboutOpen(false)} title="Toph" description="Workbench self-hosted para código, dados e IA." size="sm">
+        <div className="flex flex-col items-center gap-3 py-4 text-center">
+          <BrandMark size="large" />
+          <p className="text-body-medium text-text-primary">Toph v{version}</p>
+          <p className="text-caption-1-regular text-text-secondary">Interface construída com BoardUI.</p>
+        </div>
+      </Modal>
+
+      <Modal isOpen={shortcutsOpen} onClose={() => setShortcutsOpen(false)} title="Keyboard Shortcuts" description="Atalhos principais do Toph." size="sm">
+        <div className="flex flex-col divide-y divide-separator-border">
+          {[
+            ["Busca rápida", "Ctrl+P"],
+            ["Toggle Primary Side Bar", "Ctrl+B"],
+            ["Toggle Secondary Side Bar", "Ctrl+Alt+B"],
+            ["Toggle Panel", "Ctrl+J"],
+            ["Salvar arquivo", "Ctrl+S"],
+            ["Executar", "Ctrl+Enter"],
+            ["Command Palette", "Ctrl+Shift+P"],
+            ["Customize Layout", "Ctrl+Shift+L"],
+          ].map(([label, shortcut]) => (
+            <div key={label} className="flex items-center justify-between py-2 text-body-2-regular">
+              <span className="text-text-secondary">{label}</span>
+              <span className="text-caption-1-medium text-text-primary">{shortcut}</span>
+            </div>
+          ))}
+        </div>
+      </Modal>
 
       {mobile && (
-        <MobileNav sidebar={sidebar} panelOpen={mobilePanelOpen} terminalOpen={terminalOpen} aiPanelOpen={aiPanelOpen} onSidebar={openMobileSidebar} onAI={openMobileAI} onWeb={() => openMobileSidebar("web")} onTerminal={openMobileTerminal} />
+        <MobileNav sidebar={sidebar} panelOpen={mobilePanelOpen} terminalOpen={terminalOpen} onSidebar={openMobileSidebar} onWeb={() => openMobileSidebar("web")} onTerminal={openMobileTerminal} />
       )}
       {showRepoPicker && <RepoPicker onClose={() => setShowRepoPicker(false)} onOpen={openRepo} />}
-      <SettingsDialog open={settingsOpen} onClose={() => setSettingsOpen(false)} version={version} initialCategory={settingsCategory} />
       <Toasts />
     </div>
+  );
+}
+
+
+function LayoutRow({ label, shortcut, checked, onChange }: { label: string; shortcut?: string; checked: boolean; onChange: (value: boolean) => void }) {
+  return (
+    <div className="flex h-9 items-center justify-between rounded-lg px-2 hover:bg-background-primary-hover">
+      <Checkbox isSelected={checked} onChange={onChange}>{label}</Checkbox>
+      {shortcut && <Shortcut value={shortcut} />}
+    </div>
+  );
+}
+
+function LayoutSection({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <section className="mt-3 border-t border-separator-border pt-2">
+      <div className="px-2 pb-1 text-right text-caption-1-regular text-text-tertiary">{label}</div>
+      {children}
+    </section>
+  );
+}
+
+function LayoutRadio({ value, label }: { value: string; label: string }) {
+  return (
+    <div className="flex h-8 items-center rounded-lg px-2 hover:bg-background-primary-hover">
+      <Radio value={value} className="w-full">{label}</Radio>
+    </div>
+  );
+}
+
+function Shortcut({ value }: { value: string }) {
+  const keys = value.split("+");
+  return (
+    <span className="flex items-center gap-1">
+      {keys.map((key, index) => (
+        <span key={`${key}-${index}`} className="flex items-center gap-1">
+          <Kbd>{key}</Kbd>
+          {index < keys.length - 1 && <span className="text-caption-2-regular text-text-tertiary">+</span>}
+        </span>
+      ))}
+    </span>
   );
 }

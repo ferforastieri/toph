@@ -1,11 +1,12 @@
-TOPH — NIGHT WOLF
+TOPH — AMBER
 
 Background: #000000
 Surface: #141414
 Surface 2: #1E1E1E
 Border: #282828
-Text: #C8C8C8
+Text: #F5F5F5
 Muted: #969696
-Accent: #FF50FF
-Accent 2: #DC8CFF
-Accent 3: #00DCDC
+Accent: #FFB547
+Accent 2: #FF9D0A
+Accent 3: #FF6B4A
+On accent: #1C1204

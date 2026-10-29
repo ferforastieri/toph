@@ -1,14 +1,7 @@
 import { createContext, useCallback, useContext, useRef, useState, type ReactNode } from "react";
 import { AlertTriangle } from "@toph/icons";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/boardui/base/buttons/button";
+import { Modal } from "@/boardui/base/modal/modal";
 
 interface ConfirmOptions {
   title: string;
@@ -42,23 +35,30 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
   return (
     <ConfirmContext.Provider value={confirm}>
       {children}
-      <Dialog open={Boolean(options)} onOpenChange={(open) => !open && close(false)}>
-        <DialogContent showCloseButton={false} className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              {options?.danger && <AlertTriangle size={18} className="text-destructive" />}
-              {options?.title}
-            </DialogTitle>
-            <DialogDescription>{options?.message}</DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => close(false)}>{options?.cancelLabel ?? "Cancel"}</Button>
-            <Button variant={options?.danger ? "destructive" : "default"} onClick={() => close(true)}>
-              {options?.confirmLabel ?? "Confirm"}
+      <Modal
+        isOpen={Boolean(options)}
+        onClose={() => close(false)}
+        title={
+          options?.danger ? (
+            <span className="flex items-center gap-2">
+              <AlertTriangle size={18} className="text-text-error-primary" />
+              {options.title}
+            </span>
+          ) : options?.title
+        }
+        description={options?.message}
+        size="sm"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => close(false)}>{options?.cancelLabel ?? "Cancelar"}</Button>
+            <Button variant={options?.danger ? "danger" : "primary"} onClick={() => close(true)}>
+              {options?.confirmLabel ?? "Confirmar"}
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </>
+        }
+      >
+        <span className="sr-only">{options?.message}</span>
+      </Modal>
     </ConfirmContext.Provider>
   );
 }

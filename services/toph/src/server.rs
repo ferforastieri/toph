@@ -237,7 +237,7 @@ impl AppState {
             id: new_id(),
             name,
             root: root.to_string_lossy().to_string(),
-            color: "#A8C66C".into(),
+            color: "#FFB547".into(),
             created_at: String::new(),
             updated_at: String::new(),
         };
@@ -425,7 +425,11 @@ fn router(state: Arc<AppState>) -> Router {
             "/api/projects/{project_id}/terminals",
             post(create_terminal).delete(close_terminals),
         )
+        .route("/api/terminals/shells", get(terminal_shells))
+        .route("/api/terminals/{terminal_id}", delete(close_terminal))
         .route("/api/terminals/{terminal_id}/ws", get(terminal_ws))
+        .route("/api/ports", get(list_ports))
+        .route("/api/projects/{project_id}/debug/eval", post(debug_eval))
         .route("/api/repos", get(list_repos))
         .route(
             "/api/workspaces/roots",
@@ -455,6 +459,7 @@ fn router(state: Arc<AppState>) -> Router {
             get(list_web_targets).post(create_web_target),
         )
         .route("/api/web-targets/{target_id}", delete(delete_web_target))
+        .route("/api/web-preview", get(web_preview))
         .route("/api/opencode", any(opencode_proxy_root))
         .route("/api/opencode/{*rest}", any(opencode_proxy))
         .layer(middleware::from_fn_with_state(
@@ -474,6 +479,7 @@ fn router(state: Arc<AppState>) -> Router {
 }
 
 async fn security_headers(request: Request<Body>, next: Next) -> Response {
+    let preview = request.uri().path() == "/api/web-preview";
     let mut response = next.run(request).await;
     let headers = response.headers_mut();
     headers.insert(
@@ -481,10 +487,17 @@ async fn security_headers(request: Request<Body>, next: Next) -> Response {
         HeaderValue::from_static("nosniff"),
     );
     headers.insert("Referrer-Policy", HeaderValue::from_static("same-origin"));
-    headers.insert("X-Frame-Options", HeaderValue::from_static("DENY"));
+    headers.insert(
+        "X-Frame-Options",
+        HeaderValue::from_static(if preview { "SAMEORIGIN" } else { "DENY" }),
+    );
     headers.insert(
         "Content-Security-Policy",
-        HeaderValue::from_static("frame-ancestors 'none'"),
+        HeaderValue::from_static(if preview {
+            "frame-ancestors 'self'"
+        } else {
+            "frame-ancestors 'none'"
+        }),
     );
     headers.insert(
         "Permissions-Policy",
@@ -849,7 +862,7 @@ async fn create_project(
             name: input.name,
             root: root.to_string_lossy().to_string(),
             color: if input.color.is_empty() {
-                "#A8C66C".into()
+                "#FFB547".into()
             } else {
                 input.color
             },
@@ -1343,19 +1356,40 @@ async fn persist_workspace_roots(state: &AppState) -> AppResult<()> {
         .await
 }
 
+#[derive(Debug, Deserialize, Default)]
+struct CreateTerminalInput {
+    #[serde(default)]
+    shell: Option<String>,
+}
+
 async fn create_terminal(
     State(state): State<Arc<AppState>>,
     Path(project_id): Path<String>,
+    Json(input): Json<CreateTerminalInput>,
 ) -> AppResult<Response> {
     let project = state.store.project(&project_id).await?;
-    let session = state
-        .terminals
-        .create(&project_id, FsPath::new(&project.root))?;
+    let session = state.terminals.create(
+        &project_id,
+        FsPath::new(&project.root),
+        input.shell.as_deref(),
+    )?;
     Ok((
         StatusCode::CREATED,
-        Json(json!({ "id": session.id, "projectId": project_id })),
+        Json(json!({ "id": session.id, "projectId": project_id, "shell": session.shell })),
     )
         .into_response())
+}
+
+async fn terminal_shells() -> Json<Value> {
+    Json(json!({ "shells": crate::terminal::available_shells() }))
+}
+
+async fn close_terminal(
+    State(state): State<Arc<AppState>>,
+    Path(terminal_id): Path<String>,
+) -> AppResult<Json<Value>> {
+    let closed = state.terminals.close_session(&terminal_id);
+    Ok(Json(json!({ "ok": true, "closed": closed })))
 }
 
 async fn close_terminals(
@@ -1666,6 +1700,190 @@ async fn delete_web_target(
     Ok(Json(json!({ "ok": true })))
 }
 
+#[derive(Deserialize)]
+struct WebPreviewQuery {
+    url: String,
+}
+
+const PREVIEW_SCRIPT: &str = r#"
+(function () {
+  function proxied(url) {
+    return new URL('/api/web-preview?url=' + encodeURIComponent(url), window.location.href).href;
+  }
+  document.addEventListener('click', function (event) {
+    var anchor = event.target && event.target.closest ? event.target.closest('a[href]') : null;
+    if (!anchor) return;
+    var href = anchor.getAttribute('href');
+    if (!href || href.charAt(0) === '#' || /^(javascript:|mailto:|tel:)/i.test(href)) return;
+    var absolute;
+    try { absolute = new URL(href, document.baseURI).href; } catch (error) { return; }
+    if (anchor.target === '_blank') {
+      event.preventDefault();
+      window.open(absolute, '_blank', 'noopener,noreferrer');
+      return;
+    }
+    event.preventDefault();
+    window.location.href = proxied(absolute);
+  }, true);
+})();
+"#;
+
+fn escape_preview(value: &str) -> String {
+    value
+        .replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+        .replace('\'', "&#39;")
+}
+
+fn strip_preview_tags(html: &str, remove: impl Fn(&str) -> bool) -> String {
+    let lower = html.to_ascii_lowercase();
+    let mut out = String::with_capacity(html.len());
+    let mut pos = 0;
+    while let Some(relative) = lower[pos..].find('<') {
+        let start = pos + relative;
+        let Some(end_relative) = lower[start..].find('>') else {
+            break;
+        };
+        let end = start + end_relative + 1;
+        if !remove(&lower[start..end]) {
+            out.push_str(&html[pos..end]);
+        } else {
+            out.push_str(&html[pos..start]);
+        }
+        pos = end;
+    }
+    out.push_str(&html[pos..]);
+    out
+}
+
+fn rewrite_preview_html(html: &str, base_url: &str) -> String {
+    let html = strip_preview_tags(html, |tag| tag.starts_with("<base"));
+    let html = strip_preview_tags(&html, |tag| {
+        tag.starts_with("<meta")
+            && tag.contains("http-equiv")
+            && tag.contains("content-security-policy")
+    });
+    let injected = format!(
+        "<base href=\"{}\"><script>{}</script>",
+        escape_preview(base_url),
+        PREVIEW_SCRIPT,
+    );
+    let lower = html.to_ascii_lowercase();
+    if let Some(start) = lower.find("<head") {
+        if let Some(end_relative) = lower[start..].find('>') {
+            let pos = start + end_relative + 1;
+            return format!("{}{}{}", &html[..pos], injected, &html[pos..]);
+        }
+    }
+    format!("<head>{injected}</head>{html}")
+}
+
+fn preview_error(message: &str, target: &str, status: StatusCode) -> Response {
+    let safe_target = escape_preview(target);
+    let safe_message = escape_preview(message);
+    let html = format!(
+        r#"<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Preview indisponível</title><style>
+        :root{{color-scheme:dark}}*{{box-sizing:border-box}}body{{margin:0;min-height:100vh;display:grid;place-items:center;background:#000;color:#e8e8e8;font-family:Inter,system-ui,sans-serif;padding:24px}}
+        main{{width:min(520px,100%);border:1px solid #282828;background:#141414;border-radius:24px;padding:28px;box-shadow:0 20px 60px #0008}}
+        h1{{margin:0 0 8px;font-size:20px}}p{{margin:0 0 18px;color:#aaa;line-height:1.6}}a{{display:inline-flex;border:1px solid #3c3c3c;border-radius:999px;padding:8px 14px;color:#ffb547;text-decoration:none}}code{{color:#ddd;word-break:break-all}}
+        </style></head><body><main><h1>Não foi possível abrir o preview</h1><p>{safe_message}</p><p><code>{safe_target}</code></p><a href="{safe_target}" target="_blank" rel="noreferrer">Abrir em nova aba</a></main></body></html>"#,
+    );
+    Response::builder()
+        .status(status)
+        .header(header::CONTENT_TYPE, "text/html; charset=utf-8")
+        .header(header::CACHE_CONTROL, "no-store")
+        .body(Body::from(html))
+        .unwrap_or_else(|_| StatusCode::BAD_GATEWAY.into_response())
+}
+
+async fn web_preview(
+    State(state): State<Arc<AppState>>,
+    Query(query): Query<WebPreviewQuery>,
+) -> Response {
+    let raw_url = query.url.trim();
+    let target = match reqwest::Url::parse(raw_url) {
+        Ok(url) if matches!(url.scheme(), "http" | "https") => url,
+        _ => {
+            return preview_error(
+                "O endereço precisa ser uma URL http ou https válida.",
+                raw_url,
+                StatusCode::BAD_REQUEST,
+            )
+        }
+    };
+
+    let response = match state
+        .http
+        .get(target.clone())
+        .header(
+            header::ACCEPT,
+            "text/html,application/xhtml+xml;q=0.9,*/*;q=0.5",
+        )
+        .header(
+            header::USER_AGENT,
+            "Mozilla/5.0 (compatible; TophPreview/1.0; +https://github.com/ferforastieri/toph)",
+        )
+        .send()
+        .await
+    {
+        Ok(response) => response,
+        Err(error) => {
+            tracing::warn!(%error, url = %target, "web preview fetch failed");
+            return preview_error(
+                "Não foi possível alcançar este endereço a partir do servidor.",
+                target.as_str(),
+                StatusCode::BAD_GATEWAY,
+            );
+        }
+    };
+
+    let final_url = response.url().clone();
+    let content_type = response
+        .headers()
+        .get(header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    if !content_type.contains("text/html") && !content_type.contains("application/xhtml+xml") {
+        return preview_error(
+            "Este endereço não retornou uma página HTML. Abra em uma nova aba para visualizar o conteúdo.",
+            final_url.as_str(),
+            StatusCode::UNSUPPORTED_MEDIA_TYPE,
+        );
+    }
+    if response
+        .content_length()
+        .is_some_and(|length| length > 8 * 1024 * 1024)
+    {
+        return preview_error(
+            "A página é grande demais para o preview.",
+            final_url.as_str(),
+            StatusCode::PAYLOAD_TOO_LARGE,
+        );
+    }
+    let body = match response.bytes().await {
+        Ok(body) => body,
+        Err(error) => {
+            tracing::warn!(%error, url = %final_url, "web preview body read failed");
+            return preview_error(
+                "Não foi possível ler a página para o preview.",
+                final_url.as_str(),
+                StatusCode::BAD_GATEWAY,
+            );
+        }
+    };
+    let html = String::from_utf8_lossy(&body);
+    let html = rewrite_preview_html(&html, final_url.as_str());
+    Response::builder()
+        .status(StatusCode::OK)
+        .header(header::CONTENT_TYPE, "text/html; charset=utf-8")
+        .header(header::CACHE_CONTROL, "no-store")
+        .body(Body::from(html))
+        .unwrap_or_else(|_| StatusCode::BAD_GATEWAY.into_response())
+}
+
 async fn opencode_proxy_root(
     State(state): State<Arc<AppState>>,
     method: Method,
@@ -1756,4 +1974,86 @@ fn static_response(path: &str, data: Vec<u8>) -> Response {
 // health shape without constructing an AppState manually.
 pub fn version_string() -> &'static str {
     VERSION
+}
+
+#[derive(Debug, Serialize)]
+struct PortInfo {
+    address: String,
+    port: u16,
+    protocol: String,
+}
+
+async fn list_ports() -> Json<Vec<PortInfo>> {
+    let mut ports: Vec<PortInfo> = Vec::new();
+    for (file, protocol) in [("/proc/net/tcp", "tcp"), ("/proc/net/tcp6", "tcp6")] {
+        let Ok(contents) = std::fs::read_to_string(file) else {
+            continue;
+        };
+        for line in contents.lines().skip(1) {
+            let fields: Vec<&str> = line.split_whitespace().collect();
+            if fields.len() < 4 || fields[3] != "0A" {
+                continue;
+            }
+            let Some((address_hex, port_hex)) = fields[1].split_once(':') else {
+                continue;
+            };
+            let Ok(port) = u16::from_str_radix(port_hex, 16) else {
+                continue;
+            };
+            if ports
+                .iter()
+                .any(|item| item.port == port && item.protocol == protocol)
+            {
+                continue;
+            }
+            let address = if protocol == "tcp" && address_hex.len() == 8 {
+                let value = u32::from_str_radix(address_hex, 16).unwrap_or(0);
+                let octets = value.to_le_bytes();
+                format!("{}.{}.{}.{}", octets[0], octets[1], octets[2], octets[3])
+            } else {
+                "[::]".to_string()
+            };
+            ports.push(PortInfo {
+                address,
+                port,
+                protocol: protocol.to_string(),
+            });
+        }
+    }
+    ports.sort_by_key(|item| item.port);
+    Json(ports)
+}
+
+#[derive(Debug, Deserialize)]
+struct DebugEvalInput {
+    code: String,
+}
+
+async fn debug_eval(
+    State(state): State<Arc<AppState>>,
+    Path(project_id): Path<String>,
+    Json(input): Json<DebugEvalInput>,
+) -> AppResult<Json<Value>> {
+    if input.code.len() > 20_000 {
+        return Err(crate::errors::bad_request("code is too large"));
+    }
+    let project = state.store.project(&project_id).await?;
+    let script = format!(
+        "const __toph_result = (0, eval)({}); if (__toph_result !== undefined) console.log(__toph_result);",
+        serde_json::to_string(&input.code).map_err(|error| crate::errors::internal(error.to_string()))?
+    );
+    let command = tokio::process::Command::new("node")
+        .arg("-e")
+        .arg(script)
+        .current_dir(&project.root)
+        .kill_on_drop(true)
+        .output();
+    let output = tokio::time::timeout(Duration::from_secs(10), command)
+        .await
+        .map_err(|_| crate::errors::bad_request("evaluation timed out"))??;
+    Ok(Json(json!({
+        "stdout": String::from_utf8_lossy(&output.stdout),
+        "stderr": String::from_utf8_lossy(&output.stderr),
+        "exitCode": output.status.code(),
+    })))
 }

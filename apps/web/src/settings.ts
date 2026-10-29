@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-export type Theme = "light" | "dark" | "nightwolf";
+export type Theme = "light" | "dark";
 
 export interface SettingsState {
   theme: Theme;
@@ -18,7 +18,7 @@ export interface SettingsState {
 const STORAGE_KEY = "toph_settings";
 
 export const defaultSettings = {
-  theme: "nightwolf" as Theme,
+  theme: "dark" as Theme,
   sidebarWidth: 300,
   aiPanelWidth: 390,
   terminalHeight: 280,
@@ -40,7 +40,7 @@ function readSettings() {
     const value = JSON.parse(raw) as Partial<typeof defaultSettings>;
     return {
       theme:
-        value.theme === "light" || value.theme === "dark" || value.theme === "nightwolf"
+        value.theme === "light" || value.theme === "dark"
           ? value.theme
           : defaultSettings.theme,
       sidebarWidth: numberIn(value.sidebarWidth, 220, 460, defaultSettings.sidebarWidth),
@@ -64,7 +64,6 @@ function readSettings() {
 export function applyTheme(theme: Theme): void {
   const root = document.documentElement;
   root.classList.toggle("dark", theme !== "light");
-  root.classList.toggle("theme-nightwolf", theme === "nightwolf");
   root.style.colorScheme = theme === "light" ? "light" : "dark";
   root.dataset.theme = theme;
 }

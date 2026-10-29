@@ -4,13 +4,12 @@
   "version": "0.1.0",
   "type": "module",
   "exports": {
-    ".": "./src/index.tsx",
-    "./styles.css": "./styles.css"
+    ".": "./src/index.tsx"
   },
   "peerDependencies": {
     "react": "^19.3.1"
   },
   "dependencies": {
-    "material-symbols": "^0.48.1"
+    "lucide-react": "^0.468.0"
   }
 }

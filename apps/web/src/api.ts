@@ -20,6 +20,12 @@ export interface Repository {
   relative: string;
 }
 
+export interface PortInfo {
+  address: string;
+  port: number;
+  protocol: string;
+}
+
 export interface FileEntry {
   name: string;
   path: string;
@@ -218,6 +224,10 @@ export function setApiBase(value: string): void {
 
 export function getApiBase(): string {
   return apiBase;
+}
+
+export function webPreviewUrl(url: string): string {
+  return `${apiBase}/api/web-preview?url=${encodeURIComponent(url)}`;
 }
 
 export async function probeServer(raw: string): Promise<string> {
@@ -501,16 +511,35 @@ export const api = {
     });
   },
 
-  async createTerminal(projectId: string): Promise<{ id: string; projectId: string }> {
+  async createTerminal(projectId: string, shell = "bash"): Promise<{ id: string; projectId: string; shell: string }> {
     return request(`/projects/${encodeURIComponent(projectId)}/terminals`, {
       method: "POST",
-      body: "{}",
+      body: JSON.stringify({ shell }),
     });
+  },
+
+  async terminalShells(): Promise<{ shells: string[] }> {
+    return request("/terminals/shells");
+  },
+
+  async closeTerminal(terminalId: string): Promise<{ ok: boolean; closed: boolean }> {
+    return request(`/terminals/${encodeURIComponent(terminalId)}`, { method: "DELETE" });
   },
 
   async closeProjectTerminals(projectId: string): Promise<{ ok: boolean; closed: number }> {
     return request(`/projects/${encodeURIComponent(projectId)}/terminals`, {
       method: "DELETE",
+    });
+  },
+
+  async ports(): Promise<PortInfo[]> {
+    return request("/ports");
+  },
+
+  async debugEval(projectId: string, code: string): Promise<{ stdout: string; stderr: string; exitCode: number | null }> {
+    return request(`/projects/${encodeURIComponent(projectId)}/debug/eval`, {
+      method: "POST",
+      body: JSON.stringify({ code }),
     });
   },
 

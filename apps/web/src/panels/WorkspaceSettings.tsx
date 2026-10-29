@@ -4,8 +4,9 @@ import { api } from "../api";
 import { basename } from "../lib";
 import { useApp } from "../store";
 import { useConfirm } from "../ui/confirm";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Button } from "@/boardui/base/buttons/button";
+import { Input } from "@/boardui/base/input/input";
+import { Chip } from "@/boardui/base/badges/chip";
 
 export default function WorkspaceSettings() {
   const projects = useApp((state) => state.projects);
@@ -74,7 +75,7 @@ export default function WorkspaceSettings() {
     setBusy(true);
     setError("");
     try {
-      const project = await api.createProject(projectName.trim() || basename(path), path, "#FF50FF");
+      const project = await api.createProject(projectName.trim() || basename(path), path, "#FFB547");
       const next = await api.projects();
       setProjects(next);
       setActiveProject(project.id);
@@ -98,51 +99,47 @@ export default function WorkspaceSettings() {
   return (
     <div className="flex flex-col gap-5">
       <div>
-        <h3 className="flex items-center gap-2 text-sm font-medium"><HardDrive size={16} /> Workspace</h3>
-        <p className="mt-1 text-xs text-muted-foreground">As pastas são lidas diretamente do servidor.</p>
+        <h3 className="flex items-center gap-2 text-body-medium text-text-primary"><HardDrive size={16} /> Workspace</h3>
+        <p className="mt-1 text-caption-1-regular text-text-secondary">As pastas são lidas diretamente do servidor.</p>
       </div>
 
       {current && (
-        <div className="flex items-start gap-2 rounded-xl border bg-card p-4">
-          <FolderOpen size={16} className="mt-0.5 text-muted-foreground" />
+        <div className="bg-background-secondary-default flex items-start gap-2 rounded-lg border p-4">
+          <FolderOpen size={16} className="mt-0.5 text-foreground-icon-secondary" />
           <div className="min-w-0">
-            <p className="text-sm font-medium">{current.name}</p>
-            <code className="text-xs text-muted-foreground">{current.root}</code>
+            <p className="text-body-medium text-text-primary">{current.name}</p>
+            <code className="text-caption-1-regular text-text-secondary">{current.root}</code>
           </div>
         </div>
       )}
 
-      <form className="flex flex-col gap-3 rounded-xl border bg-card p-4" onSubmit={(event) => void createProject(event)}>
-        <label className="flex flex-col gap-1.5 text-sm">Caminho da pasta<Input value={projectPath} onChange={(event) => setProjectPath(event.target.value)} placeholder="/srv/repos/my-project" /></label>
-        <label className="flex flex-col gap-1.5 text-sm">Nome do projeto<Input value={projectName} onChange={(event) => setProjectName(event.target.value)} placeholder={projectPath ? basename(projectPath) : "Opcional"} /></label>
-        <Button type="submit" className="self-start" disabled={busy || !projectPath.trim()}>
-          <Plus size={14} /> {busy ? "Abrindo..." : "Abrir como projeto"}
-        </Button>
+      <form className="bg-background-secondary-default flex flex-col gap-3 rounded-lg border p-4" onSubmit={(event) => void createProject(event)}>
+        <Input label="Caminho da pasta" value={projectPath} onChange={setProjectPath} placeholder="/srv/repos/my-project" />
+        <Input label="Nome do projeto" value={projectName} onChange={setProjectName} placeholder={projectPath ? basename(projectPath) : "Opcional"} />
+        <Button type="submit" className="self-start" disabled={busy || !projectPath.trim()} leadingIcon={Plus}>{busy ? "Abrindo..." : "Abrir como projeto"}</Button>
       </form>
 
       <section className="flex flex-col gap-2">
-        <h4 className="flex items-center gap-2 text-sm font-medium"><FolderPlus size={14} /> Pastas permitidas</h4>
+        <h4 className="flex items-center gap-2 text-body-medium text-text-primary"><FolderPlus size={14} /> Pastas permitidas</h4>
         {roots.map((value) => (
-          <div key={value} className="flex items-center gap-2 rounded-lg border bg-card px-3 py-2">
-            <code className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{value}</code>
-            <Button type="button" variant="ghost" size="icon-sm" onClick={() => void removeRoot(value)} aria-label="Remover">
-              <Trash2 size={14} />
-            </Button>
+          <div key={value} className="bg-background-secondary-default flex items-center gap-2 rounded-lg border px-3 py-2">
+            <code className="min-w-0 flex-1 truncate text-caption-1-regular text-text-secondary">{value}</code>
+            <Button type="button" variant="ghost" size="xs" iconOnly leadingIcon={Trash2} onClick={() => void removeRoot(value)} aria-label="Remover" />
           </div>
         ))}
-        {roots.length === 0 && <p className="rounded-lg border border-dashed px-3 py-6 text-center text-xs text-muted-foreground">Nenhuma pasta configurada.</p>}
+        {roots.length === 0 && <p className="rounded-lg border border-dashed border-border-button-default px-3 py-6 text-center text-caption-1-regular text-text-secondary">Nenhuma pasta configurada.</p>}
       </section>
 
       <form className="flex items-end gap-2" onSubmit={(event) => void addRoot(event)}>
-        <Input value={root} onChange={(event) => setRoot(event.target.value)} placeholder="/srv/repos" className="flex-1" />
-        <Button type="submit" variant="outline" disabled={busy || !root.trim()}><FolderPlus size={14} /> Adicionar</Button>
+        <Input value={root} onChange={setRoot} placeholder="/srv/repos" className="flex-1" />
+        <Button type="submit" variant="secondary" disabled={busy || !root.trim()} leadingIcon={FolderPlus}>Adicionar</Button>
       </form>
 
-      <div className="flex items-start gap-2 rounded-lg bg-muted px-3 py-2 text-xs text-muted-foreground">
-        <AlertTriangle size={14} className="mt-0.5 shrink-0 text-amber-500" />
+      <div className="flex items-start gap-2 rounded-lg bg-background-tertiary-default px-3 py-2 text-caption-1-regular text-text-secondary">
+        <AlertTriangle size={14} className="mt-0.5 shrink-0 text-status-yellow-text" />
         Adicione apenas diretórios confiáveis. O servidor pode ler e escrever dentro deles.
       </div>
-      {error && <div className="rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive">{error}</div>}
+      {error && <Chip color="rose" variant="subtle" className="justify-start whitespace-normal px-2 py-1.5">{error}</Chip>}
     </div>
   );
 }

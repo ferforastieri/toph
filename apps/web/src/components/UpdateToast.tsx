@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { X } from "@toph/icons";
 import { api, ApiError, type UpdateInstaller, type UpdateStatus } from "../api";
-import { Button } from "@/components/ui/button";
+import { Notification, NotificationViewport } from "@/boardui/base/notification/notification";
 
 type Phase = "idle" | "updating" | "error";
 
@@ -209,20 +208,21 @@ export default function UpdateToast() {
   const updating = phase === "updating";
   const failed = phase === "error";
   return (
-    <div className={`fixed bottom-10 end-3 z-50 w-[min(400px,calc(100vw-24px))] rounded-xl border bg-popover p-3 text-popover-foreground shadow-lg ${failed ? "border-destructive/50" : ""}`} role="status">
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex min-w-0 flex-col gap-1">
-          <strong className="text-sm">{updating ? "Atualizando o Toph..." : failed ? "Falha na atualização" : `Toph v${status?.latestVersion ?? ""} disponível`}</strong>
-          <span className="text-xs text-muted-foreground">
+    <NotificationViewport position="bottom-end">
+      <Notification
+        title={updating ? "Atualizando o Toph..." : failed ? "Falha na atualização" : `Toph v${status?.latestVersion ?? ""} disponível`}
+        description={
+          <>
             {updating ? (mobile ? "Atualizando o servidor e baixando o novo APK." : desktopInstaller ? `Baixando ${desktopInstaller.name} e atualizando o servidor.` : "Atualizando o servidor e recarregando os clientes web.") : failed ? error : mobile ? "Atualize o servidor e baixe o APK mais recente." : desktopInstaller ? `Atualize o servidor e baixe o instalador desktop${desktopLabel ? ` (${desktopLabel})` : ""}.` : "Atualize o servidor e recarregue os clientes web."}
-          </span>
-          {downloadedPath && !failed && <small className="text-[10px] text-muted-foreground">Instalador salvo em {downloadedPath}</small>}
-        </div>
-        <div className="flex shrink-0 items-center gap-1">
-          {!updating && <Button size="sm" onClick={() => void update()}>{failed ? "Tentar novamente" : "Atualizar"}</Button>}
-          {!updating && <Button variant="ghost" size="icon-xs" aria-label="Dismiss" onClick={() => { if (status) dismissed.current = status.latestVersion; setPhase("idle"); setStatus(null); }}><X size={14} /></Button>}
-        </div>
-      </div>
-    </div>
+            {downloadedPath && !failed ? <span className="mt-1 block text-caption-1-regular text-text-tertiary">Instalador salvo em {downloadedPath}</span> : null}
+          </>
+        }
+        status={failed ? "error" : "information"}
+        dismissible={!updating}
+        onDismiss={() => { if (status) dismissed.current = status.latestVersion; setPhase("idle"); setStatus(null); }}
+        actions={!updating ? [{ label: failed ? "Tentar novamente" : "Atualizar", onClick: () => void update() }] : undefined}
+        className="w-full"
+      />
+    </NotificationViewport>
   );
 }

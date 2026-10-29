@@ -3,13 +3,13 @@ import { ChevronDown, ChevronRight, Database, Folder, Play, Plus, Table2, Trash2
 import { api, type DBProfile, type Project, type SchemaTable } from "../api";
 import { useApp } from "../store";
 import { useConfirm } from "../ui/confirm";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Button } from "@/boardui/base/buttons/button";
+import { Input } from "@/boardui/base/input/input";
+import { Checkbox } from "@/boardui/base/checkbox/checkbox";
+import { Badge } from "@/boardui/base/badges/badge";
+import { Select, SelectItem } from "@/boardui/base/select/select";
+import { Chip } from "@/boardui/base/badges/chip";
 import { useProjectEvents } from "../projectEvents";
-import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 
 interface Props {
   project: Project;
@@ -56,12 +56,12 @@ export default function DatabasesPanel({ project, onOpenQuery, onOpenTable }: Pr
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex h-9 shrink-0 items-center justify-between border-b px-2">
-        <span className="text-xs font-medium text-muted-foreground">Databases</span>
-        <Button variant="ghost" size="icon-xs" aria-label="Nova conexão" onClick={() => setShowForm((value) => !value)}><Plus size={15} /></Button>
+        <span className="text-caption-1-medium text-text-secondary">Databases</span>
+        <Button variant="ghost" size="xs" iconOnly leadingIcon={Plus} aria-label="Nova conexão" onClick={() => setShowForm((value) => !value)} />
       </div>
       {showForm && <ConnectionForm projectRoot={project.root} onCreated={() => { setShowForm(false); void load(); }} />}
-      {busy && <p className="px-3 py-2 text-xs text-muted-foreground">Carregando...</p>}
-      {error && <p className="mx-2 mt-2 rounded-md bg-destructive/10 px-2 py-1 text-xs text-destructive">{error}</p>}
+      {busy && <p className="px-3 py-2 text-caption-1-regular text-text-secondary">Carregando...</p>}
+      {error && <Chip color="rose" variant="subtle" className="mx-2 mt-2 justify-start whitespace-normal px-2 py-1">{error}</Chip>}
       <div className="min-h-0 flex-1 overflow-y-auto p-1">
         {(() => {
           let lastFolder = "";
@@ -77,22 +77,22 @@ export default function DatabasesPanel({ project, onOpenQuery, onOpenTable }: Pr
                   </div>
                 )}
                 <div className="group flex items-center gap-0.5 px-1">
-                  <Button variant="ghost" size="sm" className="h-8 min-w-0 flex-1 justify-start px-1.5" onClick={() => void toggle(profile)}>
+                  <Button variant="ghost" size="small" className="h-8 min-w-0 flex-1 justify-start px-1.5" onClick={() => void toggle(profile)}>
                     {expanded[profile.id] ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
                     <Database size={15} className="text-muted-foreground" />
-                    <span className="truncate text-xs">{profile.name}</span>
-                    <Badge variant="outline" className="px-1 text-[9px] uppercase">{profile.driver}</Badge>
+                    <span className="truncate text-caption-1-regular">{profile.name}</span>
+                    <Badge color="neutral" className="px-1 text-[9px] uppercase">{profile.driver}</Badge>
                   </Button>
                   <span className="flex shrink-0 opacity-0 group-hover:opacity-100">
-                    <Button variant="ghost" size="icon-xs" aria-label="Nova query" onClick={() => onOpenQuery(profile.id, "")}><Play size={13} /></Button>
-                    <Button variant="ghost" size="icon-xs" aria-label="Testar conexão" onClick={() => { api.testDBProfile(profile.id).then(() => notify("success", `${profile.name} is reachable.`)).catch((err) => notify("error", err instanceof Error ? err.message : "Connection failed.")); }}><Wifi size={13} /></Button>
-                    <Button variant="ghost" size="icon-xs" aria-label="Excluir conexão" onClick={async () => { const ok = await confirm({ title: "Excluir conexão?", message: `Excluir "${profile.name}" deste workspace?`, confirmLabel: "Excluir", danger: true }); if (!ok) return; try { await api.deleteDBProfile(profile.id); await load(); } catch (err) { notify("error", err instanceof Error ? err.message : "Could not delete."); } }}><Trash2 size={13} /></Button>
+                    <Button variant="ghost" size="xs" aria-label="Nova query" onClick={() => onOpenQuery(profile.id, "")}><Play size={13} /></Button>
+                    <Button variant="ghost" size="xs" aria-label="Testar conexão" onClick={() => { api.testDBProfile(profile.id).then(() => notify("success", `${profile.name} is reachable.`)).catch((err) => notify("error", err instanceof Error ? err.message : "Connection failed.")); }}><Wifi size={13} /></Button>
+                    <Button variant="ghost" size="xs" aria-label="Excluir conexão" onClick={async () => { const ok = await confirm({ title: "Excluir conexão?", message: `Excluir "${profile.name}" deste workspace?`, confirmLabel: "Excluir", danger: true }); if (!ok) return; try { await api.deleteDBProfile(profile.id); await load(); } catch (err) { notify("error", err instanceof Error ? err.message : "Could not delete."); } }}><Trash2 size={13} /></Button>
                   </span>
                 </div>
                 {expanded[profile.id] && (
                   <div className="ms-5 border-s ps-1">
-                    {schemas[profile.id] === undefined && <div className="px-2 py-1 text-[11px] text-muted-foreground">Lendo schema...</div>}
-                    {schemas[profile.id]?.length === 0 && <div className="px-2 py-1 text-[11px] text-muted-foreground">Sem tabelas.</div>}
+                    {schemas[profile.id] === undefined && <div className="px-2 py-1 text-caption-1-regular text-text-secondary">Lendo schema...</div>}
+                    {schemas[profile.id]?.length === 0 && <div className="px-2 py-1 text-caption-1-regular text-text-secondary">Sem tabelas.</div>}
                     {(() => {
                       let lastSchema = "";
                       return schemas[profile.id]?.map((table) => {
@@ -104,16 +104,16 @@ export default function DatabasesPanel({ project, onOpenQuery, onOpenTable }: Pr
                           <Fragment key={key}>
                             {showSchema && <div className="flex items-center gap-1.5 px-2 pb-0.5 pt-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground"><Database size={11} /><span>{table.schema || "default"}</span></div>}
                             <div className="flex items-center gap-0.5">
-                              <Button variant="ghost" size="icon-xs" aria-label={open ? "Ocultar colunas" : "Mostrar colunas"} onClick={() => setExpandedTables((value) => ({ ...value, [key]: !open }))}>{open ? <ChevronDown size={12} /> : <ChevronRight size={12} />}</Button>
-                              <Button variant="ghost" size="sm" className="h-7 min-w-0 flex-1 justify-start px-1" onClick={() => onOpenTable(profile.id, table, profile.driver)} title={`Open ${table.schema}.${table.name}`}>
-                                <Table2 size={14} className="text-muted-foreground" /><span className="truncate text-[11px]">{table.name}</span><span className="text-[10px] text-muted-foreground">{table.columns.length}</span>
+                              <Button variant="ghost" size="xs" aria-label={open ? "Ocultar colunas" : "Mostrar colunas"} onClick={() => setExpandedTables((value) => ({ ...value, [key]: !open }))}>{open ? <ChevronDown size={12} /> : <ChevronRight size={12} />}</Button>
+                              <Button variant="ghost" size="small" className="h-7 min-w-0 flex-1 justify-start px-1" onClick={() => onOpenTable(profile.id, table, profile.driver)} title={`Open ${table.schema}.${table.name}`}>
+                                <Table2 size={14} className="text-muted-foreground" /><span className="truncate text-caption-1-regular">{table.name}</span><span className="text-caption-2-regular text-text-secondary">{table.columns.length}</span>
                               </Button>
                             </div>
                             {open && (
                               <div className="ms-4 flex flex-col gap-0.5 pb-1">
                                 {table.columns.map((column) => (
                                   <div className="flex items-center gap-2 px-2 text-[10px]" key={`${key}:${column.name}`}>
-                                    <span className="min-w-0 flex-1 truncate">{column.name}</span><span className="truncate text-muted-foreground">{column.type}</span>{column.primary && <span className="text-primary">PK</span>}{column.nullable && <span className="text-muted-foreground">NULL</span>}
+                                    <span className="min-w-0 flex-1 truncate">{column.name}</span><span className="truncate text-text-secondary">{column.type}</span>{column.primary && <span className="text-accent-500">PK</span>}{column.nullable && <span className="text-text-secondary">NULL</span>}
                                   </div>
                                 ))}
                               </div>
@@ -129,10 +129,12 @@ export default function DatabasesPanel({ project, onOpenQuery, onOpenTable }: Pr
           });
         })()}
         {!busy && profiles.length === 0 && !showForm && (
-          <Empty className="border-0">
-            <EmptyHeader><EmptyMedia variant="icon"><Database size={20} /></EmptyMedia><EmptyTitle>Nenhuma conexão</EmptyTitle><EmptyDescription>Adicione um banco para consultar tabelas e rodar SQL.</EmptyDescription></EmptyHeader>
-            <EmptyContent><Button variant="outline" size="sm" onClick={() => setShowForm(true)}>Adicionar conexão</Button></EmptyContent>
-          </Empty>
+          <div className="bg-background-secondary-default m-1 flex flex-col items-center gap-2 rounded-lg border p-6 text-center">
+            <span className="flex size-9 items-center justify-center rounded-full bg-background-tertiary-default text-foreground-icon-secondary"><Database size={20} /></span>
+            <strong className="text-body-medium text-text-primary">Nenhuma conexão</strong>
+            <p className="text-caption-1-regular text-text-secondary">Adicione um banco para consultar tabelas e rodar SQL.</p>
+            <Button variant="secondary" size="small" onClick={() => setShowForm(true)}>Adicionar conexão</Button>
+          </div>
         )}
       </div>
     </div>
@@ -161,17 +163,14 @@ function ConnectionForm({ projectRoot, onCreated }: { projectRoot: string; onCre
   }
   return (
     <form className="flex shrink-0 flex-col gap-2 border-b p-2" onSubmit={submit}>
-      <Input placeholder="Connection name" value={name} onChange={(event) => setName(event.target.value)} required />
-      <Input placeholder="Folder (optional)" value={folder} onChange={(event) => setFolder(event.target.value)} />
-      <Select value={driver} onValueChange={setDriver}>
-        <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
-        <SelectContent>
-          {[["postgres","PostgreSQL"],["mysql","MySQL / MariaDB"],["sqlite","SQLite"],["sqlserver","SQL Server"],["oracle","Oracle"],["clickhouse","ClickHouse"],["mongodb","MongoDB"],["redis","Redis"],["cassandra","Cassandra"],["elasticsearch","Elasticsearch"],["neo4j","Neo4j"]].map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}
-        </SelectContent>
+      <Input placeholder="Connection name" value={name} onChange={setName} isRequired />
+      <Input placeholder="Folder (optional)" value={folder} onChange={setFolder} />
+      <Select selectedKey={driver} onSelectionChange={(key) => setDriver(String(key))} aria-label="Driver" className="w-full">
+        {[["postgres","PostgreSQL"],["mysql","MySQL / MariaDB"],["sqlite","SQLite"],["sqlserver","SQL Server"],["oracle","Oracle"],["clickhouse","ClickHouse"],["mongodb","MongoDB"],["redis","Redis"],["cassandra","Cassandra"],["elasticsearch","Elasticsearch"],["neo4j","Neo4j"]].map(([value, label]) => <SelectItem key={value} id={value}>{label}</SelectItem>)}
       </Select>
-      <Input placeholder={hints[driver]} value={dsn} onChange={(event) => setDsn(event.target.value)} required />
-      <label className="flex items-center gap-2 text-xs"><Checkbox checked={readOnly} onCheckedChange={(value) => setReadOnly(value === true)} /> Somente leitura</label>
-      <Button size="sm" disabled={busy}>{busy ? "Adicionando..." : "Adicionar conexão"}</Button>
+      <Input placeholder={hints[driver]} value={dsn} onChange={setDsn} isRequired />
+      <Checkbox isSelected={readOnly} onChange={setReadOnly}>Somente leitura</Checkbox>
+      <Button size="small" disabled={busy} className="w-full">{busy ? "Adicionando..." : "Adicionar conexão"}</Button>
     </form>
   );
 }

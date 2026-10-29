@@ -7,7 +7,7 @@ import {
   Minus,
   Plus,
   Bot,
-  Trash2,
+  FileDiff,
   Undo2,
 } from "@toph/icons";
 import { api, type Project } from "../api";
@@ -17,19 +17,32 @@ import { parseGitStatus, statusLabel } from "../gitStatus";
 import { useSettings } from "../settings";
 import { useApp } from "../store";
 import { useAI } from "../ai";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
+import { usePet } from "../pet";
+import { Button } from "@/boardui/base/buttons/button";
+import { Textarea } from "@/boardui/base/textarea/textarea";
+import { Badge } from "@/boardui/base/badges/badge";
 import FileIcon from "../ui/FileIcon";
+import GitStatusIcon from "../ui/GitStatusIcon";
 import { useConfirm } from "../ui/confirm";
 import { useProjectEvents } from "../projectEvents";
+
+
+function changeName(path: string): string {
+  return path.split("/").pop() || path;
+}
+
+function changeDir(path: string): string {
+  const parts = path.split("/");
+  parts.pop();
+  return parts.join("/");
+}
 
 interface Props {
   project: Project;
   onOpenDiff: (path: string, staged: boolean) => void;
   embedded?: boolean;
   onStatusChange?: (status: string) => void;
-  view?: "full" | "changes" | "commit";
+  view?: "full" | "changes" | "commit" | "scm";
 }
 
 export default function SourceControlPanel({
@@ -152,9 +165,11 @@ export default function SourceControlPanel({
     try {
       const finalMessage = message.trim() || await buildCommitMessage();
       await api.gitCommit(project.id, finalMessage);
+      const petEnabled = usePet.getState().enabled;
+      usePet.getState().feed();
       setMessage("");
       await load();
-      notify("success", "Changes committed.");
+      notify("success", petEnabled ? "Changes committed. Seu pet foi alimentado." : "Changes committed.");
     } catch (err) {
       notify("error", err instanceof Error ? err.message : "Could not commit changes.");
     } finally {
@@ -242,63 +257,88 @@ export default function SourceControlPanel({
 
   return (
     <div className="flex min-h-0 flex-col">
-      {!embedded && <div className="flex h-9 shrink-0 items-center border-b px-3 text-xs font-medium text-muted-foreground">Source Control</div>}
+      {!embedded && (
+        <div className="flex h-9 shrink-0 items-center border-b px-3 text-body-2-medium text-text-secondary">
+          Source Control
+        </div>
+      )}
       {showBranch && (
         <div className="flex shrink-0 items-center gap-1.5 border-b px-2 py-1.5">
           <GitBranch size={13} className="shrink-0 text-muted-foreground" />
           <span className="min-w-0 flex-1 truncate text-xs">{parsed.branch || "detached"}</span>
-          <Badge variant="secondary">{parsed.changes.length}</Badge>
-          <Button variant="ghost" size="icon-xs" aria-label={changesOpen ? "Recolher alterações" : "Expandir alterações"} onClick={() => setChangesOpen((current) => !current)}>
+          <Badge color="neutral">{parsed.changes.length}</Badge>
+          <Button variant="ghost" size="xs" aria-label={changesOpen ? "Recolher alterações" : "Expandir alterações"} onClick={() => setChangesOpen((current) => !current)}>
             {changesOpen ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
           </Button>
-          <Button variant="ghost" size="icon-xs" aria-label="Discard all changes" disabled={Boolean(busy) || parsed.changes.length === 0} onClick={() => void discardAll()}><Undo2 size={13} /></Button>
-          <Button variant="ghost" size="icon-xs" aria-label="Create branch from pattern" disabled={Boolean(busy)} onClick={() => void createBranch()}><GitBranch size={13} /></Button>
+          <Button variant="ghost" size="xs" aria-label="Discard all changes" disabled={Boolean(busy) || parsed.changes.length === 0} onClick={() => void discardAll()}><Undo2 size={13} /></Button>
+          <Button variant="ghost" size="xs" aria-label="Create branch from pattern" disabled={Boolean(busy)} onClick={() => void createBranch()}><GitBranch size={13} /></Button>
         </div>
       )}
       {error && <div className="mx-2 mt-2 rounded-md bg-destructive/10 px-2 py-1 text-[11px] text-destructive">{error}</div>}
       {showCommit && (
-        <div className="flex shrink-0 flex-col gap-2 border-b p-2">
-          <div className="relative">
-            <Textarea value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Message (Ctrl+Enter to commit)" aria-label="Commit message" rows={3} className="pe-9" onKeyDown={(event) => { if ((event.ctrlKey || event.metaKey) && event.key === "Enter") void commit(); }} />
-            <Button type="button" variant="ghost" size="icon-xs" className="absolute end-1.5 top-1.5" aria-label="Generate message from pattern" disabled={Boolean(busy)} onClick={() => void generateMessage()}><Bot size={13} /></Button>
+        <div
+          className="flex shrink-0 flex-col gap-2 border-b p-2"
+          onKeyDownCapture={(event) => { if ((event.ctrlKey || event.metaKey) && event.key === "Enter") { event.preventDefault(); void commit(); } }}
+        >
+          <div className="relative w-full">
+            <Textarea value={message} onChange={setMessage} placeholder={`Message (Ctrl+Enter to commit on "${parsed.branch || "detached"}")`} aria-label="Commit message" rows={1} className="pe-9" fieldClassName="w-full" />
+            <Button type="button" variant="ghost" size="xs" iconOnly leadingIcon={Bot} className="absolute end-1.5 top-1.5" aria-label="Generate message from pattern" title="Generate commit message" disabled={Boolean(busy)} onClick={() => void generateMessage()} />
           </div>
-          <Button size="sm" className="w-full" disabled={staged.length === 0 || Boolean(busy)} onClick={() => void commit()}><Check size={13} /> Commit</Button>
+          <Button size="small" className="w-full justify-center" disabled={staged.length === 0 || Boolean(busy)} onClick={() => void commit()} leadingIcon={Check}>Commit</Button>
         </div>
       )}
       {showChanges && (view === "changes" || changesOpen) && (
         <div className="min-h-0 flex-1 overflow-y-auto">
           {staged.length > 0 && (
             <section className="border-b pb-1">
-              <div className="flex h-8 items-center justify-between px-2"><span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Alterações preparadas</span><span className="flex items-center gap-0.5"><Button variant="ghost" size="icon-xs" aria-label="Unstage all" onClick={() => void unstage(staged.map((change) => change.path))}><Minus size={13} /></Button><Button variant="ghost" size="icon-xs" aria-label="Discard all staged changes" onClick={() => void discard(staged.map((change) => change.path), true)}><Trash2 size={13} /></Button></span></div>
+              <div className="flex h-8 items-center justify-between px-2">
+                <span className="text-caption-1-semibold uppercase tracking-wide text-text-secondary">Staged Changes</span>
+                <span className="flex items-center gap-1">
+                  <Button variant="ghost" size="xs" iconOnly leadingIcon={Minus} aria-label="Unstage all" title="Unstage all" onClick={() => void unstage(staged.map((change) => change.path))} />
+                  <Button variant="ghost" size="xs" iconOnly leadingIcon={Undo2} aria-label="Discard all staged changes" title="Discard all staged changes" onClick={() => void discard(staged.map((change) => change.path), true)} />
+                  <span className="flex size-5 items-center justify-center rounded-full bg-background-tertiary-default text-caption-2-semibold text-text-secondary">{staged.length}</span>
+                </span>
+              </div>
               {staged.map((change) => (
-                <div className="group flex items-center gap-0.5 px-1" key={`staged:${change.path}`}>
-                  <Button variant="ghost" size="sm" className="h-7 min-w-0 flex-1 justify-start px-1.5" title={change.path} onClick={() => onOpenDiff(change.path, true)}>
-                    <span className="w-3 text-center text-[10px] font-semibold text-emerald-500">{statusLabel(change)}</span>
-                    <FileIcon name={change.path} path={change.path} size={13} />
-                    <span className="truncate text-[11px]">{change.path}</span>
+                <div className="group relative flex h-8 items-center gap-0.5 px-1" key={`staged:${change.path}`}>
+                  <Button variant="ghost" size="small" className="h-8 min-w-0 flex-1 justify-start gap-1.5 px-1.5 pe-9" title={change.path} onClick={() => onOpenDiff(change.path, true)}>
+                    <FileIcon name={change.path} path={change.path} size={14} />
+                    <span className="shrink-0 truncate text-body-2-medium text-text-primary">{changeName(change.path)}</span>
+                    <span className="min-w-0 flex-1 truncate text-caption-1-regular text-text-tertiary">{changeDir(change.path)}</span>
                   </Button>
-                  <span className="flex shrink-0 opacity-0 group-hover:opacity-100">
-                    <Button variant="ghost" size="icon-xs" aria-label="Unstage" onClick={() => void unstage([change.path])}><Minus size={12} /></Button>
-                    <Button variant="ghost" size="icon-xs" aria-label="Discard changes" onClick={() => void discard([change.path], true)}><Trash2 size={12} /></Button>
+                  <span className="absolute end-6 top-1/2 hidden -translate-y-1/2 items-center gap-0.5 bg-background-primary-default ps-1 group-hover:flex">
+                    <Button variant="ghost" size="xs" iconOnly leadingIcon={FileDiff} aria-label="Open changes" title="Open changes" onClick={() => onOpenDiff(change.path, true)} />
+                    <Button variant="ghost" size="xs" iconOnly leadingIcon={Minus} aria-label="Unstage" title="Unstage" onClick={() => void unstage([change.path])} />
+                    <Button variant="ghost" size="xs" iconOnly leadingIcon={Undo2} aria-label="Discard changes" title="Discard changes" onClick={() => void discard([change.path], true)} />
                   </span>
+                  <GitStatusIcon status={statusLabel(change)} staged size={13} className="me-0.5" />
                 </div>
               ))}
             </section>
           )}
           <section className="pb-1">
-            <div className="flex h-8 items-center justify-between px-2"><span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Alterações</span>{unstaged.length > 0 && <span className="flex items-center gap-0.5"><Button variant="ghost" size="icon-xs" aria-label="Stage all" onClick={() => void stage(unstaged.map((change) => change.path))}><Plus size={13} /></Button><Button variant="ghost" size="icon-xs" aria-label="Discard all changes" onClick={() => void discard(unstaged.map((change) => change.path), false)}><Trash2 size={13} /></Button></span>}</div>
+            <div className="flex h-8 items-center justify-between px-2">
+              <span className="text-caption-1-semibold uppercase tracking-wide text-text-secondary">Changes</span>
+              <span className="flex items-center gap-1">
+                <Button variant="ghost" size="xs" iconOnly leadingIcon={Undo2} aria-label="Discard all changes" title="Discard all changes" disabled={unstaged.length === 0} onClick={() => void discard(unstaged.map((change) => change.path), false)} />
+                <Button variant="ghost" size="xs" iconOnly leadingIcon={Plus} aria-label="Stage all" title="Stage all" disabled={unstaged.length === 0} onClick={() => void stage(unstaged.map((change) => change.path))} />
+                <span className="flex size-5 items-center justify-center rounded-full bg-background-tertiary-default text-caption-2-semibold text-text-secondary">{unstaged.length}</span>
+              </span>
+            </div>
             {unstaged.length === 0 && staged.length === 0 && !error && <div className="px-2 py-3 text-[11px] text-muted-foreground">Nenhuma alteração.</div>}
             {unstaged.map((change) => (
-              <div className="group flex items-center gap-0.5 px-1" key={`unstaged:${change.path}`}>
-                <Button variant="ghost" size="sm" className="h-7 min-w-0 flex-1 justify-start px-1.5" title={change.path} onClick={() => onOpenDiff(change.path, false)}>
-                  <span className="w-3 text-center text-[10px] font-semibold text-amber-500">{change.index === "?" ? "U" : statusLabel(change)}</span>
-                  <FileIcon name={change.path} path={change.path} size={13} />
-                  <span className="truncate text-[11px]">{change.path}</span>
+              <div className="group relative flex h-8 items-center gap-0.5 px-1" key={`unstaged:${change.path}`}>
+                <Button variant="ghost" size="small" className="h-8 min-w-0 flex-1 justify-start gap-1.5 px-1.5 pe-9" title={change.path} onClick={() => onOpenDiff(change.path, false)}>
+                  <FileIcon name={change.path} path={change.path} size={14} />
+                  <span className="shrink-0 truncate text-body-2-medium text-text-primary">{changeName(change.path)}</span>
+                  <span className="min-w-0 flex-1 truncate text-caption-1-regular text-text-tertiary">{changeDir(change.path)}</span>
                 </Button>
-                <span className="flex shrink-0 opacity-0 group-hover:opacity-100">
-                  <Button variant="ghost" size="icon-xs" aria-label="Stage" onClick={() => void stage([change.path])}><Plus size={12} /></Button>
-                  <Button variant="ghost" size="icon-xs" aria-label="Discard changes" onClick={() => void discard([change.path], false)}><Trash2 size={12} /></Button>
+                <span className="absolute end-6 top-1/2 hidden -translate-y-1/2 items-center gap-0.5 bg-background-primary-default ps-1 group-hover:flex">
+                  <Button variant="ghost" size="xs" iconOnly leadingIcon={FileDiff} aria-label="Open changes" title="Open changes" onClick={() => onOpenDiff(change.path, false)} />
+                  <Button variant="ghost" size="xs" iconOnly leadingIcon={Undo2} aria-label="Discard changes" title="Discard changes" onClick={() => void discard([change.path], false)} />
+                  <Button variant="ghost" size="xs" iconOnly leadingIcon={Plus} aria-label="Stage" title="Stage changes" onClick={() => void stage([change.path])} />
                 </span>
+                <GitStatusIcon status={statusLabel(change)} size={13} className="me-0.5" />
               </div>
             ))}
           </section>

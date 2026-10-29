@@ -1,11 +1,12 @@
-import { useEffect, useRef, useState } from "react";
-import { ArrowUp, AtSign, FilePlus2, ImagePlus, Plus, Square, TerminalSquare, X } from "@toph/icons";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { ArrowUp, AtSign, FilePlus2, ImagePlus, Plus, Square, TerminalSquare } from "@toph/icons";
 import type { AIModel } from "../api";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Attachment, AttachmentAction, AttachmentActions, AttachmentContent, AttachmentDescription, AttachmentGroup, AttachmentMedia, AttachmentTitle } from "@/components/ui/attachment";
+import { Button } from "@/boardui/base/buttons/button";
+import { CloseButton } from "@/boardui/base/buttons/close-button";
+import { Textarea } from "@/boardui/base/textarea/textarea";
+import { Dropdown, DropdownDivider, DropdownGroup, DropdownItem, DropdownPopover, DropdownTrigger } from "@/boardui/base/dropdown/dropdown";
+import { ComposerLoader } from "@/boardui/application/composer-loader/composer-loader";
+import ModelPicker from "./ModelPicker";
 
 export interface AgentAttachment { name: string; uri: string; mime: string; size: number; }
 
@@ -23,11 +24,13 @@ interface Props {
   onEffortChange: (value: string) => void;
   placeholder: string;
   allowAttachments?: boolean;
+  modeControls?: ReactNode;
 }
 
-export function AgentComposer({ value, onChange, onSend, onStop, busy, models, model, onModelChange, effort, efforts, onEffortChange, placeholder, allowAttachments = true }: Props) {
+export function AgentComposer({ value, onChange, onSend, onStop, busy, models, model, onModelChange, effort, efforts, onEffortChange, placeholder, allowAttachments = true, modeControls }: Props) {
   const [attachments, setAttachments] = useState<AgentAttachment[]>([]);
   const [error, setError] = useState("");
+  const [addMenuOpen, setAddMenuOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const areaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -70,64 +73,77 @@ export function AgentComposer({ value, onChange, onSend, onStop, busy, models, m
     setError("");
   }
 
-  const uniqueModels = [...new Map(models.map((item) => [item.id, item])).values()];
-
   return (
     <div className="flex w-full flex-col gap-2 p-2">
-      <div className="flex flex-col gap-2 rounded-xl border bg-card p-2 shadow-sm">
-        <Textarea
-          ref={areaRef}
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
+      <ComposerLoader active={busy} radius={24}>
+        <form
+          onSubmit={(event) => { event.preventDefault(); submit(); }}
+          className="flex flex-col gap-2 p-2"
+          onKeyDownCapture={(event) => { if (event.key === "Enter" && !event.shiftKey && event.target === areaRef.current) { event.preventDefault(); submit(); } }}
           onPaste={(event) => {
             if (!allowAttachments) return;
             const clipboard = event.clipboardData;
             const files = clipboard.files.length > 0 ? clipboard.files : Array.from(clipboard.items).map((item) => item.kind === "file" ? item.getAsFile() : null).filter((file): file is File => Boolean(file));
             if (files.length > 0) { event.preventDefault(); void pickFiles(files); }
           }}
-          onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); submit(); } }}
-          placeholder={placeholder}
-          aria-label="Mensagem para o agente"
-          rows={3}
-          className="min-h-16 resize-none border-0 bg-transparent px-1 shadow-none focus-visible:ring-0"
-        />
-        {attachments.length > 0 && (
-          <AttachmentGroup className="px-1">
-            {attachments.map((file) => (
-              <Attachment key={`${file.name}-${file.size}`} size="sm">
-                <AttachmentMedia><FilePlus2 /></AttachmentMedia>
-                <AttachmentContent><AttachmentTitle>{file.name}</AttachmentTitle><AttachmentDescription>{Math.ceil(file.size / 1024)} KB</AttachmentDescription></AttachmentContent>
-                <AttachmentActions><AttachmentAction aria-label={`Remover ${file.name}`} onClick={() => setAttachments((items) => items.filter((item) => item !== file))}><X size={12} /></AttachmentAction></AttachmentActions>
-              </Attachment>
-            ))}
-          </AttachmentGroup>
-        )}
-        {error && <p className="px-1 text-[10px] text-destructive">{error}</p>}
-        <div className="flex min-w-0 items-center gap-1.5">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button type="button" variant="ghost" size="icon-sm" aria-label="Adicionar contexto ou arquivo"><Plus size={16} /></Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" side="top" className="w-56">
-              {allowAttachments && <DropdownMenuItem onSelect={() => fileRef.current?.click()} className="gap-2"><ImagePlus size={15} /> Imagens e arquivos <span className="ms-auto text-[10px] text-muted-foreground">Ctrl+U</span></DropdownMenuItem>}
-              <DropdownMenuItem onSelect={() => insert("/")} className="gap-2"><TerminalSquare size={15} /> Comandos <span className="ms-auto text-[10px] text-muted-foreground">/</span></DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => insert("@")} className="gap-2"><AtSign size={15} /> Contexto <span className="ms-auto text-[10px] text-muted-foreground">@</span></DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onSelect={() => insert("!")} className="gap-2"><TerminalSquare size={15} /> Comando do shell <span className="ms-auto text-[10px] text-muted-foreground">!</span></DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <Select value={model} onValueChange={onModelChange}>
-            <SelectTrigger size="sm" className="h-7 w-[160px] min-w-0 text-[11px]"><SelectValue placeholder="Modelo" /></SelectTrigger>
-            <SelectContent>{uniqueModels.map((item) => <SelectItem key={item.id} value={item.id}>{item.label}</SelectItem>)}</SelectContent>
-          </Select>
-          <Select value={effort} onValueChange={onEffortChange} disabled={efforts.length === 0}>
-            <SelectTrigger size="sm" className="h-7 w-[86px] min-w-0 text-[11px]"><SelectValue placeholder="Default" /></SelectTrigger>
-            <SelectContent>{(efforts.length ? efforts : [""]).map((item) => <SelectItem key={item || "default"} value={item || "default"}>{item || "Default"}</SelectItem>)}</SelectContent>
-          </Select>
-          <span className="flex-1" />
-          {busy && onStop ? <Button type="button" variant="outline" size="sm" onClick={onStop}><Square size={13} /> Stop</Button> : <Button type="button" size="icon-sm" onClick={submit} disabled={!value.trim() && attachments.length === 0} aria-label="Enviar"><ArrowUp size={15} /></Button>}
-        </div>
-      </div>
+        >
+          {attachments.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 px-1">
+              {attachments.map((file) => (
+                <span key={`${file.name}-${file.size}`} className="flex items-center gap-1.5 rounded-lg bg-background-secondary-default px-2 py-1">
+                  <FilePlus2 size={13} className="text-foreground-icon-secondary" />
+                  <span className="max-w-40 truncate text-caption-1-regular text-text-primary">{file.name}</span>
+                  <span className="text-caption-2-regular text-text-tertiary">{Math.ceil(file.size / 1024)} KB</span>
+                  <CloseButton size="2xs" aria-label={`Remover ${file.name}`} onClick={() => setAttachments((items) => items.filter((item) => item !== file))} />
+                </span>
+              ))}
+            </div>
+          )}
+          {error && <p className="px-1 text-caption-2-regular text-text-error-primary">{error}</p>}
+          <div className="flex min-w-0 items-center gap-2">
+            <Dropdown isOpen={addMenuOpen} onOpenChange={setAddMenuOpen}>
+              <DropdownTrigger aria-label="Adicionar contexto ou arquivo" className="flex size-9 shrink-0 items-center justify-center rounded-full bg-background-secondary-default text-foreground-icon-secondary transition-colors hover:bg-background-secondary-hover">
+                <Plus size={18} />
+              </DropdownTrigger>
+              <DropdownPopover aria-label="Adicionar contexto" placement="top start" className="w-56">
+                <DropdownGroup>
+                  {allowAttachments && <DropdownItem onSelect={() => { setAddMenuOpen(false); fileRef.current?.click(); }}><ImagePlus size={15} /> Imagens e arquivos <span className="ms-auto text-caption-2-regular text-text-tertiary">Ctrl+U</span></DropdownItem>}
+                  <DropdownItem onSelect={() => { setAddMenuOpen(false); insert("/"); }}><TerminalSquare size={15} /> Comandos <span className="ms-auto text-caption-2-regular text-text-tertiary">/</span></DropdownItem>
+                  <DropdownItem onSelect={() => { setAddMenuOpen(false); insert("@"); }}><AtSign size={15} /> Contexto <span className="ms-auto text-caption-2-regular text-text-tertiary">@</span></DropdownItem>
+                </DropdownGroup>
+                <DropdownDivider />
+                <DropdownGroup>
+                  <DropdownItem onSelect={() => { setAddMenuOpen(false); insert("!"); }}><TerminalSquare size={15} /> Comando do shell <span className="ms-auto text-caption-2-regular text-text-tertiary">!</span></DropdownItem>
+                </DropdownGroup>
+              </DropdownPopover>
+            </Dropdown>
+            <div className="min-w-0 flex-1">
+              <Textarea
+                ref={areaRef}
+                value={value}
+                onChange={onChange}
+                placeholder={placeholder}
+                aria-label="Mensagem para o agente"
+                rows={1}
+                autoResize
+                maxRows={6}
+                resize="none"
+                fieldClassName="flex min-h-9 items-center justify-center rounded-none bg-transparent p-0 ring-0 shadow-none"
+                className="min-h-5 px-0 text-body-regular"
+              />
+            </div>
+            {busy && onStop ? (
+              <Button type="button" variant="secondary" size="medium" iconOnly leadingIcon={Square} onClick={onStop} aria-label="Parar" className="shrink-0 rounded-full" />
+            ) : (
+              <Button type="submit" size="medium" iconOnly leadingIcon={ArrowUp} disabled={!value.trim() && attachments.length === 0} aria-label="Enviar" className="shrink-0 rounded-full" />
+            )}
+          </div>
+          <div className="flex min-w-0 flex-wrap items-center gap-1.5 ps-11">
+            {modeControls}
+            <ModelPicker models={models} model={model} onModelChange={onModelChange} effort={effort} efforts={efforts} onEffortChange={onEffortChange} />
+          </div>
+        </form>
+      </ComposerLoader>
       {allowAttachments && <input ref={fileRef} type="file" hidden multiple accept="image/*,.pdf,.txt,.md,.json,.csv,.log" onChange={(event) => void pickFiles(event.target.files)} />}
     </div>
   );

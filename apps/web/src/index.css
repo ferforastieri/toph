@@ -1,109 +1,119 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @plugin "@tailwindcss/typography";
+@import "./boardui/styles/theme.css";
+@import "./boardui/styles/typography.css";
+@import "./boardui/styles/components.css";
 
-@custom-variant dark (&:is(.dark *));
+@custom-variant dark (&:where(.dark, .dark *));
 
+/* Toph aliases BoardUI's semantic tokens so the app-specific classes and the
+   BoardUI components always read from one palette. No separate theme layer. */
 :root {
   --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --text-on-accent: #1c1204;
+
+  /* Toph's brand secondary: amber. It is the interactive accent in both
+     themes, so buttons, selections and focus rings all inherit it. */
+  --color-accent-50: #fff8eb;
+  --color-accent-100: #ffefc9;
+  --color-accent-200: #ffdd94;
+  --color-accent-300: #ffd08a;
+  --color-accent-400: #ffc45c;
+  --color-accent-500: #ffb547;
+  --color-accent-600: #e07a00;
+  --color-accent-700: #b85c00;
+  --color-accent-800: #914600;
+  --color-accent-900: #6e3400;
+  --color-accent-950: #3f1c00;
+
+  --background: var(--color-background-full);
+  --foreground: var(--color-text-primary);
+  --card: var(--color-background-primary-default);
+  --card-foreground: var(--color-text-primary);
+  --popover: var(--color-background-primary-default);
+  --popover-foreground: var(--color-text-primary);
+  --primary: var(--color-accent-500);
+  --primary-foreground: var(--text-on-accent);
+  --secondary: var(--color-background-secondary-default);
+  --secondary-foreground: var(--color-text-primary);
+  --muted: var(--color-background-secondary-default);
+  --muted-foreground: var(--color-text-secondary);
+  --accent: var(--color-background-primary-hover);
+  --accent-foreground: var(--color-text-primary);
+  --destructive: var(--color-red-600);
+  --border: var(--color-border-button-default);
+  --input: var(--color-border-button-default);
+  --ring: var(--color-border-focus-ring);
+
+  --chart-1: var(--color-chart-1);
+  --chart-2: var(--color-chart-2);
+  --chart-3: var(--color-chart-3);
+  --chart-4: var(--color-chart-4);
+  --chart-5: var(--color-chart-5);
+
+  --sidebar: var(--color-background-secondary-default);
+  --sidebar-foreground: var(--color-text-primary);
+  --sidebar-primary: var(--color-accent-500);
+  --sidebar-primary-foreground: var(--text-on-accent);
+  --sidebar-accent: var(--color-background-primary-hover);
+  --sidebar-accent-foreground: var(--color-text-primary);
+  --sidebar-border: var(--color-border-button-default);
+  --sidebar-ring: var(--color-border-focus-ring);
 }
 
+/* Night Wolf black: the dark theme sits on true black with #141414 surfaces,
+   #282828 borders and a warm-neutral text ramp. */
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
-}
-
-.theme-nightwolf {
-  --background: #000000;
-  --foreground: #c8c8c8;
-  --card: #141414;
-  --card-foreground: #c8c8c8;
-  --popover: #141414;
-  --popover-foreground: #c8c8c8;
-  --primary: #ff50ff;
-  --primary-foreground: #000000;
-  --secondary: #1e1e1e;
-  --secondary-foreground: #c8c8c8;
-  --muted: #1e1e1e;
-  --muted-foreground: #969696;
-  --accent: #282828;
-  --accent-foreground: #ffffff;
-  --destructive: #f05050;
-  --border: #282828;
-  --input: #3c3c3c;
-  --ring: #ff50ff;
-  --chart-1: #00b1ff;
-  --chart-2: #00dcdc;
-  --chart-3: #dc8cff;
-  --chart-4: #aae682;
-  --chart-5: #ffb482;
-  --sidebar: #0d0d0d;
-  --sidebar-foreground: #c8c8c8;
-  --sidebar-primary: #ff50ff;
-  --sidebar-primary-foreground: #000000;
-  --sidebar-accent: #1e1e1e;
-  --sidebar-accent-foreground: #ffffff;
-  --sidebar-border: #282828;
-  --sidebar-ring: #ff50ff;
+  --color-background-full: #000000;
+  --color-background-primary-default: #141414;
+  --color-background-inner-default: #0a0a0a;
+  --color-background-primary-hover: #1e1e1e;
+  --color-background-primary-active: #282828;
+  --color-background-primary-disabled: #141414;
+  --color-background-secondary-default: #141414;
+  --color-background-secondary-hover: #1e1e1e;
+  --color-background-tertiary-default: #1e1e1e;
+  --color-background-tertiary-hover: #282828;
+  --color-background-quaternary-default: #282828;
+  --color-background-quaternary-hover: #3c3c3c;
+  --color-border-button-default: #282828;
+  --color-border-button-hover: #3c3c3c;
+  --color-border-button-active: #505050;
+  --color-border-button-white: #282828;
+  --color-separator-border: #282828;
+  --color-separator-border-strong: #3c3c3c;
+  --color-text-primary: #e8e8e8;
+  --color-text-secondary: #969696;
+  --color-text-tertiary: #707070;
+  --color-text-disabled: #4a4a4a;
+  --color-text-placeholder: #707070;
+  --color-foreground-icon-primary: #e8e8e8;
+  --color-foreground-icon-secondary: #969696;
+  --color-foreground-icon-tertiary: #707070;
+  --color-foreground-icon-quaternary: #4a4a4a;
+  --color-avatar-neutral-background: #282828;
+  --color-kbd-background: #282828;
+  --color-kbd-foreground: #c8c8c8;
+  --color-notification-center-background: #141414;
+  --color-segmented-control-background: #000000;
+  --color-segmented-control-selected-background: #282828;
+  --color-theme-toggle-sidebar-background: #1e1e1e;
+  --color-theme-toggle-sidebar-selected-background: #282828;
+  --color-ai-chat-composer-add-background: #282828;
+  --color-ai-chat-composer-add-hover-background: #3c3c3c;
+  --color-composer-panel-tab-background: #1e1e1e;
+  --color-composer-panel-add-background: #1e1e1e;
+  --color-composer-panel-add-hover-background: #282828;
+  --color-border-table: #282828;
+  --color-border-component-detail-container: #282828;
+  --color-border-ai-profile-card: #282828;
+  --color-border-button-group: #282828;
+  --color-border-sidebar-profile-hover: #3c3c3c;
 }
 
 @theme inline {
-  --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, monospace;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -117,6 +127,7 @@
   --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
+  --color-text-on-accent: var(--text-on-accent);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
@@ -155,11 +166,63 @@
     @apply bg-background text-foreground antialiased;
     margin: 0;
     overflow: hidden;
+    font-variant-ligatures: contextual;
+    font-kerning: normal;
   }
   button,
   input,
   textarea,
   select {
     font: inherit;
+  }
+}
+
+/* BoardUI's dark ghost button is an accent-tinted action. Toph uses ghost for
+   neutral chrome (activity bar, settings rail, modal actions), so keep that
+   variant transparent and let the selected/secondary variant carry emphasis. */
+:root,
+.dark {
+  --color-button-ghost-background: transparent;
+  --color-button-ghost-hover: var(--color-background-primary-hover);
+  --color-button-ghost-active: var(--color-background-primary-active);
+  --color-button-ghost-foreground: var(--color-text-secondary);
+  --color-button-ghost-disabled: transparent;
+  --color-button-ghost-disabled-foreground: var(--color-text-tertiary);
+}
+
+@keyframes pet-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-2px); }
+}
+
+@keyframes pet-blink {
+  0%, 92%, 100% { transform: scaleY(1); }
+  95% { transform: scaleY(0.1); }
+}
+
+@keyframes pet-free-roam {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(-26vw, -4px); }
+}
+
+.pet-bob {
+  animation: pet-bob 2.6s ease-in-out infinite;
+}
+
+.pet-eye {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: pet-blink 5.2s ease-in-out infinite;
+}
+
+.pet-free {
+  animation: pet-free-roam 26s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pet-bob,
+  .pet-eye,
+  .pet-free {
+    animation: none;
   }
 }

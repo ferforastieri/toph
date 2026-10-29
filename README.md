@@ -28,14 +28,15 @@ The installed server does not serve the landing page or documentation. The landi
 - Configure the AI URL, API key and model in Settings → AI; API keys are encrypted at rest.
 - Enable editor autocomplete backed by the configured AI provider.
 - Add server folders as workspace roots in Settings → Workspace, without Docker bind mounts.
-- Keep self-hosted web apps in their own tabs.
+- Keep self-hosted and external web apps in their own tabs, including pages that block iframes, through a server-side preview proxy.
 - Switch between projects without losing the state of the current one.
 - Use the same backend from the browser, desktop app and Tauri Android client.
+- Choose a pet at login; it lives in the avatar corner or roams the screen, and grows every few commits.
 - Get an in-app toast when a new release is available; the button updates the server and reloads connected web clients.
 - Receive in-app AI response notifications and Android push notifications through Firebase Cloud Messaging, including when the app is closed.
 - Download the next desktop installer directly from the update toast, with checksum verification. Windows uses the MSI installer.
-- Use a native-titlebar-only desktop shell with a VS Code-style bottom status bar, project selector, branch picker, and an agent rail.
-- Personalize the web app with light/dark/auto themes, the Toph brand palette, Emerald, Night Wolf, accents, liquid-glass intensity, backgrounds, radius, density, sidebar width, editor and terminal typography, tab styles, and three global icon sets: Material, Phosphor Fill and Remix Fill. The icon choice applies to the entire interface and the file tree. Drag the sidebar, agent dock and terminal edges to resize them.
+- Use a native-titlebar-only desktop shell with a VS Code-style header containing menus, project and branch selectors, editor status, and an agent rail.
+- Personalize the web app with light/dark themes, the Toph amber accent, sidebar width, editor and terminal typography, tab styles, and three global icon sets: Material, Phosphor Fill and Remix Fill. The icon choice applies to the entire interface and the file tree. Drag the sidebar, agent dock and terminal edges to resize them.
 
 ## Repository layout
 

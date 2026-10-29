@@ -1,19 +1,18 @@
 import { useEffect, useRef, useState } from "react";
-import { Bot, X } from "@toph/icons";
+import { ArrowLeft, Bot, Settings2, X } from "@toph/icons";
 import { api, type AIConfig } from "../api";
 import { providerLabel, useAI } from "../ai";
 import { useApp, type AiMessage, type Tab } from "../store";
 import type { Project } from "../api";
 import OpenCodePanelTab from "./OpenCodePanelTab";
-import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
-import { Message, MessageContent, MessageGroup, MessageHeader } from "@/components/ui/message";
-import { Bubble, BubbleContent } from "@/components/ui/bubble";
-import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
-import { Marker } from "@/components/ui/marker";
-import { Spinner } from "@/components/ui/spinner";
+import { Button } from "@/boardui/base/buttons/button";
+import { Switch } from "@/boardui/base/switch/switch";
+import { Chip } from "@/boardui/base/badges/chip";
+import { AgentMessage } from "@/boardui/application/agent-chat/agent-chat-message";
+import { AgentThinking } from "@/boardui/application/agent-thinking/agent-thinking";
 import { AgentComposer } from "../ui/AgentComposer";
 import { notifyAiResponse } from "../aiNotifications";
+import AiSettings from "./AiSettings";
 
 const EMPTY_MESSAGES: AiMessage[] = [];
 
@@ -36,6 +35,7 @@ function GenericAiPanel({ tab, project, config, onClose }: Props & { config: AIC
   const [model, setModel] = useState(config.model);
   const [effort, setEffort] = useState("");
   const [yolo, setYolo] = useState(true);
+  const [showSettings, setShowSettings] = useState(false);
 
   useEffect(() => {
     const handleContext = (event: Event) => {
@@ -98,45 +98,51 @@ function GenericAiPanel({ tab, project, config, onClose }: Props & { config: AIC
     }
   }
 
+  if (showSettings) {
+    return (
+      <div className="flex h-full min-h-0 w-full flex-1 flex-col">
+        <div className="flex h-9 shrink-0 items-center gap-2 border-b px-2">
+          <Button variant="ghost" size="xs" iconOnly leadingIcon={ArrowLeft} aria-label="Voltar" onClick={() => setShowSettings(false)} />
+          <span className="text-body-2-medium text-text-primary">Configurações da IA</span>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto p-3"><AiSettings /></div>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex h-full min-h-0 w-full flex-1 flex-col bg-background">
-      <div className="flex shrink-0 flex-col gap-2 border-b p-2">
+    <div className="flex h-full min-h-0 w-full flex-1 flex-col">
+      <div className="bg-background-secondary-default flex shrink-0 flex-col gap-2 border-b p-2">
         <div className="flex items-center gap-2">
-          <div className="flex min-w-0 flex-1 items-center gap-2 px-1.5"><Bot size={16} className="text-primary" /><strong className="truncate text-sm font-medium">{label}</strong></div>
-          {onClose && <Button variant="ghost" size="icon-sm" aria-label="Fechar agente" onClick={onClose}><X size={15} /></Button>}
+          <div className="flex min-w-0 flex-1 items-center gap-2 px-1.5"><Bot size={16} className="text-accent-500" /><strong className="truncate text-body-medium text-text-primary">{label}</strong></div>
+          <Button variant="ghost" size="xs" iconOnly leadingIcon={Settings2} aria-label="Configurações da IA" title="Configurações da IA" onClick={() => setShowSettings(true)} />
+          {onClose && <Button variant="ghost" size="xs" iconOnly leadingIcon={X} aria-label="Fechar agente" onClick={onClose} />}
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-[11px] text-muted-foreground">{project.name}</span>
-          <span className="flex items-center gap-1.5 rounded border px-2 py-1 text-[11px] text-muted-foreground">YOLO <Switch checked={yolo} onCheckedChange={setYolo} className="scale-75" /></span>
+          <span className="text-caption-1-regular text-text-secondary">{project.name}</span>
+          <span className="flex items-center gap-1.5 rounded-lg border border-border-button-default px-2 py-1 text-caption-1-regular text-text-secondary">YOLO <Switch isSelected={yolo} onChange={setYolo} size="sm" /></span>
         </div>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <MessageGroup className="p-3">
+        <div className="flex min-h-full flex-col gap-4 p-3">
           {messages.length === 0 && (
-            <Empty className="border-0">
-              <EmptyHeader><EmptyMedia variant="icon"><Bot size={20} /></EmptyMedia><EmptyTitle>Pergunte ao {label}</EmptyTitle><EmptyDescription>O agente pode ler {project.root} através do servidor.</EmptyDescription></EmptyHeader>
-            </Empty>
+            <div className="bg-background-secondary-default my-auto mx-auto flex w-full max-w-sm flex-col items-center gap-2 rounded-lg border p-6 text-center">
+              <span className="flex size-9 items-center justify-center rounded-full bg-background-tertiary-default text-foreground-icon-secondary"><Bot size={20} /></span>
+              <strong className="text-body-medium text-text-primary">Pergunte ao {label}</strong>
+              <p className="text-caption-1-regular text-text-secondary">O agente pode ler {project.root} através do servidor.</p>
+            </div>
           )}
           {messages.map((message) => {
-            const isUser = message.role === "user";
             const isError = message.role === "error";
-            return (
-              <Message key={message.id} align={isUser ? "end" : "start"}>
-                <MessageContent>
-                  <MessageHeader>{isUser ? "Você" : isError ? "Erro" : label}</MessageHeader>
-                  <Bubble align={isUser ? "end" : "start"} variant={isError ? "destructive" : isUser ? "default" : "muted"}>
-                    <BubbleContent><pre className="whitespace-pre-wrap break-words font-sans text-sm">{message.text}</pre></BubbleContent>
-                  </Bubble>
-                </MessageContent>
-              </Message>
-            );
+            if (isError) return <Chip key={message.id} color="rose" variant="subtle" className="justify-start whitespace-normal px-2 py-1.5">{message.text}</Chip>;
+            return <AgentMessage key={message.id} role={message.role} text={message.text} at={message.createdAt} />;
           })}
-          {streaming && <Marker><Spinner /> Trabalhando...</Marker>}
+          {streaming && <AgentThinking variant="wave" label="Pensar" tone="accent" shimmer showTimer />}
           <div ref={bottomRef} />
-        </MessageGroup>
+        </div>
       </div>
-      {error && <div className="mx-2 rounded-md bg-destructive/10 px-2 py-1 text-[11px] text-destructive">{error}</div>}
-      <AgentComposer value={input} onChange={setInput} onSend={(text) => void send(text)} busy={streaming} models={models} model={model} onModelChange={setModel} effort={effort} efforts={[]} onEffortChange={setEffort} placeholder={`Pergunte ao ${label} sobre este projeto...`} allowAttachments={false} />
+      {error && <Chip color="rose" variant="subtle" className="mx-2 justify-start whitespace-normal px-2 py-1">{error}</Chip>}
+      <AgentComposer value={input} onChange={setInput} onSend={(text) => void send(text)} busy={streaming} models={models} model={model} onModelChange={setModel} effort={effort} efforts={[]} onEffortChange={setEffort} placeholder={`Pergunte ao ${label}...`} allowAttachments={false} />
     </div>
   );
 }

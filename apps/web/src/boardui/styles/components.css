@@ -1,0 +1,227 @@
+@keyframes ai-chat-text-shimmer {
+  from {
+    background-position: 200% center;
+  }
+
+  to {
+    background-position: -100% center;
+  }
+}
+
+
+@keyframes check-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+.animate-check-draw {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: check-draw 200ms cubic-bezier(0.65, 0, 0.35, 1) forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-check-draw {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * Table primitive (components/base/table)
+ *
+ * React Aria's collection components (Column/Row/Cell/…) can't be wrapped in
+ * custom components without losing collection behaviour, so the primitive
+ * re-exports them untouched and styling lives here, scoped to `.bui-table`.
+ * React Aria renders real <table>/<thead>/<th>/<tr>/<td> elements.
+ * --------------------------------------------------------------------------- */
+.bui-table {
+  @apply w-full border-collapse text-start;
+}
+/* Header background + border-y live on the cells: with border-collapse the
+ * browser doesn't paint backgrounds/borders set on the <thead> row group.
+ * Backgrounds/borders are set with explicit CSS (theme vars) rather than
+ * @apply, which drops border-width/bg on these row-group cells. */
+.bui-table th {
+  @apply px-3 py-2.5 text-start align-middle text-body-medium text-text-tertiary whitespace-nowrap outline-none;
+  background-color: var(--color-background-secondary-default);
+  border-top: 1px solid var(--color-separator-border);
+  border-bottom: 1px solid var(--color-separator-border);
+  transition: padding 200ms ease, font-size 200ms ease;
+}
+.bui-table td {
+  @apply px-3 py-2.5 align-middle text-body-medium text-text-primary outline-none;
+  transition: padding 200ms ease, font-size 200ms ease;
+}
+/* Separators sit *between* rows only: the trailing row's boundary is drawn by
+ * whatever follows the table (the container's bottom edge, or the pagination
+ * footer's own border-top), so a filtered-down table never doubles up lines. */
+.bui-table tbody tr:not(:last-child) {
+  border-bottom: 1px solid var(--color-separator-border);
+}
+.bui-table tbody tr {
+  @apply transition-colors duration-150;
+}
+.bui-table tbody tr[data-focus-visible] {
+  @apply ring-2 ring-inset ring-border-focus-ring;
+}
+.bui-table.bui-table-sm th,
+.bui-table.bui-table-sm td {
+  @apply px-2.5 py-1.5 text-body-2-medium;
+}
+
+/* Agent Thinking (components/application/agent-thinking): the agent thinking state
+ * above a chat composer. The label reuses the ai-chat-text-shimmer travel;
+ * its base/highlight both derive from the tone the component sets via
+ * --bui-agent-thinking-tone, so every tone shimmers consistently. */
+.bui-agent-thinking-label {
+  color: transparent;
+  background-image: linear-gradient(
+    100deg,
+    color-mix(in oklab, var(--bui-agent-thinking-tone) 55%, transparent) 30%,
+    var(--bui-agent-thinking-tone) 50%,
+    color-mix(in oklab, var(--bui-agent-thinking-tone) 55%, transparent) 70%
+  );
+  background-position: 200% center;
+  background-size: 300% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  animation: ai-chat-text-shimmer 2.6s linear infinite;
+  will-change: background-position;
+}
+
+/* Star sparkle: scale + fade in, settle, and vanish; per-star duration and
+ * stagger come in via inline animation-duration/-delay. */
+@keyframes bui-agent-thinking-star {
+  0%,
+  100% {
+    transform: scale(0);
+    opacity: 0;
+  }
+  40% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  60% {
+    transform: scale(0.8);
+    opacity: 0.9;
+  }
+}
+
+.bui-agent-thinking-star {
+  transform: scale(0);
+  animation-name: bui-agent-thinking-star;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+
+/* Infinity comet: the dash segment laps the normalized (pathLength=100)
+ * figure-eight once per animation-duration. */
+@keyframes bui-agent-thinking-dash {
+  to {
+    stroke-dashoffset: -100;
+  }
+}
+
+.bui-agent-thinking-comet {
+  animation-name: bui-agent-thinking-dash;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bui-agent-thinking-label {
+    color: var(--bui-agent-thinking-tone);
+    background-image: none;
+    animation: none;
+  }
+
+  /* Stars rest visible instead of frozen at scale(0). */
+  .bui-agent-thinking-star {
+    animation: none;
+    transform: none;
+    opacity: 0.7;
+  }
+
+  .bui-agent-thinking-comet {
+    animation: none;
+  }
+}
+
+/* Star glyphs read a touch heavier than the dot grids on light backgrounds;
+ * soften only them (not the label) there. Dark mode keeps the full tone. */
+.bui-agent-thinking-stars {
+  color: color-mix(in oklab, currentColor 75%, transparent);
+}
+
+.dark .bui-agent-thinking-stars {
+  color: inherit;
+}
+
+/* Composer Loader (components/application/composer-loader): the light band
+ * orbiting the composer while the agent works. Dash segments on a
+ * pathLength-normalized SVG stroke — the offset laps once per duration. */
+@keyframes bui-composer-loader-dash {
+  from {
+    stroke-dashoffset: 0;
+  }
+
+  to {
+    stroke-dashoffset: -100;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bui-composer-loader-rect {
+    animation: none !important;
+  }
+}
+
+/* Composer mic listening state (components/application/ai-chat): equalizer
+ * bars dancing while voice input is active. Per-bar duration/delay come in
+ * inline so the bars drift out of phase like real audio. */
+@keyframes bui-composer-mic-bars {
+  0%,
+  100% {
+    transform: scaleY(0.4);
+  }
+
+  50% {
+    transform: scaleY(1);
+  }
+}
+
+.bui-composer-mic-bar {
+  animation: bui-composer-mic-bars 0.9s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bui-composer-mic-bar {
+    animation: none;
+    transform: scaleY(0.7);
+  }
+}
+
+/* Shimmer sweep on a primary call to action (the Pro prompt card). */
+@keyframes bui-badge-shimmer {
+  0% {
+    transform: translateX(0) skewX(-12deg);
+  }
+  40%,
+  100% {
+    transform: translateX(350%) skewX(-12deg);
+  }
+}
+
+.bui-badge-shimmer {
+  animation: bui-badge-shimmer 2.5s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bui-badge-shimmer {
+      animation: none;
+      opacity: 0;
+    }
+}

@@ -20,9 +20,8 @@
     <script>
       try {
         const saved = JSON.parse(localStorage.getItem("toph_settings") || "{}");
-        const theme = saved.theme === "light" || saved.theme === "dark" || saved.theme === "nightwolf" ? saved.theme : "nightwolf";
+        const theme = saved.theme === "light" || saved.theme === "dark" ? saved.theme : "dark";
         document.documentElement.classList.toggle("dark", theme !== "light");
-        document.documentElement.classList.toggle("theme-nightwolf", theme === "nightwolf");
         document.documentElement.style.colorScheme = theme === "light" ? "light" : "dark";
       } catch {}
     </script>
