@@ -8,6 +8,7 @@ import { CODE_FONT_FAMILY, codeLineHeight, monacoThemeName, registerEditorThemes
 import { registerEditorTextMate } from "../editorTextMate";
 import { relativeTime } from "../lib";
 import { useAI } from "../ai";
+import { useApp } from "../store";
 import { api, type GitBlameLine, type GitHistoryEntry } from "../api";
 import { useIsMobile } from "../ui/useIsMobile";
 
@@ -57,6 +58,8 @@ export default function CodeEditor({
   const mobile = useIsMobile();
   const aiConfig = useAI((state) => state.config);
   const loadAI = useAI((state) => state.load);
+  const notify = useApp((state) => state.notify);
+  const autocompleteErrorAt = useRef(0);
   const themeName = monacoThemeName(theme);
   const saveRef = useRef(onSave);
   saveRef.current = onSave;
@@ -380,9 +383,9 @@ export default function CodeEditor({
         if (token.isCancellationRequested) return { items: [] };
         const text = model.getValue();
         const offset = model.getOffsetAt(position);
-        const prefix = text.slice(Math.max(0, offset - 6000), offset);
-        const suffix = text.slice(offset, offset + 1500);
-        if (prefix.trim().length < 12) return { items: [] };
+        const prefix = text.slice(Math.max(0, offset - 3000), offset);
+        const suffix = text.slice(offset, offset + 1000);
+        if (prefix.trim().length < 4) return { items: [] };
         const controller = new AbortController();
         const cancel = () => controller.abort();
         token.onCancellationRequested(cancel);
@@ -404,7 +407,15 @@ export default function CodeEditor({
               ),
             }],
           };
-        } catch {
+        } catch (err) {
+          if (!controller.signal.aborted) {
+            const message = err instanceof Error ? err.message : "falha ao consultar o modelo";
+            const now = Date.now();
+            if (now - autocompleteErrorAt.current > 30_000) {
+              autocompleteErrorAt.current = now;
+              notify("error", `Autocomplete: ${message}`);
+            }
+          }
           return { items: [] };
         }
       },
@@ -413,7 +424,7 @@ export default function CodeEditor({
       },
     });
     return () => provider.dispose();
-  }, [aiConfig?.autocomplete, language, monacoReady, path]);
+  }, [aiConfig?.autocomplete, language, monacoReady, notify, path]);
 
   useEffect(() => {
     const monaco = monacoRef.current;
