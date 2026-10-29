@@ -28,7 +28,7 @@ export default function BotsSidebar({ project }: Props) {
 
   function openBot(botId: string) {
     setActiveBot(project.id, botId);
-    window.dispatchEvent(new CustomEvent("toph:open-bots"));
+    window.dispatchEvent(new CustomEvent("toph:close-mobile-panel"));
   }
 
   function createBot() {
@@ -52,7 +52,7 @@ export default function BotsSidebar({ project }: Props) {
       <div className="min-h-0 flex-1 overflow-y-auto p-2">
         <button
           type="button"
-          onClick={() => window.dispatchEvent(new CustomEvent("toph:open-bots"))}
+          onClick={() => window.dispatchEvent(new CustomEvent("toph:close-mobile-panel"))}
           className="mb-2 flex w-full items-center gap-2 rounded-xl border border-accent-500/25 bg-accent-500/10 px-2.5 py-2 text-start text-caption-1-medium text-text-primary hover:bg-accent-500/15"
         >
           <Sparkles size={14} className="shrink-0 text-accent-500" />

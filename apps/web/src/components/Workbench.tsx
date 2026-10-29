@@ -166,19 +166,10 @@ export default function Workbench() {
   }, []);
 
   useEffect(() => {
-    if (!project) return;
-    const openBots = () => {
-      const id = `bots:${project.id}`;
-      if (!tabs.some((tab) => tab.id === id)) {
-        openTab({ id, kind: "bots", title: "Bots", projectId: project.id });
-      } else {
-        setActiveTab(id);
-      }
-      setSidebar("bots");
-    };
-    window.addEventListener("toph:open-bots", openBots);
-    return () => window.removeEventListener("toph:open-bots", openBots);
-  }, [openTab, project, setActiveTab, setSidebar, tabs]);
+    const closeMobilePanel = () => setMobilePanelOpen(false);
+    window.addEventListener("toph:close-mobile-panel", closeMobilePanel);
+    return () => window.removeEventListener("toph:close-mobile-panel", closeMobilePanel);
+  }, []);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -495,7 +486,7 @@ export default function Workbench() {
           (tab) =>
             tab &&
             typeof tab.id === "string" &&
-            ["editor", "db", "web", "diff", "bots"].includes(tab.kind),
+            ["editor", "db", "web", "diff"].includes(tab.kind),
         );
         setTabs(
           restored.map((tab) => ({ ...tab, projectId: activeProjectId })),
@@ -1133,7 +1124,7 @@ export default function Workbench() {
         />
       )}
 
-      <div className="flex min-h-0 flex-1 gap-1 p-1">
+      <div className={cx("flex min-h-0 flex-1 p-1", sidebar === "bots" ? "gap-2" : "gap-1")}>
         {primaryOnLeft && primarySidebar}
         {primaryOnLeft && primaryResize}
         {!primaryOnLeft && aiSidebar}
@@ -1148,41 +1139,49 @@ export default function Workbench() {
           </aside>
         )}
 
-        <main className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-3xl border border-border-button-white bg-background-primary-default shadow-sidebar">
-          <Tabs />
-          <div className="relative flex min-h-0 flex-1 overflow-hidden">
-            {!activeTab && project && (
-              <div className="flex h-full w-full flex-col items-center justify-center gap-4 p-8 text-center">
-                <BrandMark size="large" />
-                <h2 className="text-title-2-medium text-text-primary">{project.name}</h2>
-                <p className="max-w-lg text-body-regular text-text-secondary">{project.root}</p>
-                <div className="flex flex-wrap items-center justify-center gap-2">
-                  <Button variant="secondary" size="small" onClick={() => setSidebar("files")}>Explorer</Button>
-                  <Button variant="secondary" size="small" onClick={() => setSidebar("db")}>Database</Button>
-                  <Button variant="secondary" size="small" onClick={openAI}>Agente</Button>
+        <main className={cx(
+          "flex min-w-0 flex-1 flex-col overflow-hidden",
+          sidebar === "bots" && project ? "bg-transparent" : "rounded-3xl border border-border-button-white bg-background-primary-default shadow-sidebar",
+        )}>
+          {sidebar === "bots" && project ? (
+            <BotStudioTab project={project} />
+          ) : (
+            <>
+              <Tabs />
+              <div className="relative flex min-h-0 flex-1 overflow-hidden">
+                {!activeTab && project && (
+                  <div className="flex h-full w-full flex-col items-center justify-center gap-4 p-8 text-center">
+                    <BrandMark size="large" />
+                    <h2 className="text-title-2-medium text-text-primary">{project.name}</h2>
+                    <p className="max-w-lg text-body-regular text-text-secondary">{project.root}</p>
+                    <div className="flex flex-wrap items-center justify-center gap-2">
+                      <Button variant="secondary" size="small" onClick={() => setSidebar("files")}>Explorer</Button>
+                      <Button variant="secondary" size="small" onClick={() => setSidebar("db")}>Database</Button>
+                      <Button variant="secondary" size="small" onClick={openAI}>Agente</Button>
+                    </div>
+                  </div>
+                )}
+                {activeTab?.kind === "editor" && project && <EditorPanel tab={activeTab} project={project} onOpenChanges={(path) => openDiff(path, false)} />}
+                {activeTab?.kind === "db" && <DbPanelTab tab={activeTab} />}
+                {activeTab?.kind === "ai" && project && <AiPanelTab tab={activeTab} project={project} />}
+                {activeTab?.kind === "web" && <WebPanelTab tab={activeTab} />}
+                {activeTab?.kind === "diff" && project && <DiffPanelTab tab={activeTab} project={project} />}
+                {quickInputPosition === "center" && !mobile && (
+                  <div className="pointer-events-none absolute inset-0 z-40 flex items-center justify-center px-4">
+                    <div className="pointer-events-auto w-[min(640px,82%)]">
+                      <QuickOpen project={project} focusToken={quickOpenToken} onOpenFile={openFile} floating />
+                    </div>
+                  </div>
+                )}
+              </div>
+              {project && !mobile && (
+                <div className={terminalOpen ? `mt-2 flex w-full shrink-0 px-2 pb-2 ${panelJustifyClass}` : "hidden"}>
+                  <div className={panelWidthClass}>
+                    <TerminalPanel key={project.id} project={project} onOpenFile={openFile} />
+                  </div>
                 </div>
-              </div>
-            )}
-            {activeTab?.kind === "editor" && project && <EditorPanel tab={activeTab} project={project} onOpenChanges={(path) => openDiff(path, false)} />}
-            {activeTab?.kind === "db" && <DbPanelTab tab={activeTab} />}
-            {activeTab?.kind === "ai" && project && <AiPanelTab tab={activeTab} project={project} />}
-            {activeTab?.kind === "bots" && project && <BotStudioTab tab={activeTab} project={project} />}
-            {activeTab?.kind === "web" && <WebPanelTab tab={activeTab} />}
-            {activeTab?.kind === "diff" && project && <DiffPanelTab tab={activeTab} project={project} />}
-            {quickInputPosition === "center" && !mobile && (
-              <div className="pointer-events-none absolute inset-0 z-40 flex items-center justify-center px-4">
-                <div className="pointer-events-auto w-[min(640px,82%)]">
-                  <QuickOpen project={project} focusToken={quickOpenToken} onOpenFile={openFile} floating />
-                </div>
-              </div>
-            )}
-          </div>
-          {project && !mobile && (
-            <div className={terminalOpen ? `mt-1 flex w-full shrink-0 px-1 pb-1 ${panelJustifyClass}` : "hidden"}>
-              <div className={cx(panelWidthClass, "overflow-hidden rounded-2lg border border-border-button-default bg-background-primary-default shadow-xs")}>
-                <TerminalPanel key={project.id} project={project} onOpenFile={openFile} />
-              </div>
-            </div>
+              )}
+            </>
           )}
         </main>
 
@@ -1466,7 +1465,7 @@ export default function Workbench() {
       )}
 
       {mobile && (
-        <MobileNav sidebar={sidebar} panelOpen={mobilePanelOpen} terminalOpen={mobileTerminalOpen} onSidebar={openMobileSidebar} onWeb={() => openMobileSidebar("web")} onBots={() => window.dispatchEvent(new CustomEvent("toph:open-bots"))} onTerminal={openMobileTerminal} />
+        <MobileNav sidebar={sidebar} panelOpen={mobilePanelOpen} terminalOpen={mobileTerminalOpen} onSidebar={openMobileSidebar} onWeb={() => openMobileSidebar("web")} onBots={() => openMobileSidebar("bots")} onTerminal={openMobileTerminal} />
       )}
       {showRepoPicker && <RepoPicker onClose={() => setShowRepoPicker(false)} onOpen={openRepo} />}
       <Toasts />
