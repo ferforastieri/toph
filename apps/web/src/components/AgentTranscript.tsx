@@ -4,7 +4,6 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Check, ChevronDown, CircleAlert, Wrench, X } from "@toph/icons";
 import type { AiMessage } from "../store";
-import { Badge } from "@/boardui/base/badges/badge";
 import { Button } from "@/boardui/base/buttons/button";
 import { Chip } from "@/boardui/base/badges/chip";
 import { AgentThinking } from "@/boardui/application/agent-thinking/agent-thinking";
@@ -91,18 +90,18 @@ const TranscriptMessage = memo(function TranscriptMessage({ message, showCaret, 
   }
   if (message.role === "tool") {
     return (
-      <details className="group overflow-hidden rounded-lg border border-border-button-default bg-background-secondary-default">
-        <summary className="flex cursor-pointer list-none items-center gap-2 px-2.5 py-1.5 text-caption-1-medium text-text-secondary hover:text-text-primary">
-          <Wrench size={13} className="shrink-0" />
+      <details className="group -mx-1">
+        <summary className="flex cursor-pointer list-none items-center gap-2 rounded-md px-1.5 py-1 text-caption-1-medium text-text-secondary hover:bg-background-primary-hover hover:text-text-primary">
+          <Wrench size={13} className="shrink-0 text-foreground-icon-tertiary" />
           <span className="min-w-0 flex-1 truncate">{message.title ?? "Tool"}</span>
-          {message.status && <Badge color="neutral" className="text-caption-2-regular">{message.status}</Badge>}
-          <ChevronDown size={12} className="shrink-0 transition-transform group-open:rotate-180" />
+          {message.status && <span className="shrink-0 text-caption-2-regular text-text-tertiary">{message.status}</span>}
+          <ChevronDown size={12} className="shrink-0 text-foreground-icon-tertiary transition-transform group-open:rotate-180" />
         </summary>
-        <div className="border-t border-separator-border">
-          {message.text && <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words px-2.5 py-2 text-[12px] leading-relaxed text-text-secondary">{message.text}</pre>}
-          {message.detail && <pre className="max-h-56 overflow-auto border-t border-separator-border px-2.5 py-2 text-[11.5px] leading-relaxed text-text-tertiary">{message.detail}</pre>}
+        <div className="ps-5">
+          {message.text && <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words py-1 text-[12px] leading-relaxed text-text-secondary">{message.text}</pre>}
+          {message.detail && <pre className="max-h-56 overflow-auto py-1 text-[11.5px] leading-relaxed text-text-tertiary">{message.detail}</pre>}
           {message.permissionId && onPermission && (
-            <div className="flex flex-wrap gap-1.5 border-t border-separator-border px-2.5 py-2">
+            <div className="flex flex-wrap gap-1.5 py-1.5">
               <Button variant="secondary" size="xs" onClick={() => onPermission(message.id, message.permissionId!, "once")}>Permitir uma vez</Button>
               <Button variant="secondary" size="xs" leadingIcon={Check} onClick={() => onPermission(message.id, message.permissionId!, "always")}>Sempre</Button>
               <Button variant="danger" size="xs" leadingIcon={X} onClick={() => onPermission(message.id, message.permissionId!, "reject")}>Rejeitar</Button>

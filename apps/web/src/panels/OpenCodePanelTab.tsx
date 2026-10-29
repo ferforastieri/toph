@@ -948,7 +948,7 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
         allowAttachments
         modeControls={
           <>
-            <Select selectedKey={agent} onSelectionChange={(key) => void chooseAgent(String(key))} aria-label="Modo" className="w-auto" triggerClassName="h-7 gap-1 border-0 bg-transparent px-1.5 text-body-2-medium shadow-none">
+            <Select selectedKey={agent} onSelectionChange={(key) => void chooseAgent(String(key))} aria-label="Modo" className="w-auto [&_button]:text-text-secondary" triggerClassName="h-7 gap-1 border-0 bg-transparent px-1.5 text-body-2-medium text-text-secondary shadow-none">
               {agents.length === 0 ? (
                 <>
                   <SelectItem id="build">Build</SelectItem>
@@ -961,7 +961,7 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
                 </>
               )}
             </Select>
-            <Select selectedKey={permissionMode} onSelectionChange={(key) => setPermissionMode(String(key) as "yolo" | "ask" | "deny")} aria-label="Permissões" className="w-auto" triggerClassName="h-7 gap-1 border-0 bg-transparent px-1.5 text-body-2-medium shadow-none">
+            <Select selectedKey={permissionMode} onSelectionChange={(key) => setPermissionMode(String(key) as "yolo" | "ask" | "deny")} aria-label="Permissões" className="w-auto [&_button]:text-text-secondary" triggerClassName="h-7 gap-1 border-0 bg-transparent px-1.5 text-body-2-medium text-text-secondary shadow-none">
               <SelectItem id="yolo">YOLO</SelectItem>
               <SelectItem id="ask">Perguntar</SelectItem>
               <SelectItem id="deny">Negar</SelectItem>
