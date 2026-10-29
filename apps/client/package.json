@@ -8,7 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "tauri": "tauri",
-    "icons": "tauri icon src-tauri/icons.json",
+    "icons": "tauri icon src-tauri/icons.json && node scripts/patch-android-round-icons.mjs",
     "sync-brand": "node ../../packages/brand/scripts/sync.mjs",
     "android:patch": "node scripts/install-android-main.mjs"
   },

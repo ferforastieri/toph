@@ -9,6 +9,7 @@ import { registerEditorTextMate } from "../editorTextMate";
 import { relativeTime } from "../lib";
 import { useAI } from "../ai";
 import { api, type GitBlameLine, type GitHistoryEntry } from "../api";
+import { useIsMobile } from "../ui/useIsMobile";
 
 interface Props {
   path: string;
@@ -53,6 +54,7 @@ export default function CodeEditor({
   const [cursorLine, setCursorLine] = useState(1);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const theme = useSettings((state) => state.theme);
+  const mobile = useIsMobile();
   const aiConfig = useAI((state) => state.config);
   const loadAI = useAI((state) => state.load);
   const themeName = monacoThemeName(theme);
@@ -455,11 +457,11 @@ export default function CodeEditor({
       options={{
         readOnly,
         fontFamily: CODE_FONT_FAMILY,
-        fontSize: 14,
-        lineHeight: codeLineHeight(14),
+        fontSize: mobile ? 12 : 14,
+        lineHeight: codeLineHeight(mobile ? 12 : 14),
         minimap: { enabled: false },
         automaticLayout: true,
-        scrollBeyondLastLine: true,
+        scrollBeyondLastLine: !mobile,
         smoothScrolling: false,
         cursorBlinking: "blink",
         renderWhitespace: "none",
@@ -467,7 +469,7 @@ export default function CodeEditor({
         glyphMargin: false,
         padding: { top: 0, bottom: 0 },
         tabSize: 2,
-        wordWrap: "off",
+        wordWrap: mobile ? "on" : "off",
         quickSuggestions: { other: true, comments: false, strings: true },
         suggestOnTriggerCharacters: true,
         inlineSuggest: { enabled: true },

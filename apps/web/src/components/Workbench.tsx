@@ -35,6 +35,7 @@ import { Dropdown, DropdownDivider, DropdownGroup, DropdownItem, DropdownPopover
 import { Kbd } from "@/boardui/base/kbd/kbd";
 import { Modal } from "@/boardui/base/modal/modal";
 import ResizeHandle from "../ui/resize";
+import { useIsMobile } from "../ui/useIsMobile";
 import { useSettings } from "../settings";
 import { useConfirm } from "../ui/confirm";
 import { cx } from "@/boardui/utils/cx";
@@ -81,6 +82,8 @@ export default function Workbench() {
   const [version, setVersion] = useState("0.1.0");
   const [gitStatus, setGitStatus] = useState("");
   const [mobilePanelOpen, setMobilePanelOpen] = useState(false);
+  const [mobileTerminalOpen, setMobileTerminalOpen] = useState(false);
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const [projectsSheetOpen, setProjectsSheetOpen] = useState(false);
   const [branchMenuOpen, setBranchMenuOpen] = useState(false);
   const [gitSettingsOpen, setGitSettingsOpen] = useState(false);
@@ -107,7 +110,7 @@ export default function Workbench() {
   const [searchFocusToken, setSearchFocusToken] = useState(0);
   const [cursor, setCursor] = useState({ line: 1, column: 1, language: "" });
   const loadedProject = useRef<string | null>(null);
-  const mobile = document.documentElement.classList.contains("mobile-client");
+  const mobile = useIsMobile();
 
   const project = projects.find((item) => item.id === activeProjectId) ?? null;
   const closedProjects = projects.filter((item) => !openProjectIds.includes(item.id));
@@ -576,7 +579,7 @@ export default function Workbench() {
     setSidebar(next);
     setMobilePanelOpen(true);
     setAiPanelOpen(false);
-    setTerminalOpen(false);
+    setMobileTerminalOpen(false);
   }
 
 
@@ -586,7 +589,7 @@ export default function Workbench() {
   function openMobileTerminal() {
     setMobilePanelOpen(false);
     setAiPanelOpen(false);
-    setTerminalOpen(!terminalOpen);
+    setMobileTerminalOpen((value) => !value);
   }
 
   async function loadBranches() {
@@ -1020,22 +1023,26 @@ export default function Workbench() {
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-background-full">
       {mobile && (
-        <header className="bg-background-secondary-default flex h-12 shrink-0 items-center justify-between border-b px-2">
-          <div className="flex min-w-0 items-center gap-2">
-            <button type="button" className="flex min-w-0 items-center gap-2 rounded-lg px-1.5 py-1 text-start hover:bg-accent" onClick={() => setProjectsSheetOpen(true)} aria-label="Abrir projetos">
+        <header className="bg-background-secondary-default flex shrink-0 items-center justify-between gap-2 border-b px-2 pt-[env(safe-area-inset-top)]">
+          <div className="flex h-12 min-w-0 items-center gap-1">
+            <button type="button" className="flex min-w-0 items-center gap-1.5 rounded-lg px-1.5 py-1 text-start hover:bg-accent" onClick={() => { setMobileTerminalOpen(false); setProjectsSheetOpen(true); }} aria-label="Abrir projetos">
               <Avatar size="sm" initials={project.name.slice(0, 1).toUpperCase()} className="bg-background-tertiary-default text-caption-2-semibold" style={{ color: project.color }} />
-              <span className="truncate text-sm font-medium">{project.name}</span>
+              <span className="max-w-[110px] truncate text-body-2-medium font-medium">{project.name}</span>
               <Badge color="neutral">{openProjectIds.length}</Badge>
-              <ChevronDown size={16} className="text-muted-foreground" />
+              <ChevronDown size={14} className="shrink-0 text-muted-foreground" />
             </button>
             {activeProjectUnread > 0 && (
-              <Button variant="ghost" size="xs" className="relative" onClick={() => openLatestProjectNotification(project.id)} aria-label="Abrir notificação mais recente">
+              <Button variant="ghost" size="xs" className="relative size-10" onClick={() => openLatestProjectNotification(project.id)} aria-label="Abrir notificação mais recente">
                 <Bell size={17} />
                 <span className="absolute -end-0.5 -top-0.5 flex min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-semibold text-primary-foreground">{activeProjectUnread > 9 ? "9+" : activeProjectUnread}</span>
               </Button>
             )}
           </div>
-          <AvatarMenu user={user} variant="titlebar" />
+          <div className="flex h-12 shrink-0 items-center gap-0.5">
+            <Button variant="ghost" size="xs" iconOnly leadingIcon={Search} className="size-10" aria-label="Buscar" title="Buscar" onClick={() => { setMobileSearchOpen(true); setQuickOpenToken((value) => value + 1); }} />
+            <Button variant={aiPanelOpen ? "secondary" : "ghost"} size="xs" iconOnly leadingIcon={Bot} className="size-10" aria-label="Abrir IA" title="Abrir IA" onClick={toggleAI} />
+            <AvatarMenu user={user} variant="titlebar" />
+          </div>
         </header>
       )}
 
@@ -1074,7 +1081,7 @@ export default function Workbench() {
         {!primaryOnLeft && aiSidebar}
         {!primaryOnLeft && aiResize}
         {mobile && mobilePanelOpen && (
-          <aside className="fixed inset-x-0 bottom-14 top-12 z-40 flex w-full flex-col overflow-hidden border-e-0 bg-background-primary-default">
+          <aside className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] top-[calc(3rem+env(safe-area-inset-top))] z-40 flex w-full flex-col overflow-hidden border-e-0 bg-background-primary-default">
             <div className="flex h-11 shrink-0 items-center gap-2 border-b px-2">
               <Button variant="ghost" size="xs" iconOnly leadingIcon={ArrowLeft} aria-label="Voltar" onClick={() => setMobilePanelOpen(false)} />
               <span className="text-body-medium text-text-primary">{sidebar === "db" ? "Bancos" : sidebar === "web" ? "Web apps" : sidebar === "ai" ? "Agente" : sidebar === "scm" ? "Source Control" : "Arquivos"}</span>
@@ -1111,7 +1118,7 @@ export default function Workbench() {
               </div>
             )}
           </div>
-          {project && (
+          {project && !mobile && (
             <div className={terminalOpen ? `flex w-full shrink-0 ${panelJustifyClass}` : "hidden"}>
               <div className={panelWidthClass}>
                 <TerminalPanel key={project.id} project={project} onOpenFile={openFile} />
@@ -1125,8 +1132,22 @@ export default function Workbench() {
         {!primaryOnLeft && primaryResize}
         {!primaryOnLeft && primarySidebar}
 
+        {mobile && project && mobileTerminalOpen && (
+          <>
+            <button type="button" aria-label="Fechar terminal" className="fixed inset-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-30 bg-black/40" onClick={() => setMobileTerminalOpen(false)} />
+            <div className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-40 flex h-[72dvh] flex-col overflow-hidden rounded-t-3xl border border-border-button-default bg-background-primary-default shadow-2xl">
+              <div className="flex h-7 shrink-0 items-center justify-center">
+                <span className="h-1 w-10 rounded-full bg-border-button-default" />
+              </div>
+              <div className="min-h-0 flex-1">
+                <TerminalPanel key={`mobile:${project.id}`} project={project} onOpenFile={openFile} sheet onClose={() => setMobileTerminalOpen(false)} />
+              </div>
+            </div>
+          </>
+        )}
+
         {mobile && project && aiDockTab && aiPanelOpen && (
-          <aside className="fixed inset-x-0 bottom-14 top-12 z-40 flex flex-col overflow-hidden bg-background-secondary-default">
+          <aside className="fixed inset-0 z-50 flex flex-col overflow-hidden bg-background-secondary-default pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
             <AiPanelTab tab={aiDockTab} project={project} onClose={() => setAiPanelOpen(false)} />
           </aside>
         )}
@@ -1242,29 +1263,53 @@ export default function Workbench() {
       <Modal
         isOpen={mobile && projectsSheetOpen}
         onClose={() => setProjectsSheetOpen(false)}
-        title="Projetos abertos"
-        description="Alterne entre os projetos deste workspace."
+        title="Projetos"
+        description="Abertos, fechados e repositórios."
         size="sm"
+        placement="bottom"
+        bodyClassName="p-3"
       >
-          <div className="flex flex-col gap-1">
-            {openProjectIds.map((id) => {
-              const item = projects.find((projectItem) => projectItem.id === id);
-              if (!item) return null;
-              const unread = unreadForProject(item.id);
-              return (
-                <div key={item.id} className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-background-primary-hover">
-                  <button type="button" className="flex min-w-0 flex-1 items-center gap-3 text-start" onClick={() => { setProjectsSheetOpen(false); switchProject(item.id); }}>
-                    <Avatar size="sm" initials={item.name.slice(0, 1).toUpperCase()} className="bg-background-tertiary-default text-caption-2-semibold" style={{ color: item.color }} />
-                    <span className="flex min-w-0 flex-col"><span className="truncate text-body-2-medium text-text-primary">{item.name}</span><span className="truncate text-caption-1-regular text-text-secondary">{item.root}</span></span>
-                    {item.id === activeProjectId && <Check size={16} className="ms-auto text-accent-500" />}
-                  </button>
-                  {unread.length > 0 && <Button variant="ghost" size="xs" iconOnly leadingIcon={Bell} onClick={() => { setProjectsSheetOpen(false); switchProject(item.id); openLatestProjectNotification(item.id); }} />}
-                  <Button variant="ghost" size="xs" iconOnly leadingIcon={X} aria-label={`Fechar ${item.name}`} onClick={() => void closeProject(item.id)} />
-                </div>
-              );
-            })}
-          </div>
-          <Button variant="secondary" className="justify-start" leadingIcon={Plus} onClick={() => { setProjectsSheetOpen(false); setShowRepoPicker(true); }}>Abrir projeto</Button>
+        <div className="mb-3 flex items-center gap-2 rounded-xl border border-border-button-default bg-background-secondary-default/50 p-2 ps-3">
+          <GitBranch size={15} className="shrink-0 text-accent-500" />
+          <span className="min-w-0 flex-1 truncate text-caption-1-regular text-text-secondary">{branch || "detached"}</span>
+          <Button variant="secondary" size="xs" onClick={() => { setProjectsSheetOpen(false); void toggleBranchMenu(); }}>Branch</Button>
+        </div>
+
+        <div className="px-1 pb-1 text-caption-2-semibold uppercase tracking-wide text-text-tertiary">Abertos</div>
+        <div className="flex flex-col gap-1">
+          {openProjectIds.map((id) => {
+            const item = projects.find((projectItem) => projectItem.id === id);
+            if (!item) return null;
+            const unread = unreadForProject(item.id);
+            return (
+              <div key={item.id} className="flex items-center gap-2 rounded-xl border border-border-button-default bg-background-primary-default px-2 py-1.5">
+                <button type="button" className="flex min-w-0 flex-1 items-center gap-2.5 text-start" onClick={() => { setProjectsSheetOpen(false); switchProject(item.id); }}>
+                  <Avatar size="sm" initials={item.name.slice(0, 1).toUpperCase()} className="bg-background-tertiary-default text-caption-2-semibold" style={{ color: item.color }} />
+                  <span className="flex min-w-0 flex-col"><span className="truncate text-body-2-medium text-text-primary">{item.name}</span><span className="truncate text-caption-1-regular text-text-secondary">{item.root}</span></span>
+                  {item.id === activeProjectId && <Check size={16} className="ms-auto shrink-0 text-accent-500" />}
+                </button>
+                {unread.length > 0 && <Button variant="ghost" size="xs" iconOnly leadingIcon={Bell} aria-label={`Notificações de ${item.name}`} onClick={() => { setProjectsSheetOpen(false); switchProject(item.id); openLatestProjectNotification(item.id); }} />}
+                <Button variant="ghost" size="xs" iconOnly leadingIcon={X} aria-label={`Fechar ${item.name}`} onClick={() => void closeProject(item.id)} />
+              </div>
+            );
+          })}
+        </div>
+
+        {closedProjects.length > 0 && (
+          <>
+            <div className="px-1 pb-1 pt-4 text-caption-2-semibold uppercase tracking-wide text-text-tertiary">Fechados</div>
+            <div className="flex flex-col gap-1">
+              {closedProjects.map((item) => (
+                <button key={item.id} type="button" className="flex min-w-0 items-center gap-2.5 rounded-xl border border-transparent px-2 py-2 text-start hover:border-border-button-default hover:bg-background-primary-hover" onClick={() => { setProjectsSheetOpen(false); switchProject(item.id); }}>
+                  <FolderGit2 size={16} className="shrink-0 text-foreground-icon-secondary" />
+                  <span className="flex min-w-0 flex-1 flex-col"><span className="truncate text-body-2-medium text-text-primary">{item.name}</span><span className="truncate text-caption-1-regular text-text-secondary">{item.root}</span></span>
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+
+        <Button variant="secondary" className="mt-3 w-full justify-start" leadingIcon={Plus} onClick={() => { setProjectsSheetOpen(false); setShowRepoPicker(true); }}>Abrir repositório</Button>
       </Modal>
 
       <Modal
@@ -1337,8 +1382,26 @@ export default function Workbench() {
         </div>
       </Modal>
 
+      {mobile && mobileSearchOpen && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center bg-background-full px-3 pt-[calc(env(safe-area-inset-top)+4.5rem)]">
+          <button type="button" aria-label="Fechar busca" className="absolute inset-0 cursor-default" onClick={() => setMobileSearchOpen(false)} />
+          <div className="relative z-10 flex w-full max-w-md flex-col gap-2">
+            <div className="flex items-center justify-between px-1 text-caption-1-semibold uppercase tracking-wide text-text-secondary">
+              <span>Buscar</span>
+              <Button variant="ghost" size="xs" iconOnly leadingIcon={X} aria-label="Fechar busca" onClick={() => setMobileSearchOpen(false)} />
+            </div>
+            <QuickOpen
+              project={project}
+              focusToken={quickOpenToken}
+              onOpenFile={(path, line) => { openFile(path, line); setMobileSearchOpen(false); }}
+              floating
+            />
+          </div>
+        </div>
+      )}
+
       {mobile && (
-        <MobileNav sidebar={sidebar} panelOpen={mobilePanelOpen} terminalOpen={terminalOpen} onSidebar={openMobileSidebar} onWeb={() => openMobileSidebar("web")} onTerminal={openMobileTerminal} />
+        <MobileNav sidebar={sidebar} panelOpen={mobilePanelOpen} terminalOpen={mobileTerminalOpen} onSidebar={openMobileSidebar} onWeb={() => openMobileSidebar("web")} onTerminal={openMobileTerminal} />
       )}
       {showRepoPicker && <RepoPicker onClose={() => setShowRepoPicker(false)} onOpen={openRepo} />}
       <Toasts />
