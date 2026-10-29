@@ -44,7 +44,6 @@ export default function AiSettings() {
   const [busy, setBusy] = useState(false);
   const [tested, setTested] = useState<boolean | null>(null);
   const [error, setError] = useState("");
-  const [autocompleteTest, setAutocompleteTest] = useState<{ busy: boolean; ok?: boolean; message?: string; ms?: number }>({ busy: false });
 
   useEffect(() => {
     api
@@ -107,32 +106,6 @@ export default function AiSettings() {
       if (test) notify("error", message);
     } finally {
       setBusy(false);
-    }
-  }
-
-  async function testAutocomplete() {
-    setAutocompleteTest({ busy: true });
-    const started = performance.now();
-    try {
-      const result = await api.aiComplete({
-        path: "src/autocomplete-test.ts",
-        language: "typescript",
-        prefix: "const total = items.reduce((sum, item) => sum + item.price, ",
-        suffix: "\nconsole.log(total);",
-      });
-      setAutocompleteTest({
-        busy: false,
-        ok: true,
-        message: result.completion || "(resposta vazia)",
-        ms: Math.round(performance.now() - started),
-      });
-    } catch (err) {
-      setAutocompleteTest({
-        busy: false,
-        ok: false,
-        message: err instanceof Error ? err.message : "Falha ao consultar o modelo.",
-        ms: Math.round(performance.now() - started),
-      });
     }
   }
 
@@ -252,20 +225,6 @@ export default function AiSettings() {
               <p className="text-caption-2-regular text-text-secondary">
                 No automático, o Toph escolhe um modelo leve compatível com o OpenCode. Você pode fixar outro modelo se preferir.
               </p>
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-caption-2-regular text-text-tertiary">Testa a configuração salva no servidor.</p>
-                <Button type="button" variant="secondary" size="small" leadingIcon={PlugZap} disabled={autocompleteTest.busy} onClick={() => void testAutocomplete()}>
-                  {autocompleteTest.busy ? "Testando..." : "Testar autocomplete"}
-                </Button>
-              </div>
-              {autocompleteTest.ok !== undefined && (
-                <Chip color={autocompleteTest.ok ? "lime" : "rose"} variant="subtle" className="justify-start gap-2 whitespace-normal px-2 py-1.5">
-                  {autocompleteTest.ok ? <Check size={13} /> : <CircleAlert size={13} />}
-                  {autocompleteTest.ok
-                    ? `OK em ${autocompleteTest.ms ?? 0} ms · ${autocompleteTest.message ?? ""}`
-                    : `${autocompleteTest.message ?? "Falhou."} (${autocompleteTest.ms ?? 0} ms)`}
-                </Chip>
-              )}
             </div>
           )}
         </div>

@@ -62,6 +62,7 @@ export type NewNotification = Omit<AppNotification, "id" | "createdAt" | "read">
 
 const PROJECT_STATE_KEY = "toph_workbench_projects";
 const NOTIFICATIONS_KEY = "toph_notifications";
+const LAYOUT_VISIBILITY_KEY = "toph_layout_visibility";
 
 interface PersistedProjectState {
   activeProjectId: string | null;
@@ -92,6 +93,28 @@ function persistProjectState(activeProjectId: string | null, openProjectIds: str
   }
 }
 
+function readLayoutVisibility(): { terminalOpen: boolean; aiPanelOpen: boolean } {
+  try {
+    const raw = localStorage.getItem(LAYOUT_VISIBILITY_KEY);
+    if (!raw) return { terminalOpen: true, aiPanelOpen: false };
+    const value = JSON.parse(raw) as Partial<{ terminalOpen: boolean; aiPanelOpen: boolean }>;
+    return {
+      terminalOpen: value.terminalOpen !== false,
+      aiPanelOpen: value.aiPanelOpen === true,
+    };
+  } catch {
+    return { terminalOpen: true, aiPanelOpen: false };
+  }
+}
+
+function persistLayoutVisibility(terminalOpen: boolean, aiPanelOpen: boolean): void {
+  try {
+    localStorage.setItem(LAYOUT_VISIBILITY_KEY, JSON.stringify({ terminalOpen, aiPanelOpen }));
+  } catch {
+    // Layout visibility is best effort.
+  }
+}
+
 function readNotifications(): AppNotification[] {
   try {
     const raw = localStorage.getItem(NOTIFICATIONS_KEY);
@@ -117,6 +140,7 @@ function persistNotifications(items: AppNotification[]): void {
 }
 
 const initialProjectState = readProjectState();
+const initialLayoutVisibility = readLayoutVisibility();
 
 interface AppState {
   user: User | null;
@@ -175,8 +199,8 @@ export const useApp = create<AppState>((set, get) => ({
   tabs: [],
   activeTabId: null,
   sidebar: "files",
-  terminalOpen: true,
-  aiPanelOpen: false,
+  terminalOpen: initialLayoutVisibility.terminalOpen,
+  aiPanelOpen: initialLayoutVisibility.aiPanelOpen,
   aiDockTab: null,
   terminalIds: {},
   aiMessages: {},
@@ -273,11 +297,25 @@ export const useApp = create<AppState>((set, get) => ({
           : (tabs[0]?.id ?? null),
     }),
   setSidebar: (sidebar) => set({ sidebar }),
-  setTerminalOpen: (terminalOpen) => set({ terminalOpen }),
-  setAiPanelOpen: (aiPanelOpen) => set({ aiPanelOpen }),
-  toggleAiPanel: () => set((state) => ({ aiPanelOpen: !state.aiPanelOpen })),
+  setTerminalOpen: (terminalOpen) => {
+    persistLayoutVisibility(terminalOpen, get().aiPanelOpen);
+    set({ terminalOpen });
+  },
+  setAiPanelOpen: (aiPanelOpen) => {
+    persistLayoutVisibility(get().terminalOpen, aiPanelOpen);
+    set({ aiPanelOpen });
+  },
+  toggleAiPanel: () => {
+    const aiPanelOpen = !get().aiPanelOpen;
+    persistLayoutVisibility(get().terminalOpen, aiPanelOpen);
+    set({ aiPanelOpen });
+  },
   setAiDockTab: (aiDockTab) => set({ aiDockTab }),
-  toggleTerminal: () => set((state) => ({ terminalOpen: !state.terminalOpen })),
+  toggleTerminal: () => {
+    const terminalOpen = !get().terminalOpen;
+    persistLayoutVisibility(terminalOpen, get().aiPanelOpen);
+    set({ terminalOpen });
+  },
   setTerminalId: (projectId, terminalId) =>
     set((state) => ({ terminalIds: { ...state.terminalIds, [projectId]: terminalId } })),
   addAiMessage: (tabId, message) =>

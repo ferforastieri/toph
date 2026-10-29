@@ -88,16 +88,16 @@ export default function Workbench() {
   const [branchMenuOpen, setBranchMenuOpen] = useState(false);
   const [gitSettingsOpen, setGitSettingsOpen] = useState(false);
   const [quickOpenToken, setQuickOpenToken] = useState(0);
-  const [menuVisible, setMenuVisible] = useState(true);
-  const [activityVisible, setActivityVisible] = useState(true);
-  const [sidebarVisible, setSidebarVisible] = useState(true);
-  const [statusVisible, setStatusVisible] = useState(true);
   const [layoutOpen, setLayoutOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
-  const [primarySideBarPosition, setPrimarySideBarPosition] = useState<"left" | "right">("left");
-  const [panelAlignment, setPanelAlignment] = useState<"left" | "right" | "center" | "justify">("justify");
-  const [quickInputPosition, setQuickInputPosition] = useState<"top" | "center">("top");
+  const menuVisible = useSettings((state) => state.menuVisible);
+  const activityVisible = useSettings((state) => state.activityVisible);
+  const sidebarVisible = useSettings((state) => state.sidebarVisible);
+  const statusVisible = useSettings((state) => state.statusVisible);
+  const primarySideBarPosition = useSettings((state) => state.primarySideBarPosition);
+  const panelAlignment = useSettings((state) => state.panelAlignment);
+  const quickInputPosition = useSettings((state) => state.quickInputPosition);
   const tabHistory = useRef<string[]>([]);
   const tabHistoryIndex = useRef(-1);
   const navigatingHistory = useRef(false);
@@ -182,7 +182,7 @@ export default function Workbench() {
       }
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "b" && !event.altKey) {
         event.preventDefault();
-        setSidebarVisible((value) => !value);
+        updateSettings({ sidebarVisible: !useSettings.getState().sidebarVisible });
         return;
       }
       if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === "b") {
@@ -1061,10 +1061,10 @@ export default function Workbench() {
           onToggleTerminal={() => setTerminalOpen(!useApp.getState().terminalOpen)}
           onShowTerminal={() => setTerminalOpen(true)}
           onCustomizeLayout={() => setLayoutOpen(true)}
-          onToggleActivity={() => setActivityVisible((value) => !value)}
-          onToggleSidebar={() => setSidebarVisible((value) => !value)}
+          onToggleActivity={() => updateSettings({ activityVisible: !useSettings.getState().activityVisible })}
+          onToggleSidebar={() => updateSettings({ sidebarVisible: !useSettings.getState().sidebarVisible })}
           sidebarVisible={sidebarVisible}
-          onToggleStatus={() => setStatusVisible((value) => !value)}
+          onToggleStatus={() => updateSettings({ statusVisible: !useSettings.getState().statusVisible })}
           statusVisible={statusVisible}
           onAbout={() => setAboutOpen(true)}
           onShortcuts={() => setShortcutsOpen(true)}
@@ -1322,23 +1322,23 @@ export default function Workbench() {
       >
         <div className="flex flex-col gap-0.5">
           <div className="mb-1 px-2 text-right text-caption-1-regular text-text-tertiary">Visibility</div>
-          <LayoutRow label="Menu Bar" checked={menuVisible} onChange={setMenuVisible} />
-          <LayoutRow label="Activity Bar" checked={activityVisible} onChange={setActivityVisible} />
-          <LayoutRow label="Primary Side Bar" shortcut="Ctrl+B" checked={sidebarVisible} onChange={setSidebarVisible} />
+          <LayoutRow label="Menu Bar" checked={menuVisible} onChange={(value) => updateSettings({ menuVisible: value })} />
+          <LayoutRow label="Activity Bar" checked={activityVisible} onChange={(value) => updateSettings({ activityVisible: value })} />
+          <LayoutRow label="Primary Side Bar" shortcut="Ctrl+B" checked={sidebarVisible} onChange={(value) => updateSettings({ sidebarVisible: value })} />
           <LayoutRow label="Secondary Side Bar" shortcut="Ctrl+Alt+B" checked={aiPanelOpen} onChange={setAiPanelOpen} />
           <LayoutRow label="Panel" shortcut="Ctrl+J" checked={terminalOpen} onChange={setTerminalOpen} />
-          <LayoutRow label="Status Bar" checked={statusVisible} onChange={setStatusVisible} />
+          <LayoutRow label="Status Bar" checked={statusVisible} onChange={(value) => updateSettings({ statusVisible: value })} />
         </div>
 
         <LayoutSection label="Primary Side Bar Position">
-          <RadioGroup className="flex flex-col gap-0.5" value={primarySideBarPosition} onChange={(value) => setPrimarySideBarPosition(value as "left" | "right")}>
+          <RadioGroup className="flex flex-col gap-0.5" value={primarySideBarPosition} onChange={(value) => updateSettings({ primarySideBarPosition: value as "left" | "right" })}>
             <LayoutRadio value="left" label="Left" />
             <LayoutRadio value="right" label="Right" />
           </RadioGroup>
         </LayoutSection>
 
         <LayoutSection label="Panel Alignment">
-          <RadioGroup className="flex flex-col gap-0.5" value={panelAlignment} onChange={(value) => setPanelAlignment(value as "left" | "right" | "center" | "justify")}>
+          <RadioGroup className="flex flex-col gap-0.5" value={panelAlignment} onChange={(value) => updateSettings({ panelAlignment: value as "left" | "right" | "center" | "justify" })}>
             <LayoutRadio value="left" label="Left" />
             <LayoutRadio value="right" label="Right" />
             <LayoutRadio value="center" label="Center" />
@@ -1347,7 +1347,7 @@ export default function Workbench() {
         </LayoutSection>
 
         <LayoutSection label="Quick Input Position">
-          <RadioGroup className="flex flex-col gap-0.5" value={quickInputPosition} onChange={(value) => setQuickInputPosition(value as "top" | "center")}>
+          <RadioGroup className="flex flex-col gap-0.5" value={quickInputPosition} onChange={(value) => updateSettings({ quickInputPosition: value as "top" | "center" })}>
             <LayoutRadio value="top" label="Top" />
             <LayoutRadio value="center" label="Center" />
           </RadioGroup>
