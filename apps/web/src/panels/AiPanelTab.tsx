@@ -7,12 +7,10 @@ import type { Project } from "../api";
 import OpenCodePanelTab from "./OpenCodePanelTab";
 import { Button } from "@/boardui/base/buttons/button";
 import { Switch } from "@/boardui/base/switch/switch";
-import { Chip } from "@/boardui/base/badges/chip";
-import { AgentMessage } from "@/boardui/application/agent-chat/agent-chat-message";
-import { AgentThinking } from "@/boardui/application/agent-thinking/agent-thinking";
 import { AgentComposer } from "../ui/AgentComposer";
 import { notifyAiResponse } from "../aiNotifications";
 import AiSettingsModal from "../components/AiSettingsModal";
+import AgentTranscript from "../components/AgentTranscript";
 
 const EMPTY_MESSAGES: AiMessage[] = [];
 
@@ -31,7 +29,6 @@ function GenericAiPanel({ tab, project, config, onClose }: Props & { config: AIC
   const messages = emptyMessages ?? EMPTY_MESSAGES;
   const streaming = useApp((state) => state.aiStreaming[tab.id] ?? false);
   const [input, setInput] = useState("");
-  const [error, setError] = useState("");
   const [model, setModel] = useState(config.model);
   const [effort, setEffort] = useState("");
   const [yolo, setYolo] = useState(true);
@@ -64,7 +61,6 @@ function GenericAiPanel({ tab, project, config, onClose }: Props & { config: AIC
   async function send(text: string) {
     if (!text || streaming) return;
     setInput("");
-    setError("");
     const user = { id: `user-${Date.now()}`, role: "user" as const, text, createdAt: Date.now() };
     addMessage(tab.id, user);
     setStreaming(tab.id, true);
@@ -91,7 +87,6 @@ function GenericAiPanel({ tab, project, config, onClose }: Props & { config: AIC
       if (!tab.sessionId) updateTab(tab.id, { sessionId: `ai-${Date.now()}` });
     } catch (err) {
       const message = err instanceof Error ? err.message : `Could not reach ${label}.`;
-      setError(message);
       addMessage(tab.id, { id: `error-${Date.now()}`, role: "error", text: message, createdAt: Date.now() });
     } finally {
       setStreaming(tab.id, false);
@@ -120,16 +115,10 @@ function GenericAiPanel({ tab, project, config, onClose }: Props & { config: AIC
               <p className="text-caption-1-regular text-text-secondary">O agente pode ler {project.root} através do servidor.</p>
             </div>
           )}
-          {messages.map((message) => {
-            const isError = message.role === "error";
-            if (isError) return <Chip key={message.id} color="rose" variant="subtle" className="justify-start whitespace-normal px-2 py-1.5">{message.text}</Chip>;
-            return <AgentMessage key={message.id} role={message.role} text={message.text} at={message.createdAt} />;
-          })}
-          {streaming && <AgentThinking variant="wave" label="Pensar" tone="accent" shimmer showTimer />}
+          <AgentTranscript messages={messages} streaming={streaming} />
           <div ref={bottomRef} />
         </div>
       </div>
-      {error && <Chip color="rose" variant="subtle" className="mx-2 justify-start whitespace-normal px-2 py-1">{error}</Chip>}
       <AgentComposer value={input} onChange={setInput} onSend={(text) => void send(text)} busy={streaming} models={models} model={model} onModelChange={setModel} effort={effort} efforts={[]} onEffortChange={setEffort} placeholder={`Pergunte ao ${label}...`} allowAttachments={false} />
       <AiSettingsModal open={settingsOpen} projectRoot={project.root} showConnections={false} onClose={() => setSettingsOpen(false)} />
     </div>

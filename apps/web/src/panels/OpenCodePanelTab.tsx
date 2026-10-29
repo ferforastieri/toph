@@ -1,22 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { OpenCode } from "@opencode/client";
-import { Bot, Check, ChevronDown, History, Settings2, Wrench, X } from "@toph/icons";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import { Bot, ChevronDown, History, Settings2, X } from "@toph/icons";
 import { openCodeBase, type Project } from "../api";
 import { useAI } from "../ai";
 import { useApp, type AiMessage, type Tab } from "../store";
 import { Button } from "@/boardui/base/buttons/button";
-import { Badge } from "@/boardui/base/badges/badge";
 import { Chip } from "@/boardui/base/badges/chip";
 import { Select, SelectItem } from "@/boardui/base/select/select";
-import { AgentMessage } from "@/boardui/application/agent-chat/agent-chat-message";
-import { AgentThinking } from "@/boardui/application/agent-thinking/agent-thinking";
-import { AgentProgress } from "@/boardui/application/agent-progress/agent-progress";
-import { AgentLimitsCard } from "@/boardui/application/agent-limits-card/agent-limits-card";
 import { AgentComposer, type AgentAttachment } from "../ui/AgentComposer";
 import AgentSessionsSheet from "../components/AgentSessionsSheet";
 import AiSettingsModal, { type AiSettingsTab } from "../components/AiSettingsModal";
+import AgentTranscript from "../components/AgentTranscript";
 import type { OpenCodeSessionSummary } from "../opencodeSessions";
 import { notifyAiResponse } from "../aiNotifications";
 
@@ -636,22 +630,13 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
     setStreaming(tab.id, false);
   }
 
-  const progressSteps = messages
-    .filter((message) => message.role === "tool" || message.role === "step")
-    .slice(-5)
-    .map((message) => ({
-      id: message.id,
-      label: message.title || message.text || "Etapa",
-      status: message.status === "complete" ? "done" as const : message.status === "running" ? "running" as const : "pending" as const,
-    }));
-
   const usageTokens = usage?.tokens as { input?: number; output?: number; reasoning?: number } | undefined;
-  const usageBuckets = [
-    { label: "Entrada", value: usageTokens?.input ?? 0, color: "var(--color-chart-6)" },
-    { label: "Saída", value: usageTokens?.output ?? 0, color: "var(--color-chart-5)" },
-    { label: "Raciocínio", value: usageTokens?.reasoning ?? 0, color: "var(--color-chart-3)" },
-  ];
-  const usageTotal = usageBuckets.reduce((total, bucket) => total + bucket.value, 0);
+  const usageTotal = (usageTokens?.input ?? 0) + (usageTokens?.output ?? 0) + (usageTokens?.reasoning ?? 0);
+  const usageLabel = usageTotal >= 1_000_000
+    ? `${(usageTotal / 1_000_000).toFixed(1)}M`
+    : usageTotal >= 1_000
+      ? `${(usageTotal / 1_000).toFixed(1)}k`
+      : String(usageTotal);
 
   return (
     <div className="flex h-full min-h-0 w-full flex-1 flex-col">
@@ -678,63 +663,20 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
               <Button variant="secondary" size="small" leadingIcon={Settings2} onClick={() => openSettings("connections")}>Gerenciar conexões de IA</Button>
             </div>
           )}
-          {messages.map((message) => {
-            if (message.role === "reasoning") {
-              return (
-                <details key={message.id} className="group rounded-lg border border-border-button-default bg-background-secondary-default px-3 py-2">
-                  <summary className="flex cursor-pointer list-none items-center gap-1 text-caption-1-medium text-text-secondary">
-                    <ChevronDown size={13} className="transition-transform group-open:rotate-180" /> {message.title ?? "Reasoning"}
-                  </summary>
-                  <pre className="mt-2 whitespace-pre-wrap break-words text-caption-1-regular text-text-secondary">{message.text}</pre>
-                </details>
-              );
-            }
-            if (message.role === "step") {
-              return <div key={message.id} className="flex items-center gap-2 text-caption-1-regular text-text-secondary"><span className="h-px flex-1 bg-separator-border" /><span>{message.text}</span><span className="h-px flex-1 bg-separator-border" /></div>;
-            }
-            if (message.role === "tool") {
-              return (
-                <div key={message.id} className="flex flex-col overflow-hidden rounded-2lg border border-border-button-default bg-background-primary-default">
-                  <div className="flex items-center gap-2 border-b border-separator-border px-3 py-2">
-                    <Wrench size={14} className="text-foreground-icon-secondary" />
-                    <strong className="min-w-0 flex-1 truncate text-caption-1-medium text-text-primary">{message.title ?? "Tool"}</strong>
-                    {message.status && <Badge color="neutral" className="text-caption-2-regular">{message.status}</Badge>}
-                  </div>
-                  {message.text && <pre className="whitespace-pre-wrap break-words px-3 py-2 text-caption-1-regular">{message.text}</pre>}
-                  {message.detail && <pre className="max-h-48 overflow-auto border-t border-separator-border px-3 py-2 text-caption-2-regular text-text-secondary">{message.detail}</pre>}
-                  {message.permissionId && (
-                    <div className="flex flex-wrap gap-1.5 border-t border-separator-border px-3 py-2">
-                      <Button variant="secondary" size="xs" onClick={() => void replyPermission(message.id, message.permissionId!, "once")}>Allow once</Button>
-                      <Button variant="secondary" size="xs" leadingIcon={Check} onClick={() => void replyPermission(message.id, message.permissionId!, "always")}>Always</Button>
-                      <Button variant="danger" size="xs" leadingIcon={X} onClick={() => void replyPermission(message.id, message.permissionId!, "reject")}>Reject</Button>
-                    </div>
-                  )}
-                </div>
-              );
-            }
-            const isUser = message.role === "user";
-            const isError = message.role === "error";
-            if (isError) return <Chip key={message.id} color="rose" variant="subtle" className="justify-start whitespace-normal px-2 py-1.5">{message.text}</Chip>;
-            return (
-              <div key={message.id} className="flex flex-col gap-1">
-                <span className="px-1 text-caption-2-regular text-text-tertiary">{isUser ? "Você" : message.role === "assistant" ? "OpenCode" : `Subagent · ${message.title ?? ""}`}</span>
-                {isUser ? <AgentMessage role="user" text={message.text} at={message.createdAt} /> : <div className="prose prose-sm max-w-none rounded-2lg border border-border-button-default bg-background-primary-default p-3 text-body-regular text-text-primary prose-a:text-accent-500 prose-code:text-text-primary prose-pre:bg-background-primary-default"><ReactMarkdown remarkPlugins={[remarkGfm]}>{message.text}</ReactMarkdown></div>}
-                {message.permissionId && (
-                  <div className="flex flex-wrap gap-1.5">
-                    <Button variant="secondary" size="xs" onClick={() => void replyPermission(message.id, message.permissionId!, "once")}>Allow once</Button>
-                    <Button variant="secondary" size="xs" leadingIcon={Check} onClick={() => void replyPermission(message.id, message.permissionId!, "always")}>Always</Button>
-                    <Button variant="danger" size="xs" leadingIcon={X} onClick={() => void replyPermission(message.id, message.permissionId!, "reject")}>Reject</Button>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-          {streaming && <AgentThinking variant="wave" label="Pensar" tone="accent" shimmer showTimer />}
+          <AgentTranscript
+            messages={messages}
+            streaming={streaming}
+            onPermission={(messageId, permissionId, decision) => void replyPermission(messageId, permissionId, decision)}
+          />
           <div ref={bottomRef} />
         </div>
       </div>
-      {streaming && progressSteps.length > 0 && <AgentProgress steps={progressSteps} className="mx-2 mb-2" />}
-      {usageTotal > 0 && !streaming && <AgentLimitsCard total={usageTotal} buckets={usageBuckets} cost={typeof usage?.cost === "number" ? usage.cost : undefined} className="mx-2 mb-2" />}
+      {usageTotal > 0 && !streaming && (
+        <div className="flex items-center justify-end gap-1.5 px-3 pb-1 text-caption-2-regular text-text-tertiary">
+          <span>{usageLabel} tokens</span>
+          {typeof usage?.cost === "number" && <span>· ${usage.cost.toFixed(4)}</span>}
+        </div>
+      )}
       {error && <Chip color="rose" variant="subtle" className="mx-2 justify-start whitespace-normal px-2 py-1">{error}</Chip>}
       <AgentComposer
         value={input}
