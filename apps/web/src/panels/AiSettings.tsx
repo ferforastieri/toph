@@ -26,6 +26,7 @@ const empty: AIConfigInput = {
   apiKey: "",
   clearKey: false,
   model: "",
+  autocompleteModel: "",
   maxTokens: 1024,
   temperature: 0.2,
   autocomplete: true,
@@ -54,6 +55,7 @@ export default function AiSettings() {
           provider: next.provider,
           baseUrl: next.baseUrl,
           model: next.model,
+          autocompleteModel: next.autocompleteModel,
           maxTokens: next.maxTokens,
           temperature: next.temperature,
           autocomplete: next.autocomplete,
@@ -76,6 +78,7 @@ export default function AiSettings() {
       provider,
       baseUrl: provider === "custom" ? form.baseUrl : (preset?.base ?? ""),
       model: "",
+      autocompleteModel: "",
       autocomplete: form.autocomplete,
     });
   }
@@ -191,12 +194,39 @@ export default function AiSettings() {
           <div className="sm:col-span-2"><Textarea label="System prompt" rows={3} value={form.systemPrompt} onChange={(value) => patch({ systemPrompt: value })} /></div>
         </div>
 
-        <div className="bg-background-secondary-default flex items-center justify-between gap-4 rounded-lg border p-4">
-          <div>
-            <p className="text-body-medium text-text-primary">Autocomplete do editor</p>
-            <p className="text-caption-1-regular text-text-secondary">Usa o provider e o modelo configurados.</p>
+        <div className="bg-background-secondary-default flex flex-col gap-4 rounded-lg border p-4">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-body-medium text-text-primary">Autocomplete do editor</p>
+              <p className="text-caption-1-regular text-text-secondary">Sugestões inline enquanto você digita.</p>
+            </div>
+            <Switch isSelected={form.autocomplete} onChange={(value) => patch({ autocomplete: value })} />
           </div>
-          <Switch isSelected={form.autocomplete} onChange={(value) => patch({ autocomplete: value })} />
+          {form.autocomplete && isOpenCode && (
+            <div className="flex flex-col gap-1.5 border-t border-border-button-default pt-3">
+              <span className="text-body-medium text-text-secondary">Modelo de autocomplete</span>
+              <Select
+                selectedKey={form.autocompleteModel || "auto"}
+                onSelectionChange={(key) => patch({ autocompleteModel: key === "auto" ? "" : String(key) })}
+                aria-label="Modelo de autocomplete"
+                className="w-full"
+                renderValue={({ selectedText }) => selectedText || "Automático"}
+              >
+                <SelectItem id="auto">Automático (recomendado)</SelectItem>
+                {form.autocompleteModel && !uniqueModels.some((model) => model.id === form.autocompleteModel) && (
+                  <SelectItem id={form.autocompleteModel}>{form.autocompleteModel}</SelectItem>
+                )}
+                {uniqueModels.map((model) => (
+                  <SelectItem key={model.id} id={model.id}>
+                    {model.label}{model.provider ? ` · ${model.provider}` : ""}
+                  </SelectItem>
+                ))}
+              </Select>
+              <p className="text-caption-2-regular text-text-secondary">
+                No automático, o Toph escolhe um modelo leve compatível com o OpenCode. Você pode fixar outro modelo se preferir.
+              </p>
+            </div>
+          )}
         </div>
 
         {error && <Chip color="rose" variant="subtle" className="justify-start gap-2 whitespace-normal px-2 py-1.5"><CircleAlert size={13} /> {error}</Chip>}

@@ -2,10 +2,11 @@ import { useEffect, useState } from "react";
 import { useAI } from "../ai";
 import AiSettings from "../panels/AiSettings";
 import AiConnectionsPanel from "./AiConnectionsPanel";
+import McpPanel from "./McpPanel";
 import { Button } from "@/boardui/base/buttons/button";
 import { Modal } from "@/boardui/base/modal/modal";
 
-export type AiSettingsTab = "general" | "connections";
+export type AiSettingsTab = "general" | "connections" | "mcp";
 
 interface Props {
   open: boolean;
@@ -36,7 +37,7 @@ export default function AiSettingsModal({
       isOpen={open}
       onClose={onClose}
       title="Configurações de IA"
-      description="Provider, modelo, autocomplete e contas conectadas."
+      description="Provider, modelo, autocomplete, contas e ferramentas MCP."
       size="lg"
       bodyClassName="p-0"
       footer={<Button variant="secondary" onClick={onClose}>Fechar</Button>}
@@ -62,16 +63,27 @@ export default function AiSettingsModal({
             >
               Conexões de IA
             </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === "mcp"}
+              className={`-mb-px cursor-pointer border-b-2 px-2 py-3 text-body-2-medium transition-colors ${activeTab === "mcp" ? "border-accent-500 text-text-primary" : "border-transparent text-text-secondary hover:text-text-primary"}`}
+              onClick={() => setTab("mcp")}
+            >
+              MCP
+            </button>
           </div>
         )}
         <div className="min-h-0 p-5">
           {activeTab === "general" ? (
             <AiSettings />
-          ) : (
+          ) : activeTab === "connections" ? (
             <AiConnectionsPanel
               projectRoot={projectRoot}
               onConnectionsChanged={() => void loadModels()}
             />
+          ) : (
+            <McpPanel projectRoot={projectRoot} />
           )}
         </div>
       </div>

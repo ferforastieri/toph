@@ -69,6 +69,7 @@ export interface AIConfig {
   provider: string;
   baseUrl: string;
   model: string;
+  autocompleteModel: string;
   maxTokens: number;
   temperature: number;
   autocomplete: boolean;
@@ -82,6 +83,7 @@ export interface AIConfigInput {
   apiKey?: string;
   clearKey?: boolean;
   model: string;
+  autocompleteModel: string;
   maxTokens: number;
   temperature: number;
   autocomplete: boolean;

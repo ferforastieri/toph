@@ -25,6 +25,7 @@ export const useAI = create<AIState>((set) => ({
           provider: config.provider,
           baseUrl: config.baseUrl,
           model: config.model,
+          autocompleteModel: config.autocompleteModel,
           maxTokens: config.maxTokens,
           temperature: config.temperature,
           autocomplete: true,
