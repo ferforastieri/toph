@@ -263,11 +263,12 @@ export default function TerminalPanel({ project, onOpenFile, sheet = false, onCl
 
   return (
     <section
-      className={cx("flex flex-col gap-2", sheet ? "h-full min-h-0" : "min-h-[180px] shrink-0")}
+      className={cx("flex flex-col", sheet ? "h-full min-h-0" : "min-h-[180px] shrink-0")}
       style={sheet ? { height: "100%" } : { height: maximized ? "calc(100dvh - 120px)" : "var(--terminal-height)" }}
     >
-      {!sheet && <ResizeHandle className="terminal-resize -mb-2" orientation="horizontal" value={terminalHeight} min={180} max={640} invert label="Resize terminal" onChange={(height) => document.documentElement.style.setProperty("--terminal-height", `${height}px`)} onCommit={(height) => updateSettings({ terminalHeight: height })} />}
-      <div className="bg-background-tertiary-default flex h-9 shrink-0 items-center justify-between overflow-hidden rounded-2lg border border-border-button-default pe-2 shadow-xs">
+      {!sheet && <ResizeHandle className="terminal-resize -mb-1" orientation="horizontal" value={terminalHeight} min={180} max={640} invert label="Resize terminal" onChange={(height) => document.documentElement.style.setProperty("--terminal-height", `${height}px`)} onCommit={(height) => updateSettings({ terminalHeight: height })} />}
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2lg border border-border-button-default bg-background-inner-default shadow-xs">
+      <div className="bg-background-tertiary-default flex h-9 shrink-0 items-center justify-between border-b border-border-button-default pe-2">
         <PillTabList className="h-full px-2" aria-label="Terminal panel">
           {terminalTabs.map((item) => (
             <PillTab key={item.id} variant="gray" isSelected={tab === item.id} onSelect={() => setTab(item.id)}>
@@ -314,9 +315,9 @@ export default function TerminalPanel({ project, onOpenFile, sheet = false, onCl
         </div>
       </div>
 
-      {error && <div className="rounded-2lg border border-status-rose-border bg-status-rose-background px-2 py-1 text-caption-1-regular text-status-rose-text">{error}</div>}
+      {error && <div className="border-b border-status-rose-border bg-status-rose-background px-2 py-1 text-caption-1-regular text-status-rose-text">{error}</div>}
 
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2lg border border-border-button-default bg-background-inner-default shadow-xs">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       {tab === "terminal" && (
         <div className="flex min-h-0 flex-1 flex-col">
           <div className="flex min-h-0 flex-1">
@@ -468,6 +469,7 @@ export default function TerminalPanel({ project, onOpenFile, sheet = false, onCl
           })}
         </div>
       )}
+      </div>
       </div>
     </section>
   );
