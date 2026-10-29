@@ -4,7 +4,6 @@ import { ArrowUp, Bot, MessageSquarePlus, Settings2 } from "@toph/icons";
 import { api, openCodeBase, type AIMessage, type Project } from "../api";
 import { useAI } from "../ai";
 import { useBots, type BotMessage, type MiniBot } from "../bots";
-import type { Tab } from "../store";
 import { notifyAiResponse } from "../aiNotifications";
 import BotAvatar from "../components/BotAvatar";
 import BotConfig from "../components/BotConfig";
@@ -15,7 +14,6 @@ import { useIsMobile } from "../ui/useIsMobile";
 import { cx } from "@/boardui/utils/cx";
 
 interface Props {
-  tab: Tab;
   project: Project;
 }
 
@@ -88,7 +86,7 @@ function botPrompt(bot: MiniBot, bots: MiniBot[], messages: BotMessage[], userTe
   ].filter(Boolean).join("\n\n");
 }
 
-export default function BotStudioTab({ tab, project }: Props) {
+export default function BotStudioTab({ project }: Props) {
   const workspace = useBots((state) => state.byProject[project.id]);
   const ensure = useBots((state) => state.ensure);
   const addBot = useBots((state) => state.addBot);
@@ -259,7 +257,7 @@ export default function BotStudioTab({ tab, project }: Props) {
       if (bot.notifications) {
         notifyAiResponse({
           projectId: project.id,
-          tabId: tab.id,
+          tabId: `bots:${project.id}`,
           sessionId: bot.sessionId,
           text: reply,
         });
@@ -314,8 +312,8 @@ export default function BotStudioTab({ tab, project }: Props) {
   }
 
   return (
-    <div className="flex h-full min-h-0 w-full flex-1 bg-background-primary-default">
-      <section className="flex min-w-0 flex-1 flex-col">
+    <div className="flex h-full min-h-0 w-full flex-1 gap-2">
+      <section className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-3xl border border-border-button-white bg-background-primary-default shadow-sidebar">
         <header className="flex h-11 shrink-0 items-center gap-2 border-b px-3">
           <Bot size={15} className="text-accent-500" />
           <div className="min-w-0 flex-1">
@@ -413,7 +411,7 @@ export default function BotStudioTab({ tab, project }: Props) {
         </div>
       </section>
 
-      <aside className="hidden w-[300px] shrink-0 flex-col border-s bg-background-primary-default lg:flex">
+      <aside className="hidden w-[300px] shrink-0 flex-col overflow-hidden rounded-3xl border border-border-button-white bg-background-primary-default shadow-sidebar lg:flex">
         {activeBot && <BotConfig projectId={project.id} bot={activeBot} />}
       </aside>
 

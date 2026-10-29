@@ -39,10 +39,7 @@ export default function ActivityBar() {
                 className={cx("size-9", active && "text-accent-500")}
                 aria-label={item.label}
                 aria-pressed={active}
-                onClick={() => {
-                  setSidebar(item.id);
-                  if (item.id === "bots") window.dispatchEvent(new CustomEvent("toph:open-bots"));
-                }}
+                onClick={() => setSidebar(item.id)}
               />
               <Tooltip>{item.label}</Tooltip>
             </TooltipTrigger>
