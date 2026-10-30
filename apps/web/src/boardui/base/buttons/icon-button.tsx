@@ -22,7 +22,7 @@ import { directionalIconClass } from "@/boardui/utils/directional-icon";
  * shadow/xs). Hover/active/disabled states reuse the secondary Button tokens.
  */
 
-type IconButtonSize = "medium" | "small";
+type IconButtonSize = "medium" | "small" | "xs";
 
 type IconComponent = ComponentType<{
   className?: string;
@@ -54,18 +54,20 @@ const styles = sortCx({
     "border border-border-button-default shadow-xs",
     "select-none cursor-pointer",
     "transition-[background-color,border-color,box-shadow,color] duration-150 ease",
-    "outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-border-focus-ring",
+    "outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-border-focus-ring",
     "hover:bg-background-primary-hover hover:border-border-button-hover",
     "active:bg-background-primary-active active:border-border-button-active",
     "disabled:cursor-not-allowed disabled:bg-background-primary-disabled disabled:border-border-button-default disabled:text-icon-button-disabled-foreground disabled:opacity-60 disabled:shadow-none",
   ].join(" "),
   size: {
-    medium: "size-9",
+    medium: "size-8",
     small: "size-8",
+    xs: "size-6",
   },
   icon: {
     medium: "size-5 shrink-0",
     small: "size-4 shrink-0",
+    xs: "size-3.5 shrink-0",
   },
 });
 

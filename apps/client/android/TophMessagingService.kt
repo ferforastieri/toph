@@ -11,6 +11,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
+import org.json.JSONObject
 
 class TophMessagingService : FirebaseMessagingService() {
   override fun onNewToken(token: String) {
@@ -46,12 +47,18 @@ class TophMessagingService : FirebaseMessagingService() {
       manager.createNotificationChannel(channel)
     }
 
+    val payload = JSONObject().apply {
+      data.forEach { (key, value) -> put(key, value) }
+      put("opened", "true")
+    }
     val intent = Intent(this, MainActivity::class.java).apply {
       flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+      putExtra("toph_push", payload.toString())
     }
+    val requestCode = (data["notificationId"] ?: System.currentTimeMillis().toString()).hashCode()
     val pending = PendingIntent.getActivity(
       this,
-      0,
+      requestCode,
       intent,
       PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
     )

@@ -1,21 +1,24 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, ChevronDown, ChevronRight, FilePlus2, FolderOpen, FolderPlus, RefreshCw, Settings2 } from "@toph/icons";
+import { ArrowLeft, ChevronDown, FilePlus2, FolderOpen, FolderPlus, RefreshCw, Settings2 } from "@toph/icons";
 import { Button } from "@/boardui/base/buttons/button";
 import { createPortal } from "react-dom";
 import { Modal } from "@/boardui/base/modal/modal";
 import type { FileEntry, GitHistoryEntry, Project, SearchMatch } from "../api";
 import { api } from "../api";
 import { changeStatusByPath } from "../gitStatus";
-import ProjectSearch from "../components/ProjectSearch";
 import WorkspaceSettings from "./WorkspaceSettings";
 import { useApp } from "../store";
 import { PROJECT_EVENT } from "../projectEvents";
 import FileTree from "./FileTree";
+import FileIcon from "../ui/FileIcon";
+import { basename, dirname } from "../lib";
+import LoadingState from "../components/LoadingState";
+import { ProgressBar } from "@/boardui/base/progress/progress";
+import { Accordion, AccordionItem } from "@/boardui/base/accordion/accordion";
 
 interface Props {
   project: Project;
   onOpenFile: (path: string, line?: number) => void;
-  searchFocusToken?: number;
   onStatusChange?: (status: string) => void;
 }
 
@@ -67,7 +70,6 @@ function ActionItem({ label, shortcut, disabled, onSelect }: { label: string; sh
 export default function ExplorerPanel({
   project,
   onOpenFile,
-  searchFocusToken,
   onStatusChange,
 }: Props) {
   const notify = useApp((state) => state.notify);
@@ -85,6 +87,7 @@ export default function ExplorerPanel({
     entries: GitHistoryEntry[] | null;
     error: string;
   } | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<{ label: string; value: number; valueLabel: string } | null>(null);
   const [searchDialog, setSearchDialog] = useState<{
     title: string;
     results: SearchMatch[] | null;
@@ -163,14 +166,19 @@ export default function ExplorerPanel({
     const list = Array.from(files);
     if (list.length === 0) return;
     try {
-      for (const file of list) {
+      setUploadProgress({ label: "Enviando arquivos...", value: 0, valueLabel: `0 de ${list.length}` });
+      for (const [index, file] of list.entries()) {
+        setUploadProgress({ label: `Enviando ${file.name}`, value: Math.round((index / list.length) * 100), valueLabel: `${index} de ${list.length}` });
         const data = await fileToBase64(file);
         await api.uploadFile(project.id, joinPath(dir, file.name), data);
+        setUploadProgress({ label: "Enviando arquivos...", value: Math.round(((index + 1) / list.length) * 100), valueLabel: `${index + 1} de ${list.length}` });
       }
       publishFiles();
       notify("success", `${list.length} arquivo${list.length === 1 ? "" : "s"} enviado${list.length === 1 ? "" : "s"}.`);
     } catch (error) {
       notify("error", error instanceof Error ? error.message : "Falha no upload.");
+    } finally {
+      setUploadProgress(null);
     }
   }
 
@@ -317,13 +325,31 @@ export default function ExplorerPanel({
           <Button variant="ghost" size="xs" iconOnly leadingIcon={ChevronDown} aria-label="Recolher tudo" title="Recolher tudo" onClick={() => setTreeKey((value) => value + 1)} />
         </div>
       </div>
-      <div className="shrink-0 p-2 pb-1 project-search"><ProjectSearch project={project} onOpenFile={onOpenFile} focusToken={searchFocusToken} /></div>
-      <button type="button" className="flex h-7 w-full shrink-0 items-center gap-1.5 border-b px-2.5 text-start text-caption-1-regular hover:bg-background-primary-hover" title={project.root} aria-expanded={rootOpen} onClick={() => setRootOpen((current) => !current)}>
-        {rootOpen ? <ChevronDown size={13} className="text-foreground-icon-secondary" /> : <ChevronRight size={13} className="text-foreground-icon-secondary" />}
-        <FolderOpen size={15} className="text-accent-500" />
-        <span className="truncate">{project.name}</span>
-      </button>
-      <div className="min-h-0 flex-1 overflow-y-auto pb-2">{rootOpen && <FileTree key={treeKey} project={project} onOpenFile={onOpenFile} embedded statuses={statuses} onSelect={setSelected} onContextMenu={openContextMenu} />}</div>
+      {uploadProgress && (
+        <div className="shrink-0 border-b px-2 py-1.5">
+          <ProgressBar size="sm" label={uploadProgress.label} value={uploadProgress.value} valueLabel={uploadProgress.valueLabel} />
+        </div>
+      )}
+      <div className="min-h-0 flex-1 overflow-y-auto pb-2">
+        <Accordion
+          expandedKeys={rootOpen ? ["root"] : []}
+          onExpandedChange={(keys) => setRootOpen(Array.from(keys).includes("root"))}
+        >
+          <AccordionItem
+            id="root"
+            title={
+              <span className="flex min-w-0 items-center gap-1.5 text-caption-1-regular">
+                <FolderOpen size={15} className="shrink-0 text-accent-500" />
+                <span className="truncate">{project.name}</span>
+              </span>
+            }
+            triggerClassName="h-6 gap-1.5 px-2.5 py-0 text-caption-1-regular"
+            contentClassName="p-0"
+          >
+            <FileTree key={treeKey} project={project} onOpenFile={onOpenFile} embedded statuses={statuses} onSelect={setSelected} onContextMenu={openContextMenu} />
+          </AccordionItem>
+        </Accordion>
+      </div>
     {workspaceSettingsOpen && (
       <div className="absolute inset-0 z-20 flex flex-col bg-background-primary-default">
         <div className="flex h-9 shrink-0 items-center gap-2 border-b px-2">
@@ -369,7 +395,7 @@ export default function ExplorerPanel({
     )}
       {historyDialog && (
         <Modal isOpen onClose={() => setHistoryDialog(null)} title={historyDialog.title} description="Histórico de commits." size="lg">
-            {!historyDialog.entries && !historyDialog.error && <p className="py-6 text-center text-sm text-muted-foreground">Carregando histórico...</p>}
+            {!historyDialog.entries && !historyDialog.error && <LoadingState label="Carregando histórico..." className="py-2" />}
             {historyDialog.error && <p className="rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">{historyDialog.error}</p>}
             {historyDialog.entries?.length === 0 && <p className="py-6 text-center text-sm text-muted-foreground">Sem commits.</p>}
             <div className="flex flex-col gap-1">
@@ -389,9 +415,15 @@ export default function ExplorerPanel({
             {searchDialog.results?.length === 0 && <p className="py-6 text-center text-sm text-muted-foreground">Nada encontrado.</p>}
             <div className="flex flex-col gap-1">
               {searchDialog.results?.map((result) => (
-                <button type="button" className="flex flex-col gap-0.5 rounded-lg px-3 py-2 text-start hover:bg-accent" key={`${result.path}:${result.line}:${result.column}`} onClick={() => { setSearchDialog(null); onOpenFile(result.path, result.line); }}>
-                  <code className="text-[11px] text-primary">{result.path}:{result.line}</code>
-                  <span className="truncate text-xs text-muted-foreground">{result.preview}</span>
+                <button type="button" className="flex items-start gap-2 rounded-lg px-3 py-2 text-start hover:bg-accent" key={`${result.path}:${result.line}:${result.column}`} onClick={() => { setSearchDialog(null); onOpenFile(result.path, result.line); }}>
+                  <FileIcon name={basename(result.path)} path={result.path} size={15} />
+                  <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                    <code className="flex min-w-0 items-baseline gap-2 text-[11px] text-primary">
+                      <span className="truncate">{basename(result.path)}:{result.line}</span>
+                      {dirname(result.path) && <span className="truncate text-muted-foreground">{dirname(result.path)}</span>}
+                    </code>
+                    <span className="truncate text-xs text-muted-foreground">{result.preview}</span>
+                  </span>
                 </button>
               ))}
             </div>

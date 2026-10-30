@@ -526,6 +526,28 @@ impl WorkspaceService {
         git_checked(root, &["switch", name]).await
     }
 
+    /** Delete every local branch except the one currently checked out. */
+    pub async fn git_delete_other_branches(&self, root: &Path) -> AppResult<usize> {
+        let current = git_output(root, &["rev-parse", "--abbrev-ref", "HEAD"])
+            .await?
+            .trim()
+            .to_string();
+        let output = git_output(root, &["branch", "--format=%(refname:short)"]).await?;
+        let names: Vec<String> = output
+            .lines()
+            .map(str::trim)
+            .filter(|name| !name.is_empty() && *name != current && *name != "HEAD")
+            .map(ToOwned::to_owned)
+            .collect();
+        if names.is_empty() {
+            return Ok(0);
+        }
+        let mut args = vec!["branch", "-D"];
+        args.extend(names.iter().map(String::as_str));
+        git_checked(root, &args).await?;
+        Ok(names.len())
+    }
+
     pub async fn git_create_branch(&self, root: &Path, name: &str) -> AppResult<String> {
         validate_branch_name(name)?;
         git_checked(root, &["check-ref-format", "--branch", name]).await?;

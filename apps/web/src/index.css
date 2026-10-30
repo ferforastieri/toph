@@ -182,6 +182,53 @@
   select {
     font: inherit;
   }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-accent-500) transparent;
+  }
+
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-button {
+    display: none;
+    width: 0;
+    height: 0;
+  }
+
+  .no-scrollbar {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    border: 2px solid transparent;
+    border-radius: 999px;
+    background: var(--color-accent-500);
+    background-clip: padding-box;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--color-accent-400);
+    background-clip: padding-box;
+  }
+
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
 }
 
 /* BoardUI's dark ghost button is an accent-tinted action. Toph uses ghost for
@@ -240,5 +287,218 @@
   [aria-label="Notifications"] {
     bottom: calc(4rem + var(--safe-bottom) + 0.5rem) !important;
     z-index: 30 !important;
+  }
+}
+
+/* xterm renders its own scrollbar DOM instead of native scrollbars. Keep it
+   consistent with the app-wide custom scrollbar. */
+.xterm .xterm-scrollable-element > .scrollbar.vertical {
+  width: 8px !important;
+}
+
+.xterm .xterm-scrollable-element > .scrollbar.horizontal {
+  height: 8px !important;
+}
+
+.xterm .xterm-scrollable-element > .scrollbar > .slider {
+  border-radius: 999px !important;
+  background: var(--color-accent-500) !important;
+}
+
+.xterm .xterm-scrollable-element > .scrollbar.vertical > .slider {
+  width: 8px !important;
+}
+
+.xterm .xterm-scrollable-element > .scrollbar.horizontal > .slider {
+  height: 8px !important;
+}
+
+.xterm .xterm-viewport {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-accent-500) transparent;
+}
+
+.xterm .xterm-viewport::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.xterm .xterm-viewport::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.xterm .xterm-viewport::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: var(--color-accent-500);
+  background-clip: padding-box;
+}
+
+.xterm .xterm-viewport::-webkit-scrollbar-thumb:hover {
+  background: var(--color-accent-400);
+  background-clip: padding-box;
+}
+
+/* Monaco also draws its own scrollbar. Use the same thin, themed thumb. */
+.monaco-scrollable-element > .scrollbar.vertical {
+  width: 8px !important;
+}
+
+.monaco-scrollable-element > .scrollbar.horizontal {
+  height: 8px !important;
+}
+
+.monaco-scrollable-element > .scrollbar > .slider {
+  border-radius: 999px !important;
+  background: var(--color-accent-500) !important;
+}
+
+.monaco-scrollable-element > .scrollbar > .slider:hover,
+.monaco-scrollable-element > .scrollbar > .slider.active {
+  background: var(--color-accent-400) !important;
+}
+
+/* Hide the native xterm viewport scrollbar and show the terminal's own
+   themed scrollbar consistently. */
+.xterm .xterm-viewport {
+  scrollbar-width: none;
+}
+
+.xterm .xterm-viewport::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+.xterm .xterm-scrollable-element > .scrollbar {
+  opacity: 1 !important;
+}
+
+.xterm .xterm-scrollable-element > .scrollbar > .slider {
+  border-radius: 999px !important;
+  background: var(--color-accent-500) !important;
+}
+
+.xterm .xterm-scrollable-element > .scrollbar > .slider:hover,
+.xterm .xterm-scrollable-element > .scrollbar > .slider.active {
+  border-radius: 999px !important;
+  background: var(--color-accent-400) !important;
+}
+
+/* Same opening motion as the global BoardUI accordion: height/content
+   easing at 300ms, content fading in, dropping 4px and sharpening from blur. */
+@keyframes toph-dropdown-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+
+.dropdown-reveal {
+  animation: toph-dropdown-reveal 300ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes toph-progress-sweep {
+  0% { left: -35%; }
+  100% { left: 105%; }
+}
+
+.progress-indeterminate {
+  animation: toph-progress-sweep 1.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+@keyframes toph-hover-glow-in {
+  from {
+    color: var(--color-text-primary);
+    text-shadow: 0 0 0 transparent;
+  }
+  to {
+    color: var(--color-accent-400);
+    text-shadow: 0 0 8px color-mix(in srgb, var(--color-accent-500) 42%, transparent);
+  }
+}
+
+@keyframes toph-icon-glow-in {
+  from { filter: drop-shadow(0 0 0 transparent); }
+  to { filter: drop-shadow(0 0 5px color-mix(in srgb, var(--color-accent-500) 45%, transparent)); }
+}
+
+/* Amber hover highlight: animated into place, but steady while hovered. */
+:where(button, a, [role="button"], [role="tab"], [role="treeitem"], [role="option"], [role="menuitem"]) {
+  transition: color 180ms ease, text-shadow 220ms ease;
+}
+
+:where(button, a, [role="button"], [role="tab"], [role="treeitem"], [role="option"], [role="menuitem"]):hover {
+  animation: toph-hover-glow-in 800ms ease-out both;
+  color: var(--color-accent-400);
+  text-shadow: 0 0 8px color-mix(in srgb, var(--color-accent-500) 42%, transparent);
+}
+
+:where(button, a, [role="button"], [role="tab"], [role="treeitem"], [role="option"], [role="menuitem"]) svg {
+  transition: filter 220ms ease;
+}
+
+:where(button, a, [role="button"], [role="tab"], [role="treeitem"], [role="option"], [role="menuitem"]):hover svg {
+  animation: toph-icon-glow-in 800ms ease-out both;
+  filter: drop-shadow(0 0 5px color-mix(in srgb, var(--color-accent-500) 45%, transparent));
+}
+
+/* Header selectors inherit the same amber hover treatment as the rest of the
+   app, including their explicit text/icon colors. */
+.header-accordion-trigger:hover .header-accordion-label,
+.header-accordion-trigger:hover .header-accordion-label span {
+  animation: toph-hover-glow-in 800ms ease-out both;
+  color: var(--color-accent-400);
+  text-shadow: 0 0 8px color-mix(in srgb, var(--color-accent-500) 42%, transparent);
+}
+
+.header-accordion-trigger:hover .header-accordion-label svg {
+  animation: toph-icon-glow-in 800ms ease-out both;
+  filter: drop-shadow(0 0 5px color-mix(in srgb, var(--color-accent-500) 45%, transparent));
+}
+
+/* Inputs and search fields share the same amber hover treatment as buttons. */
+[data-input-shell]:not([data-disabled]):hover input {
+  animation: toph-hover-glow-in 800ms ease-out both;
+  color: var(--color-accent-400);
+  text-shadow: 0 0 8px color-mix(in srgb, var(--color-accent-500) 42%, transparent);
+}
+
+[data-input-shell]:not([data-disabled]):hover input::placeholder {
+  animation: toph-hover-glow-in 800ms ease-out both;
+  color: var(--color-accent-400);
+  text-shadow: 0 0 8px color-mix(in srgb, var(--color-accent-500) 42%, transparent);
+}
+
+[data-input-shell]:not([data-disabled]):hover svg {
+  animation: toph-icon-glow-in 800ms ease-out both;
+  color: var(--color-accent-400);
+  filter: drop-shadow(0 0 5px color-mix(in srgb, var(--color-accent-500) 45%, transparent));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .progress-indeterminate {
+    animation: none;
+    left: 33%;
+  }
+
+  .dropdown-reveal {
+    animation: none;
+  }
+
+  [data-input-shell]:hover input,
+  [data-input-shell]:hover input::placeholder,
+  [data-input-shell]:hover svg {
+    animation: none;
+  }
+
+  :where(button, a, [role="button"], [role="tab"], [role="treeitem"], [role="option"], [role="menuitem"]):hover,
+  :where(button, a, [role="button"], [role="tab"], [role="treeitem"], [role="option"], [role="menuitem"]):hover svg {
+    animation: none;
   }
 }

@@ -7,6 +7,7 @@ import type {
 } from "react";
 import { cx, sortCx } from "@/boardui/utils/cx";
 import { directionalIconClass } from "@/boardui/utils/directional-icon";
+import { IconButton } from "@/boardui/base/buttons/icon-button";
 
 /**
  * Figma source: Board UI → Buttons (node 3656:13819).
@@ -85,7 +86,7 @@ const styles = sortCx({
 
   // Base shape per size (used when label is present OR medium icon-only).
   size: {
-    medium: "h-9 rounded-2lg p-2 text-body-medium",
+    medium: "h-8 rounded-2lg p-2 text-body-medium",
     small:  "h-8 rounded-lg px-2 py-1.5 text-body-medium",
     xs:     "h-6 rounded-sm px-2 text-caption-1-semibold",
   },
@@ -154,6 +155,24 @@ export function Button({
   ref,
   ...props
 }: ButtonProps) {
+  if (iconOnly && Leading) {
+    return (
+      <IconButton
+        ref={ref}
+        type={type}
+        icon={Leading}
+        size={size === "medium" ? "medium" : size === "small" ? "small" : "xs"}
+        className={cx(
+          styles.variant[variant],
+          variant === "ghost" && "border-transparent bg-transparent shadow-none",
+          className,
+        )}
+        {...props}
+        aria-label={String(props["aria-label"] ?? "")}
+      />
+    );
+  }
+
   return (
     <button
       ref={ref}

@@ -4,6 +4,7 @@ import { api, type WebTarget } from "../api";
 import { useApp } from "../store";
 import { useConfirm } from "../ui/confirm";
 import { Button } from "@/boardui/base/buttons/button";
+import { IconLinkButton } from "@/boardui/base/buttons/icon-button";
 import { Input } from "@/boardui/base/input/input";
 
 interface Props { onOpenWeb: (target: WebTarget) => void; }
@@ -33,7 +34,7 @@ export default function WebSidebar({ onOpenWeb }: Props) {
             <Button variant="ghost" size="small" className="h-8 min-w-0 flex-1 justify-start px-1.5" onClick={() => onOpenWeb(target)}>
               <Globe2 size={15} className="text-foreground-icon-secondary" /><span className="truncate text-caption-1-regular">{target.name}</span>
             </Button>
-            <a className="flex size-7 items-center justify-center rounded-md text-foreground-icon-secondary hover:bg-background-primary-hover" href={target.url} target="_blank" rel="noreferrer" title="Abrir externamente"><ExternalLink size={13} /></a>
+            <IconLinkButton icon={ExternalLink} size="small" aria-label="Abrir externamente" title="Abrir externamente" href={target.url} target="_blank" rel="noreferrer" className="border-transparent bg-transparent shadow-none" />
             <Button variant="ghost" size="xs" iconOnly leadingIcon={Trash2} aria-label="Excluir" onClick={async () => { const ok = await confirm({ title: "Excluir web app?", message: `Excluir "${target.name}" deste workspace?`, confirmLabel: "Excluir", danger: true }); if (!ok) return; await api.deleteWebTarget(target.id); await load(); }} />
           </div>
         ))}

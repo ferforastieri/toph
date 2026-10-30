@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
-import { ChevronDown, ChevronRight } from "@toph/icons";
+import { RiArrowDownSLine } from "@remixicon/react";
 import { api, type FileEntry, type Project } from "../api";
 import { useApp } from "../store";
 import FileIcon from "../ui/FileIcon";
 import GitStatusIcon from "../ui/GitStatusIcon";
 import { Badge } from "@/boardui/base/badges/badge";
 import { useProjectEvents } from "../projectEvents";
+import LoadingState from "../components/LoadingState";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -100,7 +101,7 @@ function TreeNode({ project, entry, depth, onOpenFile, statuses, revision, onSel
         aria-expanded={entry.dir ? open : undefined}
         aria-selected={selectedPath === entry.path}
         className={cn(
-          "flex h-7 w-full min-w-0 items-center gap-1 rounded-lg px-1.5 text-start text-caption-1-regular text-text-primary outline-none transition-colors hover:bg-background-secondary-hover focus-visible:ring-2 focus-visible:ring-border-focus-ring",
+          "flex h-6 w-full min-w-0 items-center gap-1 rounded-lg px-1.5 text-start text-caption-1-regular text-text-primary outline-none transition-colors hover:bg-background-secondary-hover focus-visible:ring-2 focus-visible:ring-border-focus-ring",
           selectedPath === entry.path && "bg-background-secondary-hover",
         )}
         style={{ paddingInlineStart: 4 + depth * 12 }}
@@ -109,17 +110,35 @@ function TreeNode({ project, entry, depth, onOpenFile, statuses, revision, onSel
         title={entry.path}
       >
         <span className="flex size-3.5 shrink-0 items-center justify-center text-foreground-icon-tertiary">
-          {entry.dir ? (open ? <ChevronDown size={12} /> : <ChevronRight size={12} />) : null}
+          {entry.dir ? (
+            <RiArrowDownSLine
+              className={cn(
+                "size-3.5 transition-[rotate,color] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
+                open && "rotate-180",
+              )}
+            />
+          ) : null}
         </span>
         <FileIcon name={entry.name} path={entry.path} dir={entry.dir} open={open} size={14} />
         <span className="min-w-0 flex-1 truncate">{entry.name}</span>
         {fileStatus && <GitStatusIcon status={fileStatus} size={13} />}
         {changedChildren > 0 && <Badge color="neutral" className="h-3.5 px-1 text-[8px]">{changedChildren}</Badge>}
       </button>
-      {open && loading && <div className="py-0.5 text-caption-2-regular text-text-tertiary" style={{ paddingInlineStart: 20 + depth * 12 }}>loading...</div>}
-      {open && children?.map((child) => (
-        <TreeNode key={child.path} project={project} entry={child} depth={depth + 1} onOpenFile={onOpenFile} statuses={statuses} revision={revision} onSelect={onSelect} onContextMenu={onContextMenu} selectedPath={selectedPath} />
-      ))}
+      {entry.dir && (
+        <div
+          className={cn(
+            "grid transition-[grid-template-rows] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
+            open ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
+          )}
+        >
+          <div className={cn("min-h-0 overflow-hidden transition-opacity duration-300", open ? "opacity-100" : "opacity-0")}>
+            {loading && <LoadingState label="Carregando..." className="py-0.5" />}
+            {children?.map((child) => (
+              <TreeNode key={child.path} project={project} entry={child} depth={depth + 1} onOpenFile={onOpenFile} statuses={statuses} revision={revision} onSelect={onSelect} onContextMenu={onContextMenu} selectedPath={selectedPath} />
+            ))}
+          </div>
+        </div>
+      )}
     </>
   );
 }

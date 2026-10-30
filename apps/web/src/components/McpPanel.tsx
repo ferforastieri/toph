@@ -4,7 +4,6 @@ import {
   Check,
   CircleAlert,
   ExternalLink,
-  LoaderCircle,
   LogIn,
   Plus,
   PlugZap,
@@ -18,6 +17,8 @@ import { useConfirm } from "../ui/confirm";
 import { Button } from "@/boardui/base/buttons/button";
 import { Chip } from "@/boardui/base/badges/chip";
 import { Input } from "@/boardui/base/input/input";
+import LoadingState from "./LoadingState";
+import { ProgressCircle } from "@/boardui/base/progress/progress";
 import { Select, SelectItem } from "@/boardui/base/select/select";
 
 interface McpStatus {
@@ -399,7 +400,7 @@ export default function McpPanel({ projectRoot }: Props) {
       {attempt && (
         <div className="flex flex-col gap-3 rounded-lg border border-accent-500/40 bg-accent-500/5 p-3">
           <div className="flex items-center gap-2 text-caption-1-medium text-text-primary">
-            <LoaderCircle size={15} className="animate-spin text-accent-500" />
+            <ProgressCircle size="sm" isIndeterminate aria-label="Carregando" />
             Aguardando autenticação de {attempt.serverName}
           </div>
           {attempt.instructions && <p className="text-caption-1-regular text-text-secondary">{attempt.instructions}</p>}
@@ -422,7 +423,7 @@ export default function McpPanel({ projectRoot }: Props) {
         </div>
       )}
 
-      {loading && <p className="py-6 text-center text-body-regular text-text-secondary">Carregando servidores MCP...</p>}
+      {loading && <LoadingState label="Carregando servidores MCP..." className="py-2" />}
       {!loading && !error && servers.length === 0 && (
         <div className="rounded-lg border border-dashed border-border-button-default p-6 text-center">
           <Wrench size={20} className="mx-auto text-text-tertiary" />

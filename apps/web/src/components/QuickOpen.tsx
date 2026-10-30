@@ -1,24 +1,29 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { FileText, LoaderCircle, Search } from "@toph/icons";
+import { ChevronDown } from "@toph/icons";
+import LoadingState from "./LoadingState";
 import { api, type Project, type SearchMatch } from "../api";
-import { basename } from "../lib";
+import { basename, dirname } from "../lib";
 import FileIcon from "../ui/FileIcon";
-import { Input } from "@/boardui/base/input/input";
+import { SearchField } from "@/boardui/base/search-field/search-field";
 import { cx } from "@/boardui/utils/cx";
+import { useDebouncedValue } from "../ui/useDebouncedValue";
 
 interface Props {
   project: Project | null;
   focusToken: number;
   onOpenFile: (path: string, line?: number) => void;
   floating?: boolean;
+  /** Header trigger shows a chevron that rotates with the dropdown. */
+  showChevron?: boolean;
   className?: string;
 }
 
 type Result = { kind: "file"; path: string } | { kind: "match"; match: SearchMatch };
 const MAX_FILES = 30;
 
-export default function QuickOpen({ project, focusToken, onOpenFile, floating = false, className }: Props) {
+export default function QuickOpen({ project, focusToken, onOpenFile, floating = false, showChevron = false, className }: Props) {
   const [query, setQuery] = useState("");
+  const debouncedQuery = useDebouncedValue(query, 220);
   const [open, setOpen] = useState(false);
   const [files, setFiles] = useState<string[]>([]);
   const [matches, setMatches] = useState<SearchMatch[]>([]);
@@ -35,22 +40,28 @@ export default function QuickOpen({ project, focusToken, onOpenFile, floating = 
   }, [focusToken]);
 
   useEffect(() => {
+    if (!query.trim()) {
+      setFiles([]);
+      setMatches([]);
+      setBusy(false);
+    }
+  }, [query]);
+
+  useEffect(() => {
     if (!project) return;
-    const text = query.trim();
+    const text = debouncedQuery.trim();
     if (!text) { setFiles([]); setMatches([]); setBusy(false); return; }
     let cancelled = false;
     setBusy(true);
-    const timer = window.setTimeout(() => {
-      Promise.allSettled([api.files(project.id, text), api.search(project.id, text)])
-        .then(([fileResult, matchResult]) => {
-          if (cancelled) return;
-          setFiles(fileResult.status === "fulfilled" ? fileResult.value.slice(0, MAX_FILES) : []);
-          setMatches(matchResult.status === "fulfilled" ? matchResult.value : []);
-        })
-        .finally(() => { if (!cancelled) setBusy(false); });
-    }, 220);
-    return () => { cancelled = true; window.clearTimeout(timer); };
-  }, [project, query]);
+    Promise.allSettled([api.files(project.id, text), api.search(project.id, text)])
+      .then(([fileResult, matchResult]) => {
+        if (cancelled) return;
+        setFiles(fileResult.status === "fulfilled" ? fileResult.value.slice(0, MAX_FILES) : []);
+        setMatches(matchResult.status === "fulfilled" ? matchResult.value : []);
+      })
+      .finally(() => { if (!cancelled) setBusy(false); });
+    return () => { cancelled = true; };
+  }, [project, debouncedQuery]);
 
   const results = useMemo<Result[]>(() => [
     ...files.map((path) => ({ kind: "file" as const, path })),
@@ -78,51 +89,145 @@ export default function QuickOpen({ project, focusToken, onOpenFile, floating = 
 
   if (floating && !open) return null;
 
+  function fileRow(path: string, index: number) {
+    return (
+      <button
+        key={`file:${path}`}
+        type="button"
+        onMouseEnter={() => setActive(index)}
+        onClick={() => choose({ kind: "file", path })}
+        className={cx(
+          "flex w-full items-center gap-2 rounded-2lg px-2 py-1.5 text-start text-caption-1-regular",
+          index === active ? "bg-dropdown-item-hover-background text-text-primary" : "text-text-secondary hover:bg-dropdown-item-hover-background hover:text-text-primary",
+        )}
+      >
+        <FileIcon name={basename(path)} path={path} size={15} />
+        <span className="flex min-w-0 flex-1 items-baseline gap-2">
+          <span className="truncate text-text-primary">{basename(path)}</span>
+          {dirname(path) && <span className="truncate text-caption-2-regular text-text-tertiary">{dirname(path)}</span>}
+        </span>
+      </button>
+    );
+  }
+
+  function matchRow(match: SearchMatch, index: number) {
+    return (
+      <button
+        key={`match:${match.path}:${match.line}:${match.preview}`}
+        type="button"
+        onMouseEnter={() => setActive(index)}
+        onClick={() => choose({ kind: "match", match })}
+        className={cx(
+          "flex w-full items-start gap-2 rounded-2lg px-2 py-1.5 text-start text-caption-1-regular",
+          index === active ? "bg-dropdown-item-hover-background text-text-primary" : "text-text-secondary hover:bg-dropdown-item-hover-background hover:text-text-primary",
+        )}
+      >
+        <FileIcon name={basename(match.path)} path={match.path} size={15} />
+        <span className="flex min-w-0 flex-1 flex-col">
+          <span className="flex min-w-0 items-baseline gap-2">
+            <span className="truncate text-text-primary">{basename(match.path)}</span>
+            {dirname(match.path) && <span className="truncate text-caption-2-regular text-text-tertiary">{dirname(match.path)}</span>}
+          </span>
+          <span className="truncate text-caption-1-regular text-text-tertiary">{match.preview}</span>
+        </span>
+        <span className="shrink-0 text-caption-2-regular text-text-tertiary">{match.line}</span>
+      </button>
+    );
+  }
+
+  const resultContent = (
+    <>
+      {!query.trim() && (
+        <div className="px-2 py-2 text-caption-1-regular text-text-tertiary">
+          Busque por nome de arquivo ou por termo no conteúdo.
+        </div>
+      )}
+      {busy && <LoadingState label="Buscando..." className="px-2 py-1" />}
+      {query.trim() && (
+        <div className="flex flex-col gap-1">
+          <section className="flex flex-col gap-0.5">
+            <div className="px-2 pb-0.5 pt-1 text-caption-2-semibold uppercase tracking-wide text-text-tertiary">
+              Arquivos
+            </div>
+            {files.length > 0
+              ? files.map((path, index) => fileRow(path, index))
+              : !busy && <p className="px-2 py-1.5 text-caption-1-regular text-text-tertiary">Nenhum arquivo encontrado.</p>}
+          </section>
+          <section className="flex flex-col gap-0.5">
+            <div className="px-2 pb-0.5 pt-1 text-caption-2-semibold uppercase tracking-wide text-text-tertiary">
+              Conteúdo
+            </div>
+            {matches.length > 0
+              ? matches.map((match, index) => matchRow(match, files.length + index))
+              : !busy && <p className="px-2 py-1.5 text-caption-1-regular text-text-tertiary">Nenhum termo encontrado.</p>}
+          </section>
+        </div>
+      )}
+    </>
+  );
+
   return (
-    <div className={cx("relative", floating ? "w-full" : "w-[min(360px,38vw)]", className)} ref={wrapRef} onKeyDownCapture={(event) => {
+    <div
+      className={cx("relative w-full", className)}
+      ref={wrapRef}
+      onKeyDownCapture={(event) => {
         if (event.key === "ArrowDown") { event.preventDefault(); setActive((current) => Math.min(results.length - 1, current + 1)); }
         else if (event.key === "ArrowUp") { event.preventDefault(); setActive((current) => Math.max(0, current - 1)); }
         else if (event.key === "Enter" && results[active]) { event.preventDefault(); choose(results[active]); }
         else if (event.key === "Escape") { setQuery(""); setOpen(false); inputRef.current?.blur(); }
-      }}>
-      <Input
-        ref={inputRef}
-        value={query}
-        onChange={setQuery}
-        onFocus={() => setOpen(true)}
-        placeholder={project?.name ?? "Buscar"}
-        aria-label="Busca rápida"
-        leadingIcon={Search}
-        fieldClassName={floating ? "h-9 rounded-full bg-background-primary-default px-3 py-2 shadow-dropdown" : "h-7 rounded-full bg-background-secondary-default px-2 py-1"}
-        className="text-body-2-regular"
-      />
-      {open && (
-        <div className="absolute inset-x-0 top-full z-50 mt-1 max-h-80 overflow-y-auto rounded-2xl border border-border-button-default bg-background-primary-default p-1.5 shadow-dropdown">
-          {!query.trim() && <p className="px-2 py-2 text-caption-1-regular text-text-tertiary">Digite para buscar arquivos ou conteúdo.</p>}
-          {busy && <div className="flex items-center gap-2 px-2 py-1.5 text-caption-1-regular text-text-secondary"><LoaderCircle size={13} className="animate-spin" /> Buscando...</div>}
-          {!busy && query.trim() && results.length === 0 && <p className="px-2 py-1.5 text-caption-1-regular text-text-secondary">Nenhum resultado.</p>}
-          {results.map((result, index) => {
-            const path = result.kind === "file" ? result.path : result.match.path;
-            return (
-              <button
-                key={`${result.kind}:${path}:${result.kind === "match" ? result.match.line : ""}`}
-                type="button"
-                onMouseEnter={() => setActive(index)}
-                onClick={() => choose(result)}
-                className={cx(
-                  "flex w-full items-start gap-2 rounded-2lg px-2 py-1.5 text-start text-caption-1-regular",
-                  index === active ? "bg-dropdown-item-hover-background text-text-primary" : "text-text-secondary hover:bg-dropdown-item-hover-background hover:text-text-primary",
-                )}
-              >
-                {result.kind === "file" ? <FileIcon name={basename(path)} path={path} size={14} /> : <FileText size={12} className="mt-0.5 shrink-0" />}
-                <span className="flex min-w-0 flex-1 flex-col">
-                  <span className="truncate">{path}</span>
-                  {result.kind === "match" && <span className="truncate text-text-tertiary">{result.match.preview}</span>}
-                </span>
-                {result.kind === "match" && <span className="shrink-0 text-caption-2-regular text-text-tertiary">{result.match.line}</span>}
-              </button>
-            );
-          })}
+      }}
+    >
+      {floating ? (
+        <div className="overflow-hidden rounded-3xl border border-border-button-default bg-background-primary-default shadow-sidebar">
+          <div className="border-b border-separator-border p-3">
+            <SearchField
+              inputRef={inputRef}
+              value={query}
+              onChange={setQuery}
+              placeholder="Buscar por nome ou conteúdo..."
+              aria-label="Busca rápida"
+              shape="rounded"
+              isLoading={busy}
+              fieldClassName="h-10 rounded-xl bg-background-secondary-default"
+            />
+          </div>
+          <div className="max-h-[min(420px,60vh)] overflow-y-auto p-2">
+            {resultContent}
+          </div>
+          <div className="flex items-center justify-between border-t border-separator-border px-3 py-2 text-caption-1-regular text-text-tertiary">
+            <span>↑ ↓ navegar</span>
+            <span>Enter abrir · Esc fechar</span>
+          </div>
+        </div>
+      ) : (
+        <div onFocusCapture={() => setOpen(true)} onClick={() => setOpen(true)}>
+          <SearchField
+            inputRef={inputRef}
+            value={query}
+            onChange={setQuery}
+            placeholder="Buscar por nome ou conteúdo..."
+            aria-label="Busca rápida"
+            shape="rounded"
+            size="small"
+            isLoading={busy}
+            fieldClassName={showChevron ? "h-[26px]" : "h-8"}
+            endAddon={
+              showChevron ? (
+                <ChevronDown
+                  aria-hidden
+                  className={cx(
+                    "size-4 shrink-0 text-foreground-icon-tertiary transition-[rotate,color] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
+                    open && "rotate-180",
+                  )}
+                />
+              ) : null
+            }
+          />
+          {open && (
+            <div className="dropdown-reveal absolute inset-x-0 top-full z-[300] mt-1 max-h-80 overflow-y-auto rounded-2xl border border-border-button-default bg-background-primary-default p-1.5 shadow-dropdown">
+              {resultContent}
+            </div>
+          )}
         </div>
       )}
     </div>

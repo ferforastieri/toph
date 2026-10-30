@@ -4,6 +4,7 @@ import type { Project } from "../api";
 import { listOpenCodeSessions, type OpenCodeSessionSummary } from "../opencodeSessions";
 import { useApp } from "../store";
 import { Button } from "@/boardui/base/buttons/button";
+import LoadingState from "../components/LoadingState";
 
 export default function OpenCodeSidebar({ project, onNewSession, onOpenSession }: { project: Project; onNewSession: () => void; onOpenSession: (session: { id: string; title?: string }) => void; }) {
   const tabs = useApp((state) => state.tabs);
@@ -29,7 +30,7 @@ export default function OpenCodeSidebar({ project, onNewSession, onOpenSession }
       {error && <p className="mx-2 rounded-md bg-destructive/10 px-2 py-1 text-[11px] text-destructive">{error}</p>}
       <div className="mx-2 flex items-start gap-2 rounded-lg border bg-card p-3"><Bot size={16} className="mt-0.5 text-muted-foreground" /><p className="text-[11px] text-muted-foreground">As sessões rodam no servidor com acesso a <code className="text-primary">{project.root}</code>.</p></div>
       <div className="mt-2 flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-1 pb-2">
-        {loading && <p className="px-2 py-2 text-[11px] text-muted-foreground">Carregando sessões...</p>}
+        {loading && <LoadingState label="Carregando sessões..." className="px-0 py-1" />}
         {sessions.length > 0 && <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">OpenCode history</p>}
         {sessions.map((session) => (
           <Button key={session.id} variant="ghost" size="small" className="h-8 justify-start px-2" onClick={() => onOpenSession(session)}><Bot size={15} className="text-foreground-icon-secondary" /><span className="min-w-0 flex-1 truncate text-start">{session.title ?? session.id.slice(0, 8)}</span><small className="text-caption-2-regular text-text-secondary">saved</small></Button>

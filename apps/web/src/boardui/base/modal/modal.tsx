@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { RiCloseLine } from "@remixicon/react";
+import { IconButton } from "@/boardui/base/buttons/icon-button";
 import { cx } from "@/boardui/utils/cx";
 
 export type ModalSize = "sm" | "md" | "lg" | "xl" | "full";
@@ -120,14 +121,13 @@ export function Modal({
               {title ? <h2 className="text-title-3-medium text-text-primary">{title}</h2> : null}
               {description ? <p className="text-body-regular text-text-secondary">{description}</p> : null}
             </div>
-            <button
-              type="button"
+            <IconButton
+              icon={RiCloseLine}
+              size="small"
               aria-label="Fechar"
               onClick={onClose}
-              className="flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-full bg-background-tertiary-default text-foreground-icon-secondary transition-colors hover:bg-background-tertiary-hover focus-visible:ring-2 focus-visible:ring-border-focus-ring focus-visible:outline-none"
-            >
-              <RiCloseLine className="size-4" aria-hidden />
-            </button>
+              className="rounded-full border-0 bg-background-tertiary-default text-foreground-icon-secondary shadow-none hover:bg-background-tertiary-hover"
+            />
           </header>
         )}
         <div className={cx("min-h-0 flex-1 overflow-y-auto p-5", bodyClassName)}>{children}</div>

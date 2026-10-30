@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { ArrowLeft, Bell, Bot, Check, ChevronDown, ChevronRight, CircleAlert, FolderGit2, FolderPlus, GitBranch, Plus, Search, Settings2, TerminalSquare, X } from "@toph/icons";
+import { ArrowLeft, Bell, Bot, ChevronDown, ChevronRight, CircleAlert, FolderGit2, FolderPlus, GitBranch, Plus, Search, TerminalSquare, Trash2, X } from "@toph/icons";
+import { SearchField } from "@/boardui/base/search-field/search-field";
 import { api, getApiBase, type Repository, type SchemaTable, type WebTarget } from "../api";
 import { basename, expandGitPattern, languageFor, quoteIdentifier, sanitizeBranchName } from "../lib";
 import { useApp, type AppNotification, type Sidebar, type Tab } from "../store";
@@ -22,6 +23,10 @@ import EditorPanel from "../panels/EditorPanel";
 import DbPanelTab from "../panels/DbPanelTab";
 import BotStudioTab from "../panels/BotStudioTab";
 import BotsSidebar from "./BotsSidebar";
+import NotificationBell from "./NotificationBell";
+import HeaderAccordion from "./HeaderAccordion";
+import { IconButton } from "@/boardui/base/buttons/icon-button";
+import { Accordion, AccordionItem } from "@/boardui/base/accordion/accordion";
 import WebPanelTab from "../panels/WebPanelTab";
 import DiffPanelTab from "../panels/DiffPanelTab";
 import TerminalPanel from "../panels/TerminalPanel";
@@ -32,8 +37,8 @@ import { Input } from "@/boardui/base/input/input";
 import { Badge } from "@/boardui/base/badges/badge";
 import { Avatar } from "@/boardui/base/avatar/avatar";
 import { Checkbox } from "@/boardui/base/checkbox/checkbox";
+import { RadioDot } from "@/boardui/base/radio/radio";
 import { Radio, RadioGroup } from "@/boardui/base/radio/radio";
-import { Dropdown, DropdownDivider, DropdownGroup, DropdownItem, DropdownPopover, DropdownTrigger } from "@/boardui/base/dropdown/dropdown";
 import { Kbd } from "@/boardui/base/kbd/kbd";
 import { Modal } from "@/boardui/base/modal/modal";
 import ResizeHandle from "../ui/resize";
@@ -43,6 +48,7 @@ import { useConfirm } from "../ui/confirm";
 import { cx } from "@/boardui/utils/cx";
 import { suggestGitChanges } from "../gitAi";
 import { parseGitStatus } from "../gitStatus";
+import LoadingState from "./LoadingState";
 
 export default function Workbench() {
   const projects = useApp((state) => state.projects);
@@ -64,14 +70,14 @@ export default function Workbench() {
   const setTerminalOpen = useApp((state) => state.setTerminalOpen);
   const notify = useApp((state) => state.notify);
   const notifications = useApp((state) => state.notifications);
-  const markProjectNotificationsRead = useApp((state) => state.markProjectNotificationsRead);
+  const markNotificationRead = useApp((state) => state.markNotificationRead);
   const botWorkspace = useBots((state) => activeProjectId ? state.byProject[activeProjectId] : undefined);
+  const pendingBotSelection = useRef<{ projectId: string; botId: string } | null>(null);
   const loadBots = useBots((state) => state.load);
   const snapshotBots = useBots((state) => state.snapshot);
   const loadAI = useAI((state) => state.load);
   const loadModels = useAI((state) => state.loadModels);
   const branchPattern = useSettings((state) => state.gitBranchPattern);
-  const commitPattern = useSettings((state) => state.gitCommitPattern);
   const aiConfig = useAI((state) => state.config);
   const sidebarWidth = useSettings((state) => state.sidebarWidth);
   const updateSettings = useSettings((state) => state.update);
@@ -87,7 +93,8 @@ export default function Workbench() {
   const mobilePullStart = useRef<number | null>(null);
   const [projectsSheetOpen, setProjectsSheetOpen] = useState(false);
   const [branchMenuOpen, setBranchMenuOpen] = useState(false);
-  const [gitSettingsOpen, setGitSettingsOpen] = useState(false);
+  const [branchCreateOpen, setBranchCreateOpen] = useState(false);
+  const [branchListOpen, setBranchListOpen] = useState(true);
   const [quickOpenToken, setQuickOpenToken] = useState(0);
   const [layoutOpen, setLayoutOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
@@ -98,7 +105,6 @@ export default function Workbench() {
   const statusVisible = useSettings((state) => state.statusVisible);
   const primarySideBarPosition = useSettings((state) => state.primarySideBarPosition);
   const panelAlignment = useSettings((state) => state.panelAlignment);
-  const quickInputPosition = useSettings((state) => state.quickInputPosition);
   const tabHistory = useRef<string[]>([]);
   const tabHistoryIndex = useRef(-1);
   const navigatingHistory = useRef(false);
@@ -108,7 +114,6 @@ export default function Workbench() {
   const [newBranchName, setNewBranchName] = useState("");
   const [branchFilter, setBranchFilter] = useState("");
   const [branchError, setBranchError] = useState("");
-  const [searchFocusToken, setSearchFocusToken] = useState(0);
   const [cursor, setCursor] = useState({ line: 1, column: 1, language: "" });
   const loadedProject = useRef<string | null>(null);
   const mobile = useIsMobile();
@@ -119,7 +124,6 @@ export default function Workbench() {
   const activeTab = tabs.find((tab) => tab.id === activeTabId) ?? null;
   const unreadForProject = (projectId: string) =>
     notifications.filter((notification) => !notification.read && notification.projectId === projectId);
-  const activeUnread = project ? unreadForProject(project.id) : [];
   const sortedBranches = branchInfo
     ? [...branchInfo.branches].sort((a, b) => {
         if (a === branchInfo.current) return -1;
@@ -134,6 +138,14 @@ export default function Workbench() {
   useEffect(() => {
     void loadAI().then(() => loadModels());
   }, [loadAI, loadModels]);
+
+  // Warm the branch list for the active project so opening the selector is instant.
+  useEffect(() => {
+    if (!activeProjectId) return;
+    setBranchInfo(null);
+    setBranchError("");
+    void loadBranches();
+  }, [activeProjectId]);
 
   useEffect(() => {
     if (!activeTabId) return;
@@ -189,11 +201,8 @@ export default function Workbench() {
       if ((event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey && event.key.toLowerCase() === "p") {
         event.preventDefault();
         if (mobile) {
-          setSidebar("files");
-          setMobilePanelOpen(true);
-          setProjectsSheetOpen(false);
-          setTerminalOpen(false);
-          setSearchFocusToken((current) => current + 1);
+          setMobileSearchOpen(true);
+          setQuickOpenToken((current) => current + 1);
         } else {
           setQuickOpenToken((current) => current + 1);
         }
@@ -224,19 +233,6 @@ export default function Workbench() {
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
   }, [mobile, setSidebar, setTerminalOpen]);
-
-  useEffect(() => {
-    if (!branchMenuOpen) return;
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setBranchMenuOpen(false);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [branchMenuOpen]);
-
-  useEffect(() => {
-    setSearchFocusToken(0);
-  }, [activeProjectId]);
 
   useEffect(() => {
     let socket: WebSocket | null = null;
@@ -380,22 +376,45 @@ export default function Workbench() {
   }, [activeTabId]);
 
   useEffect(() => {
-    const handler = (payload: { title?: string; body?: string }) => {
+    type PushPayload = {
+      title?: string;
+      body?: string;
+      notificationId?: string;
+      projectId?: string;
+      botId?: string;
+      botName?: string;
+      botRole?: string;
+      sessionId?: string;
+      tabId?: string;
+      opened?: string;
+    };
+    const handler = (payload: PushPayload) => {
+      if (payload.opened === "true" && payload.projectId) {
+        window.setTimeout(() => window.dispatchEvent(new CustomEvent("toph:open-bot", { detail: payload })), 0);
+        return;
+      }
       const state = useApp.getState();
-      if (state.sidebar === "bots") return;
+      const projectId = payload.projectId || state.activeProjectId || undefined;
+      if (!projectId) return;
+      if (document.visibilityState === "visible" && document.hasFocus() && state.sidebar === "bots" && state.activeProjectId === projectId) return;
       state.addNotification({
         kind: "ai",
-        title: payload.title?.trim() || "Resposta da IA",
+        title: payload.botName?.trim() || payload.title?.trim() || "Resposta da IA",
         body: payload.body?.trim() || "A IA terminou de responder.",
-        projectId: state.activeProjectId ?? undefined,
-        tabId: state.activeProjectId ? `bots:${state.activeProjectId}` : undefined,
+        projectId,
+        tabId: payload.tabId || `bots:${projectId}`,
+        sessionId: payload.sessionId,
+        notificationId: payload.notificationId,
+        botId: payload.botId,
+        botName: payload.botName,
+        botRole: payload.botRole,
       });
     };
-    (window as unknown as { __tophPush?: (payload: { title?: string; body?: string }) => void }).__tophPush = handler;
+    (window as unknown as { __tophPush?: (payload: PushPayload) => void }).__tophPush = handler;
 
     if (typeof EventSource === "undefined") {
       return () => {
-        delete (window as unknown as { __tophPush?: (payload: { title?: string; body?: string }) => void }).__tophPush;
+        delete (window as unknown as { __tophPush?: (payload: PushPayload) => void }).__tophPush;
       };
     }
     const stream = new EventSource(`${getApiBase()}/api/notifications/stream`, {
@@ -403,7 +422,7 @@ export default function Workbench() {
     });
     const onAI = (event: MessageEvent) => {
       try {
-        const payload = JSON.parse(event.data) as { title?: string; body?: string };
+        const payload = JSON.parse(event.data) as PushPayload;
         handler(payload);
       } catch {
         // Ignore malformed notification events.
@@ -416,6 +435,37 @@ export default function Workbench() {
       delete (window as unknown as { __tophPush?: (payload: { title?: string; body?: string }) => void }).__tophPush;
     };
   }, []);
+
+  useEffect(() => {
+    const onOpenBot = (event: Event) => {
+      const payload = (event as CustomEvent<{ projectId?: string; botId?: string; notificationId?: string }>).detail;
+      if (!payload?.projectId) return;
+      const state = useApp.getState();
+      if (payload.notificationId) {
+        const notification = state.notifications.find((item) => item.notificationId === payload.notificationId);
+        if (notification) state.markNotificationRead(notification.id);
+      }
+      state.setActiveProject(payload.projectId);
+      if (payload.botId) selectBot(payload.projectId, payload.botId);
+      state.setSidebar("bots");
+      setMobilePanelOpen(false);
+      setMobileControlsOpen(false);
+      setMobileTerminalOpen(false);
+    };
+    window.addEventListener("toph:open-bot", onOpenBot as EventListener);
+    return () => window.removeEventListener("toph:open-bot", onOpenBot as EventListener);
+  }, []);
+
+  useEffect(() => {
+    const pending = pendingBotSelection.current;
+    if (!pending || pending.projectId !== activeProjectId || !botWorkspace) return;
+    if (!botWorkspace.bots.some((bot) => bot.id === pending.botId)) {
+      pendingBotSelection.current = null;
+      return;
+    }
+    useBots.getState().setActiveBot(pending.projectId, pending.botId);
+    pendingBotSelection.current = null;
+  }, [activeProjectId, botWorkspace]);
 
   useEffect(() => {
     if (!mobile) return;
@@ -588,7 +638,6 @@ export default function Workbench() {
 
   async function loadBranches() {
     if (!project) return;
-    setBranchInfo(null);
     setBranchError("");
     try {
       setBranchInfo(await api.gitBranches(project.id));
@@ -601,18 +650,12 @@ export default function Workbench() {
     }
   }
 
-  async function toggleBranchMenu() {
-    if (branchMenuOpen) {
-      setBranchMenuOpen(false);
-      setGitSettingsOpen(false);
-      return;
-    }
+  function openBranchMenu() {
     if (!project) return;
-    setGitSettingsOpen(false);
     setBranchMenuOpen(true);
+    setBranchListOpen(true);
     setNewBranchName("");
     setBranchFilter("");
-    setBranchInfo(null);
     void loadBranches();
   }
 
@@ -672,6 +715,35 @@ export default function Workbench() {
     }
   }
 
+  async function deleteOtherBranches() {
+    if (!project || !branchInfo || branchBusy) return;
+    const current = branchInfo.current || branch;
+    const others = branchInfo.branches.filter((name) => name !== current);
+    if (others.length === 0) {
+      notify("info", "Só existe a branch atual. Nada para excluir.");
+      return;
+    }
+    const ok = await confirm({
+      title: "Excluir outras branches?",
+      message: `Excluir ${others.length} branch${others.length === 1 ? "" : "es"} e manter somente ${current}? Essa ação não pode ser desfeita.`,
+      confirmLabel: "Excluir branches",
+      danger: true,
+    });
+    if (!ok) return;
+    setBranchBusy("delete");
+    try {
+      const deleted = await api.gitDeleteOtherBranches(project.id);
+      setBranchInfo(await api.gitBranches(project.id));
+      setGitStatus(await api.gitStatus(project.id));
+      window.dispatchEvent(new Event("toph:git-changed"));
+      notify("success", `${deleted} branch${deleted === 1 ? "" : "es"} excluída${deleted === 1 ? "" : "s"}.`);
+    } catch (error) {
+      notify("error", error instanceof Error ? error.message : "Não foi possível excluir as branches.");
+    } finally {
+      setBranchBusy("");
+    }
+  }
+
   async function createBranchFromMenu(event: FormEvent) {
     event.preventDefault();
     if (!project || !newBranchName.trim() || branchBusy) return;
@@ -680,6 +752,7 @@ export default function Workbench() {
     try {
       await api.gitCreateBranch(project.id, name);
       setNewBranchName("");
+      setBranchCreateOpen(false);
       setGitStatus(await api.gitStatus(project.id));
       setBranchInfo(await api.gitBranches(project.id));
       window.dispatchEvent(new Event("toph:git-changed"));
@@ -774,13 +847,24 @@ export default function Workbench() {
     });
   }
 
+  function selectBot(projectId: string, botId: string) {
+    pendingBotSelection.current = { projectId, botId };
+    const workspace = useBots.getState().byProject[projectId];
+    if (workspace?.bots.some((bot) => bot.id === botId)) {
+      useBots.getState().setActiveBot(projectId, botId);
+      pendingBotSelection.current = null;
+    }
+  }
+
   function openNotification(notification: AppNotification) {
     if (!notification.projectId) return;
     setBranchMenuOpen(false);
     setProjectsSheetOpen(false);
-    markProjectNotificationsRead(notification.projectId);
+    markNotificationRead(notification.id);
     if (notification.projectId !== activeProjectId) setActiveProject(notification.projectId);
+    if (notification.botId) selectBot(notification.projectId, notification.botId);
     setSidebar("bots");
+    setMobileControlsOpen(false);
     if (mobile) setMobilePanelOpen(false);
     setTerminalOpen(false);
   }
@@ -851,22 +935,57 @@ export default function Workbench() {
   }
 
   if (projects.length === 0 || !project) {
+    const hasProjects = projects.length > 0;
     return (
-      <main className="flex min-h-dvh items-center justify-center p-4">
-        <section className="bg-background-primary-default flex w-full max-w-md flex-col items-center gap-4 rounded-lg border p-8 text-center">
-          <BrandMark size="large" />
-          <h1 className="text-title-2-medium text-text-primary">Bem-vindo ao Toph</h1>
-          <p className="text-body-regular text-text-secondary">
-            {projects.length === 0 ? "Abra um repositório Git do servidor." : "Escolha um projeto para reabrir ou abra outro repositório."}
-          </p>
-          {projects.length > 0 && (
-            <div className="flex max-h-48 w-full flex-col gap-1 overflow-y-auto">
-              {projects.map((item) => (
-                <Button key={item.id} variant="secondary" size="small" className="justify-start" leadingIcon={FolderGit2} onClick={() => switchProject(item.id)}>{item.name}</Button>
-              ))}
-            </div>
-          )}
-          <Button leadingIcon={FolderPlus} onClick={() => setShowRepoPicker(true)}>Abrir repositório</Button>
+      <main className="relative flex min-h-dvh items-center justify-center overflow-hidden bg-background-full p-4 sm:p-6">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-56 bg-gradient-to-b from-accent-500/[0.08] to-transparent" />
+        <section className="relative max-h-[calc(100dvh-2rem)] w-full max-w-2xl overflow-y-auto rounded-3xl border border-border-button-white bg-background-primary-default shadow-2xl">
+          <div className="flex flex-col gap-6 p-6 sm:p-8">
+            <header className="flex flex-col items-center gap-4 text-center">
+              <span className="flex size-16 items-center justify-center rounded-2xl border border-accent-500/25 bg-accent-500/10 shadow-[0_0_32px_-18px_var(--color-accent-500)]">
+                <BrandMark size="large" />
+              </span>
+              <div className="space-y-2">
+                <h1 className="text-title-2-medium text-text-primary">Bem-vindo ao Toph</h1>
+                <p className="mx-auto max-w-md text-body-regular text-text-secondary">
+                  {hasProjects ? "Retome um projeto recente ou abra outro repositório do servidor." : "Abra um repositório Git do servidor para começar."}
+                </p>
+              </div>
+            </header>
+
+            {hasProjects && (
+              <section className="flex min-h-0 flex-col gap-2">
+                <div className="flex items-center justify-between px-1">
+                  <span className="text-caption-2-semibold uppercase tracking-[0.14em] text-text-tertiary">Projetos disponíveis</span>
+                  <span className="text-caption-1-regular text-text-tertiary">{projects.length}</span>
+                </div>
+                <div className="grid max-h-[300px] gap-2 overflow-y-auto pe-1 sm:grid-cols-2">
+                  {projects.map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => switchProject(item.id)}
+                      className="group flex min-w-0 items-center gap-3 rounded-xl border border-border-button-default bg-background-secondary-default/40 p-2.5 text-start transition-colors hover:border-accent-500/35 hover:bg-accent-500/[0.06]"
+                    >
+                      <Avatar size="sm" initials={item.name.slice(0, 1).toUpperCase()} className="bg-background-tertiary-default text-caption-2-semibold" style={{ color: item.color }} />
+                      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                        <span className="truncate text-body-2-medium text-text-primary">{item.name}</span>
+                        <span className="truncate text-caption-1-regular text-text-tertiary">{item.root}</span>
+                      </span>
+                      <ChevronRight size={14} className="shrink-0 text-text-tertiary opacity-0 transition-opacity group-hover:opacity-100" />
+                    </button>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            <footer className={cx("flex flex-col gap-3 border-t border-separator-border pt-5 sm:flex-row sm:items-center", hasProjects ? "sm:justify-between" : "sm:justify-center")}>
+              <p className="text-caption-1-regular text-text-tertiary">
+                {hasProjects ? "Escolha um cartão para continuar." : "Código, dados e IA no seu próprio servidor."}
+              </p>
+              <Button leadingIcon={FolderPlus} onClick={() => setShowRepoPicker(true)} className="w-full sm:w-auto">Abrir repositório</Button>
+            </footer>
+          </div>
         </section>
         {showRepoPicker && <RepoPicker onClose={() => setShowRepoPicker(false)} onOpen={openRepo} />}
         <Toasts />
@@ -874,11 +993,10 @@ export default function Workbench() {
     );
   }
 
-  const activeProjectUnread = activeUnread.length;
 
   const SidebarContent = () => (
     <>
-      {project && sidebar === "files" && <ExplorerPanel project={project} onOpenFile={openFile} searchFocusToken={searchFocusToken} onStatusChange={setGitStatus} />}
+      {project && sidebar === "files" && <ExplorerPanel project={project} onOpenFile={openFile} onStatusChange={setGitStatus} />}
       {project && sidebar === "db" && <DatabasesPanel project={project} onOpenQuery={openQuery} onOpenTable={openTable} />}
       {project && sidebar === "scm" && <SourceControlPanel project={project} view="scm" onOpenDiff={openDiff} onStatusChange={setGitStatus} />}
       {project && sidebar === "web" && <WebSidebar onOpenWeb={openWeb} />}
@@ -887,15 +1005,6 @@ export default function Workbench() {
   );
 
   const primaryOnLeft = primarySideBarPosition === "left";
-  const panelJustifyClass = panelAlignment === "left"
-    ? "justify-start"
-    : panelAlignment === "right"
-      ? "justify-end"
-      : panelAlignment === "center"
-        ? "justify-center"
-        : "justify-start";
-  const panelWidthClass = panelAlignment === "justify" ? "w-full" : "w-[85%]";
-
   const primarySidebar = !mobile && sidebarVisible && activityVisible ? (
     <div className="flex min-h-0 shrink-0 overflow-hidden rounded-3xl border border-border-button-white bg-background-primary-default shadow-sidebar">
       <ActivityBar />
@@ -905,70 +1014,183 @@ export default function Workbench() {
     </div>
   ) : null;
   const primaryResize = !mobile && sidebarVisible && activityVisible ? (
-    <ResizeHandle className="sidebar-resize" orientation="vertical" value={sidebarWidth} min={220} max={460} invert={!primaryOnLeft} label="Resize sidebar" onChange={(width) => document.documentElement.style.setProperty("--sidebar-width", `${width}px`)} onCommit={(width) => updateSettings({ sidebarWidth: width })} />
+    <ResizeHandle className="sidebar-resize" orientation="vertical" value={sidebarWidth} min={220} max={320} invert={!primaryOnLeft} label="Resize sidebar" onChange={(width) => document.documentElement.style.setProperty("--sidebar-width", `${width}px`)} onCommit={(width) => updateSettings({ sidebarWidth: width })} />
   ) : null;
+  function branchPickerBody() {
+    return (
+      <div className="flex min-h-0 flex-col gap-2 p-3">
+        <div className="flex min-w-0 items-center gap-2.5 px-1">
+          <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-accent-500/15 text-accent-500">
+            <GitBranch size={15} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-caption-2-regular text-text-tertiary">Branch atual</p>
+            <p className="truncate text-caption-1-semibold text-text-primary">{branchInfo?.current || branch || "detached"}</p>
+          </div>
+        </div>
+        <Accordion
+          variant="divided"
+          expandedKeys={branchListOpen ? ["branches"] : []}
+          onExpandedChange={(keys) => setBranchListOpen(Array.from(keys).includes("branches"))}
+          className="px-1"
+        >
+          <AccordionItem
+            id="branches"
+            icon={GitBranch}
+            title={<span className="text-caption-2-semibold uppercase tracking-[0.14em] text-text-tertiary">Branches</span>}
+            triggerClassName="py-1"
+            contentClassName="p-0"
+            actions={
+              <div className="flex items-center gap-1">
+                <span className="text-caption-1-regular text-text-tertiary">{branchInfo ? branchInfo.branches.length : "..."}</span>
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  iconOnly
+                  leadingIcon={Trash2}
+                  aria-label="Excluir todas as branches, exceto a atual"
+                  title="Excluir todas as branches, exceto a atual"
+                  disabled={!branchInfo || branchInfo.branches.length <= 1 || Boolean(branchBusy)}
+                  onClick={() => void deleteOtherBranches()}
+                />
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  iconOnly
+                  leadingIcon={Plus}
+                  aria-label="Criar nova branch"
+                  title="Criar nova branch"
+                  disabled={Boolean(branchBusy)}
+                  onClick={() => { setNewBranchName(""); setBranchCreateOpen(true); }}
+                />
+              </div>
+            }
+          >
+            <div className="flex flex-col gap-2">
+              <SearchField value={branchFilter} onChange={setBranchFilter} placeholder="Filtrar branches" aria-label="Filtrar branches" shape="rounded" size="small" fieldClassName="h-8" />
+              <div className="no-scrollbar flex max-h-[min(280px,calc(100dvh-360px))] flex-col gap-1 overflow-y-auto overflow-x-hidden">
+                {branchError ? (
+                  <div className="flex flex-col items-center gap-2 px-2 py-4 text-center">
+                    <CircleAlert size={20} className="text-rose-500" />
+                    <p className="text-caption-1-regular text-text-secondary">{branchError}</p>
+                    <Button variant="secondary" size="small" onClick={() => void loadBranches()}>Tentar novamente</Button>
+                  </div>
+                ) : branchInfo ? visibleBranches.map((name) => {
+                  const current = name === branchInfo.current;
+                  return (
+                    <button
+                      key={name}
+                      type="button"
+                      disabled={Boolean(branchBusy)}
+                      onClick={() => void checkoutBranch(name)}
+                      className={cx(
+                        "flex min-h-9 w-full shrink-0 items-center justify-between gap-2.5 overflow-hidden rounded-lg p-2 text-start transition-colors disabled:cursor-not-allowed disabled:opacity-60",
+                        current ? "bg-dropdown-item-hover-background" : "hover:bg-dropdown-item-hover-background",
+                      )}
+                    >
+                      <span className="flex min-w-0 flex-1 items-center gap-2">
+                        <GitBranch size={14} className="shrink-0 text-foreground-icon-secondary" />
+                        <span className="truncate text-body-medium text-text-primary">{name}</span>
+                      </span>
+                      {current ? <RadioDot selected size="sm" /> : null}
+                    </button>
+                  );
+                }) : <LoadingState label="Carregando branches..." className="px-2 py-3" />}
+                {!branchError && branchInfo && visibleBranches.length === 0 && <p className="px-2 py-4 text-center text-caption-1-regular text-text-secondary">Nenhuma branch encontrada.</p>}
+              </div>
+            </div>
+          </AccordionItem>
+        </Accordion>
+      </div>
+    );
+  }
   const headerBranch = statusVisible ? (
-    <>
-      <Button variant="ghost" size="xs" title={branch || "detached"} className="h-6 min-w-0 max-w-[220px] gap-1 px-1.5" onClick={() => void toggleBranchMenu()} aria-expanded={branchMenuOpen}>
-        <GitBranch size={12} className="shrink-0" /><span className="min-w-0 flex-1 truncate text-start">{branch || "detached"}</span><ChevronDown size={12} className="shrink-0" />
-      </Button>
-      <Dropdown isOpen={projectsMenuOpen} onOpenChange={setProjectsMenuOpen}>
-        <DropdownTrigger className="flex min-w-0 items-center gap-1.5 rounded-md px-1.5 py-0.5 hover:bg-background-primary-hover">
-          <Avatar size="xs" initials={project.name.slice(0, 1).toUpperCase()} className="bg-background-tertiary-default text-caption-2-semibold" style={{ color: project.color }} />
-          <span className="max-w-[110px] truncate text-caption-2-regular">{project.name}</span>
-          <Badge color="neutral" className="h-4 px-1 text-caption-2-regular">{openProjectIds.length}</Badge>
-          <ChevronDown size={12} />
-        </DropdownTrigger>
-        <DropdownPopover aria-label="Projetos abertos" placement="bottom start" className="w-80">
-          <DropdownGroup label={`Projetos abertos · ${openProjectIds.length}`}>
-            {openProjectIds.map((id) => {
-              const item = projects.find((projectItem) => projectItem.id === id);
-              if (!item) return null;
-              const unread = unreadForProject(item.id);
-              return (
-                <div key={item.id} className="flex items-center gap-1">
-                  <DropdownItem className="min-w-0 flex-1" onSelect={() => { setProjectsMenuOpen(false); switchProject(item.id); }}>
-                    <Avatar size="sm" initials={item.name.slice(0, 1).toUpperCase()} className="bg-background-tertiary-default text-caption-2-semibold" style={{ color: item.color }} />
-                    <span className="flex min-w-0 flex-1 flex-col">
-                      <span className="truncate text-body-2-medium text-text-primary">{item.name}</span>
-                      <span className="truncate text-caption-1-regular text-text-secondary">{item.root}</span>
-                    </span>
-                    {unread.length > 0 && <Badge color="primary">{unread.length > 9 ? "9+" : unread.length}</Badge>}
-                    {item.id === activeProjectId && <Check size={14} className="text-accent-500" />}
-                  </DropdownItem>
-                  <Button variant="ghost" size="xs" iconOnly leadingIcon={X} aria-label={`Fechar ${item.name}`} title="Fechar projeto" onClick={(event) => { event.stopPropagation(); setProjectsMenuOpen(false); void closeProject(item.id); }} />
-                </div>
-              );
-            })}
-          </DropdownGroup>
-          {closedProjects.length > 0 && (
-            <>
-              <DropdownDivider />
-              <DropdownGroup label="Projetos fechados">
-                {closedProjects.map((item) => (
-                  <DropdownItem key={item.id} onSelect={() => { setProjectsMenuOpen(false); switchProject(item.id); }}>
-                    <FolderGit2 size={14} />
-                    <span className="flex min-w-0 flex-1 flex-col">
-                      <span className="truncate text-body-2-medium text-text-primary">{item.name}</span>
-                      <span className="truncate text-caption-1-regular text-text-secondary">{item.root}</span>
-                    </span>
-                  </DropdownItem>
-                ))}
-              </DropdownGroup>
-            </>
-          )}
-          <DropdownDivider />
-          <DropdownGroup>
-            <DropdownItem onSelect={() => { setProjectsMenuOpen(false); setShowRepoPicker(true); }}><FolderPlus size={14} /> Abrir repositório</DropdownItem>
-          </DropdownGroup>
-        </DropdownPopover>
-      </Dropdown>
-      {activeProjectUnread > 0 && (
-        <Button variant="ghost" size="xs" className="h-6 gap-1 px-1.5" onClick={() => openLatestProjectNotification(project.id)}>
-          <Bell size={11} /> {activeProjectUnread > 9 ? "9+" : activeProjectUnread}
-        </Button>
-      )}
-    </>
+      <HeaderAccordion
+        id="branch"
+        isOpen={branchMenuOpen}
+        onOpenChange={(next) => { setBranchMenuOpen(next); setProjectsMenuOpen(false); if (next) openBranchMenu(); }}
+        icon={GitBranch}
+        title={<span className="header-accordion-label min-w-0 truncate text-caption-1-regular leading-none text-text-secondary">{branch || "detached"}</span>}
+        triggerClassName="h-6 min-w-0 max-w-[min(320px,32vw)] gap-1 overflow-hidden text-caption-1-regular text-text-secondary hover:bg-background-primary-hover"
+        panelClassName="left-0 max-h-[min(600px,calc(100dvh-80px))] w-[min(460px,calc(100vw-32px))] overflow-y-auto"
+        contentClassName="p-0"
+      >
+        {branchPickerBody()}
+      </HeaderAccordion>
+  ) : null;
+
+  const headerTrailing = statusVisible ? (
+      <div className="flex h-7 items-center gap-0.5">
+        <HeaderAccordion
+          id="projects"
+          isOpen={projectsMenuOpen}
+          onOpenChange={(next) => { setProjectsMenuOpen(next); setBranchMenuOpen(false); }}
+          title={
+            <span className="header-accordion-label flex min-w-0 items-center gap-1.5">
+              <Avatar size="xs" initials={project.name.slice(0, 1).toUpperCase()} className="bg-background-tertiary-default text-caption-2-semibold" style={{ color: project.color }} />
+              <span className="max-w-[110px] truncate text-caption-2-regular leading-none">{project.name}</span>
+            </span>
+          }
+          triggerClassName="h-6 min-w-0 gap-1.5 hover:bg-background-primary-hover"
+          panelClassName="left-0 w-80"
+          contentClassName="p-2.5"
+        >
+            <div className="flex flex-col gap-1">
+              <div className="px-2 pt-1 text-body-medium text-text-secondary">Projetos abertos · {openProjectIds.length}</div>
+              {openProjectIds.map((id) => {
+                const item = projects.find((projectItem) => projectItem.id === id);
+                if (!item) return null;
+                const unread = unreadForProject(item.id);
+                return (
+                  <div key={item.id} className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => { setProjectsMenuOpen(false); switchProject(item.id); }}
+                      className="flex min-w-0 flex-1 items-center gap-2 rounded-lg p-2 text-start text-text-primary transition-colors hover:bg-dropdown-item-hover-background focus-visible:bg-dropdown-item-hover-background"
+                    >
+                      <Avatar size="sm" initials={item.name.slice(0, 1).toUpperCase()} className="bg-background-tertiary-default text-caption-2-semibold" style={{ color: item.color }} />
+                      <span className="flex min-w-0 flex-1 flex-col">
+                        <span className="truncate text-body-2-medium text-text-primary">{item.name}</span>
+                        <span className="truncate text-caption-1-regular text-text-secondary">{item.root}</span>
+                      </span>
+                      {unread.length > 0 && <Badge color="primary">{unread.length > 9 ? "9+" : unread.length}</Badge>}
+                    </button>
+                    <Button variant="ghost" size="xs" iconOnly leadingIcon={X} aria-label={`Fechar ${item.name}`} title="Fechar projeto" onClick={(event) => { event.stopPropagation(); setProjectsMenuOpen(false); void closeProject(item.id); }} />
+                  </div>
+                );
+              })}
+              {closedProjects.length > 0 && (
+                <>
+                  <div className="my-1 h-px bg-border-button-default" />
+                  <div className="px-2 pt-1 text-body-medium text-text-secondary">Projetos fechados</div>
+                  {closedProjects.map((item) => {
+                    const unread = unreadForProject(item.id);
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => { setProjectsMenuOpen(false); switchProject(item.id); }}
+                        className="flex min-w-0 items-center gap-2 rounded-lg p-2 text-start text-text-primary transition-colors hover:bg-dropdown-item-hover-background focus-visible:bg-dropdown-item-hover-background"
+                      >
+                        <FolderGit2 size={14} />
+                        <span className="flex min-w-0 flex-1 flex-col">
+                          <span className="truncate text-body-2-medium text-text-primary">{item.name}</span>
+                          <span className="truncate text-caption-1-regular text-text-secondary">{item.root}</span>
+                        </span>
+                        {unread.length > 0 && <Badge color="primary">{unread.length > 9 ? "9+" : unread.length}</Badge>}
+                      </button>
+                    );
+                  })}
+                </>
+              )}
+              <div className="my-1 h-px bg-border-button-default" />
+              <button type="button" onClick={() => { setProjectsMenuOpen(false); setShowRepoPicker(true); }} className="flex items-center gap-2 rounded-lg p-2 text-start text-text-primary transition-colors hover:bg-dropdown-item-hover-background focus-visible:bg-dropdown-item-hover-background">
+                <FolderPlus size={14} /> Abrir repositório
+              </button>
+            </div>
+        </HeaderAccordion>
+        <NotificationBell projectId={project.id} projectName={project.name} onOpen={openNotification} />
+      </div>
   ) : null;
 
   const headerStatus = statusVisible ? (
@@ -1014,15 +1236,9 @@ export default function Workbench() {
               >
                 <Avatar size="sm" initials={project.name.slice(0, 1).toUpperCase()} className="bg-background-tertiary-default text-caption-2-semibold" style={{ color: project.color }} />
                 <span className="max-w-[150px] truncate text-body-2-medium font-medium">{project.name}</span>
-                <Badge color="neutral">{openProjectIds.length}</Badge>
                 <ChevronDown size={14} className="shrink-0 text-muted-foreground" />
               </button>
-              {activeProjectUnread > 0 && (
-                <Button variant="ghost" size="xs" className="relative size-9" onClick={() => { setMobileControlsOpen(false); openLatestProjectNotification(project.id); }} aria-label="Abrir notificação mais recente">
-                  <Bell size={17} />
-                  <span className="absolute -end-0.5 -top-0.5 flex min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-semibold text-primary-foreground">{activeProjectUnread > 9 ? "9+" : activeProjectUnread}</span>
-                </Button>
-              )}
+              <NotificationBell projectId={project.id} projectName={project.name} onOpen={openNotification} />
               <AvatarMenu user={user} variant="titlebar" />
             </div>
             <div className="mt-3 grid grid-cols-2 gap-2">
@@ -1054,14 +1270,14 @@ export default function Workbench() {
           onAbout={() => setAboutOpen(true)}
           onShortcuts={() => setShortcutsOpen(true)}
           menuVisible={menuVisible}
-          showQuickOpen={quickInputPosition === "top"}
           headerLeft={headerBranch}
+          headerTrailing={headerTrailing}
           headerRight={headerStatus}
         />
       )}
 
       <div
-        className={cx("flex min-h-0 flex-1 p-1", sidebar === "bots" ? "gap-3" : "gap-1")}
+        className={cx("flex min-h-0 flex-1 p-1", sidebar === "bots" ? "gap-1" : "gap-0")}
         style={mobile ? { paddingTop: "calc(var(--safe-top) + 0.5rem)" } : undefined}
       >
         {primaryOnLeft && primarySidebar}
@@ -1076,7 +1292,7 @@ export default function Workbench() {
           </aside>
         )}
 
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-hidden">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-1 overflow-hidden">
           <main className={cx(
             "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden",
             sidebar === "bots" && project ? "bg-transparent" : "rounded-3xl border border-border-button-white bg-background-primary-default shadow-sidebar",
@@ -1103,23 +1319,14 @@ export default function Workbench() {
                   {activeTab?.kind === "db" && <DbPanelTab tab={activeTab} />}
                   {activeTab?.kind === "web" && <WebPanelTab tab={activeTab} />}
                   {activeTab?.kind === "diff" && project && <DiffPanelTab tab={activeTab} project={project} />}
-                  {quickInputPosition === "center" && !mobile && (
-                    <div className="pointer-events-none absolute inset-0 z-40 flex items-center justify-center px-4">
-                      <div className="pointer-events-auto w-[min(640px,82%)]">
-                        <QuickOpen project={project} focusToken={quickOpenToken} onOpenFile={openFile} floating />
-                      </div>
-                    </div>
-                  )}
                 </div>
               </>
             )}
           </main>
 
           {project && !mobile && sidebar !== "bots" && (
-            <div className={terminalOpen ? `flex w-full shrink-0 ${panelJustifyClass}` : "hidden"}>
-              <div className={panelWidthClass}>
-                <TerminalPanel key={project.id} project={project} onOpenFile={openFile} />
-              </div>
+            <div className={terminalOpen ? "flex w-full min-w-0 shrink-0 overflow-hidden" : "hidden"}>
+              <TerminalPanel key={project.id} project={project} onOpenFile={openFile} />
             </div>
           )}
         </div>
@@ -1145,109 +1352,46 @@ export default function Workbench() {
 
 
       <Modal
-        isOpen={branchMenuOpen && Boolean(project)}
-        onClose={() => { setBranchMenuOpen(false); setGitSettingsOpen(false); }}
-        title="Git"
-        description="Branches, alterações e commit."
-        size="full"
-        className="max-w-5xl"
+        isOpen={mobile && branchMenuOpen && Boolean(project)}
+        onClose={() => setBranchMenuOpen(false)}
+        title="Branches"
+        description="Selecione uma branch para trocar."
+        size="sm"
+        placement="bottom"
         bodyClassName="p-0"
       >
-        <div className="grid min-h-[560px] grid-cols-1 md:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
-          <section className="flex min-h-0 flex-col border-b bg-background-secondary-default/25 md:border-b-0 md:border-e">
-            <div className="flex items-center justify-between border-b px-4 py-3">
-              <div className="flex min-w-0 items-center gap-2.5">
-                <span className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-accent-500/15 text-accent-500"><GitBranch size={16} /></span>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <strong className="text-body-medium text-text-primary">Branches</strong>
-                    <Badge color="neutral">{branchInfo ? branchInfo.branches.length : "..."}</Badge>
-                  </div>
-                  <p className="truncate text-caption-1-regular text-text-secondary">{branchInfo?.current || branch || "detached"}</p>
-                </div>
-              </div>
-              <Button variant={gitSettingsOpen ? "secondary" : "ghost"} size="xs" iconOnly leadingIcon={Settings2} aria-label="Configurações Git" title="Configurações Git" onClick={() => setGitSettingsOpen((value) => !value)} />
-            </div>
+        {branchPickerBody()}
+      </Modal>
 
-            {gitSettingsOpen ? (
-              <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
-                <div className="flex items-center gap-2">
-                  <Button variant="ghost" size="xs" iconOnly leadingIcon={ArrowLeft} aria-label="Voltar" onClick={() => setGitSettingsOpen(false)} />
-                  <strong className="text-body-2-medium text-text-primary">Configurações Git</strong>
-                </div>
-                <Input label="Padrão de branch" value={branchPattern} onChange={(value) => updateSettings({ gitBranchPattern: value })} />
-                <Input label="Padrão de commit" value={commitPattern} onChange={(value) => updateSettings({ gitCommitPattern: value })} />
-                <p className="rounded-xl border border-border-button-default bg-background-primary-default p-3 text-caption-1-regular leading-relaxed text-text-secondary">
-                  Tokens: {"{date}"}, {"{time}"}, {"{datetime}"}, {"{repo}"}, {"{branch}"}, {"{user}"}, {"{task}"}, {"{slug}"} e {"{summary}"}.
-                </p>
-                <Button variant="secondary" size="small" className="self-start" onClick={() => setGitSettingsOpen(false)}>Voltar para branches</Button>
-              </div>
-            ) : (
-              <>
-                <div className="px-4 py-3">
-                  <Input value={branchFilter} onChange={setBranchFilter} placeholder="Filtrar branches" aria-label="Filtrar branches" leadingIcon={Search} />
-                </div>
-                <div className="min-h-0 flex-1 space-y-1 overflow-y-auto px-2 pb-2">
-                  {branchError ? (
-                    <div className="flex flex-col items-center gap-2 px-4 py-8 text-center">
-                      <span className="flex size-10 items-center justify-center rounded-full bg-rose-500/10 text-rose-500"><CircleAlert size={20} /></span>
-                      <strong className="text-body-2-medium text-text-primary">Não foi possível carregar as branches</strong>
-                      <p className="max-w-xs text-caption-1-regular text-text-secondary">{branchError}</p>
-                      <Button variant="secondary" size="small" onClick={() => void loadBranches()}>Tentar novamente</Button>
-                    </div>
-                  ) : branchInfo ? visibleBranches.map((name) => {
-                    const current = name === branchInfo.current;
-                    return (
-                      <button
-                        key={name}
-                        type="button"
-                        disabled={Boolean(branchBusy)}
-                        onClick={() => void checkoutBranch(name)}
-                        className={cx(
-                          "group flex h-10 w-full items-center gap-2.5 rounded-xl border px-2.5 text-start transition-colors disabled:cursor-not-allowed disabled:opacity-60",
-                          current
-                            ? "border-border-button-default bg-background-primary-default shadow-xs"
-                            : "border-transparent hover:border-border-button-default hover:bg-background-primary-hover",
-                        )}
-                      >
-                        <span className={cx("flex size-7 shrink-0 items-center justify-center rounded-lg", current ? "bg-accent-500/15 text-accent-500" : "bg-background-secondary-default text-foreground-icon-secondary")}>
-                          <GitBranch size={14} />
-                        </span>
-                        <span className="min-w-0 flex-1 truncate text-body-2-medium text-text-primary">{name}</span>
-                        {current ? (
-                          <span className="flex shrink-0 items-center gap-1 text-caption-1-regular text-accent-500"><Check size={13} /> atual</span>
-                        ) : (
-                          <ChevronRight size={13} className="shrink-0 text-text-tertiary opacity-0 transition-opacity group-hover:opacity-100" />
-                        )}
-                      </button>
-                    );
-                  }) : <p className="px-2 py-8 text-center text-body-regular text-text-secondary">Carregando branches...</p>}
-                  {!branchError && branchInfo && visibleBranches.length === 0 && <p className="px-2 py-8 text-center text-body-regular text-text-secondary">Nenhuma branch encontrada.</p>}
-                </div>
-                {!branchError && (
-                  <form className="flex flex-col gap-2 border-t bg-background-primary-default p-3" onSubmit={(event) => void createBranchFromMenu(event)}>
-                    <div className="flex items-center justify-between">
-                      <span className="text-caption-1-semibold uppercase tracking-wide text-text-secondary">Nova branch</span>
-                      <Button type="button" variant="ghost" size="xs" leadingIcon={Bot} disabled={Boolean(branchBusy)} onClick={() => void generateBranchName()}>Gerar nome</Button>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Input value={newBranchName} onChange={setNewBranchName} placeholder="nome-da-branch" aria-label="Nome da nova branch" />
-                      <Button type="submit" size="small" className="shrink-0" disabled={!newBranchName.trim() || Boolean(branchBusy)}>Criar</Button>
-                    </div>
-                  </form>
-                )}
-              </>
-            )}
-          </section>
-
-          <section className="flex min-h-0 flex-col">
-            <div className="border-b px-4 py-3">
-              <strong className="text-body-medium text-text-primary">Commit e alterações</strong>
-              <p className="text-caption-1-regular text-text-secondary">Revise as alterações e descreva o commit.</p>
-            </div>
-            <div className="min-h-0 flex-1 overflow-y-auto p-3"><SourceControlPanel project={project} embedded view="scm" onOpenDiff={openDiff} onStatusChange={setGitStatus} /></div>
-          </section>
-        </div>
+      <Modal
+        isOpen={branchCreateOpen && Boolean(project)}
+        onClose={() => setBranchCreateOpen(false)}
+        title="Nova branch"
+        description="Crie uma branch a partir da branch atual."
+        size="sm"
+      >
+        <form className="flex flex-col gap-2" onSubmit={(event) => void createBranchFromMenu(event)}>
+          <div className="relative w-full">
+            <Input
+              value={newBranchName}
+              onChange={setNewBranchName}
+              placeholder="nome-da-branch"
+              aria-label="Nome da nova branch"
+              autoFocus
+              fieldClassName="pe-9"
+            />
+            <IconButton
+              icon={Bot}
+              size="small"
+              aria-label="Gerar nome da branch"
+              title="Gerar nome com IA"
+              disabled={Boolean(branchBusy)}
+              onClick={() => void generateBranchName()}
+              className="absolute end-1 top-1/2 size-6 -translate-y-1/2 border-transparent bg-transparent p-0 shadow-none [&_svg]:size-4"
+            />
+          </div>
+          <Button type="submit" size="small" className="w-full justify-center" disabled={!newBranchName.trim() || Boolean(branchBusy)}>{branchBusy === "create" ? "Criando..." : "Criar branch"}</Button>
+        </form>
       </Modal>
 
       <Modal
@@ -1262,7 +1406,7 @@ export default function Workbench() {
         <div className="mb-3 flex items-center gap-2 rounded-xl border border-border-button-default bg-background-secondary-default/50 p-2 ps-3">
           <GitBranch size={15} className="shrink-0 text-accent-500" />
           <span className="min-w-0 flex-1 truncate text-caption-1-regular text-text-secondary">{branch || "detached"}</span>
-          <Button variant="secondary" size="xs" onClick={() => { setProjectsSheetOpen(false); void toggleBranchMenu(); }}>Branch</Button>
+          <Button variant="secondary" size="xs" onClick={() => { setProjectsSheetOpen(false); openBranchMenu(); }}>Branch</Button>
         </div>
 
         <div className="px-1 pb-1 text-caption-2-semibold uppercase tracking-wide text-text-tertiary">Abertos</div>
@@ -1276,8 +1420,8 @@ export default function Workbench() {
                 <button type="button" className="flex min-w-0 flex-1 items-center gap-2.5 text-start" onClick={() => { setProjectsSheetOpen(false); switchProject(item.id); }}>
                   <Avatar size="sm" initials={item.name.slice(0, 1).toUpperCase()} className="bg-background-tertiary-default text-caption-2-semibold" style={{ color: item.color }} />
                   <span className="flex min-w-0 flex-col"><span className="truncate text-body-2-medium text-text-primary">{item.name}</span><span className="truncate text-caption-1-regular text-text-secondary">{item.root}</span></span>
-                  {item.id === activeProjectId && <Check size={16} className="ms-auto shrink-0 text-accent-500" />}
                 </button>
+                {unread.length > 0 && <Badge color="primary">{unread.length > 9 ? "9+" : unread.length}</Badge>}
                 {unread.length > 0 && <Button variant="ghost" size="xs" iconOnly leadingIcon={Bell} aria-label={`Notificações de ${item.name}`} onClick={() => { setProjectsSheetOpen(false); switchProject(item.id); openLatestProjectNotification(item.id); }} />}
                 <Button variant="ghost" size="xs" iconOnly leadingIcon={X} aria-label={`Fechar ${item.name}`} onClick={() => void closeProject(item.id)} />
               </div>
@@ -1335,12 +1479,6 @@ export default function Workbench() {
           </RadioGroup>
         </LayoutSection>
 
-        <LayoutSection label="Quick Input Position">
-          <RadioGroup className="flex flex-col gap-0.5" value={quickInputPosition} onChange={(value) => updateSettings({ quickInputPosition: value as "top" | "center" })}>
-            <LayoutRadio value="top" label="Top" />
-            <LayoutRadio value="center" label="Center" />
-          </RadioGroup>
-        </LayoutSection>
       </Modal>
 
       <Modal isOpen={aboutOpen} onClose={() => setAboutOpen(false)} title="Toph" description="Workbench self-hosted para código, dados e IA." size="sm">

@@ -7,10 +7,8 @@ import {
   ExternalLink,
   Info,
   KeyRound,
-  LoaderCircle,
   LogIn,
   RefreshCw,
-  Search,
   Sparkles,
 } from "@toph/icons";
 import { openCodeBase } from "../api";
@@ -18,6 +16,9 @@ import { useApp } from "../store";
 import { Button } from "@/boardui/base/buttons/button";
 import { Chip } from "@/boardui/base/badges/chip";
 import { Input } from "@/boardui/base/input/input";
+import { SearchField } from "@/boardui/base/search-field/search-field";
+import LoadingState from "./LoadingState";
+import { ProgressCircle } from "@/boardui/base/progress/progress";
 
 
 interface FormOption {
@@ -448,7 +449,7 @@ export default function AiConnectionsPanel({ projectRoot, onConnectionsChanged }
             {attempt && (
               <div className="flex flex-col gap-3 rounded-lg border border-accent-500/40 bg-accent-500/5 p-3">
                 <div className="flex items-center gap-2 text-caption-1-medium text-text-primary">
-                  <LoaderCircle size={15} className="animate-spin text-accent-500" />
+                  <ProgressCircle size="sm" isIndeterminate aria-label="Carregando" />
                   Aguardando autenticação
                 </div>
                 {attempt.instructions && <p className="text-caption-1-regular text-text-secondary">{attempt.instructions}</p>}
@@ -474,20 +475,21 @@ export default function AiConnectionsPanel({ projectRoot, onConnectionsChanged }
         ) : (
           <div className="flex min-h-0 flex-col gap-3">
             <div className="flex items-end gap-2">
-              <Input
+              <SearchField
                 label="Buscar provedor"
                 value={search}
                 onChange={setSearch}
                 placeholder="OpenAI, Anthropic, Google..."
-                leadingIcon={Search}
                 autoComplete="off"
+                isLoading={loading}
+                shape="rounded"
                 className="flex-1"
               />
               <Button variant="secondary" size="small" leadingIcon={RefreshCw} onClick={() => void load()} disabled={loading || busy}>
                 Atualizar
               </Button>
             </div>
-            {loading && <p className="py-6 text-center text-body-regular text-text-secondary">Carregando provedores...</p>}
+            {loading && <LoadingState label="Carregando provedores..." className="py-2" />}
             {!loading && !error && visible.length === 0 && <p className="py-6 text-center text-body-regular text-text-secondary">Nenhum provedor encontrado.</p>}
             <div className="flex max-h-[440px] flex-col gap-1 overflow-y-auto">
               {visible.map((integration) => {

@@ -175,7 +175,7 @@ export function TextareaBase({
           isFocusWithin &&
             !isDisabled &&
             !isInvalid &&
-            "ring-border-button-active",
+            "ring-1 ring-inset ring-accent-500",
           // Disabled
           isDisabled &&
             "bg-input-disabled-background text-input-disabled-foreground",

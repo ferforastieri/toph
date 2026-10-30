@@ -19,7 +19,8 @@ import { useApp } from "../store";
 import { useAI } from "../ai";
 import { usePet } from "../pet";
 import { Button } from "@/boardui/base/buttons/button";
-import { Textarea } from "@/boardui/base/textarea/textarea";
+import { IconButton } from "@/boardui/base/buttons/icon-button";
+import { Input } from "@/boardui/base/input/input";
 import { Badge } from "@/boardui/base/badges/badge";
 import FileIcon from "../ui/FileIcon";
 import GitStatusIcon from "../ui/GitStatusIcon";
@@ -281,8 +282,16 @@ export default function SourceControlPanel({
           onKeyDownCapture={(event) => { if ((event.ctrlKey || event.metaKey) && event.key === "Enter") { event.preventDefault(); void commit(); } }}
         >
           <div className="relative w-full">
-            <Textarea value={message} onChange={setMessage} placeholder={`Message (Ctrl+Enter to commit on "${parsed.branch || "detached"}")`} aria-label="Commit message" rows={1} className="pe-9" fieldClassName="w-full" />
-            <Button type="button" variant="ghost" size="xs" iconOnly leadingIcon={Bot} className="absolute end-1.5 top-1.5" aria-label="Generate message from pattern" title="Generate commit message" disabled={Boolean(busy)} onClick={() => void generateMessage()} />
+            <Input value={message} onChange={setMessage} placeholder={`Message (Ctrl+Enter to commit on "${parsed.branch || "detached"}")`} aria-label="Commit message" fieldClassName="w-full pe-9" />
+            <IconButton
+              icon={Bot}
+              size="small"
+              aria-label="Generate message from pattern"
+              title="Generate commit message"
+              disabled={Boolean(busy)}
+              onClick={() => void generateMessage()}
+              className="absolute end-1 top-1/2 size-6 -translate-y-1/2 border-transparent bg-transparent p-0 shadow-none [&_svg]:size-4"
+            />
           </div>
           <Button size="small" className="w-full justify-center" disabled={staged.length === 0 || Boolean(busy)} onClick={() => void commit()} leadingIcon={Check}>Commit</Button>
         </div>

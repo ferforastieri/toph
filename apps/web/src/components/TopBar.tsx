@@ -6,10 +6,11 @@ import {
   Rows3,
   Settings2,
 } from "@toph/icons";
-import type { Project } from "../api";
 import { Button } from "@/boardui/base/buttons/button";
 import { Dropdown, DropdownDivider, DropdownGroup, DropdownItem, DropdownPopover, DropdownTrigger } from "@/boardui/base/dropdown/dropdown";
 import BrandMark from "@toph/brand";
+import { cx } from "@/boardui/utils/cx";
+import type { Project } from "../api";
 import QuickOpen from "./QuickOpen";
 
 type SidebarTarget = "files" | "scm" | "db" | "web";
@@ -34,8 +35,8 @@ interface Props {
   onAbout: () => void;
   onShortcuts: () => void;
   menuVisible: boolean;
-  showQuickOpen: boolean;
   headerLeft?: ReactNode;
+  headerTrailing?: ReactNode;
   headerRight?: ReactNode;
 }
 
@@ -67,7 +68,7 @@ function TopMenu({ label, children }: { label: string; children: (close: () => v
   const [open, setOpen] = useState(false);
   return (
     <Dropdown isOpen={open} onOpenChange={setOpen}>
-      <DropdownTrigger className="h-full cursor-pointer px-2 text-body-2-regular text-text-secondary outline-none transition-colors hover:bg-background-secondary-hover hover:text-text-primary focus-visible:ring-2 focus-visible:ring-border-focus-ring">
+      <DropdownTrigger className="h-7 cursor-pointer rounded-md px-1.5 text-body-2-regular text-text-secondary outline-none transition-colors hover:bg-background-secondary-hover hover:text-text-primary focus-visible:ring-2 focus-visible:ring-border-focus-ring">
         {label}
       </DropdownTrigger>
       <DropdownPopover aria-label={label} placement="bottom start" className="w-64">
@@ -78,9 +79,6 @@ function TopMenu({ label, children }: { label: string; children: (close: () => v
 }
 
 export default function TopBar({
-  project,
-  quickOpenToken,
-  onOpenFile,
   onOpenRepo,
   onCloseTab,
   onBack,
@@ -97,14 +95,28 @@ export default function TopBar({
   onAbout,
   onShortcuts,
   menuVisible,
-  showQuickOpen,
+  project,
+  quickOpenToken,
+  onOpenFile,
   headerLeft,
+  headerTrailing,
   headerRight,
 }: Props) {
   return (
-    <header className="mx-1 mt-1 flex h-9 shrink-0 items-center gap-1 rounded-2xl border border-border-button-white bg-background-secondary-default px-2.5 text-body-2-regular text-text-secondary shadow-xs">
-      <BrandMark size="small" className="me-1 size-5" />
-      {menuVisible && <div className="flex h-full min-w-0 items-center">
+    <header
+      className={cx(
+        "relative z-40 mx-1 mt-1 h-8 shrink-0 items-center gap-1 rounded-2xl border border-border-button-white bg-background-secondary-default ps-0 text-body-2-regular text-text-secondary shadow-xs",
+        menuVisible ? "flex" : "grid grid-cols-[minmax(0,1fr)_clamp(180px,42vw,600px)_minmax(0,1fr)]",
+      )}
+    >
+      <div className={cx("flex min-w-0 items-center gap-1", menuVisible && "shrink-0")}>
+      <div className="flex h-full w-[43px] shrink-0 items-center justify-center">
+        <BrandMark size="small" className="size-5" />
+      </div>
+      <div className="h-5 w-px shrink-0 bg-separator-border" />
+      {menuVisible && (
+        <div className="no-scrollbar flex h-full min-w-0 shrink items-center gap-0.5 overflow-x-auto">
+
         <TopMenu label="File">
           {(close) => (
             <DropdownGroup>
@@ -225,31 +237,48 @@ export default function TopBar({
             </DropdownGroup>
           )}
         </TopMenu>
-      </div>}
-
-      {headerLeft && (
-        <div className="ms-1 flex min-w-0 items-center gap-0.5 border-s border-separator-border ps-1.5">
-          {headerLeft}
         </div>
       )}
 
-      <div className="flex min-w-0 flex-1 items-center justify-center px-2">
-        {showQuickOpen && <QuickOpen project={project} focusToken={quickOpenToken} onOpenFile={onOpenFile} className="w-[min(340px,30vw)]" />}
+
+        {headerLeft && (
+          <div className="flex min-w-0 shrink items-center gap-0.5 ps-1.5">
+            {headerLeft}
+          </div>
+        )}
+        {headerTrailing && (
+          <div className="flex min-w-0 shrink items-center gap-0.5">
+            {headerTrailing}
+          </div>
+        )}
       </div>
 
-      <div className="flex shrink-0 items-center gap-0.5">
+      <div
+        className={cx(
+          "pointer-events-auto relative z-[80] flex min-w-0 items-center px-1",
+          menuVisible ? "min-w-[140px] max-w-[600px] flex-1" : "w-full justify-self-center",
+        )}
+      >
+        <QuickOpen project={project} focusToken={quickOpenToken} onOpenFile={onOpenFile} showChevron />
+      </div>
+
+      <div
+        className={cx(
+          "flex shrink-0 items-center justify-end gap-0.5 pe-2.5",
+          menuVisible ? "ms-auto" : "justify-self-end",
+        )}
+      >
         <Button variant="ghost" size="xs" iconOnly leadingIcon={ArrowLeft} aria-label="Voltar" title="Voltar" onClick={onBack} />
         <Button variant="ghost" size="xs" iconOnly leadingIcon={ArrowRight} aria-label="Avançar" title="Avançar" onClick={onForward} />
         <Button variant={sidebarVisible ? "secondary" : "ghost"} size="xs" iconOnly leadingIcon={LayoutPanelLeft} aria-label="Barra lateral primária" title="Barra lateral primária" onClick={onToggleSidebar} />
         <Button variant="ghost" size="xs" iconOnly leadingIcon={Rows3} aria-label="Painel" title="Painel" onClick={onToggleTerminal} />
         <Button variant="ghost" size="xs" iconOnly leadingIcon={Settings2} aria-label="Personalizar layout" title="Personalizar layout" onClick={onCustomizeLayout} />
+        {headerRight && (
+          <div className="hidden shrink-0 items-center gap-2 border-s border-separator-border ps-2 text-caption-2-regular text-text-secondary xl:flex">
+            {headerRight}
+          </div>
+        )}
       </div>
-
-      {headerRight && (
-        <div className="hidden shrink-0 items-center gap-2 border-s border-separator-border ps-2 text-caption-2-regular text-text-secondary xl:flex">
-          {headerRight}
-        </div>
-      )}
     </header>
   );
 }

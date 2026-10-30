@@ -61,7 +61,7 @@ function readSettings(): Omit<SettingsState, "update" | "setTheme" | "reset"> {
         value.theme === "light" || value.theme === "dark"
           ? value.theme
           : defaultSettings.theme,
-      sidebarWidth: numberIn(value.sidebarWidth, 220, 460, defaultSettings.sidebarWidth),
+      sidebarWidth: numberIn(value.sidebarWidth, 220, 320, defaultSettings.sidebarWidth),
       aiPanelWidth: numberIn(value.aiPanelWidth, 300, 620, defaultSettings.aiPanelWidth),
       terminalHeight: numberIn(value.terminalHeight, 180, 640, defaultSettings.terminalHeight),
       confirmClose: value.confirmClose !== false,

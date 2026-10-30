@@ -4,6 +4,7 @@ import { api, type AIConfigInput } from "../api";
 import { useAI } from "../ai";
 import { useApp } from "../store";
 import { Button } from "@/boardui/base/buttons/button";
+import { ProgressBar } from "@/boardui/base/progress/progress";
 import { Input } from "@/boardui/base/input/input";
 import { Textarea } from "@/boardui/base/textarea/textarea";
 import { Switch } from "@/boardui/base/switch/switch";
@@ -130,6 +131,7 @@ export default function AiSettings() {
                 <SelectItem key={provider.id} id={provider.id}>{provider.label}</SelectItem>
               ))}
             </Select>
+            {loadingModels && <ProgressBar size="sm" isIndeterminate label="Carregando modelos..." />}
           </div>
           <Input
             label={isOpenCode ? "URL do servidor OpenCode" : "Base URL"}

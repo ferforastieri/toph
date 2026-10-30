@@ -1,8 +1,8 @@
-import { Bot, Database, FileCode2, FileDiff, Globe2, TerminalSquare } from "@toph/icons";
+import { Bot, Database, FileCode2, FileDiff, Globe2, TerminalSquare, X } from "@toph/icons";
 import { useApp, type Tab } from "../store";
 import { useSettings } from "../settings";
 import { useConfirm } from "../ui/confirm";
-import { CloseButton } from "@/boardui/base/buttons/close-button";
+import { IconButton } from "@/boardui/base/buttons/icon-button";
 import FileIcon from "../ui/FileIcon";
 import { cx } from "@/boardui/utils/cx";
 
@@ -57,25 +57,25 @@ export default function Tabs() {
                 : <Icon size={14} className="shrink-0" />}
               <span className="min-w-0 flex-1 truncate">{tab.title}</span>
               {tab.dirty && <span className="size-1.5 shrink-0 rounded-full bg-accent-500" aria-label="Modificado" />}
-              <CloseButton
-                size="2xs"
+              <IconButton
+                icon={X}
+                size="small"
                 aria-label={`Fechar ${tab.title}`}
-                className="opacity-0 group-hover:opacity-100"
+                className="size-5 border-transparent bg-transparent p-0 opacity-0 shadow-none group-hover:opacity-100 [&_svg]:size-3"
                 onClick={(event) => { event.stopPropagation(); void requestClose(tab); }}
               />
             </div>
           );
         })}
       </div>
-      <button
-        type="button"
+      <IconButton
+        icon={TerminalSquare}
+        size="small"
         aria-label="Terminal"
         title="Terminal"
         onClick={() => window.dispatchEvent(new CustomEvent("toph:open-terminal"))}
-        className="ms-1 flex size-7 shrink-0 items-center justify-center rounded-md text-foreground-icon-secondary transition-colors hover:bg-background-primary-hover hover:text-foreground-icon-primary"
-      >
-        <TerminalSquare size={14} />
-      </button>
+        className="ms-1 border-transparent bg-transparent shadow-none [&_svg]:size-4"
+      />
     </div>
   );
 }

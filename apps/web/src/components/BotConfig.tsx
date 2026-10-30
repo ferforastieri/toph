@@ -7,6 +7,7 @@ import { Button } from "@/boardui/base/buttons/button";
 import { Input } from "@/boardui/base/input/input";
 import { Textarea } from "@/boardui/base/textarea/textarea";
 import { Switch } from "@/boardui/base/switch/switch";
+import { Select, SelectItem } from "@/boardui/base/select/select";
 import { useConfirm } from "../ui/confirm";
 
 interface Props {
@@ -84,44 +85,44 @@ export default function BotConfig({ projectId, bot }: Props) {
 
       <label className="flex flex-col gap-1">
         <span className="text-caption-1-medium text-text-secondary">Modelo</span>
-        <select
-          value={bot.model}
-          onChange={(event) => update({ model: event.target.value })}
+        <Select
+          selectedKey={bot.model || "default"}
+          onSelectionChange={(key) => update({ model: key === "default" ? "" : String(key) })}
           aria-label="Modelo do bot"
-          className="h-9 w-full rounded-lg border border-border-button-default bg-background-secondary-default px-2.5 text-body-2-medium text-text-primary outline-none focus-visible:ring-2 focus-visible:ring-border-focus-ring"
+          className="w-full"
         >
-          <option value="">Usar o modelo padrão da IA</option>
+          <SelectItem id="default">Usar o modelo padrão da IA</SelectItem>
           {models.map((model) => (
-            <option key={model.id} value={model.id}>{model.label}</option>
+            <SelectItem key={model.id} id={model.id}>{model.label}</SelectItem>
           ))}
-        </select>
+        </Select>
       </label>
 
       {efforts.length > 0 && (
         <label className="flex flex-col gap-1">
           <span className="text-caption-1-medium text-text-secondary">Esforço</span>
-          <select
-            value={bot.effort ?? ""}
-            onChange={(event) => update({ effort: event.target.value })}
+          <Select
+            selectedKey={bot.effort || "default"}
+            onSelectionChange={(key) => update({ effort: key === "default" ? "" : String(key) })}
             aria-label="Esforço do bot"
-            className="h-9 w-full rounded-lg border border-border-button-default bg-background-secondary-default px-2.5 text-body-2-medium text-text-primary outline-none focus-visible:ring-2 focus-visible:ring-border-focus-ring"
+            className="w-full"
           >
-            <option value="">Padrão</option>
-            {efforts.map((effort) => <option key={effort} value={effort}>{effort}</option>)}
-          </select>
+            <SelectItem id="default">Padrão</SelectItem>
+            {efforts.map((effort) => <SelectItem key={effort} id={effort}>{effort}</SelectItem>)}
+          </Select>
         </label>
       )}
 
       <label className="flex flex-col gap-1">
         <span className="text-caption-1-medium text-text-secondary">Idioma</span>
-        <select
-          value={bot.language}
-          onChange={(event) => update({ language: event.target.value as MiniBot["language"] })}
+        <Select
+          selectedKey={bot.language}
+          onSelectionChange={(key) => update({ language: String(key) as MiniBot["language"] })}
           aria-label="Idioma do bot"
-          className="h-9 w-full rounded-lg border border-border-button-default bg-background-secondary-default px-2.5 text-body-2-medium text-text-primary outline-none focus-visible:ring-2 focus-visible:ring-border-focus-ring"
+          className="w-full"
         >
-          {LANGUAGES.map((language) => <option key={language.id} value={language.id}>{language.label}</option>)}
-        </select>
+          {LANGUAGES.map((language) => <SelectItem key={language.id} id={language.id}>{language.label}</SelectItem>)}
+        </Select>
       </label>
 
       <div className="flex flex-col gap-1.5">

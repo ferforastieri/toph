@@ -111,8 +111,8 @@ export function Select<T extends object>({
               "outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-border-focus-ring",
               "disabled:cursor-not-allowed disabled:bg-background-primary-disabled disabled:text-text-tertiary disabled:shadow-none",
               size === "sm"
-                ? "gap-1 px-[7px] py-1 text-body-2-medium"
-                : "gap-1.5 px-2.5 py-2 text-body-medium",
+                ? "h-8 gap-1 px-2 text-body-2-medium"
+                : "h-8 gap-1.5 px-2.5 text-body-medium",
               triggerClassName,
             )}
           >

@@ -56,6 +56,10 @@ export interface AppNotification {
   projectId?: string;
   tabId?: string;
   sessionId?: string;
+  notificationId?: string;
+  botId?: string;
+  botName?: string;
+  botRole?: string;
 }
 
 export type NewNotification = Omit<AppNotification, "id" | "createdAt" | "read">;
@@ -362,13 +366,15 @@ export const useApp = create<AppState>((set, get) => ({
     set((state) => ({ toasts: state.toasts.filter((toast) => toast.id !== id) })),
   addNotification: (notification) =>
     set((state) => {
-      const duplicate = state.notifications.some(
-        (item) =>
-          item.kind === notification.kind &&
-          item.title === notification.title &&
-          item.body === notification.body &&
-          Date.now() - item.createdAt < 5000,
-      );
+      const duplicate = notification.notificationId
+        ? state.notifications.some((item) => item.notificationId === notification.notificationId)
+        : state.notifications.some(
+            (item) =>
+              item.kind === notification.kind &&
+              item.title === notification.title &&
+              item.body === notification.body &&
+              Date.now() - item.createdAt < 5000,
+          );
       if (duplicate) return state;
       const next: AppNotification[] = [
         {

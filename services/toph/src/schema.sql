@@ -26,6 +26,16 @@ CREATE TABLE IF NOT EXISTS projects (
     updated_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS pet_configs (
+    user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    chosen INTEGER NOT NULL DEFAULT 0,
+    enabled INTEGER NOT NULL DEFAULT 0,
+    kind TEXT NOT NULL DEFAULT 'momo',
+    mode TEXT NOT NULL DEFAULT 'corner',
+    commits INTEGER NOT NULL DEFAULT 0,
+    updated_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS workspaces (
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,

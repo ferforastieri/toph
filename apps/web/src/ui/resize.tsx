@@ -45,7 +45,7 @@ export default function ResizeHandle({ orientation, value, min, max, invert = fa
 
   return (
     <div
-      className={`relative z-30 flex-none touch-none bg-transparent transition-colors hover:bg-ring/55 ${orientation === "vertical" ? "w-1 cursor-col-resize" : "h-1 w-full cursor-row-resize"} ${active ? "bg-ring/55" : ""} ${className}`}
+      className={`group relative z-30 flex-none touch-none bg-transparent transition-colors ${orientation === "vertical" ? "w-1 cursor-col-resize" : "h-1 w-full cursor-row-resize"} ${className}`}
       role="separator"
       aria-orientation={orientation}
       aria-label={label}
@@ -58,6 +58,15 @@ export default function ResizeHandle({ orientation, value, min, max, invert = fa
       onPointerUp={end}
       onPointerCancel={end}
       onLostPointerCapture={end}
-    />
+    >
+      <span
+        aria-hidden
+        className={`pointer-events-none absolute rounded-full transition-colors ${
+          orientation === "vertical"
+            ? "inset-y-0 left-1/2 w-0.5 -translate-x-1/2"
+            : "inset-x-0 top-1/2 h-0.5 -translate-y-1/2"
+        } ${active ? "bg-ring/80" : "bg-transparent group-hover:bg-ring/55"}`}
+      />
+    </div>
   );
 }
