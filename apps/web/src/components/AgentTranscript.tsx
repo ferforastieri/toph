@@ -135,7 +135,7 @@ export default function AgentTranscript({ messages, streaming, onPermission, cla
         <TranscriptMessage
           key={message.id}
           message={message}
-          showCaret={streaming && message.id === lastMessage?.id}
+          showCaret={streaming && message.id === lastMessage?.id && message.status === "running"}
           onPermission={onPermission}
         />
       ))}

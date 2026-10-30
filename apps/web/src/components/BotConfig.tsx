@@ -33,6 +33,8 @@ export default function BotConfig({ projectId, bot }: Props) {
   const updateBot = useBots((state) => state.updateBot);
   const removeBot = useBots((state) => state.removeBot);
   const models = useAI((state) => state.models);
+  const selectedModel = models.find((model) => model.id === bot.model);
+  const efforts = selectedModel?.variants ?? [];
   const confirm = useConfirm();
 
   function update(patch: Partial<MiniBot>) {
@@ -94,6 +96,21 @@ export default function BotConfig({ projectId, bot }: Props) {
           ))}
         </select>
       </label>
+
+      {efforts.length > 0 && (
+        <label className="flex flex-col gap-1">
+          <span className="text-caption-1-medium text-text-secondary">Esforço</span>
+          <select
+            value={bot.effort ?? ""}
+            onChange={(event) => update({ effort: event.target.value })}
+            aria-label="Esforço do bot"
+            className="h-9 w-full rounded-lg border border-border-button-default bg-background-secondary-default px-2.5 text-body-2-medium text-text-primary outline-none focus-visible:ring-2 focus-visible:ring-border-focus-ring"
+          >
+            <option value="">Padrão</option>
+            {efforts.map((effort) => <option key={effort} value={effort}>{effort}</option>)}
+          </select>
+        </label>
+      )}
 
       <label className="flex flex-col gap-1">
         <span className="text-caption-1-medium text-text-secondary">Idioma</span>
