@@ -1263,7 +1263,12 @@ export default function Workbench() {
 
       <div
         className={cx("flex min-h-0 flex-1", mobile ? "p-0" : "p-1", !mobile && sidebar === "bots" ? "gap-1" : "gap-0")}
-        style={mobile ? { paddingTop: "var(--safe-top)", paddingBottom: "var(--safe-bottom)" } : undefined}
+        style={mobile ? {
+          paddingTop: "var(--safe-top)",
+          paddingBottom: "var(--safe-bottom)",
+          paddingLeft: "var(--safe-left)",
+          paddingRight: "var(--safe-right)",
+        } : undefined}
       >
         {!mobile && primaryOnLeft && primarySidebar}
         {!mobile && primaryOnLeft && primaryResize}
@@ -1355,7 +1360,15 @@ export default function Workbench() {
         {!mobile && !primaryOnLeft && primarySidebar}
 
         {mobile && project && mobileTerminalOpen && (
-          <div className="fixed inset-0 z-[120] flex flex-col bg-background-primary-default pt-[var(--safe-top)]">
+          <div
+            className="fixed inset-0 z-[120] flex flex-col bg-background-primary-default"
+            style={{
+              paddingTop: "var(--safe-top)",
+              paddingBottom: "var(--safe-bottom)",
+              paddingLeft: "var(--safe-left)",
+              paddingRight: "var(--safe-right)",
+            }}
+          >
             <Button variant="ghost" className="m-2 w-[calc(100%-1rem)] shrink-0 justify-start" onClick={() => setMobileTerminalOpen(false)}>
               Fechar terminal
             </Button>
@@ -1526,7 +1539,15 @@ export default function Workbench() {
       </Modal>
 
       {mobile && mobileSearchOpen && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center bg-background-full px-3 pt-[calc(var(--safe-top)+0.5rem)]">
+        <div
+          className="fixed inset-0 z-50 flex items-start justify-center bg-background-full"
+          style={{
+            paddingTop: "calc(var(--safe-top) + 0.75rem)",
+            paddingBottom: "calc(var(--safe-bottom) + 0.75rem)",
+            paddingLeft: "calc(var(--safe-left) + 0.75rem)",
+            paddingRight: "calc(var(--safe-right) + 0.75rem)",
+          }}
+        >
           <button type="button" aria-label="Fechar busca" className="absolute inset-0 cursor-default" onClick={() => setMobileSearchOpen(false)} />
           <div className="relative z-10 flex w-full flex-col gap-2">
             <span className="px-1 text-caption-1-semibold uppercase tracking-wide text-text-secondary">Buscar</span>

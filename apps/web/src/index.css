@@ -403,6 +403,32 @@
   animation: toph-dropdown-reveal 300ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
+@keyframes toph-mobile-drawer-in {
+  from {
+    opacity: 0;
+    transform: translateX(-12px);
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+    filter: blur(0);
+  }
+}
+
+.mobile-drawer-in {
+  animation: toph-mobile-drawer-in 300ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes toph-mobile-backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.mobile-backdrop-in {
+  animation: toph-mobile-backdrop-in 220ms ease-out both;
+}
+
 @keyframes toph-progress-sweep {
   0% { left: -35%; }
   100% { left: 105%; }
@@ -487,7 +513,9 @@
     left: 33%;
   }
 
-  .dropdown-reveal {
+  .dropdown-reveal,
+  .mobile-drawer-in,
+  .mobile-backdrop-in {
     animation: none;
   }
 

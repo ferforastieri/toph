@@ -84,7 +84,9 @@ export function Modal({
     <div
       className={cx(
         "fixed inset-0 z-100 flex justify-center",
-        placement === "bottom" ? "items-end" : "items-center p-4",
+        placement === "bottom"
+          ? "items-end"
+          : "items-center pt-[calc(var(--safe-top)+1rem)] pb-[calc(var(--safe-bottom)+1rem)] ps-[calc(var(--safe-left)+1rem)] pe-[calc(var(--safe-right)+1rem)]",
       )}
       role="presentation"
     >
@@ -110,8 +112,8 @@ export function Modal({
           "transform-gpu transition-[opacity,transform,filter] duration-200 ease-[cubic-bezier(0.32,0.72,0,1)]",
           visible ? "scale-100 opacity-100 blur-0" : "scale-[0.97] opacity-0 blur-[3px]",
           placement === "bottom"
-            ? "max-h-[calc(100dvh-8px)] max-w-none rounded-t-3xl pb-[var(--safe-bottom)]"
-            : cx("max-h-[calc(100dvh-32px)] rounded-3xl", sizes[size]),
+            ? "max-h-[calc(100dvh-8px-var(--safe-top))] max-w-none rounded-t-3xl pb-[var(--safe-bottom)] ps-[var(--safe-left)] pe-[var(--safe-right)]"
+            : cx("max-h-[calc(100dvh-32px-var(--safe-top)-var(--safe-bottom))] rounded-3xl", sizes[size]),
           className,
         )}
       >
