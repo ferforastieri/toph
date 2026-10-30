@@ -6,6 +6,8 @@ import { useConfirm } from "../ui/confirm";
 import { Button } from "@/boardui/base/buttons/button";
 import { IconLinkButton } from "@/boardui/base/buttons/icon-button";
 import { Input } from "@/boardui/base/input/input";
+import { useIsMobile } from "../ui/useIsMobile";
+import { cx } from "@/boardui/utils/cx";
 
 interface Props { onOpenWeb: (target: WebTarget) => void; }
 
@@ -14,6 +16,7 @@ export default function WebSidebar({ onOpenWeb }: Props) {
   const [showForm, setShowForm] = useState(false);
   const notify = useApp((state) => state.notify);
   const confirm = useConfirm();
+  const mobile = useIsMobile();
 
   async function load() {
     try { setTargets(await api.webTargets()); }
@@ -23,9 +26,9 @@ export default function WebSidebar({ onOpenWeb }: Props) {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex h-9 shrink-0 items-center justify-between border-b px-2">
+      <div className={cx("flex shrink-0 border-b px-2", mobile ? "flex-col items-stretch gap-2 py-2" : "h-9 items-center justify-between")}>
         <span className="text-caption-1-medium text-text-secondary">Web apps</span>
-        <Button variant="ghost" size="xs" iconOnly leadingIcon={Plus} aria-label="Adicionar web app" onClick={() => setShowForm((value) => !value)} />
+        <Button variant={mobile ? "secondary" : "ghost"} size={mobile ? "small" : "xs"} iconOnly={!mobile} leadingIcon={Plus} aria-label="Adicionar web app" className={mobile ? "w-full justify-start" : undefined} onClick={() => setShowForm((value) => !value)}>{mobile ? "Adicionar web app" : undefined}</Button>
       </div>
       {showForm && <WebTargetForm onCreated={() => { setShowForm(false); void load(); }} />}
       <div className="min-h-0 flex-1 overflow-y-auto p-1">

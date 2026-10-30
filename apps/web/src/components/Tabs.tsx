@@ -1,4 +1,4 @@
-import { Bot, Database, FileCode2, FileDiff, Globe2, TerminalSquare, X } from "@toph/icons";
+import { Bot, Database, FileCode2, FileDiff, Globe2, X } from "@toph/icons";
 import { useApp, type Tab } from "../store";
 import { useSettings } from "../settings";
 import { useConfirm } from "../ui/confirm";
@@ -68,14 +68,6 @@ export default function Tabs() {
           );
         })}
       </div>
-      <IconButton
-        icon={TerminalSquare}
-        size="small"
-        aria-label="Terminal"
-        title="Terminal"
-        onClick={() => window.dispatchEvent(new CustomEvent("toph:open-terminal"))}
-        className="ms-1 border-transparent bg-transparent shadow-none [&_svg]:size-4"
-      />
     </div>
   );
 }

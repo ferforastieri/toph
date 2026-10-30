@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { ArrowLeft, Bell, Bot, ChevronDown, ChevronRight, CircleAlert, FolderGit2, FolderPlus, GitBranch, Plus, Search, TerminalSquare, Trash2, X } from "@toph/icons";
+import { Bell, Bot, ChevronRight, CircleAlert, FolderGit2, FolderPlus, GitBranch, Plus, Trash2, X } from "@toph/icons";
 import { SearchField } from "@/boardui/base/search-field/search-field";
 import { api, getApiBase, type Repository, type SchemaTable, type WebTarget } from "../api";
 import { basename, expandGitPattern, languageFor, quoteIdentifier, sanitizeBranchName } from "../lib";
@@ -9,8 +9,7 @@ import { useAI } from "../ai";
 import { nativePushToken, requestMobileNotificationPermission } from "../notifications";
 import { PROJECT_EVENT, type ProjectEvent } from "../projectEvents";
 import ActivityBar from "./ActivityBar";
-import AvatarMenu from "./AvatarMenu";
-import MobileNav from "./MobileNav";
+import MobileMenu, { type MobileScreen } from "./MobileMenu";
 import Tabs from "./Tabs";
 import TopBar from "./TopBar";
 import QuickOpen from "./QuickOpen";
@@ -86,11 +85,12 @@ export default function Workbench() {
   const [showRepoPicker, setShowRepoPicker] = useState(false);
   const [version, setVersion] = useState("0.1.0");
   const [gitStatus, setGitStatus] = useState("");
-  const [mobilePanelOpen, setMobilePanelOpen] = useState(false);
+  const [, setMobilePanelOpen] = useState(false);
   const [mobileTerminalOpen, setMobileTerminalOpen] = useState(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
-  const [mobileControlsOpen, setMobileControlsOpen] = useState(false);
-  const mobilePullStart = useRef<number | null>(null);
+  const [mobileScreen, setMobileScreen] = useState<MobileScreen>("bots");
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const mobileSwipeStart = useRef<{ x: number; y: number } | null>(null);
   const [projectsSheetOpen, setProjectsSheetOpen] = useState(false);
   const [branchMenuOpen, setBranchMenuOpen] = useState(false);
   const [branchCreateOpen, setBranchCreateOpen] = useState(false);
@@ -179,6 +179,12 @@ export default function Workbench() {
   }, []);
 
   useEffect(() => {
+    if (!mobile) return;
+    setMobileScreen("bots");
+    setMobileMenuOpen(false);
+  }, [activeProjectId, mobile]);
+
+  useEffect(() => {
     const openTerminal = () => {
       if (mobile) {
         setMobilePanelOpen(false);
@@ -227,7 +233,6 @@ export default function Workbench() {
       if (document.querySelector(".modal-backdrop, .avatar-menu")) return;
       setMobilePanelOpen(false);
       setProjectsSheetOpen(false);
-      setMobileControlsOpen(false);
       setTerminalOpen(false);
     };
     window.addEventListener("keydown", onKey, true);
@@ -449,7 +454,6 @@ export default function Workbench() {
       if (payload.botId) selectBot(payload.projectId, payload.botId);
       state.setSidebar("bots");
       setMobilePanelOpen(false);
-      setMobileControlsOpen(false);
       setMobileTerminalOpen(false);
     };
     window.addEventListener("toph:open-bot", onOpenBot as EventListener);
@@ -621,16 +625,14 @@ export default function Workbench() {
     setActiveProject(next);
   }
 
-  function openMobileSidebar(next: Sidebar) {
-    if (mobilePanelOpen && sidebar === next) {
-      setMobilePanelOpen(false);
-      return;
-    }
-    setSidebar(next);
-    setMobileControlsOpen(false);
-    setMobilePanelOpen(true);
+  function selectMobileScreen(next: MobileScreen) {
+    setMobileScreen(next);
+    setMobileMenuOpen(false);
+    setMobilePanelOpen(false);
     setMobileTerminalOpen(false);
+    setMobileSearchOpen(false);
   }
+
 
 
 
@@ -765,6 +767,7 @@ export default function Workbench() {
 
   function openFile(path: string, line?: number) {
     if (!project) return;
+    if (mobile) { setMobileScreen("workspace"); setMobileMenuOpen(false); }
     if (mobile) setMobilePanelOpen(false);
     openTab({
       id: `editor:${project.id}:${path}`,
@@ -778,6 +781,7 @@ export default function Workbench() {
 
   function openQuery(profileId: string, sql: string) {
     if (!project) return;
+    if (mobile) { setMobileScreen("workspace"); setMobileMenuOpen(false); }
     if (mobile) setMobilePanelOpen(false);
     openTab({
       id: `db:${project.id}:${crypto.randomUUID()}`,
@@ -791,6 +795,7 @@ export default function Workbench() {
 
   function openDiff(path: string, staged: boolean) {
     if (!project) return;
+    if (mobile) { setMobileScreen("workspace"); setMobileMenuOpen(false); }
     if (mobile) setMobilePanelOpen(false);
     openTab({
       id: `diff:${project.id}:${staged ? "staged" : "worktree"}:${path}`,
@@ -804,6 +809,7 @@ export default function Workbench() {
 
   function openTable(profileId: string, table: SchemaTable, driver: string) {
     if (!project) return;
+    if (mobile) { setMobileScreen("workspace"); setMobileMenuOpen(false); }
     if (mobile) setMobilePanelOpen(false);
     const schema = table.schema;
     let sql = "";
@@ -864,7 +870,7 @@ export default function Workbench() {
     if (notification.projectId !== activeProjectId) setActiveProject(notification.projectId);
     if (notification.botId) selectBot(notification.projectId, notification.botId);
     setSidebar("bots");
-    setMobileControlsOpen(false);
+    if (mobile) { setMobileScreen("bots"); setMobileMenuOpen(false); }
     if (mobile) setMobilePanelOpen(false);
     setTerminalOpen(false);
   }
@@ -879,6 +885,7 @@ export default function Workbench() {
 
   function openWeb(target: WebTarget) {
     if (!project) return;
+    if (mobile) { setMobileScreen("workspace"); setMobileMenuOpen(false); }
     if (mobile) setMobilePanelOpen(false);
     openTab({
       id: `web:${project.id}:${target.id}`,
@@ -1207,48 +1214,26 @@ export default function Workbench() {
       style={mobile ? { height: "min(var(--visual-viewport-height, 100dvh), calc(100dvh - var(--keyboard-inset, 0px)))" } : undefined}
       onTouchStart={(event) => {
         if (!mobile) return;
-        const y = event.touches[0]?.clientY;
-        if (y !== undefined && y <= 36) mobilePullStart.current = y;
+        const touch = event.touches[0];
+        if (touch) mobileSwipeStart.current = { x: touch.clientX, y: touch.clientY };
       }}
       onTouchMove={(event) => {
-        if (!mobile || mobilePullStart.current === null) return;
-        const y = event.touches[0]?.clientY;
-        if (y !== undefined && y - mobilePullStart.current > 54) {
-          setMobileControlsOpen(true);
-          setMobilePanelOpen(false);
-          setMobileTerminalOpen(false);
-          mobilePullStart.current = null;
+        if (!mobile || !mobileSwipeStart.current) return;
+        const touch = event.touches[0];
+        if (!touch) return;
+        const dx = touch.clientX - mobileSwipeStart.current.x;
+        const dy = touch.clientY - mobileSwipeStart.current.y;
+        if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.4) return;
+        if (dx > 0 && !mobileMenuOpen && mobileSwipeStart.current.x <= 48) {
+          setMobileMenuOpen(true);
+          mobileSwipeStart.current = null;
+        } else if (dx < 0 && mobileMenuOpen) {
+          setMobileMenuOpen(false);
+          mobileSwipeStart.current = null;
         }
       }}
-      onTouchEnd={() => { mobilePullStart.current = null; }}
+      onTouchEnd={() => { mobileSwipeStart.current = null; }}
     >
-      {mobile && mobileControlsOpen && project && (
-        <div className="fixed inset-0 z-[90]">
-          <button type="button" aria-label="Fechar controles" className="absolute inset-0 bg-black/50" onClick={() => setMobileControlsOpen(false)} />
-          <section className="absolute inset-x-2 top-[calc(var(--safe-top)+0.5rem)] rounded-3xl border border-border-button-white bg-background-secondary-default p-3 shadow-2xl">
-            <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-border-button-default" />
-            <div className="flex min-w-0 items-center gap-1">
-              <button
-                type="button"
-                className="flex min-w-0 flex-1 items-center gap-1.5 rounded-xl px-1.5 py-1 text-start hover:bg-background-primary-hover"
-                onClick={() => { setMobileControlsOpen(false); setMobileTerminalOpen(false); setProjectsSheetOpen(true); }}
-                aria-label="Abrir projetos"
-              >
-                <Avatar size="sm" initials={project.name.slice(0, 1).toUpperCase()} className="bg-background-tertiary-default text-caption-2-semibold" style={{ color: project.color }} />
-                <span className="max-w-[150px] truncate text-body-2-medium font-medium">{project.name}</span>
-                <ChevronDown size={14} className="shrink-0 text-muted-foreground" />
-              </button>
-              <NotificationBell projectId={project.id} projectName={project.name} onOpen={openNotification} />
-              <AvatarMenu user={user} variant="titlebar" />
-            </div>
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              <Button variant="secondary" size="small" leadingIcon={Search} className="justify-start" onClick={() => { setMobileControlsOpen(false); setMobileSearchOpen(true); setQuickOpenToken((value) => value + 1); }}>Buscar</Button>
-              <Button variant="secondary" size="small" leadingIcon={TerminalSquare} className="justify-start" onClick={() => { setMobileControlsOpen(false); setMobilePanelOpen(false); setMobileTerminalOpen(true); }}>Terminal</Button>
-            </div>
-          </section>
-        </div>
-      )}
-
       {!mobile && (
         <TopBar
           project={project}
@@ -1277,27 +1262,62 @@ export default function Workbench() {
       )}
 
       <div
-        className={cx("flex min-h-0 flex-1 p-1", sidebar === "bots" ? "gap-1" : "gap-0")}
-        style={mobile ? { paddingTop: "calc(var(--safe-top) + 0.5rem)" } : undefined}
+        className={cx("flex min-h-0 flex-1", mobile ? "p-0" : "p-1", !mobile && sidebar === "bots" ? "gap-1" : "gap-0")}
+        style={mobile ? { paddingTop: "var(--safe-top)", paddingBottom: "var(--safe-bottom)" } : undefined}
       >
-        {primaryOnLeft && primarySidebar}
-        {primaryOnLeft && primaryResize}
-        {mobile && mobilePanelOpen && (
-          <aside className="fixed inset-x-2 bottom-[calc(4.5rem+var(--safe-bottom))] top-[calc(var(--safe-top)+0.5rem)] z-40 flex flex-col overflow-hidden rounded-3xl border border-border-button-white bg-background-primary-default shadow-sidebar">
-            <div className="flex h-11 shrink-0 items-center gap-2 border-b px-2">
-              <Button variant="ghost" size="xs" iconOnly leadingIcon={ArrowLeft} aria-label="Voltar" onClick={() => setMobilePanelOpen(false)} />
-              <span className="text-body-medium text-text-primary">{sidebar === "db" ? "Bancos" : sidebar === "web" ? "Web apps" : sidebar === "ai" ? "Agente" : sidebar === "bots" ? "Bots" : sidebar === "scm" ? "Source Control" : "Arquivos"}</span>
-            </div>
-            <SidebarContent />
-          </aside>
-        )}
+        {!mobile && primaryOnLeft && primarySidebar}
+        {!mobile && primaryOnLeft && primaryResize}
 
         <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-1 overflow-hidden">
-          <main className={cx(
-            "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden",
-            sidebar === "bots" && project ? "bg-transparent" : "rounded-3xl border border-border-button-white bg-background-primary-default shadow-sidebar",
-          )}>
-            {sidebar === "bots" && project ? (
+          <main
+            className={cx(
+              "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden",
+              mobile
+                ? "bg-background-primary-default"
+                : sidebar === "bots" && project
+                  ? "bg-transparent"
+                  : "rounded-3xl border border-border-button-white bg-background-primary-default shadow-sidebar",
+            )}
+          >
+            {mobile ? (
+              mobileScreen === "bots" && project ? (
+                <BotStudioTab project={project} />
+              ) : mobileScreen === "files" && project ? (
+                <div className="min-h-0 flex-1 overflow-hidden">
+                  <ExplorerPanel project={project} onOpenFile={openFile} onStatusChange={setGitStatus} />
+                </div>
+              ) : mobileScreen === "scm" && project ? (
+                <div className="min-h-0 flex-1 overflow-hidden">
+                  <SourceControlPanel project={project} view="scm" onOpenDiff={openDiff} onStatusChange={setGitStatus} />
+                </div>
+              ) : mobileScreen === "db" && project ? (
+                <div className="min-h-0 flex-1 overflow-hidden">
+                  <DatabasesPanel project={project} onOpenQuery={openQuery} onOpenTable={openTable} />
+                </div>
+              ) : mobileScreen === "web" ? (
+                <div className="min-h-0 flex-1 overflow-hidden">
+                  <WebSidebar onOpenWeb={openWeb} />
+                </div>
+              ) : mobileScreen === "workspace" ? (
+                <>
+                  <Tabs />
+                  <div className="relative flex min-h-0 flex-1 overflow-hidden">
+                    {!activeTab && (
+                      <div className="flex h-full w-full flex-col items-center justify-center gap-4 p-6 text-center">
+                        <BrandMark size="large" />
+                        <strong className="text-title-3-medium text-text-primary">Nenhuma aba aberta</strong>
+                        <p className="max-w-sm text-caption-1-regular text-text-secondary">Abra um arquivo, banco ou web app para começar.</p>
+                        <Button variant="secondary" className="w-full" onClick={() => selectMobileScreen("bots")}>Voltar para Bots</Button>
+                      </div>
+                    )}
+                    {activeTab?.kind === "editor" && project && <EditorPanel tab={activeTab} project={project} onOpenChanges={(path) => openDiff(path, false)} />}
+                    {activeTab?.kind === "db" && <DbPanelTab tab={activeTab} />}
+                    {activeTab?.kind === "web" && <WebPanelTab tab={activeTab} />}
+                    {activeTab?.kind === "diff" && project && <DiffPanelTab tab={activeTab} project={project} />}
+                  </div>
+                </>
+              ) : null
+            ) : sidebar === "bots" && project ? (
               <BotStudioTab project={project} />
             ) : (
               <>
@@ -1331,21 +1351,18 @@ export default function Workbench() {
           )}
         </div>
 
-        {!primaryOnLeft && primaryResize}
-        {!primaryOnLeft && primarySidebar}
+        {!mobile && !primaryOnLeft && primaryResize}
+        {!mobile && !primaryOnLeft && primarySidebar}
 
         {mobile && project && mobileTerminalOpen && (
-          <>
-            <button type="button" aria-label="Fechar terminal" className="fixed inset-0 bottom-[calc(4.5rem+var(--safe-bottom))] z-30 bg-black/40" onClick={() => setMobileTerminalOpen(false)} />
-            <div className="fixed inset-x-2 bottom-[calc(4.5rem+var(--safe-bottom))] z-40 flex h-[72dvh] flex-col overflow-hidden rounded-3xl border border-border-button-default bg-background-primary-default shadow-2xl">
-              <div className="flex h-7 shrink-0 items-center justify-center">
-                <span className="h-1 w-10 rounded-full bg-border-button-default" />
-              </div>
-              <div className="min-h-0 flex-1">
-                <TerminalPanel key={`mobile:${project.id}`} project={project} onOpenFile={openFile} sheet onClose={() => setMobileTerminalOpen(false)} />
-              </div>
+          <div className="fixed inset-0 z-[120] flex flex-col bg-background-primary-default pt-[var(--safe-top)]">
+            <Button variant="ghost" className="m-2 w-[calc(100%-1rem)] shrink-0 justify-start" onClick={() => setMobileTerminalOpen(false)}>
+              Fechar terminal
+            </Button>
+            <div className="min-h-0 flex-1">
+              <TerminalPanel key={`mobile:${project.id}`} project={project} onOpenFile={openFile} sheet onClose={() => setMobileTerminalOpen(false)} />
             </div>
-          </>
+          </div>
         )}
 
       </div>
@@ -1511,11 +1528,9 @@ export default function Workbench() {
       {mobile && mobileSearchOpen && (
         <div className="fixed inset-0 z-50 flex items-start justify-center bg-background-full px-3 pt-[calc(var(--safe-top)+0.5rem)]">
           <button type="button" aria-label="Fechar busca" className="absolute inset-0 cursor-default" onClick={() => setMobileSearchOpen(false)} />
-          <div className="relative z-10 flex w-full max-w-md flex-col gap-2">
-            <div className="flex items-center justify-between px-1 text-caption-1-semibold uppercase tracking-wide text-text-secondary">
-              <span>Buscar</span>
-              <Button variant="ghost" size="xs" iconOnly leadingIcon={X} aria-label="Fechar busca" onClick={() => setMobileSearchOpen(false)} />
-            </div>
+          <div className="relative z-10 flex w-full flex-col gap-2">
+            <span className="px-1 text-caption-1-semibold uppercase tracking-wide text-text-secondary">Buscar</span>
+            <Button variant="ghost" className="w-full justify-start" onClick={() => setMobileSearchOpen(false)}>Fechar busca</Button>
             <QuickOpen
               project={project}
               focusToken={quickOpenToken}
@@ -1526,8 +1541,16 @@ export default function Workbench() {
         </div>
       )}
 
-      {mobile && (
-        <MobileNav sidebar={sidebar} panelOpen={mobilePanelOpen} onSidebar={openMobileSidebar} onWeb={() => openMobileSidebar("web")} onBots={() => openMobileSidebar("bots")} />
+      {mobile && mobileMenuOpen && (
+        <MobileMenu
+          screen={mobileScreen}
+          hasWorkspace={Boolean(activeTab)}
+          onSelect={selectMobileScreen}
+          onProjects={() => { setMobileMenuOpen(false); setProjectsSheetOpen(true); }}
+          onSearch={() => { setMobileMenuOpen(false); setMobileSearchOpen(true); setQuickOpenToken((value) => value + 1); }}
+          onTerminal={() => { setMobileMenuOpen(false); setMobileTerminalOpen(true); }}
+          onClose={() => setMobileMenuOpen(false)}
+        />
       )}
       {showRepoPicker && <RepoPicker onClose={() => setShowRepoPicker(false)} onOpen={openRepo} />}
       <Toasts />
