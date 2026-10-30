@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, ApiError, type GitBlameLine, type Project } from "../api";
-import { languageFor } from "../lib";
+import { languageFor, relativeTime } from "../lib";
 import { useApp, type Tab } from "../store";
 import CodeEditor from "../components/CodeEditor";
 import FileIcon from "../ui/FileIcon";
@@ -19,6 +19,7 @@ export default function EditorPanel({ tab, project, onOpenChanges }: Props) {
   const notify = useApp((state) => state.notify);
   const [blame, setBlame] = useState<GitBlameLine[]>([]);
   const [stale, setStale] = useState(false);
+  const [cursorLine, setCursorLine] = useState(1);
   const tabRef = useRef(tab);
   tabRef.current = tab;
 
@@ -102,6 +103,8 @@ export default function EditorPanel({ tab, project, onOpenChanges }: Props) {
 
   if (tab.content === undefined) return <div className="flex h-full items-center justify-center text-sm text-muted-foreground">Abrindo {tab.path}...</div>;
 
+  const currentBlame = blame.find((item) => item.line === cursorLine);
+
   return (
     <div className="flex h-full min-h-0 w-full flex-1 flex-col">
       <Breadcrumb className="h-8 min-w-0 shrink-0 items-center border-b px-2">
@@ -116,8 +119,13 @@ export default function EditorPanel({ tab, project, onOpenChanges }: Props) {
         {stale && <BreadcrumbItem><Badge color="neutral" className="text-[10px] text-status-yellow-text">changed on disk</Badge></BreadcrumbItem>}
       </Breadcrumb>
       <div className="min-h-0 flex-1 overflow-hidden">
-        <CodeEditor path={tab.path ?? tab.title} projectId={project.id} projectRoot={project.root} onOpenChanges={onOpenChanges} value={tab.content} language={languageFor(tab.path ?? tab.title)} line={tab.line} blame={blame} onChange={(content) => updateTab(tab.id, { content, dirty: true })} onCursorPosition={(line, column) => { window.dispatchEvent(new CustomEvent("toph:cursor", { detail: { line, column, language: languageFor(tab.path ?? tab.title) } })); }} onSave={() => void save()} />
+        <CodeEditor path={tab.path ?? tab.title} projectId={project.id} projectRoot={project.root} onOpenChanges={onOpenChanges} value={tab.content} language={languageFor(tab.path ?? tab.title)} line={tab.line} onCursorLine={setCursorLine} onChange={(content) => updateTab(tab.id, { content, dirty: true })} onCursorPosition={(line, column) => { window.dispatchEvent(new CustomEvent("toph:cursor", { detail: { line, column, language: languageFor(tab.path ?? tab.title) } })); }} onSave={() => void save()} />
       </div>
+      {currentBlame && (
+        <div className="flex h-5 shrink-0 items-center border-t border-separator-border bg-background-primary-default px-2 text-[9.5px] italic text-text-tertiary">
+          <span className="truncate">{currentBlame.author} · {relativeTime(currentBlame.authorTime)} · {currentBlame.summary}</span>
+        </div>
+      )}
     </div>
   );
 }

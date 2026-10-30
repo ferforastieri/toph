@@ -501,7 +501,7 @@ export default function Workbench() {
               : layout.sidebar;
           setSidebar(savedSidebar as Sidebar);
         }
-        setTerminalOpen(true);
+        setTerminalOpen(typeof layout.terminalOpen === "boolean" ? layout.terminalOpen : true);
         loadedProject.current = activeProjectId;
       })
       .catch((error) => {
@@ -909,8 +909,8 @@ export default function Workbench() {
   ) : null;
   const headerBranch = statusVisible ? (
     <>
-      <Button variant="ghost" size="xs" className="h-6 max-w-[190px] gap-1 px-1.5" onClick={() => void toggleBranchMenu()} aria-expanded={branchMenuOpen}>
-        <GitBranch size={12} /><span className="truncate">{branch || "detached"}</span><ChevronDown size={12} />
+      <Button variant="ghost" size="xs" title={branch || "detached"} className="h-6 min-w-0 max-w-[220px] gap-1 px-1.5" onClick={() => void toggleBranchMenu()} aria-expanded={branchMenuOpen}>
+        <GitBranch size={12} className="shrink-0" /><span className="min-w-0 flex-1 truncate text-start">{branch || "detached"}</span><ChevronDown size={12} className="shrink-0" />
       </Button>
       <Dropdown isOpen={projectsMenuOpen} onOpenChange={setProjectsMenuOpen}>
         <DropdownTrigger className="flex min-w-0 items-center gap-1.5 rounded-md px-1.5 py-0.5 hover:bg-background-primary-hover">

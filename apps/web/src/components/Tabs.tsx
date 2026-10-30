@@ -46,7 +46,7 @@ export default function Tabs() {
               onAuxClick={(event) => { if (event.button === 1) void requestClose(tab); }}
               title={tab.path ?? tab.url ?? tab.title}
               className={cx(
-                "group flex h-8 max-w-[240px] shrink-0 cursor-pointer items-center gap-2 rounded-md border px-2 text-body-2-medium",
+                "group mx-0.5 flex h-8 max-w-[240px] shrink-0 cursor-pointer items-center gap-2 rounded-lg border px-2 text-body-2-medium",
                 active
                   ? "border-border-button-default bg-background-tertiary-default text-text-primary shadow-xs"
                   : "border-transparent text-text-secondary hover:bg-background-primary-hover hover:text-text-primary",
