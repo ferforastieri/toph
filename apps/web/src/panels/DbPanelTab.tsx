@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { Check, Pencil, Play, Square, Timer, Rows3, Trash2 } from "@toph/icons";
+import { Check, Pencil, Play, Square, Rows3, Trash2 } from "@toph/icons";
 import { api, type DBProfile, type QueryResult } from "../api";
 import { useApp, type Tab } from "../store";
+import { ProgressCircle } from "@/boardui/base/progress/progress";
 import CodeEditor from "../components/CodeEditor";
 import { Button } from "@/boardui/base/buttons/button";
 import { Input } from "@/boardui/base/input/input";
@@ -209,7 +210,7 @@ export default function DbPanelTab({ tab }: Props) {
           <span className="hidden text-caption-1-regular text-text-secondary sm:inline">
             {profile?.driver === "mongodb" || profile?.driver === "elasticsearch" ? "JSON query" : profile?.driver === "redis" ? "Redis command" : profile?.driver === "neo4j" ? "Cypher" : profile?.driver === "cassandra" ? "CQL" : "Ctrl/Cmd + Enter"}
           </span>
-          <Button size="small" onClick={() => void run()} disabled={busy || !sql.trim()}>{busy ? <Timer size={14} className="animate-spin" /> : <Play size={14} />}{busy ? "Running" : "Run"}</Button>
+          <Button size="small" onClick={() => void run()} disabled={busy || !sql.trim()}>{busy ? <ProgressCircle size="sm" isIndeterminate aria-label="Executando" /> : <Play size={14} />}{busy ? "Running" : "Run"}</Button>
           {busy && <Button variant="secondary" size="small" disabled title="Query cancellation is coming next"><Square size={13} /> Stop</Button>}
         </div>
       </div>

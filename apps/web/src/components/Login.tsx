@@ -54,7 +54,7 @@ export default function Login({ onChangeServer }: Props) {
         </form>
         <footer className="flex flex-col gap-2 text-center">
           <p className="text-caption-1-regular text-text-tertiary">O Toph é self-hosted. Em uma instalação nova, a senha inicial foi impressa no log do servidor.</p>
-          {onChangeServer && <Button type="button" variant="ghost" size="small" onClick={onChangeServer}>Alterar servidor</Button>}
+          {onChangeServer && <Button type="button" size="small" className="w-full" onClick={onChangeServer}>Alterar servidor</Button>}
         </footer>
       </section>
     </main>

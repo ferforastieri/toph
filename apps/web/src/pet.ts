@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { api, type PetConfig as ApiPetConfig } from "./api";
 
 export type PetKind = "momo" | "pip" | "byte" | "nori";
 export type PetMode = "corner" | "free";
@@ -40,37 +41,46 @@ function storageKey(username: string): string {
   return `toph_pet_${username}`;
 }
 
-function readPet(username: string): PetConfig {
+function normalizePet(value: Partial<ApiPetConfig>): PetConfig {
+  return {
+    chosen: value.chosen === true,
+    enabled: value.enabled === true,
+    kind: value.kind === "momo" || value.kind === "pip" || value.kind === "byte" || value.kind === "nori" ? value.kind : "momo",
+    mode: value.mode === "free" ? "free" : "corner",
+    commits: typeof value.commits === "number" && Number.isFinite(value.commits) ? Math.max(0, Math.floor(value.commits)) : 0,
+  };
+}
+
+function readLocalPet(username: string): PetConfig {
   if (!username) return DEFAULT_CONFIG;
   try {
     const raw = localStorage.getItem(storageKey(username));
     if (!raw) return DEFAULT_CONFIG;
-    const value = JSON.parse(raw) as Partial<PetConfig>;
-    return {
-      chosen: value.chosen === true,
-      enabled: value.enabled === true,
-      kind: value.kind === "momo" || value.kind === "pip" || value.kind === "byte" || value.kind === "nori" ? value.kind : "momo",
-      mode: value.mode === "free" ? "free" : "corner",
-      commits: typeof value.commits === "number" && Number.isFinite(value.commits) ? Math.max(0, Math.floor(value.commits)) : 0,
-    };
+    return normalizePet(JSON.parse(raw) as Partial<PetConfig>);
   } catch {
     return DEFAULT_CONFIG;
   }
 }
 
-function writePet(username: string, config: PetConfig): void {
+function writeLocalPet(username: string, config: PetConfig): void {
   if (!username) return;
   try {
     localStorage.setItem(storageKey(username), JSON.stringify(config));
   } catch {
-    // A pet is not important enough to break the workbench when storage is unavailable.
+    // The server remains the source of truth when storage is unavailable.
   }
+}
+
+function persistPet(username: string, config: PetConfig): void {
+  writeLocalPet(username, config);
+  if (!username) return;
+  void api.savePet(config).catch(() => undefined);
 }
 
 interface PetState extends PetConfig {
   username: string;
   loaded: boolean;
-  hydrate: (username: string) => void;
+  hydrate: (username: string) => Promise<void>;
   choose: (kind: PetKind) => void;
   disable: () => void;
   setMode: (mode: PetMode) => void;
@@ -91,32 +101,49 @@ export const usePet = create<PetState>((set, get) => ({
   username: "",
   loaded: false,
   ...DEFAULT_CONFIG,
-  hydrate: (username) => {
+  hydrate: async (username) => {
+    if (!username) {
+      set({ ...DEFAULT_CONFIG, username: "", loaded: false });
+      return;
+    }
     if (get().loaded && get().username === username) return;
-    set({ ...readPet(username), username, loaded: true });
+    set({ username, loaded: false });
+    const local = readLocalPet(username);
+    try {
+      let remote = normalizePet(await api.pet());
+      // Preserve a choice made before pet settings moved to the database.
+      if (!remote.chosen && local.chosen) {
+        remote = local;
+        await api.savePet(remote).catch(() => undefined);
+      }
+      writeLocalPet(username, remote);
+      set({ ...remote, username, loaded: true });
+    } catch {
+      set({ ...local, username, loaded: true });
+    }
   },
   choose: (kind) => {
     const username = get().username;
     const next = { ...snapshot(get()), chosen: true, enabled: true, kind };
-    writePet(username, next);
     set(next);
+    persistPet(username, next);
   },
   disable: () => {
     const username = get().username;
     const next = { ...snapshot(get()), chosen: true, enabled: false };
-    writePet(username, next);
     set(next);
+    persistPet(username, next);
   },
   setMode: (mode) => {
     const username = get().username;
     const next = { ...snapshot(get()), mode };
-    writePet(username, next);
-    set({ mode });
+    set(next);
+    persistPet(username, next);
   },
   feed: () => {
     const username = get().username;
     const next = { ...snapshot(get()), commits: get().commits + 1 };
-    writePet(username, next);
-    set({ commits: next.commits });
+    set(next);
+    persistPet(username, next);
   },
 }));

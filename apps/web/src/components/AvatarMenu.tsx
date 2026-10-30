@@ -201,7 +201,7 @@ export default function AvatarMenu({ user, variant, active = false }: Props) {
           <form className="flex flex-col gap-2 rounded-lg border border-border-button-default p-3" onSubmit={(event) => void changeServer(event)}>
             <p className="text-body-2-medium text-text-primary">Servidor</p>
             <Input value={serverDraft} onChange={setServerDraft} placeholder="https://seu-servidor" aria-label="URL do servidor" />
-            <Button type="submit" variant="secondary" size="small" className="self-end" disabled={serverBusy || !serverDraft.trim()}>
+            <Button type="submit" size="small" className="self-end" disabled={serverBusy || !serverDraft.trim()}>
               {serverBusy ? "Verificando..." : "Aplicar e reconectar"}
             </Button>
           </form>

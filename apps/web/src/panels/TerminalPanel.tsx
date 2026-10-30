@@ -30,6 +30,7 @@ import { PillTab, PillTabList } from "@/boardui/base/tabs/pill-tab";
 import { Group, Panel, Separator } from "react-resizable-panels";
 import ResizeHandle from "../ui/resize";
 import { cx } from "@/boardui/utils/cx";
+import LoadingState from "../components/LoadingState";
 
 interface Props {
   project: Project;
@@ -263,7 +264,7 @@ export default function TerminalPanel({ project, onOpenFile, sheet = false, onCl
 
   return (
     <section
-      className={cx("flex flex-col", sheet ? "h-full min-h-0" : "min-h-[180px] shrink-0")}
+      className={cx("flex w-full min-w-0 flex-col overflow-hidden", sheet ? "h-full min-h-0" : "min-h-[180px] shrink-0")}
       style={sheet ? { height: "100%" } : { height: maximized ? "calc(100dvh - 120px)" : "var(--terminal-height)" }}
     >
       {!sheet && <ResizeHandle className="terminal-resize -mb-1" orientation="horizontal" value={terminalHeight} min={180} max={640} invert label="Resize terminal" onChange={(height) => document.documentElement.style.setProperty("--terminal-height", `${height}px`)} onCommit={(height) => updateSettings({ terminalHeight: height })} />}
@@ -449,7 +450,7 @@ export default function TerminalPanel({ project, onOpenFile, sheet = false, onCl
       {tab === "ports" && (
         <div className="min-h-0 flex-1 overflow-auto p-2">
           <div className="mb-2 flex items-center justify-between"><span className="text-caption-1-regular text-text-secondary">Portas TCP em escuta no servidor</span><Button variant="ghost" size="xs" leadingIcon={RefreshCw} onClick={() => void loadPorts()}>Atualizar</Button></div>
-          {portsLoading && <p className="px-2 py-4 text-caption-1-regular text-text-secondary">Carregando...</p>}
+          {portsLoading && <LoadingState label="Carregando portas..." className="px-0 py-2" />}
           {!portsLoading && ports.length === 0 && (
             <div className="bg-background-secondary-default m-1 flex flex-col items-center gap-2 rounded-lg border p-6 text-center">
               <span className="flex size-9 items-center justify-center rounded-full bg-background-tertiary-default text-foreground-icon-secondary"><TerminalSquare size={20} /></span>

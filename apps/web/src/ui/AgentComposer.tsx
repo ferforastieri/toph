@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { ArrowUp, AtSign, FilePlus2, ImagePlus, Plus, Square, TerminalSquare } from "@toph/icons";
+import { ArrowUp, AtSign, FilePlus2, ImagePlus, Plus, Square, TerminalSquare, X } from "@toph/icons";
 import type { AIModel } from "../api";
 import { Button } from "@/boardui/base/buttons/button";
-import { CloseButton } from "@/boardui/base/buttons/close-button";
+import { IconButton } from "@/boardui/base/buttons/icon-button";
 import { Textarea } from "@/boardui/base/textarea/textarea";
 import { Dropdown, DropdownDivider, DropdownGroup, DropdownItem, DropdownPopover, DropdownTrigger } from "@/boardui/base/dropdown/dropdown";
 import { ComposerLoader } from "@/boardui/application/composer-loader/composer-loader";
@@ -94,7 +94,7 @@ export function AgentComposer({ value, onChange, onSend, onStop, busy, models, m
                   <FilePlus2 size={13} className="text-foreground-icon-secondary" />
                   <span className="max-w-40 truncate text-caption-1-regular text-text-primary">{file.name}</span>
                   <span className="text-caption-2-regular text-text-tertiary">{Math.ceil(file.size / 1024)} KB</span>
-                  <CloseButton size="2xs" aria-label={`Remover ${file.name}`} onClick={() => setAttachments((items) => items.filter((item) => item !== file))} />
+                  <IconButton icon={X} size="small" aria-label={`Remover ${file.name}`} className="size-4 border-transparent bg-transparent p-0 shadow-none [&_svg]:size-3" onClick={() => setAttachments((items) => items.filter((item) => item !== file))} />
                 </span>
               ))}
             </div>

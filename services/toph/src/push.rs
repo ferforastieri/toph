@@ -32,6 +32,13 @@ struct ServiceAccount {
     project_id: String,
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct PushMessage {
+    pub title: String,
+    pub body: String,
+    pub data: Vec<(String, String)>,
+}
+
 #[derive(Debug, Serialize)]
 struct Claims {
     iss: String,
@@ -73,6 +80,15 @@ impl PushService {
     }
 
     pub async fn notify_ai(&self) {
+        self.notify(&PushMessage {
+            title: "Resposta da IA".into(),
+            body: "A IA terminou de responder.".into(),
+            ..PushMessage::default()
+        })
+        .await;
+    }
+
+    pub async fn notify(&self, message: &PushMessage) {
         let Some(inner) = &self.inner else {
             return;
         };
@@ -84,7 +100,7 @@ impl PushService {
             }
         };
         for token in tokens {
-            match self.send(inner, &token).await {
+            match self.send(inner, &token, message).await {
                 Ok(()) => {}
                 Err(error) => {
                     tracing::warn!(%error, "could not send push notification");
@@ -100,8 +116,15 @@ impl PushService {
         }
     }
 
-    async fn send(&self, inner: &PushInner, token: &str) -> AppResult<()> {
+    async fn send(&self, inner: &PushInner, token: &str, message: &PushMessage) -> AppResult<()> {
         let access_token = self.access_token(inner).await?;
+        let mut data = serde_json::Map::new();
+        data.insert("type".into(), json!("ai.done"));
+        data.insert("title".into(), json!(&message.title));
+        data.insert("body".into(), json!(&message.body));
+        for (key, value) in &message.data {
+            data.insert(key.clone(), json!(value));
+        }
         let url = format!(
             "https://fcm.googleapis.com/v1/projects/{}/messages:send",
             inner.project_id
@@ -113,11 +136,7 @@ impl PushService {
             .json(&json!({
                 "message": {
                     "token": token,
-                    "data": {
-                        "type": "ai.done",
-                        "title": "Resposta da IA",
-                        "body": "A IA terminou de responder.",
-                    },
+                    "data": data,
                     "android": { "priority": "high" }
                 }
             }))

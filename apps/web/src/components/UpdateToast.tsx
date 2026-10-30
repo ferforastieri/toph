@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api, ApiError, type UpdateInstaller, type UpdateStatus } from "../api";
 import { Notification, NotificationViewport } from "@/boardui/base/notification/notification";
+import { ProgressBar } from "@/boardui/base/progress/progress";
 import { isMobileViewport } from "../ui/useIsMobile";
 
 type Phase = "idle" | "updating" | "error";
@@ -98,7 +99,6 @@ export default function UpdateToast() {
   const [status, setStatus] = useState<UpdateStatus | null>(null);
   const [phase, setPhase] = useState<Phase>("idle");
   const [error, setError] = useState("");
-  const [downloadedPath, setDownloadedPath] = useState("");
   const dismissed = useRef<string | null>(null);
 
   useEffect(() => {
@@ -127,17 +127,6 @@ export default function UpdateToast() {
   }, []);
 
   const mobile = isMobile();
-  const desktopInstaller = status && !mobile ? preferredInstaller(status) : undefined;
-  const desktopLabel =
-    desktopInstaller?.kind === "windows-msi"
-      ? "MSI"
-      : desktopInstaller?.kind === "linux-appimage"
-        ? "AppImage"
-        : desktopInstaller?.kind === "linux-deb"
-          ? "DEB"
-          : desktopInstaller?.kind === "linux-rpm"
-            ? "RPM"
-            : "";
 
   async function update() {
     if (!status || phase === "updating") return;
@@ -147,13 +136,11 @@ export default function UpdateToast() {
 
     setPhase("updating");
     setError("");
-    setDownloadedPath("");
     try {
       if (mobileClient && status.apkUrl) {
         downloadApk(status.apkUrl, target);
       } else if (installer) {
-        const path = await downloadInstaller(installer);
-        setDownloadedPath(path);
+        await downloadInstaller(installer);
       }
     } catch (err) {
       setPhase("error");
@@ -170,8 +157,6 @@ export default function UpdateToast() {
     try {
       await api.startUpdate();
     } catch (err) {
-      // A dropped response can mean the service is already restarting. Only
-      // stop immediately for an explicit API rejection.
       if (err instanceof ApiError) {
         setPhase("error");
         setError(err.message);
@@ -209,20 +194,22 @@ export default function UpdateToast() {
   const updating = phase === "updating";
   const failed = phase === "error";
   return (
-    <NotificationViewport position="bottom-end">
+    <NotificationViewport
+      position="bottom-center"
+      className="w-[min(300px,calc(100vw-24px))]"
+      style={mobile ? { bottom: "calc(4.5rem + var(--safe-bottom))" } : undefined}
+    >
       <Notification
+        compact
         title={updating ? "Atualizando o Toph..." : failed ? "Falha na atualização" : `Toph v${status?.latestVersion ?? ""} disponível`}
-        description={
-          <>
-            {updating ? (mobile ? "Atualizando o servidor e baixando o novo APK." : desktopInstaller ? `Baixando ${desktopInstaller.name} e atualizando o servidor.` : "Atualizando o servidor e recarregando os clientes web.") : failed ? error : mobile ? "Atualize o servidor e baixe o APK mais recente." : desktopInstaller ? `Atualize o servidor e baixe o instalador desktop${desktopLabel ? ` (${desktopLabel})` : ""}.` : "Atualize o servidor e recarregue os clientes web."}
-            {downloadedPath && !failed ? <span className="mt-1 block text-caption-1-regular text-text-tertiary">Instalador salvo em {downloadedPath}</span> : null}
-          </>
-        }
+        description={updating ? <ProgressBar size="sm" isIndeterminate label="Atualizando o servidor..." /> : undefined}
         status={failed ? "error" : "information"}
+        autoDismissDuration={updating || failed ? undefined : 5000}
         dismissible={!updating}
         onDismiss={() => { if (status) dismissed.current = status.latestVersion; setPhase("idle"); setStatus(null); }}
-        actions={!updating ? [{ label: failed ? "Tentar novamente" : "Atualizar", onClick: () => void update() }] : undefined}
-        className="w-full"
+        onClick={() => { if (!updating) void update(); }}
+        aria-label={failed ? `Falha na atualização: ${error}` : "Clique para atualizar o Toph"}
+        className="cursor-pointer border-border-button-default bg-background-secondary-default shadow-dropdown"
       />
     </NotificationViewport>
   );

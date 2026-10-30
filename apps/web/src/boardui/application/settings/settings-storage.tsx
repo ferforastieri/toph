@@ -15,7 +15,6 @@ import {
   RiEditLine,
   RiFileCopyLine,
   RiMore2Fill,
-  RiSearchLine,
 } from "@remixicon/react";
 import { Focusable } from "react-aria-components";
 import { Chip } from "@/boardui/base/badges/chip";
@@ -29,7 +28,7 @@ import {
   DropdownTrigger,
 } from "@/boardui/base/dropdown/dropdown";
 import { FileUpload, formatFileSize } from "@/boardui/base/file-upload/file-upload";
-import { InputBase } from "@/boardui/base/input/input";
+import { SearchField } from "@/boardui/base/search-field/search-field";
 import { Pagination } from "@/boardui/base/pagination/pagination";
 import { Select, SelectItem } from "@/boardui/base/select/select";
 import { Tooltip, TooltipTrigger } from "@/boardui/base/tooltip/tooltip";
@@ -510,17 +509,17 @@ export function SettingsStorage() {
                 Oldest first
               </SelectItem>
             </Select>
-            <InputBase
+            <SearchField
               aria-label="Search files"
               placeholder="Search"
-              leadingIcon={RiSearchLine}
               value={query}
-              onChange={(e) => {
-                setQuery(e.target.value);
+              onChange={(next) => {
+                setQuery(next);
                 setPage(1);
               }}
-              fieldClassName="w-[153px] rounded-full bg-background-secondary-default"
-              className="text-body-medium"
+              size="small"
+              className="w-[153px]"
+              fieldClassName="bg-background-secondary-default"
             />
           </div>
         </div>

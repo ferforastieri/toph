@@ -3,6 +3,8 @@ import { ArrowRight, ExternalLink, RefreshCw } from "@toph/icons";
 import { webPreviewUrl } from "../api";
 import type { Tab } from "../store";
 import { Button } from "@/boardui/base/buttons/button";
+import { IconLinkButton } from "@/boardui/base/buttons/icon-button";
+import { Input } from "@/boardui/base/input/input";
 
 function normalizeUrl(raw: string): string {
   const value = raw.trim();
@@ -36,20 +38,21 @@ export default function WebPanelTab({ tab }: { tab: Tab }) {
   return (
     <div className="flex h-full min-h-0 w-full flex-1 flex-col">
       <div className="flex h-8 shrink-0 items-center gap-1 border-b bg-muted/20 px-2">
-        <input
+        <Input
           value={draftUrl}
-          onChange={(event) => setDraftUrl(event.target.value)}
+          onChange={setDraftUrl}
           onKeyDown={(event) => {
             if (event.key === "Enter") loadUrl(draftUrl);
             else if (event.key === "Escape") setDraftUrl(activeUrl);
           }}
-          className="min-w-0 flex-1 bg-transparent text-[11px] text-muted-foreground outline-none"
           aria-label="URL do preview"
-          spellCheck={false}
+          spellCheck="false"
+          size="small"
+          className="min-w-0 flex-1"
         />
         <Button variant="ghost" size="xs" iconOnly leadingIcon={ArrowRight} aria-label="Abrir link no preview" title="Abrir link no preview" onClick={() => loadUrl(draftUrl)} />
         <Button variant="ghost" size="xs" iconOnly leadingIcon={RefreshCw} aria-label="Recarregar preview" title="Recarregar preview" onClick={() => setReloadKey((value) => value + 1)} />
-        <a className="flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-accent" href={activeUrl} target="_blank" rel="noreferrer" title="Abrir no navegador"><ExternalLink size={14} /></a>
+        <IconLinkButton icon={ExternalLink} size="small" aria-label="Abrir no navegador" title="Abrir no navegador" href={activeUrl} target="_blank" rel="noreferrer" className="border-transparent bg-transparent shadow-none" />
       </div>
       <iframe
         key={`${activeUrl}:${reloadKey}`}

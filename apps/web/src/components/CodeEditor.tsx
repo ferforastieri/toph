@@ -5,11 +5,13 @@ import type { CancellationToken, IPosition, editor, languages } from "monaco-edi
 import { useSettings } from "../settings";
 import { Modal } from "@/boardui/base/modal/modal";
 import { CODE_FONT_FAMILY, codeLineHeight, monacoThemeName, registerEditorThemes } from "../editorThemes";
+import { relativeTime } from "../lib";
 import { registerEditorTextMate } from "../editorTextMate";
 import { useAI } from "../ai";
 import { useApp } from "../store";
-import { api, type GitHistoryEntry } from "../api";
+import { api, type GitBlameLine, type GitHistoryEntry } from "../api";
 import { useIsMobile } from "../ui/useIsMobile";
+import LoadingState from "./LoadingState";
 
 interface Props {
   path: string;
@@ -20,6 +22,7 @@ interface Props {
   onOpenChanges?: (path: string) => void;
   readOnly?: boolean;
   line?: number;
+  blame?: GitBlameLine[];
   onCursorLine?: (line: number) => void;
   onCursorPosition?: (line: number, column: number) => void;
   onChange: (value: string) => void;
@@ -36,6 +39,7 @@ export default function CodeEditor({
   onOpenChanges,
   readOnly = false,
   line,
+  blame,
   onCursorLine,
   onCursorPosition,
   onChange,
@@ -44,9 +48,12 @@ export default function CodeEditor({
 }: Props) {
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<Monaco | null>(null);
+  const blameWidget = useRef<{ editor: editor.IStandaloneCodeEditor; widget: editor.IContentWidget } | null>(null);
   const [monacoReady, setMonacoReady] = useState(false);
+  const [annotations, setAnnotations] = useState(true);
   const [aiDialog, setAiDialog] = useState<{ title: string; text: string; busy: boolean; error: string } | null>(null);
   const [historyDialog, setHistoryDialog] = useState<{ title: string; entries: GitHistoryEntry[] | null; error: string } | null>(null);
+  const [cursorLine, setCursorLine] = useState(1);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const theme = useSettings((state) => state.theme);
   const mobile = useIsMobile();
@@ -123,6 +130,10 @@ export default function CodeEditor({
     window.open(api.rawUrl(projectIdRef.current, pathRef.current), "_blank", "noopener,noreferrer");
   }
 
+  function toggleAnnotations() {
+    setAnnotations((current) => !current);
+  }
+
   useEffect(() => {
     const handleCommand = (event: Event) => {
       const command = (event as CustomEvent<{ command?: string }>).detail?.command;
@@ -188,6 +199,13 @@ export default function CodeEditor({
       contextMenuGroupId: "9_cutcopypaste",
       contextMenuOrder: 1,
       run: () => openRemote(),
+    });
+    instance.addAction({
+      id: "toph.file-annotations",
+      label: "File Annotations",
+      contextMenuGroupId: "navigation",
+      contextMenuOrder: 60,
+      run: () => toggleAnnotations(),
     });
     instance.addAction({
       id: "toph.file-history",
@@ -262,10 +280,12 @@ export default function CodeEditor({
     monacoRef.current = monaco;
     setMonacoReady(true);
     const initialLine = instance.getPosition()?.lineNumber ?? 1;
+    setCursorLine(initialLine);
     onCursorLine?.(initialLine);
     const initialPosition = instance.getPosition();
     if (initialPosition) onCursorPosition?.(initialPosition.lineNumber, initialPosition.column);
     instance.onDidChangeCursorPosition((event) => {
+      setCursorLine(event.position.lineNumber);
       onCursorLine?.(event.position.lineNumber);
       onCursorPosition?.(event.position.lineNumber, event.position.column);
     });
@@ -300,6 +320,48 @@ export default function CodeEditor({
     registerEditorThemes(monaco);
     monaco.editor.setTheme(themeName);
   }, [themeName]);
+
+  useEffect(() => {
+    const monaco = monacoRef.current;
+    const instance = editorRef.current;
+    if (!monaco || !instance || !monacoReady) return;
+    if (blameWidget.current) {
+      blameWidget.current.editor.removeContentWidget(blameWidget.current.widget);
+      blameWidget.current = null;
+    }
+    if (!annotations) return;
+    const current = blame?.find((item) => item.line === cursorLine);
+    const model = instance.getModel();
+    if (!current || !model || !model.getLineContent(cursorLine).trim()) return;
+    const lineHeight = instance.getOption(monaco.editor.EditorOption.lineHeight);
+    const dom = document.createElement("span");
+    dom.className = "pointer-events-none ml-[18px] flex items-center whitespace-nowrap font-mono text-[9.5px] italic leading-none text-muted-foreground opacity-80";
+    dom.style.height = `${lineHeight}px`;
+    dom.style.transform = `translateY(${Math.max(0, Math.round((lineHeight - 11) / 2) + 2)}px)`;
+    dom.textContent = `${current.author} · ${relativeTime(current.authorTime)} · ${current.summary}`;
+    dom.title = `${current.commit.slice(0, 8)} · ${current.summary}`;
+    const widget: editor.IContentWidget = {
+      getId: () => "toph-blame-widget",
+      getDomNode: () => dom,
+      getPosition: () => ({
+        position: {
+          lineNumber: cursorLine,
+          column: Math.max(1, model.getLineMaxColumn(cursorLine)),
+        },
+        preference: [monaco.editor.ContentWidgetPositionPreference.EXACT],
+      }),
+    };
+    instance.addContentWidget(widget);
+    instance.layoutContentWidget(widget);
+    blameWidget.current = { editor: instance, widget };
+  }, [annotations, blame, cursorLine, monacoReady]);
+
+  useEffect(() => () => {
+    if (blameWidget.current) {
+      blameWidget.current.editor.removeContentWidget(blameWidget.current.widget);
+      blameWidget.current = null;
+    }
+  }, []);
 
   useEffect(() => {
     if (!aiConfig) void loadAI();
@@ -400,7 +462,7 @@ export default function CodeEditor({
       }}
       onMount={onMount}
       onChange={(next) => onChange(next ?? "")}
-      loading={<div className="flex h-full items-center justify-center text-sm text-muted-foreground">Loading editor...</div>}
+      loading={<LoadingState label="Carregando editor..." className="flex h-full items-center justify-center py-0" />}
       options={{
         readOnly,
         fontFamily: CODE_FONT_FAMILY,
@@ -437,6 +499,7 @@ export default function CodeEditor({
           <EditorContextAction label="Go to Source Definition" onClick={() => runContextAction("toph.go-source-definition")} />
           <EditorContextAction label="Find All References" onClick={() => runContextAction("toph.find-all-references")} />
           <EditorContextAction label="Open Changes" onClick={() => runContextAction("toph.open-changes")} />
+          <EditorContextAction label="File Annotations" onClick={() => runContextAction("toph.file-annotations")} />
           <EditorContextAction label="File History" onClick={() => runContextAction("toph.file-history")} />
           <EditorContextSeparator />
           <EditorContextAction label="Change All Occurrences" shortcut="Ctrl+F2" onClick={() => triggerContextAction("editor.action.changeAll")} />
@@ -465,7 +528,7 @@ export default function CodeEditor({
     )}
     {historyDialog && (
       <Modal isOpen onClose={() => setHistoryDialog(null)} title={historyDialog.title} description="Histórico de commits." size="lg">
-          {!historyDialog.entries && !historyDialog.error && <p className="py-6 text-center text-body-regular text-text-secondary">Carregando histórico...</p>}
+          {!historyDialog.entries && !historyDialog.error && <LoadingState label="Carregando histórico..." className="py-2" />}
           {historyDialog.error && <p className="rounded-lg bg-status-rose-background px-3 py-2 text-caption-1-regular text-status-rose-text">{historyDialog.error}</p>}
           {historyDialog.entries?.length === 0 && <p className="py-6 text-center text-body-regular text-text-secondary">Sem commits.</p>}
           <div className="flex flex-col gap-1">

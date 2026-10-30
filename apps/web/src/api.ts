@@ -65,6 +65,14 @@ export interface GitHistoryEntry {
 }
 
 
+export interface PetConfig {
+  chosen: boolean;
+  enabled: boolean;
+  kind: string;
+  mode: string;
+  commits: number;
+}
+
 export interface AIConfig {
   provider: string;
   baseUrl: string;
@@ -330,6 +338,23 @@ export const api = {
     });
   },
 
+  async notifyBot(input: {
+    notificationId: string;
+    projectId: string;
+    botId: string;
+    botName: string;
+    botRole?: string;
+    sessionId?: string;
+    tabId?: string;
+    title: string;
+    body: string;
+  }): Promise<void> {
+    await request("/notifications/bot", {
+      method: "POST",
+      ...json(input),
+    });
+  },
+
   async login(username: string, password: string): Promise<LoginResponse> {
     return request<LoginResponse>("/auth/login", {
       method: "POST",
@@ -344,6 +369,14 @@ export const api = {
 
   async logout(): Promise<void> {
     await request("/auth/logout", { method: "POST", body: JSON.stringify({}) });
+  },
+
+  async pet(): Promise<PetConfig> {
+    return request<PetConfig>("/pet");
+  },
+
+  async savePet(pet: PetConfig): Promise<PetConfig> {
+    return request<PetConfig>("/pet", { method: "PUT", ...json(pet) });
   },
 
   async projects(): Promise<Project[]> {
@@ -481,6 +514,14 @@ export const api = {
       method: "POST",
       ...json({ paths }),
     });
+  },
+
+  async gitDeleteOtherBranches(projectId: string): Promise<number> {
+    const response = await request<{ deleted: number }>(
+      `/projects/${encodeURIComponent(projectId)}/git/branches`,
+      { method: "DELETE" },
+    );
+    return response.deleted;
   },
 
   async gitCreateBranch(projectId: string, name: string): Promise<string> {

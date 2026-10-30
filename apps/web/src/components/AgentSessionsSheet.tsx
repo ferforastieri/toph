@@ -7,6 +7,7 @@ import { Button } from "@/boardui/base/buttons/button";
 import { Avatar } from "@/boardui/base/avatar/avatar";
 import { Chip } from "@/boardui/base/badges/chip";
 import { Modal } from "@/boardui/base/modal/modal";
+import LoadingState from "./LoadingState";
 
 interface Props {
   open: boolean;
@@ -46,7 +47,7 @@ export default function AgentSessionsSheet({ open, project, activeSessionId, onC
     >
       <div className="flex flex-col gap-2">
         <div className="flex items-center gap-2 text-caption-1-medium text-text-secondary"><History size={14} /> OpenCode</div>
-        {loading && <p className="py-6 text-center text-body-regular text-text-secondary">Carregando sessões...</p>}
+        {loading && <LoadingState label="Carregando sessões..." className="py-2" />}
         {!loading && error && <Chip color="rose" variant="subtle" className="justify-start whitespace-normal px-2 py-1.5">{error}</Chip>}
         {!loading && !error && sessions.length === 0 && <p className="py-6 text-center text-body-regular text-text-secondary">Nenhuma sessão salva ainda.</p>}
         <div className="flex max-h-[440px] flex-col gap-1 overflow-y-auto">

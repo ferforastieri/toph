@@ -3,6 +3,7 @@ package br.com.ferforastieri.toph
 import android.Manifest
 import android.app.DownloadManager
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
@@ -49,6 +50,19 @@ class MainActivity : TauriActivity() {
       isAppearanceLightNavigationBars = false
     }
     requestNotificationPermission()
+    consumePushIntent(intent)
+  }
+
+  override fun onNewIntent(intent: Intent) {
+    super.onNewIntent(intent)
+    setIntent(intent)
+    consumePushIntent(intent)
+  }
+
+  private fun consumePushIntent(intent: Intent?) {
+    val payload = intent?.getStringExtra("toph_push") ?: return
+    intent.removeExtra("toph_push")
+    TophPush.queue(payload)
   }
 
   override fun onResume() {

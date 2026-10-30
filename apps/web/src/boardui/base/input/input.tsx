@@ -117,6 +117,8 @@ export interface InputBaseProps extends Omit<AriaInputProps, "size" | "className
   trailingIcon?: IconComponent;
   /** Custom element rendered in the leading slot (Phone basic uses this). */
   leadingAddon?: ReactNode;
+  /** Custom interactive element rendered in the trailing slot. */
+  trailingAddon?: ReactNode;
   /** Class for the field shell. */
   fieldClassName?: string;
   /** Ref to the <input> element. */
@@ -135,14 +137,14 @@ const inputStyles = sortCx({
   ].join(" "),
 
   fieldSize: {
-    medium: "p-2",                // 8px all sides → h auto = 36
-    small:  "h-8 px-1.5 py-2",    // 32 / 6 / 8
+    medium: "h-8 px-2 py-1.5",
+    small:  "h-8 px-1.5 py-1.5",
   },
 
   // When a leadingAddon is present (Phone basic): tighten left padding.
   fieldWithAddonSize: {
-    medium: "h-9 ps-1 pe-2 py-2", // 36 / 4 / 8 / 8
-    small:  "h-8 ps-1 pe-1.5 py-2",
+    medium: "h-8 ps-1 pe-2 py-1.5",
+    small:  "h-8 ps-1 pe-1.5 py-1.5",
   },
 
   content: "flex w-full items-center gap-2 min-w-0",
@@ -166,6 +168,7 @@ export function InputBase({
   leadingIcon: Leading,
   trailingIcon: Trailing,
   leadingAddon,
+  trailingAddon,
   fieldClassName,
   className,
   ref,
@@ -180,6 +183,7 @@ export function InputBase({
   return (
     <AriaGroup
       ref={groupRef}
+      data-input-shell=""
       className={({ isFocusWithin, isHovered, isDisabled, isInvalid }) =>
         cx(
           inputStyles.field,
@@ -196,7 +200,7 @@ export function InputBase({
           isFocusWithin &&
             !isDisabled &&
             !isInvalid &&
-            "ring-border-button-active",
+            "ring-1 ring-inset ring-accent-500",
           // Disabled
           isDisabled &&
             "bg-input-disabled-background text-input-disabled-foreground",
@@ -221,6 +225,7 @@ export function InputBase({
             className={cx(inputStyles.input, direction === "rtl" ? "pr-1 text-right" : "pl-1 text-left", ctx.inputClassName, className)}
           />
         </div>
+        {trailingAddon}
         {Trailing ? (
           <Trailing className={inputStyles.icon} aria-hidden />
         ) : null}

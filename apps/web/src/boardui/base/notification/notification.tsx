@@ -77,6 +77,12 @@ export interface NotificationProps
   /** Optional small BoardUI action buttons rendered below the message. */
   actions?: NotificationAction[];
   dismissible?: boolean;
+  /** Compact presentation used by app toasts. */
+  compact?: boolean;
+  /** Vertically center the close button in taller notifications. */
+  centerClose?: boolean;
+  /** Place actions below the copy (default) or in a column on the right. */
+  actionsPosition?: "bottom" | "right";
   closeLabel?: string;
   /** Called after the dismiss animation completes. */
   onDismiss?: () => void;
@@ -116,19 +122,27 @@ const STATUS_ICON: Record<NotificationStatus, IconComponent> = {
 
 const styles = sortCx({
   card: [
-    "relative flex w-full items-start gap-3 overflow-hidden p-4 pe-11",
-    "rounded-2xl border border-border-button-default",
+    "relative flex w-full items-start overflow-hidden border border-border-button-default",
     "bg-background-primary-default shadow-dropdown",
   ].join(" "),
-  visual: "relative flex size-10 shrink-0 items-center justify-center rounded-full",
+  cardDefault: "gap-3 rounded-2xl p-4 pe-11",
+  cardCompact: "items-center gap-2 rounded-xl p-2.5 pe-9",
+  visual: "relative flex shrink-0 items-center justify-center rounded-full",
+  visualDefault: "size-10",
+  visualCompact: "size-7",
   icon: "size-5",
+  iconCompact: "size-4",
   content: "flex min-w-0 flex-1 flex-col gap-1",
+  contentCompact: "gap-0.5",
   header: "flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5",
   title: "text-body-medium text-text-primary",
+  titleCompact: "text-caption-1-medium",
   timestamp: "text-body-regular text-text-tertiary",
   description: "text-body-regular text-text-secondary",
+  descriptionCompact: "text-caption-2-regular",
   actions: "mt-1.5 flex flex-wrap items-center gap-2",
   close: "absolute top-3 end-3",
+  closeCompact: "absolute end-2.5 top-1/2 -translate-y-1/2",
   status: {
     neutral: "bg-background-tertiary-default text-text-secondary",
     information:
@@ -195,6 +209,9 @@ export function Notification({
   avatar,
   actions,
   dismissible = true,
+  compact = false,
+  centerClose = false,
+  actionsPosition = "bottom",
   closeLabel = "Dismiss notification",
   onDismiss,
   autoDismissDuration,
@@ -208,6 +225,20 @@ export function Notification({
   const Icon = icon ?? STATUS_ICON[status];
   const hasIntro = introDelay !== undefined;
   const introDelayMs = (introDelay ?? 0) * 1000;
+  const actionButtons = actions?.length ? (
+    <div className={compact || actionsPosition === "right" ? "flex shrink-0 items-center gap-1" : styles.actions}>
+      {actions.map((action, index) => (
+        <Button
+          key={index}
+          size="small"
+          variant={action.variant ?? (index === 0 ? "secondary" : "primary")}
+          onClick={action.onClick}
+        >
+          {action.label}
+        </Button>
+      ))}
+    </div>
+  ) : null;
 
   useEffect(() => {
     if (!autoDismissDuration || autoDismissDuration <= 0) return;
@@ -251,46 +282,39 @@ export function Notification({
             filter: "blur(3px)",
             transition: { duration: 0.18, ease: "easeOut" },
           }}
-          className={cx(styles.card, className)}
+          className={cx(styles.card, compact ? styles.cardCompact : styles.cardDefault, className)}
           {...props}
         >
           {avatar ? (
             <NotificationAvatarVisual {...avatar} />
           ) : (
-            <span className={cx(styles.visual, styles.status[status])}>
-              <Icon className={styles.icon} aria-hidden />
+            <span className={cx(styles.visual, compact ? styles.visualCompact : styles.visualDefault, styles.status[status])}>
+              <Icon className={cx(styles.icon, compact && styles.iconCompact)} aria-hidden />
             </span>
           )}
 
-          <div className={styles.content}>
+          <div className={cx(styles.content, compact && styles.contentCompact)}>
             <div className={styles.header}>
-              <p className={styles.title}>{title}</p>
+              <p className={cx(styles.title, compact && styles.titleCompact)}>{title}</p>
               {timestamp ? <span className={styles.timestamp}>{timestamp}</span> : null}
             </div>
-            {description ? <p className={styles.description}>{description}</p> : null}
+            {description ? <p className={cx(styles.description, compact && styles.descriptionCompact)}>{description}</p> : null}
 
-            {actions?.length ? (
-              <div className={styles.actions}>
-                {actions.map((action, index) => (
-                  <Button
-                    key={index}
-                    size="small"
-                    variant={action.variant ?? (index === 0 ? "secondary" : "primary")}
-                    onClick={action.onClick}
-                  >
-                    {action.label}
-                  </Button>
-                ))}
-              </div>
-            ) : null}
+            {actionsPosition === "bottom" ? actionButtons : null}
           </div>
+
+          {actionsPosition === "right" ? (
+            <div className="flex shrink-0 items-center self-center">
+              {actionButtons}
+            </div>
+          ) : null}
 
           {dismissible ? (
             <CloseButton
               size="xs"
               aria-label={closeLabel}
-              onClick={() => setDismissed(true)}
-              className={styles.close}
+              onClick={(event) => { event.stopPropagation(); setDismissed(true); }}
+              className={compact || centerClose ? styles.closeCompact : styles.close}
             />
           ) : null}
 

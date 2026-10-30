@@ -10,6 +10,7 @@ import { Badge } from "@/boardui/base/badges/badge";
 import { Select, SelectItem } from "@/boardui/base/select/select";
 import { Chip } from "@/boardui/base/badges/chip";
 import { useProjectEvents } from "../projectEvents";
+import LoadingState from "../components/LoadingState";
 
 interface Props {
   project: Project;
@@ -60,7 +61,7 @@ export default function DatabasesPanel({ project, onOpenQuery, onOpenTable }: Pr
         <Button variant="ghost" size="xs" iconOnly leadingIcon={Plus} aria-label="Nova conexão" onClick={() => setShowForm((value) => !value)} />
       </div>
       {showForm && <ConnectionForm projectRoot={project.root} onCreated={() => { setShowForm(false); void load(); }} />}
-      {busy && <p className="px-3 py-2 text-caption-1-regular text-text-secondary">Carregando...</p>}
+      {busy && <LoadingState label="Carregando..." className="px-1 py-1" />}
       {error && <Chip color="rose" variant="subtle" className="mx-2 mt-2 justify-start whitespace-normal px-2 py-1">{error}</Chip>}
       <div className="min-h-0 flex-1 overflow-y-auto p-1">
         {(() => {

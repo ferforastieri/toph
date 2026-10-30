@@ -9,6 +9,7 @@ import FileIcon from "../ui/FileIcon";
 import { Breadcrumb, BreadcrumbItem } from "@/boardui/base/breadcrumb/breadcrumb";
 import { Badge } from "@/boardui/base/badges/badge";
 import { useApp, type Tab } from "../store";
+import LoadingState from "../components/LoadingState";
 
 export default function DiffPanelTab({ tab, project }: { tab: Tab; project: Project }) {
   const notify = useApp((state) => state.notify);
@@ -32,7 +33,7 @@ export default function DiffPanelTab({ tab, project }: { tab: Tab; project: Proj
     };
   }, [notify, project.id, tab.path, tab.staged]);
 
-  if (!versions) return <div className="flex h-full items-center justify-center text-sm text-muted-foreground">Carregando diff...</div>;
+  if (!versions) return <LoadingState label="Carregando diff..." className="flex h-full items-center justify-center py-0" />;
 
   return (
     <div className="flex h-full min-h-0 w-full flex-1 flex-col">

@@ -32,9 +32,9 @@ use crate::crypto::new_id;
 use crate::database::{DatabaseService, ProfileInput, RowChange};
 use crate::errors::{AppError, AppResult};
 use crate::events::{EventHub, ProjectWatcher};
-use crate::model::{DbProfile, Project, Session, User, WebTarget};
+use crate::model::{DbProfile, PetConfig, Project, Session, User, WebTarget};
 use crate::opencode::OpenCodeProxy;
-use crate::push::PushService;
+use crate::push::{PushMessage, PushService};
 use crate::store::Store;
 use crate::terminal::TerminalManager;
 use crate::update::{UpdateManager, UpdateStart, UpdateStatus, VERSION};
@@ -72,6 +72,20 @@ pub struct NotificationEvent {
     pub body: String,
     #[serde(rename = "createdAt")]
     pub created_at: i64,
+    #[serde(rename = "notificationId", skip_serializing_if = "Option::is_none")]
+    pub notification_id: Option<String>,
+    #[serde(rename = "projectId", skip_serializing_if = "Option::is_none")]
+    pub project_id: Option<String>,
+    #[serde(rename = "botId", skip_serializing_if = "Option::is_none")]
+    pub bot_id: Option<String>,
+    #[serde(rename = "botName", skip_serializing_if = "Option::is_none")]
+    pub bot_name: Option<String>,
+    #[serde(rename = "botRole", skip_serializing_if = "Option::is_none")]
+    pub bot_role: Option<String>,
+    #[serde(rename = "sessionId", skip_serializing_if = "Option::is_none")]
+    pub session_id: Option<String>,
+    #[serde(rename = "tabId", skip_serializing_if = "Option::is_none")]
+    pub tab_id: Option<String>,
 }
 
 #[derive(Clone)]
@@ -193,12 +207,6 @@ impl AppState {
             .watcher
             .watch_existing(&projects, &state.config.workspace_roots);
 
-        let weak = Arc::downgrade(&state);
-        state.opencode.set_idle_handler(move || {
-            if let Some(state) = weak.upgrade() {
-                state.emit_ai_response();
-            }
-        });
         Ok(state)
     }
 
@@ -208,6 +216,13 @@ impl AppState {
             title: "Resposta da IA".into(),
             body: "A IA terminou de responder.".into(),
             created_at: chrono::Utc::now().timestamp_millis(),
+            notification_id: None,
+            project_id: None,
+            bot_id: None,
+            bot_name: None,
+            bot_role: None,
+            session_id: None,
+            tab_id: None,
         };
         let _ = self.notifications.send(event);
         if self.push.enabled() {
@@ -379,6 +394,8 @@ fn router(state: Arc<AppState>) -> Router {
         .route("/api/auth/logout", post(logout))
         .route("/api/update", get(update_status).post(start_update))
         .route("/api/push/tokens", post(register_push_token))
+        .route("/api/notifications/bot", post(notify_bot))
+        .route("/api/pet", get(get_pet).put(save_pet))
         .route("/api/notifications/stream", get(notification_stream))
         .route("/api/events/ws", get(events_ws))
         .route("/api/projects", get(list_projects).post(create_project))
@@ -398,7 +415,10 @@ fn router(state: Arc<AppState>) -> Router {
         .route("/api/projects/{project_id}/search", post(search))
         .route("/api/projects/{project_id}/git/history", get(git_history))
         .route("/api/projects/{project_id}/git/status", get(git_status))
-        .route("/api/projects/{project_id}/git/branches", get(git_branches))
+        .route(
+            "/api/projects/{project_id}/git/branches",
+            get(git_branches).delete(git_delete_branches),
+        )
         .route(
             "/api/projects/{project_id}/git/checkout",
             post(git_checkout),
@@ -732,6 +752,35 @@ async fn me(Extension(context): Extension<AuthContext>) -> Json<Value> {
     Json(json!({ "user": context.user, "session": context.session }))
 }
 
+async fn get_pet(
+    State(state): State<Arc<AppState>>,
+    Extension(context): Extension<AuthContext>,
+) -> AppResult<Json<PetConfig>> {
+    Ok(Json(
+        state
+            .store
+            .pet_config(context.user.id)
+            .await?
+            .unwrap_or_default(),
+    ))
+}
+
+async fn save_pet(
+    State(state): State<Arc<AppState>>,
+    Extension(context): Extension<AuthContext>,
+    Json(mut input): Json<PetConfig>,
+) -> AppResult<Json<PetConfig>> {
+    if !matches!(input.kind.as_str(), "momo" | "pip" | "byte" | "nori") {
+        input.kind = "momo".into();
+    }
+    if input.mode != "free" {
+        input.mode = "corner".into();
+    }
+    input.commits = input.commits.max(0);
+    state.store.save_pet_config(context.user.id, &input).await?;
+    Ok(Json(input))
+}
+
 async fn logout(
     State(state): State<Arc<AppState>>,
     Extension(context): Extension<AuthContext>,
@@ -774,6 +823,110 @@ async fn register_push_token(
     };
     state.push.register(token, platform).await?;
     Ok(Json(json!({ "status": "registered" })))
+}
+
+#[derive(Deserialize)]
+struct BotNotificationRequest {
+    #[serde(rename = "notificationId", default)]
+    notification_id: String,
+    #[serde(rename = "projectId")]
+    project_id: String,
+    #[serde(rename = "botId")]
+    bot_id: String,
+    #[serde(rename = "botName", default)]
+    bot_name: String,
+    #[serde(rename = "botRole", default)]
+    bot_role: String,
+    #[serde(rename = "sessionId", default)]
+    session_id: String,
+    #[serde(rename = "tabId", default)]
+    tab_id: String,
+    #[serde(default)]
+    title: String,
+    #[serde(default)]
+    body: String,
+}
+
+async fn notify_bot(
+    State(state): State<Arc<AppState>>,
+    Extension(_context): Extension<AuthContext>,
+    Json(input): Json<BotNotificationRequest>,
+) -> AppResult<Json<Value>> {
+    let project_id = input.project_id.trim();
+    let bot_id = input.bot_id.trim();
+    if project_id.is_empty() || bot_id.is_empty() {
+        return Err(AppError::BadRequest(
+            "projectId and botId are required".into(),
+        ));
+    }
+    state.store.project(project_id).await?;
+
+    let bot_name = input.bot_name.trim();
+    let title = if bot_name.is_empty() {
+        let fallback = input.title.trim();
+        if fallback.is_empty() {
+            "Bot"
+        } else {
+            fallback
+        }
+    } else {
+        bot_name
+    };
+    let raw_body = input.body.trim();
+    let body = if raw_body.is_empty() {
+        "O bot terminou de responder."
+    } else {
+        raw_body
+    };
+    let title: String = title.chars().take(120).collect();
+    let body: String = body.chars().take(500).collect();
+    let notification_id = if input.notification_id.trim().is_empty() {
+        new_id()
+    } else {
+        input.notification_id.trim().chars().take(100).collect()
+    };
+    let bot_role = input.bot_role.trim();
+    let session_id = input.session_id.trim();
+    let tab_id = if input.tab_id.trim().is_empty() {
+        format!("bots:{project_id}")
+    } else {
+        input.tab_id.trim().to_string()
+    };
+
+    let event = NotificationEvent {
+        event_type: "ai.done".into(),
+        title: title.clone(),
+        body: body.clone(),
+        created_at: chrono::Utc::now().timestamp_millis(),
+        notification_id: Some(notification_id.clone()),
+        project_id: Some(project_id.to_string()),
+        bot_id: Some(bot_id.to_string()),
+        bot_name: Some(title.clone()),
+        bot_role: (!bot_role.is_empty()).then(|| bot_role.to_string()),
+        session_id: (!session_id.is_empty()).then(|| session_id.to_string()),
+        tab_id: Some(tab_id.clone()),
+    };
+    let _ = state.notifications.send(event);
+
+    if state.push.enabled() {
+        let message = PushMessage {
+            title: title.clone(),
+            body: body.clone(),
+            data: vec![
+                ("projectId".into(), project_id.to_string()),
+                ("botId".into(), bot_id.to_string()),
+                ("botName".into(), title),
+                ("botRole".into(), bot_role.to_string()),
+                ("sessionId".into(), session_id.to_string()),
+                ("tabId".into(), tab_id),
+                ("notificationId".into(), notification_id),
+            ],
+        };
+        let push = state.push.clone();
+        tokio::spawn(async move { push.notify(&message).await });
+    }
+
+    Ok(Json(json!({ "status": "sent" })))
 }
 
 async fn notification_stream(
@@ -1218,6 +1371,19 @@ async fn git_checkout(
         .await?;
     state.publish_git(&project_id, None);
     Ok(Json(json!({ "ok": true })))
+}
+
+async fn git_delete_branches(
+    State(state): State<Arc<AppState>>,
+    Path(project_id): Path<String>,
+) -> AppResult<Json<Value>> {
+    let project = state.store.project(&project_id).await?;
+    let deleted = state
+        .workspace
+        .git_delete_other_branches(FsPath::new(&project.root))
+        .await?;
+    state.events.publish(&project_id, "git", None);
+    Ok(Json(json!({ "deleted": deleted })))
 }
 
 async fn git_create_branch(
