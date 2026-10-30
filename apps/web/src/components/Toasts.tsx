@@ -20,8 +20,8 @@ export default function Toasts() {
   return (
     <NotificationViewport
       position="bottom-center"
-      className="w-[min(300px,calc(100vw-24px))]"
-      style={mobile ? { bottom: "calc(4.5rem + var(--safe-bottom))" } : undefined}
+      className="w-[min(300px,calc(100vw-var(--safe-left)-var(--safe-right)-24px))]"
+      style={mobile ? { bottom: "calc(0.75rem + var(--safe-bottom))" } : undefined}
     >
       {toasts.map((item) => (
         <Notification
