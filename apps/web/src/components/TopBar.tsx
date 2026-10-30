@@ -5,7 +5,6 @@ import {
   LayoutPanelLeft,
   Rows3,
   Settings2,
-  SplitVertical,
 } from "@toph/icons";
 import type { Project } from "../api";
 import { Button } from "@/boardui/base/buttons/button";
@@ -24,8 +23,6 @@ interface Props {
   onBack: () => void;
   onForward: () => void;
   onSidebar: (sidebar: SidebarTarget) => void;
-  onToggleAI: () => void;
-  aiOpen: boolean;
   onToggleTerminal: () => void;
   onShowTerminal: () => void;
   onCustomizeLayout: () => void;
@@ -89,8 +86,6 @@ export default function TopBar({
   onBack,
   onForward,
   onSidebar,
-  onToggleAI,
-  aiOpen,
   onToggleTerminal,
   onShowTerminal,
   onCustomizeLayout,
@@ -176,7 +171,6 @@ export default function TopBar({
               <DropdownDivider />
               <DropdownGroup label="Appearance">
                 <MenuAction close={close} label={`${sidebarVisible ? "Hide" : "Show"} Primary Side Bar`} shortcut="Ctrl+B" onSelect={onToggleSidebar} />
-                <MenuAction close={close} label={`${aiOpen ? "Hide" : "Show"} Secondary Side Bar`} shortcut="Ctrl+Alt+B" onSelect={onToggleAI} />
                 <MenuAction close={close} label="Toggle Panel" shortcut="Ctrl+J" onSelect={onToggleTerminal} />
                 <MenuAction close={close} label={`${statusVisible ? "Hide" : "Show"} Status Bar`} onSelect={onToggleStatus} />
                 <MenuAction close={close} label="Toggle Activity Bar" onSelect={onToggleActivity} />
@@ -247,7 +241,6 @@ export default function TopBar({
         <Button variant="ghost" size="xs" iconOnly leadingIcon={ArrowLeft} aria-label="Voltar" title="Voltar" onClick={onBack} />
         <Button variant="ghost" size="xs" iconOnly leadingIcon={ArrowRight} aria-label="Avançar" title="Avançar" onClick={onForward} />
         <Button variant={sidebarVisible ? "secondary" : "ghost"} size="xs" iconOnly leadingIcon={LayoutPanelLeft} aria-label="Barra lateral primária" title="Barra lateral primária" onClick={onToggleSidebar} />
-        <Button variant={aiOpen ? "secondary" : "ghost"} size="xs" iconOnly leadingIcon={SplitVertical} aria-label="Barra lateral secundária" title="Barra lateral secundária" onClick={onToggleAI} />
         <Button variant="ghost" size="xs" iconOnly leadingIcon={Rows3} aria-label="Painel" title="Painel" onClick={onToggleTerminal} />
         <Button variant="ghost" size="xs" iconOnly leadingIcon={Settings2} aria-label="Personalizar layout" title="Personalizar layout" onClick={onCustomizeLayout} />
       </div>

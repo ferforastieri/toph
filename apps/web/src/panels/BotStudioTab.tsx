@@ -1,17 +1,20 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { OpenCode } from "@opencode/client";
-import { ArrowUp, Bot, MessageSquarePlus, Settings2 } from "@toph/icons";
+import { ArrowUp, Bot, MessageSquarePlus, Settings2, SlidersHorizontal } from "@toph/icons";
 import { api, openCodeBase, type AIMessage, type Project } from "../api";
 import { useAI } from "../ai";
 import { useBots, type BotMessage, type MiniBot } from "../bots";
 import { notifyAiResponse } from "../aiNotifications";
 import BotAvatar from "../components/BotAvatar";
 import BotConfig from "../components/BotConfig";
+import AiSettingsModal from "../components/AiSettingsModal";
+import AgentTranscript from "../components/AgentTranscript";
+import OpenCodeFormCard, { type OpenCodeForm, type OpenCodeFormAnswer } from "../components/OpenCodeFormCard";
+import type { AiMessage } from "../store";
 import { Button } from "@/boardui/base/buttons/button";
 import { Modal } from "@/boardui/base/modal/modal";
 import { Textarea } from "@/boardui/base/textarea/textarea";
 import { useIsMobile } from "../ui/useIsMobile";
-import { cx } from "@/boardui/utils/cx";
 
 interface Props {
   project: Project;
@@ -21,6 +24,19 @@ function splitModel(model: string): { providerID: string; id: string } | null {
   const index = model.indexOf("/");
   if (index <= 0 || index >= model.length - 1) return null;
   return { providerID: model.slice(0, index), id: model.slice(index + 1) };
+}
+
+function toolContent(value: unknown): string {
+  if (!value) return "";
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) {
+    return value.map((part) => {
+      if (typeof part === "string") return part;
+      if (part && typeof part === "object" && "text" in part) return String((part as { text?: unknown }).text ?? "");
+      return JSON.stringify(part, null, 2);
+    }).join("\n");
+  }
+  return JSON.stringify(value, null, 2);
 }
 
 interface AssistantState {
@@ -68,7 +84,7 @@ function languageInstruction(bot: MiniBot): string {
 function botPrompt(bot: MiniBot, bots: MiniBot[], messages: BotMessage[], userText: string, company: string): string {
   const names = new Map(bots.map((item) => [item.id, item.name]));
   const history = messages
-    .filter((message) => !message.pending && message.role !== "error")
+    .filter((message) => !message.pending && (message.role === "user" || message.role === "assistant"))
     .slice(-14)
     .map((message) => `${message.role === "user" ? "Usuário" : names.get(message.botId ?? "") ?? "Bot"}: ${message.content}`)
     .join("\n\n");
@@ -86,6 +102,48 @@ function botPrompt(bot: MiniBot, bots: MiniBot[], messages: BotMessage[], userTe
   ].filter(Boolean).join("\n\n");
 }
 
+type BotChatGroup =
+  | { kind: "user"; message: BotMessage }
+  | { kind: "bot"; botId: string; messages: BotMessage[] }
+  | { kind: "system"; messages: BotMessage[] };
+
+function groupBotMessages(messages: BotMessage[]): BotChatGroup[] {
+  const groups: BotChatGroup[] = [];
+  for (const message of messages) {
+    if (message.role === "user") {
+      groups.push({ kind: "user", message });
+      continue;
+    }
+    if (message.botId) {
+      const last = groups[groups.length - 1];
+      if (last?.kind === "bot" && last.botId === message.botId) {
+        last.messages.push(message);
+      } else {
+        groups.push({ kind: "bot", botId: message.botId, messages: [message] });
+      }
+      continue;
+    }
+    const last = groups[groups.length - 1];
+    if (last?.kind === "system") last.messages.push(message);
+    else groups.push({ kind: "system", messages: [message] });
+  }
+  return groups;
+}
+
+function toAiMessage(message: BotMessage): AiMessage {
+  return {
+    id: message.id,
+    role: message.role === "reasoning" ? "reasoning" : message.role === "tool" ? "tool" : message.role === "error" ? "error" : "assistant",
+    text: message.content,
+    title: message.title,
+    detail: message.detail,
+    status: message.status,
+    permissionId: message.permissionId,
+    permissionAction: message.permissionAction,
+    createdAt: message.createdAt,
+  };
+}
+
 export default function BotStudioTab({ project }: Props) {
   const workspace = useBots((state) => state.byProject[project.id]);
   const ensure = useBots((state) => state.ensure);
@@ -100,6 +158,11 @@ export default function BotStudioTab({ project }: Props) {
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [configOpen, setConfigOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [runningBots, setRunningBots] = useState<Set<string>>(new Set());
+  const [forms, setForms] = useState<Array<{ form: OpenCodeForm; botId: string }>>([]);
+  const [formBusy, setFormBusy] = useState<string | null>(null);
+  const sessionBotMap = useRef(new Map<string, string>());
   const scrollRef = useRef<HTMLDivElement>(null);
   const stickToBottom = useRef(true);
   const client = useMemo(() => {
@@ -134,13 +197,138 @@ export default function BotStudioTab({ project }: Props) {
   }, [aiConfig?.model, bots, models, project.id, updateBot]);
 
   useEffect(() => {
+    const map = sessionBotMap.current;
+    map.clear();
+    for (const bot of bots) {
+      if (bot.sessionId) map.set(bot.sessionId, bot.id);
+    }
+  }, [bots]);
+
+  useEffect(() => {
     if (!stickToBottom.current) return;
     const frame = window.requestAnimationFrame(() => {
       const element = scrollRef.current;
       if (element) element.scrollTop = element.scrollHeight;
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [messages, sending]);
+  }, [messages, sending, forms.length]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    (async () => {
+      try {
+        for await (const event of client.event.subscribe({ signal: controller.signal })) {
+          const data = (event as { data?: Record<string, unknown> }).data;
+          if (!data) continue;
+          if (event.type === "form.created") {
+            const form = (data as { form?: OpenCodeForm }).form;
+            const botId = form ? sessionBotMap.current.get(form.sessionID) : undefined;
+            if (form && botId) {
+              setForms((current) => current.some((item) => item.form.id === form.id) ? current : [...current, { form, botId }]);
+            }
+            continue;
+          }
+          const sessionId = String(data.sessionID ?? "");
+          const botId = sessionBotMap.current.get(sessionId);
+          if (!botId) continue;
+          const state = useBots.getState();
+          const bot = state.byProject[project.id]?.bots.find((item) => item.id === botId);
+          if (!bot) continue;
+          const assistantID = String(data.assistantMessageID ?? "");
+          const messageID = (kind: string, id = assistantID) => `bot-${botId}-${kind}-${id || Date.now()}`;
+          const ensure = (message: BotMessage) => {
+            const list = useBots.getState().byProject[project.id]?.messages ?? [];
+            if (!list.some((item) => item.id === message.id)) state.addMessage(project.id, message);
+          };
+          switch (event.type) {
+            case "session.text.started":
+              ensure({ id: messageID("assistant"), role: "assistant", botId, content: "", status: "running", createdAt: Date.now() });
+              break;
+            case "session.text.delta": {
+              const id = messageID("assistant");
+              ensure({ id, role: "assistant", botId, content: "", status: "running", createdAt: Date.now() });
+              state.appendMessage(project.id, id, String(data.delta ?? ""));
+              break;
+            }
+            case "session.text.ended":
+              state.updateMessage(project.id, messageID("assistant"), { content: String(data.text ?? ""), status: "complete" });
+              break;
+            case "session.reasoning.started":
+              ensure({ id: messageID("reasoning"), role: "reasoning", botId, title: "Thought", content: "", status: "running", createdAt: Date.now() });
+              break;
+            case "session.reasoning.delta": {
+              const id = messageID("reasoning");
+              ensure({ id, role: "reasoning", botId, title: "Thought", content: "", status: "running", createdAt: Date.now() });
+              state.appendMessage(project.id, id, String(data.delta ?? ""));
+              break;
+            }
+            case "session.reasoning.ended":
+              state.updateMessage(project.id, messageID("reasoning"), { content: String(data.text ?? ""), status: "complete" });
+              break;
+            case "session.tool.input.started":
+              ensure({ id: messageID("tool", String(data.id ?? "")), role: "tool", botId, title: `Tool · ${String(data.name ?? "call")}`, content: "", detail: "", status: "running", createdAt: Date.now() });
+              break;
+            case "session.tool.input.delta": {
+              const id = messageID("tool", String(data.id ?? ""));
+              ensure({ id, role: "tool", botId, title: "Tool", content: "", detail: "", status: "running", createdAt: Date.now() });
+              state.appendMessage(project.id, id, String(data.delta ?? ""));
+              break;
+            }
+            case "session.tool.input.ended":
+              state.updateMessage(project.id, messageID("tool", String(data.id ?? "")), { content: String(data.text ?? ""), status: "running" });
+              break;
+            case "session.tool.called": {
+              const id = messageID("tool", String(data.id ?? ""));
+              ensure({ id, role: "tool", botId, title: "Tool", content: toolContent(data.input), detail: "", status: "running", createdAt: Date.now() });
+              break;
+            }
+            case "session.tool.success":
+              state.updateMessage(project.id, messageID("tool", String(data.id ?? "")), { detail: toolContent(data.content ?? data.metadata), status: "complete" });
+              break;
+            case "session.tool.failed":
+              state.updateMessage(project.id, messageID("tool", String(data.id ?? "")), { detail: toolContent(data.error ?? data.content), status: "error" });
+              break;
+            case "form.replied":
+            case "form.cancelled": {
+              const formId = String(data.id ?? "");
+              setForms((current) => current.filter((item) => item.form.id !== formId));
+              break;
+            }
+            case "permission.asked":
+              ensure({
+                id: `bot-${botId}-permission-${String(data.id)}`,
+                role: "tool",
+                botId,
+                title: "Permission",
+                content: `Permission requested: ${String(data.action)} ${JSON.stringify(data.resources ?? [])}`,
+                status: "running",
+                permissionId: String(data.id),
+                permissionAction: String(data.action ?? ""),
+                sessionId,
+                createdAt: Date.now(),
+              });
+              break;
+            case "session.execution.started":
+            case "session.status": {
+              const status = event.type === "session.status" ? (data.status as { type?: string } | undefined)?.type : "busy";
+              if (status === "busy") setRunningBots((current) => new Set(current).add(botId));
+              if (status === "idle") setRunningBots((current) => { const next = new Set(current); next.delete(botId); return next; });
+              break;
+            }
+            case "session.execution.succeeded":
+            case "session.execution.failed":
+            case "session.execution.interrupted":
+            case "session.idle":
+              setRunningBots((current) => { const next = new Set(current); next.delete(botId); return next; });
+              break;
+          }
+        }
+      } catch {
+        // The final response fallback still works if the event stream is unavailable.
+      }
+    })();
+    return () => controller.abort();
+  }, [client, project.id]);
 
   function newBot() {
     const bot = addBot(project.id, {
@@ -178,10 +366,11 @@ export default function BotStudioTab({ project }: Props) {
       session = await client.session.create(base as never) as { id: string };
     }
     updateBot(project.id, bot.id, { sessionId: session.id });
+    sessionBotMap.current.set(session.id, bot.id);
     if (model) {
       await client.session.switchModel({
         sessionID: session.id,
-        model: { ...model, variant: undefined },
+        model: { ...model, variant: bot.effort || undefined },
       } as never).catch(() => undefined);
     }
     return session.id;
@@ -193,7 +382,7 @@ export default function BotStudioTab({ project }: Props) {
     if (model) {
       await client.session.switchModel({
         sessionID: sessionId,
-        model: { ...model, variant: undefined },
+        model: { ...model, variant: bot.effort || undefined },
       } as never).catch(() => undefined);
     }
     const before = lastAssistant(await client.session.context({ sessionID: sessionId } as never).catch(() => null))?.id ?? "";
@@ -238,22 +427,53 @@ export default function BotStudioTab({ project }: Props) {
   async function respondAsBot(bot: MiniBot, userText: string): Promise<string | null> {
     const workspaceNow = useBots.getState().byProject[project.id];
     const history = workspaceNow?.messages ?? [];
-    const messageId = `bot-reply-${bot.id}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-    addMessage(project.id, {
-      id: messageId,
-      role: "assistant",
-      botId: bot.id,
-      content: "",
-      pending: true,
-      createdAt: Date.now(),
-    });
+    const startedAt = Date.now();
+    setRunningBots((current) => new Set(current).add(bot.id));
     try {
       const prompt = botPrompt(bot, bots, history, userText, project.name);
-      const reply = aiConfig?.provider === "opencode"
-        ? await openCodeReply(bot, prompt)
-        : await directReply(bot, bots, history, userText);
+      if (aiConfig?.provider === "opencode") {
+        const reply = await openCodeReply(bot, prompt);
+        const currentMessages = useBots.getState().byProject[project.id]?.messages ?? [];
+        const hasEventReply = currentMessages.some((message) =>
+          message.botId === bot.id
+          && message.role === "assistant"
+          && message.createdAt >= startedAt
+          && message.content.trim(),
+        );
+        if (!hasEventReply) {
+          addMessage(project.id, {
+            id: `bot-reply-${bot.id}-${Date.now()}`,
+            role: "assistant",
+            botId: bot.id,
+            content: reply.trim(),
+            status: "complete",
+            createdAt: Date.now(),
+          });
+        }
+        if (bot.notifications) {
+          notifyAiResponse({
+            projectId: project.id,
+            tabId: `bots:${project.id}`,
+            sessionId: bot.sessionId,
+            text: reply,
+          });
+        }
+        return reply.trim();
+      }
+
+      const pendingId = `bot-reply-${bot.id}-${Date.now()}`;
+      addMessage(project.id, {
+        id: pendingId,
+        role: "assistant",
+        botId: bot.id,
+        content: "",
+        pending: true,
+        status: "running",
+        createdAt: Date.now(),
+      });
+      const reply = await directReply(bot, bots, history, userText);
       if (!reply.trim()) throw new Error("O bot retornou uma resposta vazia.");
-      updateMessage(project.id, messageId, { content: reply.trim(), pending: false });
+      updateMessage(project.id, pendingId, { content: reply.trim(), pending: false, status: "complete" });
       if (bot.notifications) {
         notifyAiResponse({
           projectId: project.id,
@@ -265,8 +485,56 @@ export default function BotStudioTab({ project }: Props) {
       return reply.trim();
     } catch (error) {
       const text = error instanceof Error ? error.message : "Não foi possível falar com este bot.";
-      updateMessage(project.id, messageId, { role: "error", content: text, pending: false });
+      addMessage(project.id, {
+        id: `bot-error-${bot.id}-${Date.now()}`,
+        role: "error",
+        botId: bot.id,
+        content: text,
+        createdAt: Date.now(),
+      });
       return null;
+    } finally {
+      setRunningBots((current) => {
+        const next = new Set(current);
+        next.delete(bot.id);
+        return next;
+      });
+    }
+  }
+
+  async function replyPermission(bot: MiniBot, messageId: string, requestId: string, decision: "once" | "always" | "reject") {
+    if (!bot.sessionId) return;
+    try {
+      await client.permission.reply({ sessionID: bot.sessionId, requestID: requestId, decision } as never);
+      updateMessage(project.id, messageId, {
+        permissionId: undefined,
+        content: decision === "reject" ? "Permission rejected." : decision === "always" ? "Permission allowed for this session." : "Permission allowed once.",
+        status: "complete",
+      });
+    } catch {
+      // The request may have been answered by another client.
+    }
+  }
+
+  async function answerForm(form: OpenCodeForm, bot: MiniBot, answer: OpenCodeFormAnswer) {
+    if (!bot.sessionId) return;
+    setFormBusy(form.id);
+    try {
+      await client.session.form.reply({ sessionID: bot.sessionId, formID: form.id, answer } as never);
+      setForms((current) => current.filter((item) => item.form.id !== form.id));
+    } finally {
+      setFormBusy(null);
+    }
+  }
+
+  async function cancelForm(form: OpenCodeForm, bot: MiniBot) {
+    if (!bot.sessionId) return;
+    setFormBusy(form.id);
+    try {
+      await client.session.form.cancel({ sessionID: bot.sessionId, formID: form.id, message: "Cancelado pelo usuário" } as never);
+      setForms((current) => current.filter((item) => item.form.id !== form.id));
+    } finally {
+      setFormBusy(null);
     }
   }
 
@@ -302,12 +570,18 @@ export default function BotStudioTab({ project }: Props) {
 
   if (!activeBot) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
-        <BotAvatar bot={{ name: "Bots", color: "#FFB547", avatar: "shield" }} size={56} />
-        <strong className="text-title-3-medium text-text-primary">Monte sua equipe de bots</strong>
-        <p className="max-w-sm text-caption-1-regular text-text-secondary">Crie bots com funções, modelos e personalidades diferentes para trabalharem juntos neste projeto.</p>
-        <Button variant="secondary" leadingIcon={MessageSquarePlus} onClick={newBot}>Criar primeiro bot</Button>
-      </div>
+      <>
+        <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
+          <BotAvatar bot={{ name: "Bots", color: "#FFB547", avatar: "shield" }} size={56} />
+          <strong className="text-title-3-medium text-text-primary">Monte sua equipe de bots</strong>
+          <p className="max-w-sm text-caption-1-regular text-text-secondary">Crie bots com funções, modelos e personalidades diferentes para trabalharem juntos neste projeto.</p>
+          <div className="flex items-center gap-2">
+            <Button variant="secondary" leadingIcon={MessageSquarePlus} onClick={newBot}>Criar primeiro bot</Button>
+            <Button variant="ghost" leadingIcon={SlidersHorizontal} onClick={() => setSettingsOpen(true)}>Configurações de IA</Button>
+          </div>
+        </div>
+        <AiSettingsModal open={settingsOpen} projectRoot={project.root} onClose={() => setSettingsOpen(false)} />
+      </>
     );
   }
 
@@ -318,9 +592,10 @@ export default function BotStudioTab({ project }: Props) {
           <Bot size={15} className="text-accent-500" />
           <div className="min-w-0 flex-1">
             <p className="truncate text-body-medium text-text-primary">Equipe do projeto</p>
-            <p className="truncate text-caption-2-regular text-text-secondary">{bots.length} bots · {bots.filter((bot) => bot.coordinator).map((bot) => bot.name).join(", ") || "sem coordenador"}</p>
+            <p className="truncate text-caption-2-regular text-text-secondary">{bots.length} {bots.length === 1 ? "bot" : "bots"} · {bots.filter((bot) => bot.coordinator).map((bot) => bot.name).join(", ") || "sem coordenador"}</p>
           </div>
           <Button variant="ghost" size="xs" iconOnly leadingIcon={Settings2} aria-label="Configurar bot" title="Configurar bot" onClick={() => setConfigOpen(true)} className="lg:hidden" />
+          <Button variant="ghost" size="xs" iconOnly leadingIcon={SlidersHorizontal} aria-label="Configurações de IA" title="Configurações de IA" onClick={() => setSettingsOpen(true)} />
           <Button variant="ghost" size="xs" iconOnly leadingIcon={MessageSquarePlus} aria-label="Novo bot" title="Novo bot" onClick={newBot} />
         </header>
 
@@ -345,30 +620,72 @@ export default function BotStudioTab({ project }: Props) {
               </div>
             )}
 
-            {messages.map((message) => {
-              const author = bots.find((bot) => bot.id === message.botId);
-              if (message.role === "user") {
+            {groupBotMessages(messages).map((group, index) => {
+              if (group.kind === "user") {
                 return (
-                  <p key={message.id} className="ms-auto max-w-[88%] rounded-2xl border border-accent-500/20 bg-accent-500/10 px-3.5 py-2 text-[13.5px] leading-[1.5] whitespace-pre-wrap break-words text-text-primary">
-                    {message.content}
+                  <p key={`user-${group.message.id}`} className="ms-auto max-w-[88%] rounded-2xl border border-accent-500/20 bg-accent-500/10 px-3.5 py-2 text-[13.5px] leading-[1.5] whitespace-pre-wrap break-words text-text-primary">
+                    {group.message.content}
                   </p>
                 );
               }
+              if (group.kind === "system") {
+                return <AgentTranscript key={`system-${index}`} messages={group.messages.map(toAiMessage)} streaming={false} />;
+              }
+              const bot = bots.find((item) => item.id === group.botId);
+              if (!bot) return null;
               return (
-                <div key={message.id} className={cx("flex items-start gap-2.5", message.role === "error" && "rounded-xl border border-status-rose-border bg-status-rose-background p-2.5")}>
-                  {author ? <BotAvatar bot={author} size={30} /> : <span className="flex size-[30px] items-center justify-center rounded-full bg-background-tertiary-default text-foreground-icon-secondary"><Bot size={15} /></span>}
-                  <div className="min-w-0 flex-1">
-                    <div className="mb-1 flex items-baseline gap-2">
-                      <strong className="text-caption-1-semibold text-text-primary">{author?.name ?? "Sistema"}</strong>
-                      <span className="text-caption-2-regular text-text-tertiary">{author?.role ?? ""}</span>
+                <section key={`bot-${group.botId}-${index}`} className="flex flex-col gap-2">
+                  <header className="flex items-center gap-2">
+                    <BotAvatar bot={bot} size={28} />
+                    <div className="flex min-w-0 items-baseline gap-2">
+                      <strong className="truncate text-caption-1-semibold text-text-primary">{bot.name}</strong>
+                      <span className="truncate text-caption-2-regular text-text-tertiary">{bot.role}</span>
                     </div>
-                    {message.pending ? (
-                      <p className="animate-pulse text-caption-1-regular text-text-tertiary">Pensando...</p>
-                    ) : (
-                      <p className={cx("whitespace-pre-wrap break-words text-[13.5px] leading-[1.6]", message.role === "error" ? "text-status-rose-text" : "text-text-secondary")}>{message.content}</p>
-                    )}
-                  </div>
-                </div>
+                  </header>
+                  <AgentTranscript
+                    messages={group.messages.map(toAiMessage)}
+                    streaming={runningBots.has(bot.id)}
+                    onPermission={(messageId, permissionId, decision) => void replyPermission(bot, messageId, permissionId, decision)}
+                  />
+                </section>
+              );
+            })}
+
+            {[...runningBots]
+              .filter((botId) => !messages.some((message) => message.botId === botId && message.createdAt >= Date.now() - 120_000))
+              .map((botId) => {
+                const bot = bots.find((item) => item.id === botId);
+                if (!bot) return null;
+                return (
+                  <section key={`pending-${botId}`} className="flex flex-col gap-2">
+                    <header className="flex items-center gap-2">
+                      <BotAvatar bot={bot} size={28} />
+                      <div className="flex min-w-0 items-baseline gap-2">
+                        <strong className="truncate text-caption-1-semibold text-text-primary">{bot.name}</strong>
+                        <span className="truncate text-caption-2-regular text-text-tertiary">{bot.role}</span>
+                      </div>
+                    </header>
+                    <AgentTranscript messages={[]} streaming onPermission={() => undefined} />
+                  </section>
+                );
+              })}
+
+            {forms.map(({ form, botId }) => {
+              const bot = bots.find((item) => item.id === botId);
+              if (!bot) return null;
+              return (
+                <section key={`form-${form.id}`} className="flex flex-col gap-2">
+                  <header className="flex items-center gap-2">
+                    <BotAvatar bot={bot} size={28} />
+                    <strong className="truncate text-caption-1-semibold text-text-primary">{bot.name}</strong>
+                  </header>
+                  <OpenCodeFormCard
+                    form={form}
+                    busy={formBusy === form.id}
+                    onSubmit={(answer) => void answerForm(form, bot, answer)}
+                    onCancel={() => void cancelForm(form, bot)}
+                  />
+                </section>
               );
             })}
           </div>
@@ -418,6 +735,8 @@ export default function BotStudioTab({ project }: Props) {
       <Modal isOpen={configOpen && mobile} onClose={() => setConfigOpen(false)} title={activeBot.name} description="Configure o bot da equipe." placement="bottom" size="lg" bodyClassName="p-0">
         {activeBot && <BotConfig projectId={project.id} bot={activeBot} />}
       </Modal>
+
+      <AiSettingsModal open={settingsOpen} projectRoot={project.root} onClose={() => setSettingsOpen(false)} />
     </div>
   );
 }

@@ -11,6 +11,7 @@ export interface MiniBot {
   description: string;
   personality: string;
   model: string;
+  effort?: string;
   language: BotLanguage;
   color: string;
   avatar: BotAvatar;
@@ -22,14 +23,21 @@ export interface MiniBot {
 
 export interface BotMessage {
   id: string;
-  role: "user" | "assistant" | "system" | "error";
+  role: "user" | "assistant" | "reasoning" | "tool" | "system" | "error";
   content: string;
   botId?: string;
+  title?: string;
+  detail?: string;
+  status?: "running" | "complete" | "error";
+  permissionId?: string;
+  permissionAction?: string;
+  sessionId?: string;
   pending?: boolean;
   createdAt: number;
 }
 
 export interface BotWorkspace {
+  version?: number;
   bots: MiniBot[];
   messages: BotMessage[];
   activeBotId: string | null;
@@ -45,6 +53,7 @@ interface BotStore {
   updateBot: (projectId: string, botId: string, patch: Partial<MiniBot>) => void;
   removeBot: (projectId: string, botId: string) => void;
   addMessage: (projectId: string, message: BotMessage) => void;
+  appendMessage: (projectId: string, messageId: string, text: string) => void;
   updateMessage: (projectId: string, messageId: string, patch: Partial<BotMessage>) => void;
   removeMessage: (projectId: string, messageId: string) => void;
 }
@@ -88,58 +97,6 @@ function newId(prefix: string): string {
   return `${prefix}-${value}`;
 }
 
-function defaultBots(): MiniBot[] {
-  const created = Date.now();
-  const seed = [
-    {
-      name: "Design + Marketing + Produto",
-      role: "Coordenação",
-      description: "Coordena o time e distribui o trabalho.",
-      personality: "Pragmático, direto e organizado. Divide o trabalho entre os especialistas e cobra clareza no resultado.",
-      color: BOT_COLORS[0],
-      avatar: "shield" as BotAvatar,
-      coordinator: true,
-    },
-    {
-      name: "Designer de landing pages",
-      role: "Design",
-      description: "Layouts claros, hierarquia e identidade visual.",
-      personality: "Criativo e obsessivo com detalhes. Pensa em hierarquia, contraste, espaçamento e conversão.",
-      color: BOT_COLORS[1],
-      avatar: "star" as BotAvatar,
-      coordinator: false,
-    },
-    {
-      name: "Bot de marketing",
-      role: "Marketing",
-      description: "Campanhas, posicionamento e copy.",
-      personality: "Estratégico e persuasivo. Gosta de testar ângulos, escrever copy afiada e medir resultado.",
-      color: BOT_COLORS[2],
-      avatar: "diamond" as BotAvatar,
-      coordinator: false,
-    },
-    {
-      name: "Revisor de conteúdo",
-      role: "Conteúdo",
-      description: "Revisa clareza, tom e consistência.",
-      personality: "Editor criterioso. Corta excesso, corrige inconsistências e mantém a voz da marca.",
-      color: BOT_COLORS[3],
-      avatar: "blob" as BotAvatar,
-      coordinator: false,
-    },
-  ];
-
-  return seed.map((bot) => ({
-    ...bot,
-    id: newId("bot"),
-    handle: slugifyBot(bot.name),
-    model: "",
-    language: "auto" as BotLanguage,
-    notifications: true,
-    createdAt: created,
-  }));
-}
-
 function sanitizeWorkspace(workspace: BotWorkspace): BotWorkspace {
   const bots = (workspace.bots ?? [])
     .filter((bot) => bot && typeof bot.id === "string" && typeof bot.name === "string")
@@ -150,6 +107,7 @@ function sanitizeWorkspace(workspace: BotWorkspace): BotWorkspace {
       description: bot.description ?? "",
       personality: bot.personality ?? "",
       model: bot.model ?? "",
+      effort: bot.effort ?? "",
       language: (["auto", "pt", "en", "es"].includes(bot.language) ? bot.language : "auto") as BotLanguage,
       color: bot.color || BOT_COLORS[0],
       avatar: (["shield", "star", "diamond", "blob", "circle"].includes(bot.avatar) ? bot.avatar : "shield") as BotAvatar,
@@ -157,25 +115,34 @@ function sanitizeWorkspace(workspace: BotWorkspace): BotWorkspace {
       coordinator: bot.coordinator === true,
       createdAt: bot.createdAt ?? Date.now(),
     }));
-  const activeBotId = bots.some((bot) => bot.id === workspace.activeBotId)
-    ? workspace.activeBotId
-    : (bots[0]?.id ?? null);
   const messages = (workspace.messages ?? [])
     .filter((message) => message && typeof message.id === "string")
     .map((message) => ({
       ...message,
-      role: (["user", "assistant", "system", "error"].includes(message.role) ? message.role : "system") as BotMessage["role"],
+      role: (["user", "assistant", "reasoning", "tool", "system", "error"].includes(message.role) ? message.role : "system") as BotMessage["role"],
       content: message.content ?? "",
       pending: false,
       createdAt: message.createdAt ?? Date.now(),
     }))
     .slice(-200);
-  return { bots, messages, activeBotId };
+  const legacyNames = new Set([
+    "Design + Marketing + Produto",
+    "Designer de landing pages",
+    "Bot de marketing",
+    "Revisor de conteúdo",
+  ]);
+  const legacyDefaults = workspace.version === undefined
+    && bots.length === 4
+    && bots.every((bot) => legacyNames.has(bot.name));
+  const nextBots = legacyDefaults ? [] : bots;
+  const activeBotId = nextBots.some((bot) => bot.id === workspace.activeBotId)
+    ? workspace.activeBotId
+    : (nextBots[0]?.id ?? null);
+  return { version: 2, bots: nextBots, messages: legacyDefaults ? [] : messages, activeBotId };
 }
 
-function createDefaultWorkspace(): BotWorkspace {
-  const bots = defaultBots();
-  return { bots, messages: [], activeBotId: bots[0]?.id ?? null };
+function createEmptyWorkspace(): BotWorkspace {
+  return { version: 2, bots: [], messages: [], activeBotId: null };
 }
 
 export const useBots = create<BotStore>((set, get) => ({
@@ -183,7 +150,7 @@ export const useBots = create<BotStore>((set, get) => ({
 
   load: (projectId, workspace) => {
     if (!workspace || !Array.isArray(workspace.bots) || workspace.bots.length === 0) {
-      const next = createDefaultWorkspace();
+      const next = createEmptyWorkspace();
       set((state) => ({ byProject: { ...state.byProject, [projectId]: next } }));
       return;
     }
@@ -194,7 +161,7 @@ export const useBots = create<BotStore>((set, get) => ({
   ensure: (projectId) => {
     const existing = get().byProject[projectId];
     if (existing) return existing;
-    const next = createDefaultWorkspace();
+    const next = createEmptyWorkspace();
     set((state) => ({ byProject: { ...state.byProject, [projectId]: next } }));
     return next;
   },
@@ -203,6 +170,7 @@ export const useBots = create<BotStore>((set, get) => ({
     const workspace = get().byProject[projectId];
     if (!workspace) return null;
     return {
+      version: 2,
       bots: workspace.bots,
       activeBotId: workspace.activeBotId,
       messages: workspace.messages.filter((message) => !message.pending).slice(-200),
@@ -227,6 +195,7 @@ export const useBots = create<BotStore>((set, get) => ({
       description: patch.description ?? "",
       personality: patch.personality ?? "",
       model: patch.model ?? "",
+      effort: patch.effort ?? "",
       language: patch.language ?? "auto",
       color: patch.color ?? BOT_COLORS[workspace.bots.length % BOT_COLORS.length],
       avatar: patch.avatar ?? "blob",
@@ -295,6 +264,21 @@ export const useBots = create<BotStore>((set, get) => ({
         byProject: {
           ...state.byProject,
           [projectId]: { ...workspace, messages: [...workspace.messages, message].slice(-200) },
+        },
+      };
+    }),
+
+  appendMessage: (projectId, messageId, text) =>
+    set((state) => {
+      const workspace = state.byProject[projectId];
+      if (!workspace) return state;
+      return {
+        byProject: {
+          ...state.byProject,
+          [projectId]: {
+            ...workspace,
+            messages: workspace.messages.map((message) => message.id === messageId ? { ...message, content: message.content + text } : message),
+          },
         },
       };
     }),

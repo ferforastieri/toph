@@ -71,6 +71,7 @@ export {
   Server,
   Settings,
   Settings2,
+  SlidersHorizontal,
   ShieldCheck,
   Sparkles,
   Columns2 as SplitVertical,

@@ -4,7 +4,7 @@ import { api, getApiBase, type Repository, type SchemaTable, type WebTarget } fr
 import { basename, expandGitPattern, languageFor, quoteIdentifier, sanitizeBranchName } from "../lib";
 import { useApp, type AppNotification, type Sidebar, type Tab } from "../store";
 import { useBots, type BotWorkspace } from "../bots";
-import { providerLabel, useAI } from "../ai";
+import { useAI } from "../ai";
 import { nativePushToken, requestMobileNotificationPermission } from "../notifications";
 import { PROJECT_EVENT, type ProjectEvent } from "../projectEvents";
 import ActivityBar from "./ActivityBar";
@@ -20,7 +20,6 @@ import DatabasesPanel from "../panels/DatabasesPanel";
 import WebSidebar from "../panels/WebSidebar";
 import EditorPanel from "../panels/EditorPanel";
 import DbPanelTab from "../panels/DbPanelTab";
-import AiPanelTab from "../panels/AiPanelTab";
 import BotStudioTab from "../panels/BotStudioTab";
 import BotsSidebar from "./BotsSidebar";
 import WebPanelTab from "../panels/WebPanelTab";
@@ -66,21 +65,15 @@ export default function Workbench() {
   const notify = useApp((state) => state.notify);
   const notifications = useApp((state) => state.notifications);
   const markProjectNotificationsRead = useApp((state) => state.markProjectNotificationsRead);
-  const aiPanelOpen = useApp((state) => state.aiPanelOpen);
-  const setAiPanelOpen = useApp((state) => state.setAiPanelOpen);
-  const aiDockTab = useApp((state) => state.aiDockTab);
-  const setAiDockTab = useApp((state) => state.setAiDockTab);
   const botWorkspace = useBots((state) => activeProjectId ? state.byProject[activeProjectId] : undefined);
   const loadBots = useBots((state) => state.load);
   const snapshotBots = useBots((state) => state.snapshot);
   const loadAI = useAI((state) => state.load);
   const loadModels = useAI((state) => state.loadModels);
-  const aiProvider = useAI((state) => state.config?.provider);
   const branchPattern = useSettings((state) => state.gitBranchPattern);
   const commitPattern = useSettings((state) => state.gitCommitPattern);
   const aiConfig = useAI((state) => state.config);
   const sidebarWidth = useSettings((state) => state.sidebarWidth);
-  const aiPanelWidth = useSettings((state) => state.aiPanelWidth);
   const updateSettings = useSettings((state) => state.update);
   const confirm = useConfirm();
 
@@ -184,7 +177,6 @@ export default function Workbench() {
           setSidebar("files");
           setMobilePanelOpen(true);
           setProjectsSheetOpen(false);
-          setAiPanelOpen(false);
           setTerminalOpen(false);
           setSearchFocusToken((current) => current + 1);
         } else {
@@ -195,11 +187,6 @@ export default function Workbench() {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "b" && !event.altKey) {
         event.preventDefault();
         updateSettings({ sidebarVisible: !useSettings.getState().sidebarVisible });
-        return;
-      }
-      if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === "b") {
-        event.preventDefault();
-        setAiPanelOpen(!useApp.getState().aiPanelOpen);
         return;
       }
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "j") {
@@ -216,12 +203,11 @@ export default function Workbench() {
       if (document.querySelector(".modal-backdrop, .avatar-menu")) return;
       setMobilePanelOpen(false);
       setProjectsSheetOpen(false);
-      setAiPanelOpen(false);
       setTerminalOpen(false);
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, [mobile, setAiPanelOpen, setSidebar, setTerminalOpen]);
+  }, [mobile, setSidebar, setTerminalOpen]);
 
   useEffect(() => {
     if (!branchMenuOpen) return;
@@ -380,14 +366,13 @@ export default function Workbench() {
   useEffect(() => {
     const handler = (payload: { title?: string; body?: string }) => {
       const state = useApp.getState();
-      if (state.aiPanelOpen) return;
+      if (state.sidebar === "bots") return;
       state.addNotification({
         kind: "ai",
         title: payload.title?.trim() || "Resposta da IA",
         body: payload.body?.trim() || "A IA terminou de responder.",
         projectId: state.activeProjectId ?? undefined,
-        tabId: state.aiDockTab?.id,
-        sessionId: state.aiDockTab?.sessionId,
+        tabId: state.activeProjectId ? `bots:${state.activeProjectId}` : undefined,
       });
     };
     (window as unknown as { __tophPush?: (payload: { title?: string; body?: string }) => void }).__tophPush = handler;
@@ -492,16 +477,6 @@ export default function Workbench() {
           restored.map((tab) => ({ ...tab, projectId: activeProjectId })),
           typeof layout.activeTabId === "string" ? layout.activeTabId : null,
         );
-        if (layout.aiSessionId) {
-          setAiDockTab({
-            id: `ai:dock:${activeProjectId}`,
-            kind: "ai",
-            title: layout.aiSessionTitle ?? "OpenCode",
-            projectId: activeProjectId,
-            sessionId: layout.aiSessionId,
-          });
-        }
-        if (typeof layout.aiPanelOpen === "boolean") setAiPanelOpen(layout.aiPanelOpen);
         loadBots(activeProjectId, layout.bots as BotWorkspace | null | undefined);
         if (layout.sidebar) {
           const savedSidebar =
@@ -521,7 +496,7 @@ export default function Workbench() {
     return () => {
       cancelled = true;
     };
-  }, [activeProjectId, loadBots, notify, setAiDockTab, setAiPanelOpen, setSidebar, setTabs, setTerminalOpen]);
+  }, [activeProjectId, loadBots, notify, setSidebar, setTabs, setTerminalOpen]);
 
   useEffect(() => {
     if (!activeProjectId) {
@@ -534,24 +509,6 @@ export default function Workbench() {
       .catch(() => setGitStatus(""));
   }, [activeProjectId, tabs.length]);
 
-  useEffect(() => {
-    if (!project) {
-      setAiDockTab(null);
-      return;
-    }
-    const current = useApp.getState().aiDockTab;
-    const sameProject = current?.projectId === project.id;
-    const next: Tab = {
-      id: `ai:dock:${project.id}`,
-      kind: "ai",
-      title: sameProject && current?.sessionId ? current.title : providerLabel(aiProvider),
-      projectId: project.id,
-      sessionId: sameProject ? current.sessionId : undefined,
-    };
-    if (!current || current.projectId !== project.id || current.title !== next.title) {
-      setAiDockTab(next);
-    }
-  }, [aiProvider, project?.id, setAiDockTab]);
 
   const layoutTabs = useMemo(
     () =>
@@ -563,9 +520,6 @@ export default function Workbench() {
     activeTabId,
     sidebar,
     terminalOpen,
-    aiSessionId: aiDockTab?.sessionId,
-    aiSessionTitle: aiDockTab?.title,
-    aiPanelOpen,
     bots: botWorkspace,
   });
 
@@ -578,15 +532,12 @@ export default function Workbench() {
           activeTabId,
           sidebar,
           terminalOpen,
-          aiSessionId: aiDockTab?.sessionId,
-          aiSessionTitle: aiDockTab?.title,
-          aiPanelOpen,
           bots: snapshotBots(activeProjectId),
         })
         .catch(() => undefined);
     }, 500);
     return () => window.clearTimeout(timer);
-  }, [activeProjectId, layoutKey, layoutTabs, terminalOpen, sidebar, activeTabId, aiDockTab?.sessionId, aiDockTab?.title, aiPanelOpen, botWorkspace, snapshotBots]);
+  }, [activeProjectId, layoutKey, layoutTabs, terminalOpen, sidebar, activeTabId, botWorkspace, snapshotBots]);
 
   function switchProject(next: string) {
     if (next === activeProjectId) return;
@@ -597,9 +548,6 @@ export default function Workbench() {
         activeTabId,
         sidebar,
         terminalOpen,
-        aiSessionId: aiDockTab?.sessionId,
-        aiSessionTitle: aiDockTab?.title,
-        aiPanelOpen,
         bots: snapshotBots(project.id),
       });
     }
@@ -614,7 +562,6 @@ export default function Workbench() {
     }
     setSidebar(next);
     setMobilePanelOpen(true);
-    setAiPanelOpen(false);
     setMobileTerminalOpen(false);
   }
 
@@ -624,7 +571,6 @@ export default function Workbench() {
 
   function openMobileTerminal() {
     setMobilePanelOpen(false);
-    setAiPanelOpen(false);
     setMobileTerminalOpen((value) => !value);
   }
 
@@ -816,48 +762,15 @@ export default function Workbench() {
     });
   }
 
-  function openAI() {
-    if (!project) return;
-    markProjectNotificationsRead(project.id);
-    const current = useApp.getState().aiDockTab;
-    if (!current || current.projectId !== project.id) {
-      setAiDockTab({
-        id: `ai:dock:${project.id}`,
-        kind: "ai",
-        title: providerLabel(aiProvider),
-        projectId: project.id,
-      });
-    }
-    setAiPanelOpen(true);
-  }
-
-  function toggleAI() {
-    if (aiPanelOpen) setAiPanelOpen(false);
-    else openAI();
-  }
-
-
-
-
-
-
-
   function openNotification(notification: AppNotification) {
     if (!notification.projectId) return;
     setBranchMenuOpen(false);
     setProjectsSheetOpen(false);
     markProjectNotificationsRead(notification.projectId);
     if (notification.projectId !== activeProjectId) setActiveProject(notification.projectId);
-    setAiDockTab({
-      id: notification.tabId ?? `ai:dock:${notification.projectId}`,
-      kind: "ai",
-      title: providerLabel(aiProvider),
-      projectId: notification.projectId,
-      sessionId: notification.sessionId,
-    });
+    setSidebar("bots");
     if (mobile) setMobilePanelOpen(false);
     setTerminalOpen(false);
-    setAiPanelOpen(true);
   }
 
   function openLatestProjectNotification(projectId: string) {
@@ -911,9 +824,6 @@ export default function Workbench() {
           activeTabId,
           sidebar,
           terminalOpen,
-          aiSessionId: aiDockTab?.sessionId,
-          aiSessionTitle: aiDockTab?.title,
-          aiPanelOpen,
           bots: snapshotBots(id),
         })
         .catch(() => undefined);
@@ -985,15 +895,6 @@ export default function Workbench() {
   const primaryResize = !mobile && sidebarVisible && activityVisible ? (
     <ResizeHandle className="sidebar-resize" orientation="vertical" value={sidebarWidth} min={220} max={460} invert={!primaryOnLeft} label="Resize sidebar" onChange={(width) => document.documentElement.style.setProperty("--sidebar-width", `${width}px`)} onCommit={(width) => updateSettings({ sidebarWidth: width })} />
   ) : null;
-  const aiSidebar = !mobile && project && aiDockTab && aiPanelOpen ? (
-    <aside className="flex w-[var(--ai-panel-width)] shrink-0 flex-col overflow-hidden rounded-3xl border border-border-button-white bg-background-secondary-default shadow-sidebar">
-      <AiPanelTab tab={aiDockTab} project={project} onClose={() => setAiPanelOpen(false)} />
-    </aside>
-  ) : null;
-  const aiResize = !mobile && project && aiDockTab && aiPanelOpen ? (
-    <ResizeHandle className="ai-resize" orientation="vertical" value={aiPanelWidth} min={300} max={620} invert={primaryOnLeft} label="Resize agent panel" onChange={(width) => document.documentElement.style.setProperty("--ai-panel-width", `${width}px`)} onCommit={(width) => updateSettings({ aiPanelWidth: width })} />
-  ) : null;
-
   const headerBranch = statusVisible ? (
     <>
       <Button variant="ghost" size="xs" className="h-6 max-w-[190px] gap-1 px-1.5" onClick={() => void toggleBranchMenu()} aria-expanded={branchMenuOpen}>
@@ -1089,7 +990,6 @@ export default function Workbench() {
           </div>
           <div className="flex h-12 shrink-0 items-center gap-0.5">
             <Button variant="ghost" size="xs" iconOnly leadingIcon={Search} className="size-10" aria-label="Buscar" title="Buscar" onClick={() => { setMobileSearchOpen(true); setQuickOpenToken((value) => value + 1); }} />
-            <Button variant={aiPanelOpen ? "secondary" : "ghost"} size="xs" iconOnly leadingIcon={Bot} className="size-10" aria-label="Abrir IA" title="Abrir IA" onClick={toggleAI} />
             <AvatarMenu user={user} variant="titlebar" />
           </div>
         </header>
@@ -1105,8 +1005,6 @@ export default function Workbench() {
           onBack={() => navigateHistory(-1)}
           onForward={() => navigateHistory(1)}
           onSidebar={setSidebar}
-          onToggleAI={toggleAI}
-          aiOpen={aiPanelOpen}
           onToggleTerminal={() => setTerminalOpen(!useApp.getState().terminalOpen)}
           onShowTerminal={() => setTerminalOpen(true)}
           onCustomizeLayout={() => setLayoutOpen(true)}
@@ -1127,8 +1025,6 @@ export default function Workbench() {
       <div className={cx("flex min-h-0 flex-1 p-1", sidebar === "bots" ? "gap-3" : "gap-1")}>
         {primaryOnLeft && primarySidebar}
         {primaryOnLeft && primaryResize}
-        {!primaryOnLeft && aiSidebar}
-        {!primaryOnLeft && aiResize}
         {mobile && mobilePanelOpen && (
           <aside className="fixed inset-x-0 bottom-[calc(4.5rem+var(--safe-bottom))] top-[calc(3.5rem+var(--safe-top))] z-40 flex w-full flex-col overflow-hidden border-e-0 bg-background-primary-default">
             <div className="flex h-11 shrink-0 items-center gap-2 border-b px-2">
@@ -1158,13 +1054,12 @@ export default function Workbench() {
                       <div className="flex flex-wrap items-center justify-center gap-2">
                         <Button variant="secondary" size="small" onClick={() => setSidebar("files")}>Explorer</Button>
                         <Button variant="secondary" size="small" onClick={() => setSidebar("db")}>Database</Button>
-                        <Button variant="secondary" size="small" onClick={openAI}>Agente</Button>
+                        <Button variant="secondary" size="small" onClick={() => setSidebar("bots")}>Bots</Button>
                       </div>
                     </div>
                   )}
                   {activeTab?.kind === "editor" && project && <EditorPanel tab={activeTab} project={project} onOpenChanges={(path) => openDiff(path, false)} />}
                   {activeTab?.kind === "db" && <DbPanelTab tab={activeTab} />}
-                  {activeTab?.kind === "ai" && project && <AiPanelTab tab={activeTab} project={project} />}
                   {activeTab?.kind === "web" && <WebPanelTab tab={activeTab} />}
                   {activeTab?.kind === "diff" && project && <DiffPanelTab tab={activeTab} project={project} />}
                   {quickInputPosition === "center" && !mobile && (
@@ -1188,8 +1083,6 @@ export default function Workbench() {
           )}
         </div>
 
-        {primaryOnLeft && aiResize}
-        {primaryOnLeft && aiSidebar}
         {!primaryOnLeft && primaryResize}
         {!primaryOnLeft && primarySidebar}
 
@@ -1207,17 +1100,6 @@ export default function Workbench() {
           </>
         )}
 
-        {mobile && project && aiDockTab && aiPanelOpen && (
-          <aside
-            className="fixed inset-x-0 top-0 z-50 flex flex-col overflow-hidden bg-background-secondary-default pt-[var(--safe-top)] pb-[var(--safe-bottom)]"
-            style={{
-              height: "min(var(--visual-viewport-height, 100dvh), calc(100dvh - var(--keyboard-inset, 0px)))",
-              transform: "translateY(var(--visual-viewport-offset-top, 0px))",
-            }}
-          >
-            <AiPanelTab tab={aiDockTab} project={project} onClose={() => setAiPanelOpen(false)} />
-          </aside>
-        )}
       </div>
 
 
@@ -1392,7 +1274,6 @@ export default function Workbench() {
           <LayoutRow label="Menu Bar" checked={menuVisible} onChange={(value) => updateSettings({ menuVisible: value })} />
           <LayoutRow label="Activity Bar" checked={activityVisible} onChange={(value) => updateSettings({ activityVisible: value })} />
           <LayoutRow label="Primary Side Bar" shortcut="Ctrl+B" checked={sidebarVisible} onChange={(value) => updateSettings({ sidebarVisible: value })} />
-          <LayoutRow label="Secondary Side Bar" shortcut="Ctrl+Alt+B" checked={aiPanelOpen} onChange={setAiPanelOpen} />
           <LayoutRow label="Panel" shortcut="Ctrl+J" checked={terminalOpen} onChange={setTerminalOpen} />
           <LayoutRow label="Status Bar" checked={statusVisible} onChange={(value) => updateSettings({ statusVisible: value })} />
         </div>
@@ -1434,7 +1315,6 @@ export default function Workbench() {
           {[
             ["Busca rápida", "Ctrl+P"],
             ["Toggle Primary Side Bar", "Ctrl+B"],
-            ["Toggle Secondary Side Bar", "Ctrl+Alt+B"],
             ["Toggle Panel", "Ctrl+J"],
             ["Salvar arquivo", "Ctrl+S"],
             ["Executar", "Ctrl+Enter"],

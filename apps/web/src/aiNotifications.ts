@@ -18,9 +18,7 @@ export function notifyAiResponse(input: {
   text?: string;
 }): void {
   const state = useApp.getState();
-  const visible =
-    (state.aiPanelOpen && state.aiDockTab?.id === input.tabId) ||
-    (state.activeTabId === input.tabId);
+  const visible = state.sidebar === "bots" && state.activeProjectId === input.projectId;
   if (visible) return;
 
   const messages = state.aiMessages[input.tabId] ?? [];
