@@ -5,6 +5,7 @@ import { api, openCodeBase, type AIMessage, type Project } from "../api";
 import { useAI } from "../ai";
 import { useBots, type BotMessage, type MiniBot } from "../bots";
 import { notifyAiResponse } from "../aiNotifications";
+import { playBotResponseSound, unlockBotSound } from "../botSound";
 import BotAvatar from "../components/BotAvatar";
 import BotConfig from "../components/BotConfig";
 import AiSettingsModal from "../components/AiSettingsModal";
@@ -451,6 +452,7 @@ export default function BotStudioTab({ project }: Props) {
           });
         }
         if (bot.notifications) {
+          playBotResponseSound();
           notifyAiResponse({
             projectId: project.id,
             tabId: `bots:${project.id}`,
@@ -475,6 +477,7 @@ export default function BotStudioTab({ project }: Props) {
       if (!reply.trim()) throw new Error("O bot retornou uma resposta vazia.");
       updateMessage(project.id, pendingId, { content: reply.trim(), pending: false, status: "complete" });
       if (bot.notifications) {
+        playBotResponseSound();
         notifyAiResponse({
           projectId: project.id,
           tabId: `bots:${project.id}`,
@@ -541,6 +544,7 @@ export default function BotStudioTab({ project }: Props) {
   async function send() {
     const text = input.trim();
     if (!text || sending || bots.length === 0) return;
+    unlockBotSound();
     setInput("");
     stickToBottom.current = true;
     addMessage(project.id, {
@@ -586,7 +590,7 @@ export default function BotStudioTab({ project }: Props) {
   }
 
   return (
-    <div className="flex h-full min-h-0 w-full flex-1 gap-3">
+    <div className="flex h-full min-h-0 w-full flex-1 gap-3" onPointerDown={unlockBotSound}>
       <section className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-3xl border border-border-button-white bg-background-primary-default shadow-sidebar">
         <header className="flex h-11 shrink-0 items-center gap-2 border-b px-3">
           <Bot size={15} className="text-accent-500" />
