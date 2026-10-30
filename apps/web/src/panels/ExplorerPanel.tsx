@@ -13,6 +13,8 @@ import FileTree from "./FileTree";
 import FileIcon from "../ui/FileIcon";
 import { basename, dirname } from "../lib";
 import LoadingState from "../components/LoadingState";
+import { useIsMobile } from "../ui/useIsMobile";
+import { cx } from "@/boardui/utils/cx";
 import { ProgressBar } from "@/boardui/base/progress/progress";
 import { Accordion, AccordionItem } from "@/boardui/base/accordion/accordion";
 
@@ -80,6 +82,7 @@ export default function ExplorerPanel({
   const [rootOpen, setRootOpen] = useState(true);
   const [treeKey, setTreeKey] = useState(0);
   const [workspaceSettingsOpen, setWorkspaceSettingsOpen] = useState(false);
+  const mobile = useIsMobile();
   const [contextMenu, setContextMenu] = useState<ContextTarget | null>(null);
   const [selected, setSelected] = useState<FileEntry | null>(null);
   const [historyDialog, setHistoryDialog] = useState<{
@@ -315,14 +318,14 @@ export default function ExplorerPanel({
       }}
     >
       <input ref={uploadRef} type="file" multiple hidden onChange={(event) => { if (event.target.files) void uploadFiles(event.target.files); event.target.value = ""; }} />
-      <div className="flex h-9 shrink-0 items-center justify-between border-b px-2">
+      <div className={cx("flex shrink-0 border-b px-2", mobile ? "flex-col items-stretch gap-2 py-2" : "h-9 items-center justify-between")}>
         <span className="text-caption-2-semibold uppercase tracking-wide text-text-secondary">Explorer</span>
-        <div className="flex items-center gap-0.5">
-          <Button variant={workspaceSettingsOpen ? "secondary" : "ghost"} size="xs" iconOnly leadingIcon={Settings2} aria-label="Configurações do workspace" title="Configurações do workspace" onClick={() => setWorkspaceSettingsOpen((value) => !value)} />
-          <Button variant="ghost" size="xs" iconOnly leadingIcon={FilePlus2} aria-label="Novo arquivo" title="Novo arquivo" onClick={() => void newFile(rootEntry)} />
-          <Button variant="ghost" size="xs" iconOnly leadingIcon={FolderPlus} aria-label="Nova pasta" title="Nova pasta" onClick={() => void newFolder(rootEntry)} />
-          <Button variant="ghost" size="xs" iconOnly leadingIcon={RefreshCw} aria-label="Atualizar" title="Atualizar" onClick={() => { setTreeKey((value) => value + 1); notify("info", "Explorer atualizado."); }} />
-          <Button variant="ghost" size="xs" iconOnly leadingIcon={ChevronDown} aria-label="Recolher tudo" title="Recolher tudo" onClick={() => setTreeKey((value) => value + 1)} />
+        <div className={cx("flex items-center gap-0.5", mobile && "w-full gap-1")}>
+          <Button variant={workspaceSettingsOpen ? "secondary" : "ghost"} size="xs" iconOnly className={mobile ? "flex-1" : undefined} leadingIcon={Settings2} aria-label="Configurações do workspace" title="Configurações do workspace" onClick={() => setWorkspaceSettingsOpen((value) => !value)} />
+          <Button variant="ghost" size="xs" iconOnly className={mobile ? "flex-1" : undefined} leadingIcon={FilePlus2} aria-label="Novo arquivo" title="Novo arquivo" onClick={() => void newFile(rootEntry)} />
+          <Button variant="ghost" size="xs" iconOnly className={mobile ? "flex-1" : undefined} leadingIcon={FolderPlus} aria-label="Nova pasta" title="Nova pasta" onClick={() => void newFolder(rootEntry)} />
+          <Button variant="ghost" size="xs" iconOnly className={mobile ? "flex-1" : undefined} leadingIcon={RefreshCw} aria-label="Atualizar" title="Atualizar" onClick={() => { setTreeKey((value) => value + 1); notify("info", "Explorer atualizado."); }} />
+          <Button variant="ghost" size="xs" iconOnly className={mobile ? "flex-1" : undefined} leadingIcon={ChevronDown} aria-label="Recolher tudo" title="Recolher tudo" onClick={() => setTreeKey((value) => value + 1)} />
         </div>
       </div>
       {uploadProgress && (

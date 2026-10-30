@@ -10,6 +10,8 @@ import { Badge } from "@/boardui/base/badges/badge";
 import { Modal } from "@/boardui/base/modal/modal";
 import { Table, TableBody, TableCell, TableColumn, TableHeader, TableRow } from "@/boardui/base/table/table";
 import { useConfirm } from "../ui/confirm";
+import { useIsMobile } from "../ui/useIsMobile";
+import { cx } from "@/boardui/utils/cx";
 import { useProjectEvents } from "../projectEvents";
 
 interface Props {
@@ -20,6 +22,7 @@ export default function DbPanelTab({ tab }: Props) {
   const updateTab = useApp((state) => state.updateTab);
   const notify = useApp((state) => state.notify);
   const confirm = useConfirm();
+  const mobile = useIsMobile();
   const [profile, setProfile] = useState<DBProfile | null>(null);
   const [sql, setSql] = useState(tab.sql ?? "");
   const [result, setResult] = useState<QueryResult | null>(null);
@@ -199,19 +202,19 @@ export default function DbPanelTab({ tab }: Props) {
 
   return (
     <div className="flex h-full min-h-0 w-full flex-1 flex-col">
-      <div className="flex h-10 shrink-0 items-center justify-between gap-3 border-b bg-muted/20 px-3">
+      <div className={cx("flex shrink-0 border-b bg-muted/20 px-3", mobile ? "flex-col items-stretch gap-2 py-2" : "h-10 items-center justify-between gap-3")}>
         <div className="flex min-w-0 items-center gap-2">
           <span className="size-2 rounded-full bg-primary" />
           <strong className="truncate text-xs font-medium">{profile?.name ?? "Database"}</strong>
           {profile && <Badge color="neutral" className="px-1 text-[9px] uppercase">{profile.driver}</Badge>}
           {profile?.readOnly && <span className="text-caption-2-regular text-text-secondary">read-only</span>}
         </div>
-        <div className="flex shrink-0 items-center gap-2">
+        <div className={cx("flex shrink-0 items-center gap-2", mobile && "w-full")}>
           <span className="hidden text-caption-1-regular text-text-secondary sm:inline">
             {profile?.driver === "mongodb" || profile?.driver === "elasticsearch" ? "JSON query" : profile?.driver === "redis" ? "Redis command" : profile?.driver === "neo4j" ? "Cypher" : profile?.driver === "cassandra" ? "CQL" : "Ctrl/Cmd + Enter"}
           </span>
-          <Button size="small" onClick={() => void run()} disabled={busy || !sql.trim()}>{busy ? <ProgressCircle size="sm" isIndeterminate aria-label="Executando" /> : <Play size={14} />}{busy ? "Running" : "Run"}</Button>
-          {busy && <Button variant="secondary" size="small" disabled title="Query cancellation is coming next"><Square size={13} /> Stop</Button>}
+          <Button size="small" onClick={() => void run()} disabled={busy || !sql.trim()} className={mobile ? "flex-1" : undefined}>{busy ? <ProgressCircle size="sm" isIndeterminate aria-label="Executando" /> : <Play size={14} />}{busy ? "Running" : "Run"}</Button>
+          {busy && <Button variant="secondary" size="small" disabled title="Query cancellation is coming next" className={mobile ? "flex-1" : undefined}><Square size={13} /> Stop</Button>}
         </div>
       </div>
       <div className="h-[180px] shrink-0 border-b">

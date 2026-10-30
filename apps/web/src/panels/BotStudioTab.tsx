@@ -13,6 +13,7 @@ import AgentTranscript from "../components/AgentTranscript";
 import OpenCodeFormCard, { type OpenCodeForm, type OpenCodeFormAnswer } from "../components/OpenCodeFormCard";
 import type { AiMessage } from "../store";
 import { Button } from "@/boardui/base/buttons/button";
+import { cx } from "@/boardui/utils/cx";
 import { Modal } from "@/boardui/base/modal/modal";
 import { Textarea } from "@/boardui/base/textarea/textarea";
 import { useIsMobile } from "../ui/useIsMobile";
@@ -585,9 +586,9 @@ export default function BotStudioTab({ project }: Props) {
           <BotAvatar bot={{ name: "Bots", color: "#FFB547", avatar: "shield" }} size={56} />
           <strong className="text-title-3-medium text-text-primary">Monte sua equipe de bots</strong>
           <p className="max-w-sm text-caption-1-regular text-text-secondary">Crie bots com funções, modelos e personalidades diferentes para trabalharem juntos neste projeto.</p>
-          <div className="flex items-center gap-2">
-            <Button variant="secondary" leadingIcon={MessageSquarePlus} onClick={newBot}>Criar primeiro bot</Button>
-            <Button variant="ghost" leadingIcon={SlidersHorizontal} onClick={() => setSettingsOpen(true)}>Configurações de IA</Button>
+          <div className={cx("flex gap-2", mobile ? "w-full flex-col" : "items-center")}>
+            <Button variant="secondary" leadingIcon={MessageSquarePlus} onClick={newBot} className={mobile ? "w-full" : undefined}>Criar primeiro bot</Button>
+            <Button variant="ghost" leadingIcon={SlidersHorizontal} onClick={() => setSettingsOpen(true)} className={mobile ? "w-full" : undefined}>Configurações de IA</Button>
           </div>
         </div>
         <AiSettingsModal open={settingsOpen} projectRoot={project.root} onClose={() => setSettingsOpen(false)} />
@@ -597,16 +598,28 @@ export default function BotStudioTab({ project }: Props) {
 
   return (
     <div className="flex h-full min-h-0 w-full flex-1 gap-1" onPointerDown={unlockBotSound}>
-      <section className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-3xl border border-border-button-white bg-background-primary-default shadow-sidebar">
-        <header className="flex h-11 shrink-0 items-center gap-2 border-b px-3">
-          <Bot size={15} className="text-accent-500" />
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-body-medium text-text-primary">Equipe do projeto</p>
-            <p className="truncate text-caption-2-regular text-text-secondary">{bots.length} {bots.length === 1 ? "bot" : "bots"} · {bots.filter((bot) => bot.coordinator).map((bot) => bot.name).join(", ") || "sem coordenador"}</p>
+      <section className={cx("flex min-w-0 flex-1 flex-col overflow-hidden bg-background-primary-default", mobile ? "border-0 shadow-none" : "rounded-3xl border border-border-button-white shadow-sidebar")}>
+        <header className={cx("flex shrink-0 border-b", mobile ? "flex-col items-stretch gap-2 p-3" : "h-11 items-center gap-2 px-3")}>
+          <div className="flex min-w-0 flex-1 items-center gap-2">
+            <Bot size={15} className="text-accent-500" />
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-body-medium text-text-primary">Equipe do projeto</p>
+              <p className="truncate text-caption-2-regular text-text-secondary">{bots.length} {bots.length === 1 ? "bot" : "bots"} · {bots.filter((bot) => bot.coordinator).map((bot) => bot.name).join(", ") || "sem coordenador"}</p>
+            </div>
           </div>
-          <Button variant="ghost" size="xs" iconOnly leadingIcon={Settings2} aria-label="Configurar bot" title="Configurar bot" onClick={() => setConfigOpen(true)} className="lg:hidden" />
-          <Button variant="ghost" size="xs" iconOnly leadingIcon={SlidersHorizontal} aria-label="Configurações de IA" title="Configurações de IA" onClick={() => setSettingsOpen(true)} />
-          <Button variant="ghost" size="xs" iconOnly leadingIcon={MessageSquarePlus} aria-label="Novo bot" title="Novo bot" onClick={newBot} />
+          {mobile ? (
+            <div className="flex w-full flex-col gap-1">
+              <Button variant="ghost" className="w-full justify-start" leadingIcon={Settings2} onClick={() => setConfigOpen(true)}>Configurar bot</Button>
+              <Button variant="ghost" className="w-full justify-start" leadingIcon={SlidersHorizontal} onClick={() => setSettingsOpen(true)}>Configurações de IA</Button>
+              <Button variant="ghost" className="w-full justify-start" leadingIcon={MessageSquarePlus} onClick={newBot}>Novo bot</Button>
+            </div>
+          ) : (
+            <>
+              <Button variant="ghost" size="xs" iconOnly leadingIcon={Settings2} aria-label="Configurar bot" title="Configurar bot" onClick={() => setConfigOpen(true)} className="lg:hidden" />
+              <Button variant="ghost" size="xs" iconOnly leadingIcon={SlidersHorizontal} aria-label="Configurações de IA" title="Configurações de IA" onClick={() => setSettingsOpen(true)} />
+              <Button variant="ghost" size="xs" iconOnly leadingIcon={MessageSquarePlus} aria-label="Novo bot" title="Novo bot" onClick={newBot} />
+            </>
+          )}
         </header>
 
         <div
@@ -724,7 +737,7 @@ export default function BotStudioTab({ project }: Props) {
               fieldClassName="flex min-h-[38px] items-start rounded-none bg-transparent p-0 ring-0 shadow-none"
               className="min-h-[38px] px-0 py-0 text-[13.5px] leading-[1.5]"
             />
-            <div className="flex min-w-0 items-center gap-1.5">
+            <div className={cx("flex min-w-0 gap-1.5", mobile ? "flex-col items-stretch" : "items-center")}>
               <div className="flex min-w-0 flex-1 flex-wrap gap-1">
                 {bots.slice(0, 5).map((bot) => (
                   <button key={bot.id} type="button" onClick={() => insertMention(bot)} className="rounded-md px-1.5 py-1 text-caption-2-medium text-text-tertiary hover:bg-background-secondary-hover hover:text-text-primary">
@@ -732,7 +745,11 @@ export default function BotStudioTab({ project }: Props) {
                   </button>
                 ))}
               </div>
-              <Button type="submit" size="small" iconOnly leadingIcon={ArrowUp} disabled={!input.trim() || sending || bots.length === 0} aria-label="Enviar" className="size-8 shrink-0 rounded-lg" />
+              {mobile ? (
+                <Button type="submit" size="small" disabled={!input.trim() || sending || bots.length === 0} className="w-full justify-center">Enviar</Button>
+              ) : (
+                <Button type="submit" size="small" iconOnly leadingIcon={ArrowUp} disabled={!input.trim() || sending || bots.length === 0} aria-label="Enviar" className="size-8 shrink-0 rounded-lg" />
+              )}
             </div>
           </form>
         </div>

@@ -11,6 +11,8 @@ import { Select, SelectItem } from "@/boardui/base/select/select";
 import { Chip } from "@/boardui/base/badges/chip";
 import { useProjectEvents } from "../projectEvents";
 import LoadingState from "../components/LoadingState";
+import { useIsMobile } from "../ui/useIsMobile";
+import { cx } from "@/boardui/utils/cx";
 
 interface Props {
   project: Project;
@@ -28,6 +30,7 @@ export default function DatabasesPanel({ project, onOpenQuery, onOpenTable }: Pr
   const [error, setError] = useState("");
   const notify = useApp((state) => state.notify);
   const confirm = useConfirm();
+  const mobile = useIsMobile();
 
   async function load(quiet = false): Promise<DBProfile[]> {
     if (!quiet) setBusy(true);
@@ -56,9 +59,9 @@ export default function DatabasesPanel({ project, onOpenQuery, onOpenTable }: Pr
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex h-9 shrink-0 items-center justify-between border-b px-2">
+      <div className={cx("flex shrink-0 border-b px-2", mobile ? "flex-col items-stretch gap-2 py-2" : "h-9 items-center justify-between")}>
         <span className="text-caption-1-medium text-text-secondary">Databases</span>
-        <Button variant="ghost" size="xs" iconOnly leadingIcon={Plus} aria-label="Nova conexão" onClick={() => setShowForm((value) => !value)} />
+        <Button variant={mobile ? "secondary" : "ghost"} size={mobile ? "small" : "xs"} iconOnly={!mobile} leadingIcon={Plus} aria-label="Nova conexão" className={mobile ? "w-full justify-start" : undefined} onClick={() => setShowForm((value) => !value)}>{mobile ? "Nova conexão" : undefined}</Button>
       </div>
       {showForm && <ConnectionForm projectRoot={project.root} onCreated={() => { setShowForm(false); void load(); }} />}
       {busy && <LoadingState label="Carregando..." className="px-1 py-1" />}
@@ -84,7 +87,7 @@ export default function DatabasesPanel({ project, onOpenQuery, onOpenTable }: Pr
                     <span className="truncate text-caption-1-regular">{profile.name}</span>
                     <Badge color="neutral" className="px-1 text-[9px] uppercase">{profile.driver}</Badge>
                   </Button>
-                  <span className="flex shrink-0 opacity-0 group-hover:opacity-100">
+                  <span className={cx("flex shrink-0", mobile ? "opacity-100" : "opacity-0 group-hover:opacity-100")}>
                     <Button variant="ghost" size="xs" aria-label="Nova query" onClick={() => onOpenQuery(profile.id, "")}><Play size={13} /></Button>
                     <Button variant="ghost" size="xs" aria-label="Testar conexão" onClick={() => { api.testDBProfile(profile.id).then(() => notify("success", `${profile.name} is reachable.`)).catch((err) => notify("error", err instanceof Error ? err.message : "Connection failed.")); }}><Wifi size={13} /></Button>
                     <Button variant="ghost" size="xs" aria-label="Excluir conexão" onClick={async () => { const ok = await confirm({ title: "Excluir conexão?", message: `Excluir "${profile.name}" deste workspace?`, confirmLabel: "Excluir", danger: true }); if (!ok) return; try { await api.deleteDBProfile(profile.id); await load(); } catch (err) { notify("error", err instanceof Error ? err.message : "Could not delete."); } }}><Trash2 size={13} /></Button>
