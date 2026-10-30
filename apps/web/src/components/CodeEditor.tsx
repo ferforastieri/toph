@@ -6,10 +6,9 @@ import { useSettings } from "../settings";
 import { Modal } from "@/boardui/base/modal/modal";
 import { CODE_FONT_FAMILY, codeLineHeight, monacoThemeName, registerEditorThemes } from "../editorThemes";
 import { registerEditorTextMate } from "../editorTextMate";
-import { relativeTime } from "../lib";
 import { useAI } from "../ai";
 import { useApp } from "../store";
-import { api, type GitBlameLine, type GitHistoryEntry } from "../api";
+import { api, type GitHistoryEntry } from "../api";
 import { useIsMobile } from "../ui/useIsMobile";
 
 interface Props {
@@ -21,7 +20,6 @@ interface Props {
   onOpenChanges?: (path: string) => void;
   readOnly?: boolean;
   line?: number;
-  blame?: GitBlameLine[];
   onCursorLine?: (line: number) => void;
   onCursorPosition?: (line: number, column: number) => void;
   onChange: (value: string) => void;
@@ -38,7 +36,6 @@ export default function CodeEditor({
   onOpenChanges,
   readOnly = false,
   line,
-  blame,
   onCursorLine,
   onCursorPosition,
   onChange,
@@ -47,12 +44,9 @@ export default function CodeEditor({
 }: Props) {
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<Monaco | null>(null);
-  const blameWidget = useRef<{ editor: editor.IStandaloneCodeEditor; widget: editor.IContentWidget } | null>(null);
   const [monacoReady, setMonacoReady] = useState(false);
-  const [annotations, setAnnotations] = useState(true);
   const [aiDialog, setAiDialog] = useState<{ title: string; text: string; busy: boolean; error: string } | null>(null);
   const [historyDialog, setHistoryDialog] = useState<{ title: string; entries: GitHistoryEntry[] | null; error: string } | null>(null);
-  const [cursorLine, setCursorLine] = useState(1);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const theme = useSettings((state) => state.theme);
   const mobile = useIsMobile();
@@ -122,10 +116,6 @@ export default function CodeEditor({
 
   function copy(valueToCopy: string) {
     void navigator.clipboard?.writeText(valueToCopy).catch(() => undefined);
-  }
-
-  function toggleAnnotations() {
-    setAnnotations((current) => !current);
   }
 
   function openRemote() {
@@ -200,13 +190,6 @@ export default function CodeEditor({
       run: () => openRemote(),
     });
     instance.addAction({
-      id: "toph.file-annotations",
-      label: "File Annotations",
-      contextMenuGroupId: "navigation",
-      contextMenuOrder: 60,
-      run: () => toggleAnnotations(),
-    });
-    instance.addAction({
       id: "toph.file-history",
       label: "File History",
       contextMenuGroupId: "navigation",
@@ -279,12 +262,10 @@ export default function CodeEditor({
     monacoRef.current = monaco;
     setMonacoReady(true);
     const initialLine = instance.getPosition()?.lineNumber ?? 1;
-    setCursorLine(initialLine);
     onCursorLine?.(initialLine);
     const initialPosition = instance.getPosition();
     if (initialPosition) onCursorPosition?.(initialPosition.lineNumber, initialPosition.column);
     instance.onDidChangeCursorPosition((event) => {
-      setCursorLine(event.position.lineNumber);
       onCursorLine?.(event.position.lineNumber);
       onCursorPosition?.(event.position.lineNumber, event.position.column);
     });
@@ -321,51 +302,6 @@ export default function CodeEditor({
   }, [themeName]);
 
   useEffect(() => {
-    const monaco = monacoRef.current;
-    const instance = editorRef.current;
-    if (!monaco || !instance || !monacoReady) return;
-    if (blameWidget.current) {
-      blameWidget.current.editor.removeContentWidget(blameWidget.current.widget);
-      blameWidget.current = null;
-    }
-    if (!annotations) return;
-    const current = blame?.find((item) => item.line === cursorLine);
-    const model = instance.getModel();
-    if (!current || !model) return;
-    const lineHeight = instance.getOption(monaco.editor.EditorOption.lineHeight);
-    const dom = document.createElement("span");
-    dom.className = "pointer-events-none ml-[18px] flex items-center whitespace-nowrap font-mono text-[9.5px] italic leading-none text-muted-foreground opacity-80";
-    dom.style.height = `${lineHeight}px`;
-    // Monaco anchors content widgets to the top of the line. Flex centers the
-    // line box, but the 9.5px italic face has a smaller optical center; nudge
-    // the glyphs down so the blame sits on the same visual center as code.
-    dom.style.transform = `translateY(${Math.max(0, Math.round((lineHeight - 11) / 2) + 2)}px)`;
-    dom.textContent = `${current.author} · ${relativeTime(current.authorTime)} · ${current.summary}`;
-    dom.title = `${current.commit.slice(0, 8)} · ${current.summary}`;
-    const widget: editor.IContentWidget = {
-      getId: () => "toph-blame-widget",
-      getDomNode: () => dom,
-      getPosition: () => ({
-        position: {
-          lineNumber: cursorLine,
-          column: Math.max(1, model.getLineMaxColumn(cursorLine)),
-        },
-        preference: [monaco.editor.ContentWidgetPositionPreference.EXACT],
-      }),
-    };
-    instance.addContentWidget(widget);
-    instance.layoutContentWidget(widget);
-    blameWidget.current = { editor: instance, widget };
-  }, [annotations, blame, cursorLine, monacoReady]);
-
-  useEffect(() => () => {
-    if (blameWidget.current) {
-      blameWidget.current.editor.removeContentWidget(blameWidget.current.widget);
-      blameWidget.current = null;
-    }
-  }, []);
-
-  useEffect(() => {
     if (!aiConfig) void loadAI();
   }, [aiConfig, loadAI]);
 
@@ -379,12 +315,12 @@ export default function CodeEditor({
         _context: languages.InlineCompletionContext,
         token: CancellationToken,
       ) {
-        await new Promise((resolve) => window.setTimeout(resolve, 280));
+        await new Promise((resolve) => window.setTimeout(resolve, 80));
         if (token.isCancellationRequested) return { items: [] };
         const text = model.getValue();
         const offset = model.getOffsetAt(position);
-        const prefix = text.slice(Math.max(0, offset - 3000), offset);
-        const suffix = text.slice(offset, offset + 1000);
+        const prefix = text.slice(Math.max(0, offset - 2500), offset);
+        const suffix = text.slice(offset, offset + 600);
         if (prefix.trim().length < 4) return { items: [] };
         const controller = new AbortController();
         const cancel = () => controller.abort();
@@ -478,7 +414,7 @@ export default function CodeEditor({
         renderWhitespace: "none",
         lineNumbersMinChars: 3,
         glyphMargin: false,
-        padding: { top: 0, bottom: 0 },
+        padding: { top: 6, bottom: 14 },
         tabSize: 2,
         wordWrap: mobile ? "on" : "off",
         quickSuggestions: { other: true, comments: false, strings: true },
@@ -501,7 +437,6 @@ export default function CodeEditor({
           <EditorContextAction label="Go to Source Definition" onClick={() => runContextAction("toph.go-source-definition")} />
           <EditorContextAction label="Find All References" onClick={() => runContextAction("toph.find-all-references")} />
           <EditorContextAction label="Open Changes" onClick={() => runContextAction("toph.open-changes")} />
-          <EditorContextAction label="File Annotations" onClick={() => runContextAction("toph.file-annotations")} />
           <EditorContextAction label="File History" onClick={() => runContextAction("toph.file-history")} />
           <EditorContextSeparator />
           <EditorContextAction label="Change All Occurrences" shortcut="Ctrl+F2" onClick={() => triggerContextAction("editor.action.changeAll")} />

@@ -568,8 +568,8 @@ impl AiService {
     }
 
     pub async fn complete(&self, input: CompleteInput) -> AppResult<String> {
-        let prefix = tail(&input.prefix, 6000);
-        let suffix = head(&input.suffix, 1500);
+        let prefix = tail(&input.prefix, 2500);
+        let suffix = head(&input.suffix, 600);
         let prompt = format!(
             "You are an inline code completion engine. The user is typing in {language}. Continue the file exactly at <cursor>.\n\
              Output only the raw characters to insert. Do not use markdown or code fences, do not explain, and do not repeat the text before or after the cursor. If no useful completion is possible, output nothing.\n\n\
@@ -661,7 +661,13 @@ impl AiService {
 
         let mut last_error = None;
         for model in candidates {
-            match self.generate_opencode(config, &model, prompt).await {
+            let result = tokio::time::timeout(
+                Duration::from_secs(6),
+                self.generate_opencode(config, &model, prompt),
+            )
+            .await
+            .unwrap_or_else(|_| Err(AppError::Upstream("autocomplete model timed out".into())));
+            match result {
                 Ok(text) => {
                     let completion = clean_completion(&text);
                     if !completion.trim().is_empty() {
