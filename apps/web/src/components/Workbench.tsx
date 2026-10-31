@@ -1,18 +1,16 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { Bell, Bot, ChevronRight, CircleAlert, FolderGit2, FolderPlus, GitBranch, Plus, Trash2, X } from "@toph/icons";
+import { Bot, ChevronRight, CircleAlert, FolderPlus, GitBranch, Plus, Trash2 } from "@toph/icons";
 import { SearchField } from "@/boardui/base/search-field/search-field";
 import { api, getApiBase, type Repository, type SchemaTable, type WebTarget } from "../api";
 import { basename, expandGitPattern, languageFor, quoteIdentifier, sanitizeBranchName } from "../lib";
 import { useApp, type AppNotification, type Sidebar, type Tab } from "../store";
 import { useBots, type BotWorkspace } from "../bots";
 import { useAI } from "../ai";
-import { nativePushToken, requestMobileNotificationPermission } from "../notifications";
 import { PROJECT_EVENT, type ProjectEvent } from "../projectEvents";
 import ActivityBar from "./ActivityBar";
-import MobileMenu, { type MobileScreen } from "./MobileMenu";
+import MobileApp from "../mobile/MobileApp";
 import Tabs from "./Tabs";
 import TopBar from "./TopBar";
-import QuickOpen from "./QuickOpen";
 import Toasts from "./Toasts";
 import RepoPicker from "./RepoPicker";
 import ExplorerPanel from "../panels/ExplorerPanel";
@@ -24,6 +22,7 @@ import BotStudioTab from "../panels/BotStudioTab";
 import BotsSidebar from "./BotsSidebar";
 import NotificationBell from "./NotificationBell";
 import HeaderAccordion from "./HeaderAccordion";
+import ProjectSwitcher from "./ProjectSwitcher";
 import { IconButton } from "@/boardui/base/buttons/icon-button";
 import { Accordion, AccordionItem } from "@/boardui/base/accordion/accordion";
 import WebPanelTab from "../panels/WebPanelTab";
@@ -33,7 +32,6 @@ import SourceControlPanel from "../panels/SourceControlPanel";
 import BrandMark from "@toph/brand";
 import { Button } from "@/boardui/base/buttons/button";
 import { Input } from "@/boardui/base/input/input";
-import { Badge } from "@/boardui/base/badges/badge";
 import { Avatar } from "@/boardui/base/avatar/avatar";
 import { Checkbox } from "@/boardui/base/checkbox/checkbox";
 import { RadioDot } from "@/boardui/base/radio/radio";
@@ -55,7 +53,6 @@ export default function Workbench() {
   const activeProjectId = useApp((state) => state.activeProjectId);
   const setProjects = useApp((state) => state.setProjects);
   const setActiveProject = useApp((state) => state.setActiveProject);
-  const openProjectIds = useApp((state) => state.openProjectIds);
   const closeProjectTab = useApp((state) => state.closeProjectTab);
   const tabs = useApp((state) => state.tabs);
   const activeTabId = useApp((state) => state.activeTabId);
@@ -68,7 +65,6 @@ export default function Workbench() {
   const terminalOpen = useApp((state) => state.terminalOpen);
   const setTerminalOpen = useApp((state) => state.setTerminalOpen);
   const notify = useApp((state) => state.notify);
-  const notifications = useApp((state) => state.notifications);
   const markNotificationRead = useApp((state) => state.markNotificationRead);
   const botWorkspace = useBots((state) => activeProjectId ? state.byProject[activeProjectId] : undefined);
   const pendingBotSelection = useRef<{ projectId: string; botId: string } | null>(null);
@@ -85,13 +81,6 @@ export default function Workbench() {
   const [showRepoPicker, setShowRepoPicker] = useState(false);
   const [version, setVersion] = useState("0.1.0");
   const [gitStatus, setGitStatus] = useState("");
-  const [, setMobilePanelOpen] = useState(false);
-  const [mobileTerminalOpen, setMobileTerminalOpen] = useState(false);
-  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
-  const [mobileScreen, setMobileScreen] = useState<MobileScreen>("bots");
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const mobileSwipeStart = useRef<{ x: number; y: number } | null>(null);
-  const [projectsSheetOpen, setProjectsSheetOpen] = useState(false);
   const [branchMenuOpen, setBranchMenuOpen] = useState(false);
   const [branchCreateOpen, setBranchCreateOpen] = useState(false);
   const [branchListOpen, setBranchListOpen] = useState(true);
@@ -119,11 +108,8 @@ export default function Workbench() {
   const mobile = useIsMobile();
 
   const project = projects.find((item) => item.id === activeProjectId) ?? null;
-  const closedProjects = projects.filter((item) => !openProjectIds.includes(item.id));
   const branch = gitStatus.split("\n")[0]?.replace(/^##\s*/, "").split("...")[0] ?? "";
   const activeTab = tabs.find((tab) => tab.id === activeTabId) ?? null;
-  const unreadForProject = (projectId: string) =>
-    notifications.filter((notification) => !notification.read && notification.projectId === projectId);
   const sortedBranches = branchInfo
     ? [...branchInfo.branches].sort((a, b) => {
         if (a === branchInfo.current) return -1;
@@ -173,29 +159,10 @@ export default function Workbench() {
   }, []);
 
   useEffect(() => {
-    const closeMobilePanel = () => setMobilePanelOpen(false);
-    window.addEventListener("toph:close-mobile-panel", closeMobilePanel);
-    return () => window.removeEventListener("toph:close-mobile-panel", closeMobilePanel);
-  }, []);
-
-  useEffect(() => {
-    if (!mobile) return;
-    setMobileScreen("bots");
-    setMobileMenuOpen(false);
-  }, [activeProjectId, mobile]);
-
-  useEffect(() => {
-    const openTerminal = () => {
-      if (mobile) {
-        setMobilePanelOpen(false);
-        setMobileTerminalOpen(true);
-      } else {
-        setTerminalOpen(!useApp.getState().terminalOpen);
-      }
-    };
+    const openTerminal = () => setTerminalOpen(!useApp.getState().terminalOpen);
     window.addEventListener("toph:open-terminal", openTerminal);
     return () => window.removeEventListener("toph:open-terminal", openTerminal);
-  }, [mobile, setTerminalOpen]);
+  }, [setTerminalOpen]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -206,12 +173,7 @@ export default function Workbench() {
       }
       if ((event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey && event.key.toLowerCase() === "p") {
         event.preventDefault();
-        if (mobile) {
-          setMobileSearchOpen(true);
-          setQuickOpenToken((current) => current + 1);
-        } else {
-          setQuickOpenToken((current) => current + 1);
-        }
+        setQuickOpenToken((current) => current + 1);
         return;
       }
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "b" && !event.altKey) {
@@ -229,15 +191,10 @@ export default function Workbench() {
         setLayoutOpen(true);
         return;
       }
-      if (event.key !== "Escape" || !mobile) return;
-      if (document.querySelector(".modal-backdrop, .avatar-menu")) return;
-      setMobilePanelOpen(false);
-      setProjectsSheetOpen(false);
-      setTerminalOpen(false);
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, [mobile, setSidebar, setTerminalOpen]);
+  }, [setSidebar, setTerminalOpen]);
 
   useEffect(() => {
     let socket: WebSocket | null = null;
@@ -453,8 +410,6 @@ export default function Workbench() {
       state.setActiveProject(payload.projectId);
       if (payload.botId) selectBot(payload.projectId, payload.botId);
       state.setSidebar("bots");
-      setMobilePanelOpen(false);
-      setMobileTerminalOpen(false);
     };
     window.addEventListener("toph:open-bot", onOpenBot as EventListener);
     return () => window.removeEventListener("toph:open-bot", onOpenBot as EventListener);
@@ -471,42 +426,6 @@ export default function Workbench() {
     pendingBotSelection.current = null;
   }, [activeProjectId, botWorkspace]);
 
-  useEffect(() => {
-    if (!mobile) return;
-    const timer = window.setTimeout(() => requestMobileNotificationPermission(), 900);
-    let attempts = 0;
-    let stopped = false;
-    const register = async () => {
-      const token = nativePushToken();
-      if (!token || stopped) return false;
-      try {
-        await api.registerPushToken(token, "android");
-      } catch {
-        return false;
-      }
-      return true;
-    };
-    void register();
-    const poll = window.setInterval(() => {
-      attempts += 1;
-      void register().then((registered) => {
-        if ((registered || attempts > 20) && !stopped) {
-          stopped = true;
-          window.clearInterval(poll);
-        }
-      });
-    }, 2500);
-    const onToken = (token: string) => {
-      if (token) void api.registerPushToken(token, "android").catch(() => undefined);
-    };
-    (window as unknown as { __tophPushToken?: (token: string) => void }).__tophPushToken = onToken;
-    return () => {
-      stopped = true;
-      window.clearTimeout(timer);
-      window.clearInterval(poll);
-      delete (window as unknown as { __tophPushToken?: (token: string) => void }).__tophPushToken;
-    };
-  }, [mobile]);
 
   useEffect(() => {
     api
@@ -611,7 +530,6 @@ export default function Workbench() {
 
   function switchProject(next: string) {
     if (next === activeProjectId) return;
-    if (mobile) setMobilePanelOpen(false);
     if (project && loadedProject.current === project.id) {
       void api.saveLayout(project.id, {
         tabs: layoutTabs,
@@ -625,13 +543,6 @@ export default function Workbench() {
     setActiveProject(next);
   }
 
-  function selectMobileScreen(next: MobileScreen) {
-    setMobileScreen(next);
-    setMobileMenuOpen(false);
-    setMobilePanelOpen(false);
-    setMobileTerminalOpen(false);
-    setMobileSearchOpen(false);
-  }
 
 
 
@@ -767,8 +678,6 @@ export default function Workbench() {
 
   function openFile(path: string, line?: number) {
     if (!project) return;
-    if (mobile) { setMobileScreen("workspace"); setMobileMenuOpen(false); }
-    if (mobile) setMobilePanelOpen(false);
     openTab({
       id: `editor:${project.id}:${path}`,
       kind: "editor",
@@ -781,8 +690,6 @@ export default function Workbench() {
 
   function openQuery(profileId: string, sql: string) {
     if (!project) return;
-    if (mobile) { setMobileScreen("workspace"); setMobileMenuOpen(false); }
-    if (mobile) setMobilePanelOpen(false);
     openTab({
       id: `db:${project.id}:${crypto.randomUUID()}`,
       kind: "db",
@@ -795,8 +702,6 @@ export default function Workbench() {
 
   function openDiff(path: string, staged: boolean) {
     if (!project) return;
-    if (mobile) { setMobileScreen("workspace"); setMobileMenuOpen(false); }
-    if (mobile) setMobilePanelOpen(false);
     openTab({
       id: `diff:${project.id}:${staged ? "staged" : "worktree"}:${path}`,
       kind: "diff",
@@ -809,8 +714,6 @@ export default function Workbench() {
 
   function openTable(profileId: string, table: SchemaTable, driver: string) {
     if (!project) return;
-    if (mobile) { setMobileScreen("workspace"); setMobileMenuOpen(false); }
-    if (mobile) setMobilePanelOpen(false);
     const schema = table.schema;
     let sql = "";
     if (driver === "mongodb") {
@@ -865,28 +768,16 @@ export default function Workbench() {
   function openNotification(notification: AppNotification) {
     if (!notification.projectId) return;
     setBranchMenuOpen(false);
-    setProjectsSheetOpen(false);
     markNotificationRead(notification.id);
     if (notification.projectId !== activeProjectId) setActiveProject(notification.projectId);
     if (notification.botId) selectBot(notification.projectId, notification.botId);
     setSidebar("bots");
-    if (mobile) { setMobileScreen("bots"); setMobileMenuOpen(false); }
-    if (mobile) setMobilePanelOpen(false);
     setTerminalOpen(false);
   }
 
-  function openLatestProjectNotification(projectId: string) {
-    const latest = notifications.find(
-      (notification) => !notification.read && notification.projectId === projectId,
-    );
-    if (!latest) return;
-    openNotification(latest);
-  }
 
   function openWeb(target: WebTarget) {
     if (!project) return;
-    if (mobile) { setMobileScreen("workspace"); setMobileMenuOpen(false); }
-    if (mobile) setMobilePanelOpen(false);
     openTab({
       id: `web:${project.id}:${target.id}`,
       kind: "web",
@@ -897,7 +788,6 @@ export default function Workbench() {
   }
 
   async function openRepo(repo: Repository) {
-    if (mobile) setMobilePanelOpen(false);
     const existing = projects.find((item) => item.root === repo.path);
     if (existing) {
       switchProject(existing.id);
@@ -1012,7 +902,7 @@ export default function Workbench() {
   );
 
   const primaryOnLeft = primarySideBarPosition === "left";
-  const primarySidebar = !mobile && sidebarVisible && activityVisible ? (
+  const primarySidebar = sidebarVisible && activityVisible ? (
     <div className="flex min-h-0 shrink-0 overflow-hidden rounded-3xl border border-border-button-white bg-background-primary-default shadow-sidebar">
       <ActivityBar />
       <aside className="flex min-h-0 w-[var(--sidebar-width)] shrink-0 flex-col overflow-hidden bg-background-primary-default">
@@ -1020,7 +910,7 @@ export default function Workbench() {
       </aside>
     </div>
   ) : null;
-  const primaryResize = !mobile && sidebarVisible && activityVisible ? (
+  const primaryResize = sidebarVisible && activityVisible ? (
     <ResizeHandle className="sidebar-resize" orientation="vertical" value={sidebarWidth} min={220} max={320} invert={!primaryOnLeft} label="Resize sidebar" onChange={(width) => document.documentElement.style.setProperty("--sidebar-width", `${width}px`)} onCommit={(width) => updateSettings({ sidebarWidth: width })} />
   ) : null;
   function branchPickerBody() {
@@ -1142,59 +1032,11 @@ export default function Workbench() {
           panelClassName="left-0 w-80"
           contentClassName="p-2.5"
         >
-            <div className="flex flex-col gap-1">
-              <div className="px-2 pt-1 text-body-medium text-text-secondary">Projetos abertos · {openProjectIds.length}</div>
-              {openProjectIds.map((id) => {
-                const item = projects.find((projectItem) => projectItem.id === id);
-                if (!item) return null;
-                const unread = unreadForProject(item.id);
-                return (
-                  <div key={item.id} className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => { setProjectsMenuOpen(false); switchProject(item.id); }}
-                      className="flex min-w-0 flex-1 items-center gap-2 rounded-lg p-2 text-start text-text-primary transition-colors hover:bg-dropdown-item-hover-background focus-visible:bg-dropdown-item-hover-background"
-                    >
-                      <Avatar size="sm" initials={item.name.slice(0, 1).toUpperCase()} className="bg-background-tertiary-default text-caption-2-semibold" style={{ color: item.color }} />
-                      <span className="flex min-w-0 flex-1 flex-col">
-                        <span className="truncate text-body-2-medium text-text-primary">{item.name}</span>
-                        <span className="truncate text-caption-1-regular text-text-secondary">{item.root}</span>
-                      </span>
-                      {unread.length > 0 && <Badge color="primary">{unread.length > 9 ? "9+" : unread.length}</Badge>}
-                    </button>
-                    <Button variant="ghost" size="xs" iconOnly leadingIcon={X} aria-label={`Fechar ${item.name}`} title="Fechar projeto" onClick={(event) => { event.stopPropagation(); setProjectsMenuOpen(false); void closeProject(item.id); }} />
-                  </div>
-                );
-              })}
-              {closedProjects.length > 0 && (
-                <>
-                  <div className="my-1 h-px bg-border-button-default" />
-                  <div className="px-2 pt-1 text-body-medium text-text-secondary">Projetos fechados</div>
-                  {closedProjects.map((item) => {
-                    const unread = unreadForProject(item.id);
-                    return (
-                      <button
-                        key={item.id}
-                        type="button"
-                        onClick={() => { setProjectsMenuOpen(false); switchProject(item.id); }}
-                        className="flex min-w-0 items-center gap-2 rounded-lg p-2 text-start text-text-primary transition-colors hover:bg-dropdown-item-hover-background focus-visible:bg-dropdown-item-hover-background"
-                      >
-                        <FolderGit2 size={14} />
-                        <span className="flex min-w-0 flex-1 flex-col">
-                          <span className="truncate text-body-2-medium text-text-primary">{item.name}</span>
-                          <span className="truncate text-caption-1-regular text-text-secondary">{item.root}</span>
-                        </span>
-                        {unread.length > 0 && <Badge color="primary">{unread.length > 9 ? "9+" : unread.length}</Badge>}
-                      </button>
-                    );
-                  })}
-                </>
-              )}
-              <div className="my-1 h-px bg-border-button-default" />
-              <button type="button" onClick={() => { setProjectsMenuOpen(false); setShowRepoPicker(true); }} className="flex items-center gap-2 rounded-lg p-2 text-start text-text-primary transition-colors hover:bg-dropdown-item-hover-background focus-visible:bg-dropdown-item-hover-background">
-                <FolderPlus size={14} /> Abrir repositório
-              </button>
-            </div>
+            <ProjectSwitcher
+              onSelect={(id) => { setProjectsMenuOpen(false); switchProject(id); }}
+              onCloseProject={(id) => { setProjectsMenuOpen(false); void closeProject(id); }}
+              onOpenRepo={() => { setProjectsMenuOpen(false); setShowRepoPicker(true); }}
+            />
         </HeaderAccordion>
         <NotificationBell projectId={project.id} projectName={project.name} onOpen={openNotification} />
       </div>
@@ -1208,121 +1050,45 @@ export default function Workbench() {
     </>
   ) : null;
 
-  return (
-    <div
-      className="flex h-dvh flex-col overflow-hidden bg-background-full"
-      style={mobile ? { height: "min(var(--visual-viewport-height, 100dvh), calc(100dvh - var(--keyboard-inset, 0px)))" } : undefined}
-      onTouchStart={(event) => {
-        if (!mobile) return;
-        const touch = event.touches[0];
-        if (touch) mobileSwipeStart.current = { x: touch.clientX, y: touch.clientY };
-      }}
-      onTouchMove={(event) => {
-        if (!mobile || !mobileSwipeStart.current) return;
-        const touch = event.touches[0];
-        if (!touch) return;
-        const dx = touch.clientX - mobileSwipeStart.current.x;
-        const dy = touch.clientY - mobileSwipeStart.current.y;
-        if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.4) return;
-        if (dx > 0 && !mobileMenuOpen && mobileSwipeStart.current.x <= 48) {
-          setMobileMenuOpen(true);
-          mobileSwipeStart.current = null;
-        } else if (dx < 0 && mobileMenuOpen) {
-          setMobileMenuOpen(false);
-          mobileSwipeStart.current = null;
-        }
-      }}
-      onTouchEnd={() => { mobileSwipeStart.current = null; }}
-    >
-      {!mobile && (
-        <TopBar
-          project={project}
-          quickOpenToken={quickOpenToken}
-          onOpenFile={openFile}
-          onOpenRepo={() => setShowRepoPicker(true)}
-          onCloseTab={() => { if (activeTabId) closeTab(activeTabId); }}
-          onBack={() => navigateHistory(-1)}
-          onForward={() => navigateHistory(1)}
-          onSidebar={setSidebar}
-          onToggleTerminal={() => setTerminalOpen(!useApp.getState().terminalOpen)}
-          onShowTerminal={() => setTerminalOpen(true)}
-          onCustomizeLayout={() => setLayoutOpen(true)}
-          onToggleActivity={() => updateSettings({ activityVisible: !useSettings.getState().activityVisible })}
-          onToggleSidebar={() => updateSettings({ sidebarVisible: !useSettings.getState().sidebarVisible })}
-          sidebarVisible={sidebarVisible}
-          onToggleStatus={() => updateSettings({ statusVisible: !useSettings.getState().statusVisible })}
-          statusVisible={statusVisible}
-          onAbout={() => setAboutOpen(true)}
-          onShortcuts={() => setShortcutsOpen(true)}
-          menuVisible={menuVisible}
-          headerLeft={headerBranch}
-          headerTrailing={headerTrailing}
-          headerRight={headerStatus}
-        />
-      )}
+  if (mobile) return <MobileApp />;
 
-      <div
-        className={cx("flex min-h-0 flex-1", mobile ? "p-0" : "p-1", !mobile && sidebar === "bots" ? "gap-1" : "gap-0")}
-        style={mobile ? {
-          paddingTop: "var(--safe-top)",
-          paddingBottom: "var(--safe-bottom)",
-          paddingLeft: "var(--safe-left)",
-          paddingRight: "var(--safe-right)",
-        } : undefined}
-      >
-        {!mobile && primaryOnLeft && primarySidebar}
-        {!mobile && primaryOnLeft && primaryResize}
+  return (
+    <div className="flex h-dvh flex-col overflow-hidden bg-background-full">
+      <TopBar
+        project={project}
+        quickOpenToken={quickOpenToken}
+        onOpenFile={openFile}
+        onOpenRepo={() => setShowRepoPicker(true)}
+        onCloseTab={() => { if (activeTabId) closeTab(activeTabId); }}
+        onBack={() => navigateHistory(-1)}
+        onForward={() => navigateHistory(1)}
+        onSidebar={setSidebar}
+        onToggleTerminal={() => setTerminalOpen(!useApp.getState().terminalOpen)}
+        onShowTerminal={() => setTerminalOpen(true)}
+        onCustomizeLayout={() => setLayoutOpen(true)}
+        onToggleActivity={() => updateSettings({ activityVisible: !useSettings.getState().activityVisible })}
+        onToggleSidebar={() => updateSettings({ sidebarVisible: !useSettings.getState().sidebarVisible })}
+        sidebarVisible={sidebarVisible}
+        onToggleStatus={() => updateSettings({ statusVisible: !useSettings.getState().statusVisible })}
+        statusVisible={statusVisible}
+        onAbout={() => setAboutOpen(true)}
+        onShortcuts={() => setShortcutsOpen(true)}
+        menuVisible={menuVisible}
+        headerLeft={headerBranch}
+        headerTrailing={headerTrailing}
+        headerRight={headerStatus}
+      />
+
+      <div className={cx("flex min-h-0 flex-1 p-1", sidebar === "bots" ? "gap-1" : "gap-0")}>
+        {primaryOnLeft && primarySidebar}
+        {primaryOnLeft && primaryResize}
 
         <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-1 overflow-hidden">
-          <main
-            className={cx(
-              "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden",
-              mobile
-                ? "bg-background-primary-default"
-                : sidebar === "bots" && project
-                  ? "bg-transparent"
-                  : "rounded-3xl border border-border-button-white bg-background-primary-default shadow-sidebar",
-            )}
-          >
-            {mobile ? (
-              mobileScreen === "bots" && project ? (
-                <BotStudioTab project={project} />
-              ) : mobileScreen === "files" && project ? (
-                <div className="min-h-0 flex-1 overflow-hidden">
-                  <ExplorerPanel project={project} onOpenFile={openFile} onStatusChange={setGitStatus} />
-                </div>
-              ) : mobileScreen === "scm" && project ? (
-                <div className="min-h-0 flex-1 overflow-hidden">
-                  <SourceControlPanel project={project} view="scm" onOpenDiff={openDiff} onStatusChange={setGitStatus} />
-                </div>
-              ) : mobileScreen === "db" && project ? (
-                <div className="min-h-0 flex-1 overflow-hidden">
-                  <DatabasesPanel project={project} onOpenQuery={openQuery} onOpenTable={openTable} />
-                </div>
-              ) : mobileScreen === "web" ? (
-                <div className="min-h-0 flex-1 overflow-hidden">
-                  <WebSidebar onOpenWeb={openWeb} />
-                </div>
-              ) : mobileScreen === "workspace" ? (
-                <>
-                  <Tabs />
-                  <div className="relative flex min-h-0 flex-1 overflow-hidden">
-                    {!activeTab && (
-                      <div className="flex h-full w-full flex-col items-center justify-center gap-4 p-6 text-center">
-                        <BrandMark size="large" />
-                        <strong className="text-title-3-medium text-text-primary">Nenhuma aba aberta</strong>
-                        <p className="max-w-sm text-caption-1-regular text-text-secondary">Abra um arquivo, banco ou web app para começar.</p>
-                        <Button variant="secondary" className="w-full" onClick={() => selectMobileScreen("bots")}>Voltar para Bots</Button>
-                      </div>
-                    )}
-                    {activeTab?.kind === "editor" && project && <EditorPanel tab={activeTab} project={project} onOpenChanges={(path) => openDiff(path, false)} />}
-                    {activeTab?.kind === "db" && <DbPanelTab tab={activeTab} />}
-                    {activeTab?.kind === "web" && <WebPanelTab tab={activeTab} />}
-                    {activeTab?.kind === "diff" && project && <DiffPanelTab tab={activeTab} project={project} />}
-                  </div>
-                </>
-              ) : null
-            ) : sidebar === "bots" && project ? (
+          <main className={cx(
+            "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden",
+            sidebar === "bots" && project ? "bg-transparent" : "rounded-3xl border border-border-button-white bg-background-primary-default shadow-sidebar",
+          )}>
+            {sidebar === "bots" && project ? (
               <BotStudioTab project={project} />
             ) : (
               <>
@@ -1349,49 +1115,16 @@ export default function Workbench() {
             )}
           </main>
 
-          {project && !mobile && sidebar !== "bots" && (
+          {project && sidebar !== "bots" && (
             <div className={terminalOpen ? "flex w-full min-w-0 shrink-0 overflow-hidden" : "hidden"}>
               <TerminalPanel key={project.id} project={project} onOpenFile={openFile} />
             </div>
           )}
         </div>
 
-        {!mobile && !primaryOnLeft && primaryResize}
-        {!mobile && !primaryOnLeft && primarySidebar}
-
-        {mobile && project && mobileTerminalOpen && (
-          <div
-            className="fixed inset-0 z-[120] flex flex-col bg-background-primary-default"
-            style={{
-              paddingTop: "var(--safe-top)",
-              paddingBottom: "var(--safe-bottom)",
-              paddingLeft: "var(--safe-left)",
-              paddingRight: "var(--safe-right)",
-            }}
-          >
-            <Button variant="ghost" className="m-2 w-[calc(100%-1rem)] shrink-0 justify-start" onClick={() => setMobileTerminalOpen(false)}>
-              Fechar terminal
-            </Button>
-            <div className="min-h-0 flex-1">
-              <TerminalPanel key={`mobile:${project.id}`} project={project} onOpenFile={openFile} sheet onClose={() => setMobileTerminalOpen(false)} />
-            </div>
-          </div>
-        )}
-
+        {!primaryOnLeft && primaryResize}
+        {!primaryOnLeft && primarySidebar}
       </div>
-
-
-      <Modal
-        isOpen={mobile && branchMenuOpen && Boolean(project)}
-        onClose={() => setBranchMenuOpen(false)}
-        title="Branches"
-        description="Selecione uma branch para trocar."
-        size="sm"
-        placement="bottom"
-        bodyClassName="p-0"
-      >
-        {branchPickerBody()}
-      </Modal>
 
       <Modal
         isOpen={branchCreateOpen && Boolean(project)}
@@ -1422,58 +1155,6 @@ export default function Workbench() {
           </div>
           <Button type="submit" size="small" className="w-full justify-center" disabled={!newBranchName.trim() || Boolean(branchBusy)}>{branchBusy === "create" ? "Criando..." : "Criar branch"}</Button>
         </form>
-      </Modal>
-
-      <Modal
-        isOpen={mobile && projectsSheetOpen}
-        onClose={() => setProjectsSheetOpen(false)}
-        title="Projetos"
-        description="Abertos, fechados e repositórios."
-        size="sm"
-        placement="bottom"
-        bodyClassName="p-3"
-      >
-        <div className="mb-3 flex items-center gap-2 rounded-xl border border-border-button-default bg-background-secondary-default/50 p-2 ps-3">
-          <GitBranch size={15} className="shrink-0 text-accent-500" />
-          <span className="min-w-0 flex-1 truncate text-caption-1-regular text-text-secondary">{branch || "detached"}</span>
-          <Button variant="secondary" size="xs" onClick={() => { setProjectsSheetOpen(false); openBranchMenu(); }}>Branch</Button>
-        </div>
-
-        <div className="px-1 pb-1 text-caption-2-semibold uppercase tracking-wide text-text-tertiary">Abertos</div>
-        <div className="flex flex-col gap-1">
-          {openProjectIds.map((id) => {
-            const item = projects.find((projectItem) => projectItem.id === id);
-            if (!item) return null;
-            const unread = unreadForProject(item.id);
-            return (
-              <div key={item.id} className="flex items-center gap-2 rounded-xl border border-border-button-default bg-background-primary-default px-2 py-1.5">
-                <button type="button" className="flex min-w-0 flex-1 items-center gap-2.5 text-start" onClick={() => { setProjectsSheetOpen(false); switchProject(item.id); }}>
-                  <Avatar size="sm" initials={item.name.slice(0, 1).toUpperCase()} className="bg-background-tertiary-default text-caption-2-semibold" style={{ color: item.color }} />
-                  <span className="flex min-w-0 flex-col"><span className="truncate text-body-2-medium text-text-primary">{item.name}</span><span className="truncate text-caption-1-regular text-text-secondary">{item.root}</span></span>
-                </button>
-                {unread.length > 0 && <Badge color="primary">{unread.length > 9 ? "9+" : unread.length}</Badge>}
-                {unread.length > 0 && <Button variant="ghost" size="xs" iconOnly leadingIcon={Bell} aria-label={`Notificações de ${item.name}`} onClick={() => { setProjectsSheetOpen(false); switchProject(item.id); openLatestProjectNotification(item.id); }} />}
-                <Button variant="ghost" size="xs" iconOnly leadingIcon={X} aria-label={`Fechar ${item.name}`} onClick={() => void closeProject(item.id)} />
-              </div>
-            );
-          })}
-        </div>
-
-        {closedProjects.length > 0 && (
-          <>
-            <div className="px-1 pb-1 pt-4 text-caption-2-semibold uppercase tracking-wide text-text-tertiary">Fechados</div>
-            <div className="flex flex-col gap-1">
-              {closedProjects.map((item) => (
-                <button key={item.id} type="button" className="flex min-w-0 items-center gap-2.5 rounded-xl border border-transparent px-2 py-2 text-start hover:border-border-button-default hover:bg-background-primary-hover" onClick={() => { setProjectsSheetOpen(false); switchProject(item.id); }}>
-                  <FolderGit2 size={16} className="shrink-0 text-foreground-icon-secondary" />
-                  <span className="flex min-w-0 flex-1 flex-col"><span className="truncate text-body-2-medium text-text-primary">{item.name}</span><span className="truncate text-caption-1-regular text-text-secondary">{item.root}</span></span>
-                </button>
-              ))}
-            </div>
-          </>
-        )}
-
-        <Button variant="secondary" className="mt-3 w-full justify-start" leadingIcon={Plus} onClick={() => { setProjectsSheetOpen(false); setShowRepoPicker(true); }}>Abrir repositório</Button>
       </Modal>
 
       <Modal
@@ -1508,7 +1189,6 @@ export default function Workbench() {
             <LayoutRadio value="justify" label="Justify" />
           </RadioGroup>
         </LayoutSection>
-
       </Modal>
 
       <Modal isOpen={aboutOpen} onClose={() => setAboutOpen(false)} title="Toph" description="Workbench self-hosted para código, dados e IA." size="sm">
@@ -1538,47 +1218,11 @@ export default function Workbench() {
         </div>
       </Modal>
 
-      {mobile && mobileSearchOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-start justify-center bg-background-full"
-          style={{
-            paddingTop: "calc(var(--safe-top) + 0.75rem)",
-            paddingBottom: "calc(var(--safe-bottom) + 0.75rem)",
-            paddingLeft: "calc(var(--safe-left) + 0.75rem)",
-            paddingRight: "calc(var(--safe-right) + 0.75rem)",
-          }}
-        >
-          <button type="button" aria-label="Fechar busca" className="absolute inset-0 cursor-default" onClick={() => setMobileSearchOpen(false)} />
-          <div className="relative z-10 flex w-full flex-col gap-2">
-            <span className="px-1 text-caption-1-semibold uppercase tracking-wide text-text-secondary">Buscar</span>
-            <Button variant="ghost" className="w-full justify-start" onClick={() => setMobileSearchOpen(false)}>Fechar busca</Button>
-            <QuickOpen
-              project={project}
-              focusToken={quickOpenToken}
-              onOpenFile={(path, line) => { openFile(path, line); setMobileSearchOpen(false); }}
-              floating
-            />
-          </div>
-        </div>
-      )}
-
-      {mobile && mobileMenuOpen && (
-        <MobileMenu
-          screen={mobileScreen}
-          hasWorkspace={Boolean(activeTab)}
-          onSelect={selectMobileScreen}
-          onProjects={() => { setMobileMenuOpen(false); setProjectsSheetOpen(true); }}
-          onSearch={() => { setMobileMenuOpen(false); setMobileSearchOpen(true); setQuickOpenToken((value) => value + 1); }}
-          onTerminal={() => { setMobileMenuOpen(false); setMobileTerminalOpen(true); }}
-          onClose={() => setMobileMenuOpen(false)}
-        />
-      )}
       {showRepoPicker && <RepoPicker onClose={() => setShowRepoPicker(false)} onOpen={openRepo} />}
       <Toasts />
     </div>
   );
 }
-
 
 function LayoutRow({ label, shortcut, checked, onChange }: { label: string; shortcut?: string; checked: boolean; onChange: (value: boolean) => void }) {
   return (

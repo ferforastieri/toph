@@ -5,8 +5,6 @@ import type { Tab } from "../store";
 import { Button } from "@/boardui/base/buttons/button";
 import { IconLinkButton } from "@/boardui/base/buttons/icon-button";
 import { Input } from "@/boardui/base/input/input";
-import { useIsMobile } from "../ui/useIsMobile";
-import { cx } from "@/boardui/utils/cx";
 
 function normalizeUrl(raw: string): string {
   const value = raw.trim();
@@ -21,7 +19,6 @@ export default function WebPanelTab({ tab }: { tab: Tab }) {
   const [reloadKey, setReloadKey] = useState(0);
   const [draftUrl, setDraftUrl] = useState(tab.url ?? "");
   const [activeUrl, setActiveUrl] = useState(tab.url ?? "");
-  const mobile = useIsMobile();
 
   useEffect(() => {
     setDraftUrl(tab.url ?? "");
@@ -40,7 +37,7 @@ export default function WebPanelTab({ tab }: { tab: Tab }) {
   if (!activeUrl) return <div className="flex h-full items-center justify-center text-sm text-muted-foreground">Nenhuma URL configurada.</div>;
   return (
     <div className="flex h-full min-h-0 w-full flex-1 flex-col">
-      <div className={cx("flex shrink-0 border-b bg-muted/20 px-2", mobile ? "flex-col gap-2 py-2" : "h-8 items-center gap-1")}>
+      <div className="flex shrink-0 flex-col gap-2 border-b bg-muted/20 px-2 py-2 min-[901px]:h-8 min-[901px]:flex-row min-[901px]:items-center min-[901px]:gap-1 min-[901px]:py-0">
         <Input
           value={draftUrl}
           onChange={setDraftUrl}
@@ -53,10 +50,10 @@ export default function WebPanelTab({ tab }: { tab: Tab }) {
           size="small"
           className="min-w-0 flex-1"
         />
-        <div className={cx("flex items-center gap-1", mobile && "w-full")}>
-          <Button variant="ghost" size="xs" iconOnly leadingIcon={ArrowRight} aria-label="Abrir link no preview" title="Abrir link no preview" className={mobile ? "flex-1" : undefined} onClick={() => loadUrl(draftUrl)} />
-          <Button variant="ghost" size="xs" iconOnly leadingIcon={RefreshCw} aria-label="Recarregar preview" title="Recarregar preview" className={mobile ? "flex-1" : undefined} onClick={() => setReloadKey((value) => value + 1)} />
-          <IconLinkButton icon={ExternalLink} size="small" aria-label="Abrir no navegador" title="Abrir no navegador" href={activeUrl} target="_blank" rel="noreferrer" className={cx("border-transparent bg-transparent shadow-none", mobile && "flex-1")} />
+        <div className="flex w-full items-center gap-1 min-[901px]:w-auto">
+          <Button variant="ghost" size="xs" iconOnly leadingIcon={ArrowRight} aria-label="Abrir link no preview" title="Abrir link no preview" className="max-[900px]:flex-1" onClick={() => loadUrl(draftUrl)} />
+          <Button variant="ghost" size="xs" iconOnly leadingIcon={RefreshCw} aria-label="Recarregar preview" title="Recarregar preview" className="max-[900px]:flex-1" onClick={() => setReloadKey((value) => value + 1)} />
+          <IconLinkButton icon={ExternalLink} size="small" aria-label="Abrir no navegador" title="Abrir no navegador" href={activeUrl} target="_blank" rel="noreferrer" className="max-[900px]:flex-1 border-transparent bg-transparent shadow-none" />
         </div>
       </div>
       <iframe

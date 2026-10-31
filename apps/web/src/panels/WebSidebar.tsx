@@ -6,17 +6,14 @@ import { useConfirm } from "../ui/confirm";
 import { Button } from "@/boardui/base/buttons/button";
 import { IconLinkButton } from "@/boardui/base/buttons/icon-button";
 import { Input } from "@/boardui/base/input/input";
-import { useIsMobile } from "../ui/useIsMobile";
-import { cx } from "@/boardui/utils/cx";
 
-interface Props { onOpenWeb: (target: WebTarget) => void; }
+interface Props { onOpenWeb: (target: WebTarget) => void; embedded?: boolean; }
 
-export default function WebSidebar({ onOpenWeb }: Props) {
+export default function WebSidebar({ onOpenWeb, embedded = false }: Props) {
   const [targets, setTargets] = useState<WebTarget[]>([]);
   const [showForm, setShowForm] = useState(false);
   const notify = useApp((state) => state.notify);
   const confirm = useConfirm();
-  const mobile = useIsMobile();
 
   async function load() {
     try { setTargets(await api.webTargets()); }
@@ -26,10 +23,16 @@ export default function WebSidebar({ onOpenWeb }: Props) {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className={cx("flex shrink-0 border-b px-2", mobile ? "flex-col items-stretch gap-2 py-2" : "h-9 items-center justify-between")}>
-        <span className="text-caption-1-medium text-text-secondary">Web apps</span>
-        <Button variant={mobile ? "secondary" : "ghost"} size={mobile ? "small" : "xs"} iconOnly={!mobile} leadingIcon={Plus} aria-label="Adicionar web app" className={mobile ? "w-full justify-start" : undefined} onClick={() => setShowForm((value) => !value)}>{mobile ? "Adicionar web app" : undefined}</Button>
-      </div>
+      {embedded ? (
+        <div className="shrink-0 border-b border-separator-border p-2">
+          <Button variant="secondary" size="small" leadingIcon={Plus} className="w-full justify-start" onClick={() => setShowForm((value) => !value)}>Adicionar web app</Button>
+        </div>
+      ) : (
+        <div className="flex shrink-0 flex-col items-stretch gap-2 border-b px-2 py-2 min-[901px]:h-9 min-[901px]:flex-row min-[901px]:items-center min-[901px]:justify-between min-[901px]:gap-0 min-[901px]:py-0">
+          <span className="text-caption-1-medium text-text-secondary">Web apps</span>
+          <Button variant="ghost" size="xs" iconOnly leadingIcon={Plus} aria-label="Adicionar web app" className="max-[900px]:h-8 max-[900px]:w-full" onClick={() => setShowForm((value) => !value)} />
+        </div>
+      )}
       {showForm && <WebTargetForm onCreated={() => { setShowForm(false); void load(); }} />}
       <div className="min-h-0 flex-1 overflow-y-auto p-1">
         {targets.map((target) => (

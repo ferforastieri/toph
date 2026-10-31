@@ -6,6 +6,8 @@ import ServerSetup from "./components/ServerSetup";
 import UpdateToast from "./components/UpdateToast";
 import Workbench from "./components/Workbench";
 import PetPicker from "./components/PetPicker";
+import MobileBoot from "./mobile/MobileBoot";
+import { isMobileViewport } from "./ui/useIsMobile";
 import { usePet } from "./pet";
 import BrandMark from "@toph/brand";
 
@@ -73,6 +75,7 @@ function AppShell() {
   }
 
   if (!authReady) {
+    if (isMobileViewport()) return <MobileBoot />;
     return (
       <div className="flex min-h-dvh flex-col items-center justify-center gap-4 bg-background">
         <BrandMark size="large" />
