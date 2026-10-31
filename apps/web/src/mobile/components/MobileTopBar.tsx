@@ -20,24 +20,23 @@ export default function MobileTopBar({ title, subtitle, projectName, unreadCount
     <header className="relative shrink-0 overflow-hidden border-b border-separator-border bg-background-secondary-default px-3 pb-2.5 pt-2">
       <div className="pointer-events-none absolute -right-10 -top-16 size-36 rounded-full bg-accent-500/10 blur-2xl" />
       <div className="relative flex min-w-0 items-center gap-2.5">
-        <span className="flex size-9 shrink-0 items-center justify-center rounded-2xl border border-accent-500/20 bg-accent-500/10 text-accent-500 shadow-xs">
+        <button
+          type="button"
+          aria-label="Abrir menu"
+          title="Abrir menu"
+          onClick={onMenu}
+          className="relative flex size-9 shrink-0 items-center justify-center rounded-2xl border border-accent-500/20 bg-accent-500/10 text-accent-500 shadow-xs transition-colors hover:bg-accent-500/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus-ring"
+        >
           <Icon className="size-4.5" />
-        </span>
+          <span className="absolute -bottom-1 -right-1 flex size-4 items-center justify-center rounded-full border border-border-button-default bg-background-primary-default text-foreground-icon-secondary shadow-xs">
+            <LayoutPanelLeft className="size-2.5" />
+          </span>
+        </button>
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
           <h1 className="truncate text-title-2-medium text-text-primary">{title}</h1>
           <p className="truncate text-caption-2-regular text-text-secondary">{subtitle ?? projectName}</p>
         </div>
         <div className="flex shrink-0 items-center gap-0.5">
-          <Button
-            variant="ghost"
-            size="small"
-            iconOnly
-            leadingIcon={LayoutPanelLeft}
-            aria-label="Abrir menu"
-            title="Abrir menu"
-            onClick={onMenu}
-            className="size-9"
-          />
           <div className="relative">
             <Button
               variant="ghost"

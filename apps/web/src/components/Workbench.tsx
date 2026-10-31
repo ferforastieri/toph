@@ -1028,7 +1028,7 @@ export default function Workbench() {
                       <div className="flex flex-wrap items-center justify-center gap-2">
                         <Button variant="secondary" size="small" onClick={() => setSidebar("files")}>Explorer</Button>
                         <Button variant="secondary" size="small" onClick={() => setSidebar("db")}>Database</Button>
-                        <Button variant="secondary" size="small" onClick={() => setSidebar("bots")}>Bots</Button>
+                        <Button variant="secondary" size="small" onClick={() => setSidebar("bots")}>Tophs</Button>
                       </div>
                     </div>
                   )}

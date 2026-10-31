@@ -1,5 +1,8 @@
+import { useEffect, useMemo, useState } from "react";
 import { Bot, Check, Trash2 } from "@toph/icons";
-import type { BotAvatar as BotAvatarShape, MiniBot } from "../bots";
+import { OpenCode } from "@opencode/client";
+import { openCodeBase, api, type EmailAccount } from "../api";
+import type { BotAvatar as BotAvatarShape, MiniBot, TophMode } from "../bots";
 import { BOT_COLORS, useBots } from "../bots";
 import { useAI } from "../ai";
 import BotAvatar from "./BotAvatar";
@@ -12,7 +15,9 @@ import { useConfirm } from "../ui/confirm";
 
 interface Props {
   projectId: string;
+  projectRoot?: string;
   bot: MiniBot;
+  mode?: TophMode | "unset";
 }
 
 const AVATARS: Array<{ id: BotAvatarShape; label: string }> = [
@@ -30,13 +35,50 @@ const LANGUAGES = [
   { id: "es", label: "Español" },
 ] as const;
 
-export default function BotConfig({ projectId, bot }: Props) {
+export default function BotConfig({ projectId, projectRoot, bot, mode }: Props) {
   const updateBot = useBots((state) => state.updateBot);
   const removeBot = useBots((state) => state.removeBot);
   const models = useAI((state) => state.models);
   const selectedModel = models.find((model) => model.id === bot.model);
   const efforts = selectedModel?.variants ?? [];
   const confirm = useConfirm();
+  const [mcpServers, setMcpServers] = useState<string[]>([]);
+  const [mcpLoading, setMcpLoading] = useState(false);
+  const [emailAccounts, setEmailAccounts] = useState<EmailAccount[]>([]);
+
+  const client = useMemo(() => {
+    const csrf = document.cookie.match(/(?:^|;\s*)toph_csrf=([^;]+)/)?.[1] ?? "";
+    return OpenCode.make({ baseUrl: openCodeBase(), headers: { "X-Toph-CSRF": csrf } });
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    api.emailAccounts()
+      .then((items) => { if (!cancelled) setEmailAccounts(items); })
+      .catch(() => { if (!cancelled) setEmailAccounts([]); });
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    if (!projectRoot) return;
+    let cancelled = false;
+    setMcpLoading(true);
+    client.mcp.list({ location: { directory: projectRoot } } as never)
+      .then((result) => { if (!cancelled) setMcpServers(((result as unknown as { data?: Array<{ name: string }> }).data ?? []).map((server) => server.name)); })
+      .catch(() => { if (!cancelled) setMcpServers([]); })
+      .finally(() => { if (!cancelled) setMcpLoading(false); });
+    return () => { cancelled = true; };
+  }, [client, projectRoot]);
+
+  function toggleMcp(name: string) {
+    const current = bot.mcpServers ?? [];
+    update({ mcpServers: current.includes(name) ? current.filter((item) => item !== name) : [...current, name] });
+  }
+
+  function toggleEmail(id: string) {
+    const current = bot.emailAccountIds ?? [];
+    update({ emailAccountIds: current.includes(id) ? current.filter((item) => item !== id) : [...current, id] });
+  }
 
   function update(patch: Partial<MiniBot>) {
     updateBot(projectId, bot.id, patch);
@@ -113,6 +155,61 @@ export default function BotConfig({ projectId, bot }: Props) {
         </label>
       )}
 
+      <div className="grid grid-cols-2 gap-2">
+        <label className="flex flex-col gap-1">
+          <span className="text-caption-1-medium text-text-secondary">Modo</span>
+          <Select selectedKey={bot.agentMode ?? "build"} onSelectionChange={(key) => update({ agentMode: String(key) as "build" | "plan" })} aria-label="Modo do agente" className="w-full">
+            <SelectItem id="build">Build</SelectItem>
+            <SelectItem id="plan">Plano</SelectItem>
+          </Select>
+        </label>
+        <label className="flex flex-col gap-1">
+          <span className="text-caption-1-medium text-text-secondary">Permissões</span>
+          <Select selectedKey={bot.permissionMode ?? "yolo"} onSelectionChange={(key) => update({ permissionMode: String(key) as "yolo" | "ask" | "deny" })} aria-label="Permissões" className="w-full">
+            <SelectItem id="yolo">YOLO</SelectItem>
+            <SelectItem id="ask">Perguntar</SelectItem>
+            <SelectItem id="deny">Negar</SelectItem>
+          </Select>
+        </label>
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <span className="text-caption-1-medium text-text-secondary">MCPs deste Toph</span>
+        {mcpLoading ? <span className="text-caption-2-regular text-text-tertiary">Carregando MCPs...</span> : null}
+        {!mcpLoading && mcpServers.length === 0 ? <span className="text-caption-2-regular text-text-tertiary">Nenhum MCP conectado. Configure em IA → MCP.</span> : null}
+        {mcpServers.length > 0 ? (
+          <div className="flex flex-wrap gap-1.5">
+            {mcpServers.map((server) => {
+              const selected = (bot.mcpServers ?? []).includes(server);
+              return (
+                <button key={server} type="button" aria-pressed={selected} onClick={() => toggleMcp(server)} className={`flex items-center gap-1 rounded-full border px-2 py-1 text-caption-2-medium transition-colors ${selected ? "border-accent-500/40 bg-accent-500/10 text-accent-600" : "border-border-button-default text-text-secondary hover:bg-background-primary-hover"}`}>
+                  {selected ? <Check size={11} /> : null}{server}
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
+        <span className="text-caption-2-regular text-text-tertiary">Só os MCPs marcados ficam disponíveis para este Toph.</span>
+      </div>
+
+      <div className="flex flex-col gap-1.5">
+        <span className="text-caption-1-medium text-text-secondary">Email deste Toph</span>
+        {emailAccounts.length === 0 ? <span className="text-caption-2-regular text-text-tertiary">Nenhuma conta conectada. Configure em IA → Email.</span> : null}
+        {emailAccounts.length > 0 ? (
+          <div className="flex flex-wrap gap-1.5">
+            {emailAccounts.map((account) => {
+              const selected = (bot.emailAccountIds ?? []).includes(account.id);
+              return (
+                <button key={account.id} type="button" aria-pressed={selected} onClick={() => toggleEmail(account.id)} className={`flex items-center gap-1 rounded-full border px-2 py-1 text-caption-2-medium transition-colors ${selected ? "border-accent-500/40 bg-accent-500/10 text-accent-600" : "border-border-button-default text-text-secondary hover:bg-background-primary-hover"}`}>
+                  {selected ? <Check size={11} /> : null}{account.name}
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
+        <span className="text-caption-2-regular text-text-tertiary">O Toph pode ler, responder, enviar e limpar emails destas contas.</span>
+      </div>
+
       <label className="flex flex-col gap-1">
         <span className="text-caption-1-medium text-text-secondary">Idioma</span>
         <Select
@@ -162,13 +259,15 @@ export default function BotConfig({ projectId, bot }: Props) {
         </div>
       </div>
 
-      <div className="flex items-center justify-between gap-2 rounded-xl border border-border-button-default px-2.5 py-2">
-        <span className="flex flex-col">
-          <span className="text-caption-1-medium text-text-primary">Coordenador</span>
-          <span className="text-caption-2-regular text-text-secondary">Distribui o trabalho e menciona especialistas.</span>
-        </span>
-        <Switch isSelected={bot.coordinator} onChange={(checked) => update({ coordinator: checked })} size="sm" />
-      </div>
+      {mode !== "solo" ? (
+        <div className="flex items-center justify-between gap-2 rounded-xl border border-border-button-default px-2.5 py-2">
+          <span className="flex flex-col">
+            <span className="text-caption-1-medium text-text-primary">Coordenador</span>
+            <span className="text-caption-2-regular text-text-secondary">Distribui o trabalho e menciona especialistas.</span>
+          </span>
+          <Switch isSelected={bot.coordinator} onChange={(checked) => update({ coordinator: checked })} size="sm" />
+        </div>
+      ) : null}
 
       <div className="flex items-center justify-between gap-2 rounded-xl border border-border-button-default px-2.5 py-2">
         <span className="flex flex-col">

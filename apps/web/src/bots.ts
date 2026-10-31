@@ -12,6 +12,10 @@ export interface MiniBot {
   personality: string;
   model: string;
   effort?: string;
+  agentMode?: "build" | "plan";
+  permissionMode?: "yolo" | "ask" | "deny";
+  mcpServers?: string[];
+  emailAccountIds?: string[];
   language: BotLanguage;
   color: string;
   avatar: BotAvatar;
@@ -32,15 +36,25 @@ export interface BotMessage {
   permissionId?: string;
   permissionAction?: string;
   sessionId?: string;
+  channel?: string;
+  audience?: "user" | "coordinator";
   pending?: boolean;
   createdAt: number;
 }
 
-export interface BotWorkspace {
-  version?: number;
+export type TophMode = "solo" | "team";
+
+export interface TophThread {
   bots: MiniBot[];
   messages: BotMessage[];
   activeBotId: string | null;
+}
+
+export interface BotWorkspace extends TophThread {
+  version?: number;
+  mode?: TophMode | "unset";
+  savedSolo?: TophThread;
+  savedTeam?: TophThread;
 }
 
 interface BotStore {
@@ -49,6 +63,9 @@ interface BotStore {
   ensure: (projectId: string) => BotWorkspace;
   snapshot: (projectId: string) => BotWorkspace | null;
   setActiveBot: (projectId: string, botId: string | null) => void;
+  setMode: (projectId: string, mode: TophMode) => void;
+  createSolo: (projectId: string, bot?: Partial<MiniBot>) => void;
+  createTeam: (projectId: string) => void;
   addBot: (projectId: string, bot?: Partial<MiniBot>) => MiniBot;
   updateBot: (projectId: string, botId: string, patch: Partial<MiniBot>) => void;
   removeBot: (projectId: string, botId: string) => void;
@@ -97,8 +114,8 @@ function newId(prefix: string): string {
   return `${prefix}-${value}`;
 }
 
-function sanitizeWorkspace(workspace: BotWorkspace): BotWorkspace {
-  const bots = (workspace.bots ?? [])
+function sanitizeBots(input: MiniBot[] | undefined): MiniBot[] {
+  return (input ?? [])
     .filter((bot) => bot && typeof bot.id === "string" && typeof bot.name === "string")
     .map((bot) => ({
       ...bot,
@@ -108,6 +125,10 @@ function sanitizeWorkspace(workspace: BotWorkspace): BotWorkspace {
       personality: bot.personality ?? "",
       model: bot.model ?? "",
       effort: bot.effort ?? "",
+      agentMode: bot.agentMode === "plan" ? "plan" : "build",
+      permissionMode: ["yolo", "ask", "deny"].includes(bot.permissionMode ?? "") ? bot.permissionMode! : "yolo",
+      mcpServers: Array.isArray(bot.mcpServers) ? bot.mcpServers.filter((item) => typeof item === "string") : [],
+      emailAccountIds: Array.isArray(bot.emailAccountIds) ? bot.emailAccountIds.filter((item) => typeof item === "string") : [],
       language: (["auto", "pt", "en", "es"].includes(bot.language) ? bot.language : "auto") as BotLanguage,
       color: bot.color || BOT_COLORS[0],
       avatar: (["shield", "star", "diamond", "blob", "circle"].includes(bot.avatar) ? bot.avatar : "shield") as BotAvatar,
@@ -115,41 +136,68 @@ function sanitizeWorkspace(workspace: BotWorkspace): BotWorkspace {
       coordinator: bot.coordinator === true,
       createdAt: bot.createdAt ?? Date.now(),
     }));
-  const messages = (workspace.messages ?? [])
+}
+
+function sanitizeMessages(input: BotMessage[] | undefined): BotMessage[] {
+  return (input ?? [])
     .filter((message) => message && typeof message.id === "string")
     .map((message) => ({
       ...message,
       role: (["user", "assistant", "reasoning", "tool", "system", "error"].includes(message.role) ? message.role : "system") as BotMessage["role"],
       content: message.content ?? "",
+      channel: message.channel ?? "team",
+      audience: (message.audience === "coordinator" ? "coordinator" : "user") as BotMessage["audience"],
       pending: false,
       createdAt: message.createdAt ?? Date.now(),
     }))
     .slice(-200);
+}
+
+function sanitizeThread(thread: TophThread | undefined): TophThread {
+  const bots = sanitizeBots(thread?.bots);
+  return {
+    bots,
+    messages: sanitizeMessages(thread?.messages),
+    activeBotId: bots.some((bot) => bot.id === thread?.activeBotId) ? thread!.activeBotId : (bots[0]?.id ?? null),
+  };
+}
+
+function sanitizeWorkspace(workspace: BotWorkspace): BotWorkspace {
   const legacyNames = new Set([
     "Design + Marketing + Produto",
     "Designer de landing pages",
     "Bot de marketing",
     "Revisor de conteúdo",
   ]);
-  const legacyDefaults = workspace.version === undefined
-    && bots.length === 4
-    && bots.every((bot) => legacyNames.has(bot.name));
-  const nextBots = legacyDefaults ? [] : bots;
-  const activeBotId = nextBots.some((bot) => bot.id === workspace.activeBotId)
-    ? workspace.activeBotId
-    : (nextBots[0]?.id ?? null);
-  return { version: 2, bots: nextBots, messages: legacyDefaults ? [] : messages, activeBotId };
+  const active = sanitizeThread(workspace);
+  const legacyDefaults = (workspace.version ?? 0) < 3
+    && active.bots.length === 4
+    && active.bots.every((bot) => legacyNames.has(bot.name));
+  const bots = legacyDefaults ? [] : active.bots;
+  const mode: TophMode | "unset" = workspace.mode === "solo" || workspace.mode === "team"
+    ? workspace.mode
+    : (bots.length > 0 ? "team" : "unset");
+  const savedTeam = workspace.savedTeam ? sanitizeThread(workspace.savedTeam) : (mode === "team" ? { bots, messages: legacyDefaults ? [] : active.messages, activeBotId: active.activeBotId } : undefined);
+  return {
+    version: 3,
+    mode,
+    bots,
+    messages: legacyDefaults ? [] : active.messages,
+    activeBotId: active.activeBotId,
+    savedSolo: workspace.savedSolo ? sanitizeThread(workspace.savedSolo) : undefined,
+    savedTeam,
+  };
 }
 
 function createEmptyWorkspace(): BotWorkspace {
-  return { version: 2, bots: [], messages: [], activeBotId: null };
+  return { version: 3, mode: "unset", bots: [], messages: [], activeBotId: null };
 }
 
 export const useBots = create<BotStore>((set, get) => ({
   byProject: {},
 
   load: (projectId, workspace) => {
-    if (!workspace || !Array.isArray(workspace.bots) || workspace.bots.length === 0) {
+    if (!workspace) {
       const next = createEmptyWorkspace();
       set((state) => ({ byProject: { ...state.byProject, [projectId]: next } }));
       return;
@@ -170,10 +218,13 @@ export const useBots = create<BotStore>((set, get) => ({
     const workspace = get().byProject[projectId];
     if (!workspace) return null;
     return {
-      version: 2,
+      version: 3,
+      mode: workspace.mode ?? "unset",
       bots: workspace.bots,
       activeBotId: workspace.activeBotId,
       messages: workspace.messages.filter((message) => !message.pending).slice(-200),
+      savedSolo: workspace.savedSolo,
+      savedTeam: workspace.savedTeam ? { ...workspace.savedTeam, messages: workspace.savedTeam.messages.filter((message) => !message.pending).slice(-200) } : undefined,
     };
   },
 
@@ -183,6 +234,59 @@ export const useBots = create<BotStore>((set, get) => ({
       if (!workspace) return state;
       return { byProject: { ...state.byProject, [projectId]: { ...workspace, activeBotId } } };
     }),
+
+  setMode: (projectId, mode) =>
+    set((state) => {
+      const workspace = state.byProject[projectId];
+      if (!workspace || workspace.mode === mode) return state;
+      const current: TophThread = { bots: workspace.bots, messages: workspace.messages, activeBotId: workspace.activeBotId };
+      const savedSolo = workspace.mode === "solo" ? current : workspace.savedSolo;
+      const savedTeam = workspace.mode === "team" ? current : workspace.savedTeam;
+      const target = mode === "solo" ? savedSolo : savedTeam;
+      return {
+        byProject: {
+          ...state.byProject,
+          [projectId]: {
+            ...workspace,
+            mode,
+            ...(target ?? { bots: [], messages: [], activeBotId: null }),
+            savedSolo,
+            savedTeam,
+          },
+        },
+      };
+    }),
+
+  createSolo: (projectId, patch = {}) => {
+    const workspace = get().ensure(projectId);
+    if (workspace.mode !== "solo") get().setMode(projectId, "solo");
+    const next = get().byProject[projectId];
+    if (!next || next.bots.length > 0) return;
+    get().addBot(projectId, {
+      name: "Toph",
+      role: "Agente solo",
+      description: "Seu agente pessoal para conversar, programar e executar tarefas.",
+      personality: "Direto, curioso e focado em resolver o problema.",
+      avatar: "shield",
+      coordinator: false,
+      ...patch,
+    });
+  },
+
+  createTeam: (projectId) => {
+    const workspace = get().ensure(projectId);
+    if (workspace.mode !== "team") get().setMode(projectId, "team");
+    const next = get().byProject[projectId];
+    if (!next || next.bots.length > 0) return;
+    get().addBot(projectId, {
+      name: "Atlas",
+      role: "Coordenador",
+      description: "Coordena a equipe e distribui as tarefas.",
+      personality: "Organizado, direto e atento ao contexto do projeto.",
+      avatar: "shield",
+      coordinator: true,
+    });
+  },
 
   addBot: (projectId, patch = {}) => {
     const workspace = get().ensure(projectId);
@@ -196,6 +300,10 @@ export const useBots = create<BotStore>((set, get) => ({
       personality: patch.personality ?? "",
       model: patch.model ?? "",
       effort: patch.effort ?? "",
+      agentMode: patch.agentMode ?? "build",
+      permissionMode: patch.permissionMode ?? "yolo",
+      mcpServers: patch.mcpServers ?? [],
+      emailAccountIds: patch.emailAccountIds ?? [],
       language: patch.language ?? "auto",
       color: patch.color ?? BOT_COLORS[workspace.bots.length % BOT_COLORS.length],
       avatar: patch.avatar ?? "blob",

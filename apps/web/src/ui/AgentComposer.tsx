@@ -113,7 +113,7 @@ export function AgentComposer({ value, onChange, onSend, onStop, busy, models, m
             fieldClassName="flex min-h-[38px] items-start rounded-none bg-transparent p-0 ring-0 shadow-none"
             className="min-h-[38px] px-0 py-0 text-[13.5px] leading-[1.5]"
           />
-          <div className="flex min-w-0 items-center gap-1">
+          <div className="flex min-w-0 flex-wrap items-center gap-1">
             <Dropdown isOpen={addMenuOpen} onOpenChange={setAddMenuOpen}>
               <DropdownTrigger aria-label="Adicionar contexto ou arquivo" className="flex size-7 shrink-0 items-center justify-center rounded-md bg-transparent text-foreground-icon-secondary transition-colors hover:bg-background-secondary-hover">
                 <Plus size={17} />

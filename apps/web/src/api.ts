@@ -172,6 +172,68 @@ export interface WebTarget {
   createdAt: string;
 }
 
+export interface EmailAccount {
+  id: string;
+  name: string;
+  email: string;
+  fromName?: string;
+  imapHost: string;
+  imapPort: number;
+  imapUser: string;
+  imapTls: boolean;
+  imapSecurity?: string;
+  smtpHost: string;
+  smtpPort: number;
+  smtpUser: string;
+  smtpTls: boolean;
+  smtpSecurity?: string;
+  createdAt: string;
+}
+
+export interface EmailAccountInput {
+  name: string;
+  email: string;
+  fromName?: string;
+  imapHost: string;
+  imapPort: number;
+  imapUser: string;
+  imapPassword: string;
+  imapTls: boolean;
+  imapSecurity?: string;
+  smtpHost: string;
+  smtpPort: number;
+  smtpUser: string;
+  smtpPassword: string;
+  smtpTls: boolean;
+  smtpSecurity?: string;
+}
+
+export interface EmailMessageSummary {
+  uid: string;
+  from: string;
+  subject: string;
+  date: string;
+  seen: boolean;
+  snippet: string;
+}
+
+export interface EmailMessage extends EmailMessageSummary {
+  to: string;
+  cc?: string;
+  text: string;
+  html?: string;
+  attachments: string[];
+}
+
+export interface EmailSendInput {
+  to: string;
+  cc?: string;
+  bcc?: string;
+  subject: string;
+  text: string;
+  inReplyTo?: string;
+}
+
 export interface VersionInfo {
   name: string;
   version: string;
@@ -655,6 +717,38 @@ export const api = {
 
   async deleteWebTarget(id: string): Promise<void> {
     await request(`/web-targets/${encodeURIComponent(id)}`, { method: "DELETE" });
+  },
+
+  async emailAccounts(): Promise<EmailAccount[]> {
+    return request<EmailAccount[]>("/email/accounts");
+  },
+
+  async createEmailAccount(input: EmailAccountInput): Promise<EmailAccount> {
+    return request<EmailAccount>("/email/accounts", { method: "POST", ...json(input) });
+  },
+
+  async deleteEmailAccount(id: string): Promise<void> {
+    await request(`/email/accounts/${encodeURIComponent(id)}`, { method: "DELETE" });
+  },
+
+  async testEmailAccount(id: string): Promise<void> {
+    await request(`/email/accounts/${encodeURIComponent(id)}/test`, { method: "POST", ...json({}) });
+  },
+
+  async emailMessages(id: string, limit = 20): Promise<EmailMessageSummary[]> {
+    return request<EmailMessageSummary[]>(`/email/accounts/${encodeURIComponent(id)}/messages?limit=${limit}`);
+  },
+
+  async emailMessage(id: string, uid: string): Promise<EmailMessage> {
+    return request<EmailMessage>(`/email/accounts/${encodeURIComponent(id)}/messages/${encodeURIComponent(uid)}`);
+  },
+
+  async deleteEmailMessage(id: string, uid: string): Promise<void> {
+    await request(`/email/accounts/${encodeURIComponent(id)}/messages/${encodeURIComponent(uid)}/delete`, { method: "POST", ...json({}) });
+  },
+
+  async sendEmail(id: string, input: EmailSendInput): Promise<void> {
+    await request(`/email/accounts/${encodeURIComponent(id)}/send`, { method: "POST", ...json(input) });
   },
   async workspaceRoots(): Promise<{ roots: string[] }> {
     return request<{ roots: string[] }>("/workspaces/roots");

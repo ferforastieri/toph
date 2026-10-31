@@ -11,7 +11,7 @@ const items: Array<{ id: Sidebar; label: string; icon: typeof Files }> = [
   { id: "files", label: "Explorer", icon: Files },
   { id: "scm", label: "Source Control", icon: GitBranch },
   { id: "db", label: "Databases", icon: Database },
-  { id: "bots", label: "Bots", icon: Bot },
+  { id: "bots", label: "Tophs", icon: Bot },
   { id: "web", label: "Web apps", icon: Globe2 },
 ];
 

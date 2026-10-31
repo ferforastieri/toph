@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Bot, Plus, Sparkles } from "@toph/icons";
+import { Bot, Plus, Sparkles, UserRound } from "@toph/icons";
 import type { Project } from "../api";
 import { useAI } from "../ai";
 import { useBots } from "../bots";
@@ -25,6 +25,7 @@ export default function BotsSidebar({ project }: Props) {
 
   const bots = workspace?.bots ?? [];
   const activeId = workspace?.activeBotId ?? null;
+  const solo = workspace?.mode === "solo";
 
   function openBot(botId: string) {
     setActiveBot(project.id, botId);
@@ -33,9 +34,9 @@ export default function BotsSidebar({ project }: Props) {
 
   function createBot() {
     const bot = addBot(project.id, {
-      name: "Novo bot",
+      name: "Novo Toph",
       role: "Especialista",
-      description: "Descreva o papel deste bot.",
+      description: "Descreva o papel deste Toph.",
       personality: "Direto, útil e focado em resultado.",
       model: config?.model || models[0]?.id || "",
     });
@@ -46,7 +47,7 @@ export default function BotsSidebar({ project }: Props) {
     <div className="flex h-full min-h-0 flex-col bg-background-primary-default">
       <div className="flex h-11 shrink-0 items-center gap-2 border-b px-3">
         <Bot size={15} className="text-accent-500" />
-        <strong className="text-body-medium text-text-primary">Bots</strong>
+        <strong className="text-body-medium text-text-primary">Tophs</strong>
         <span className="ms-auto rounded-full bg-background-tertiary-default px-1.5 text-caption-2-regular text-text-tertiary">{bots.length}</span>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto p-2">
@@ -55,10 +56,10 @@ export default function BotsSidebar({ project }: Props) {
           onClick={() => window.dispatchEvent(new CustomEvent("toph:close-mobile-panel"))}
           className="mb-2 flex w-full items-center gap-2 rounded-xl border border-accent-500/25 bg-accent-500/10 px-2.5 py-2 text-start text-caption-1-medium text-text-primary hover:bg-accent-500/15"
         >
-          <Sparkles size={14} className="shrink-0 text-accent-500" />
+          {solo ? <UserRound size={14} className="shrink-0 text-accent-500" /> : <Sparkles size={14} className="shrink-0 text-accent-500" />}
           <span className="min-w-0 flex-1">
-            <span className="block font-medium">Equipe do projeto</span>
-            <span className="block truncate text-caption-2-regular text-text-secondary">Conversar com todos os bots</span>
+            <span className="block font-medium">{solo ? "Toph Solo" : "Equipe do projeto"}</span>
+            <span className="block truncate text-caption-2-regular text-text-secondary">{solo ? "Seu agente pessoal" : "Conversar com todos os Tophs"}</span>
           </span>
         </button>
         <div className="flex flex-col gap-0.5">
@@ -84,11 +85,13 @@ export default function BotsSidebar({ project }: Props) {
           ))}
         </div>
       </div>
-      <div className="shrink-0 border-t p-2">
-        <Button type="button" variant="secondary" size="small" className="w-full justify-start" leadingIcon={Plus} onClick={createBot}>
-          Novo bot
-        </Button>
-      </div>
+      {!solo ? (
+        <div className="shrink-0 border-t p-2">
+          <Button type="button" variant="secondary" size="small" className="w-full justify-start" leadingIcon={Plus} onClick={createBot}>
+            Novo Toph
+          </Button>
+        </div>
+      ) : null}
     </div>
   );
 }

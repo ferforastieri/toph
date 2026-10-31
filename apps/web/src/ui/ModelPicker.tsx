@@ -34,7 +34,7 @@ export default function ModelPicker({ models, model, onModelChange, effort, effo
   const selected = uniqueModels.find((item) => item.id === model);
 
   return (
-    <div className="flex min-w-0 items-center gap-1">
+    <div className="flex min-w-0 shrink-0 items-center gap-1">
       <Dropdown isOpen={modelOpen} onOpenChange={setModelOpen}>
         <DropdownTrigger
           aria-label="Modelo"
