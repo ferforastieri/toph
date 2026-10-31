@@ -1,11 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { GitBranch, Plus } from "@toph/icons";
 import { api } from "../api";
 import { useApp } from "../store";
+import { useConfirm } from "../ui/confirm";
+import BranchPicker from "../components/BranchPicker";
 import { Button } from "@/boardui/base/buttons/button";
 import { Input } from "@/boardui/base/input/input";
 import { Modal } from "@/boardui/base/modal/modal";
-import { Badge } from "@/boardui/base/badges/badge";
 
 interface Props {
   open: boolean;
@@ -16,13 +17,27 @@ interface Props {
 
 export default function MobileBranchSheet({ open, projectId, onClose, onChanged }: Props) {
   const notify = useApp((state) => state.notify);
+  const confirm = useConfirm();
   const [current, setCurrent] = useState("");
   const [branches, setBranches] = useState<string[]>([]);
+  const [filter, setFilter] = useState("");
+  const [loading, setLoading] = useState(true);
   const [name, setName] = useState("");
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
+  const [createOpen, setCreateOpen] = useState(false);
+
+  const visible = useMemo(() => {
+    const sorted = [...branches].sort((a, b) => {
+      if (a === current) return -1;
+      if (b === current) return 1;
+      return a.localeCompare(b);
+    });
+    return sorted.filter((branch) => branch.toLowerCase().includes(filter.trim().toLowerCase()));
+  }, [branches, current, filter]);
 
   async function load() {
+    setLoading(true);
     try {
       const info = await api.gitBranches(projectId);
       setCurrent(info.current);
@@ -30,12 +45,16 @@ export default function MobileBranchSheet({ open, projectId, onClose, onChanged 
       setError("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Não foi possível listar as branches.");
+    } finally {
+      setLoading(false);
     }
   }
 
   useEffect(() => {
     if (!open) return;
     setName("");
+    setFilter("");
+    setCreateOpen(false);
     void load();
   }, [open, projectId]);
 
@@ -55,6 +74,34 @@ export default function MobileBranchSheet({ open, projectId, onClose, onChanged 
     }
   }
 
+  async function deleteOthers() {
+    if (busy) return;
+    const others = branches.filter((branch) => branch !== current);
+    if (others.length === 0) {
+      notify("info", "Só existe a branch atual. Nada para excluir.");
+      return;
+    }
+    const ok = await confirm({
+      title: "Excluir outras branches?",
+      message: `Excluir ${others.length} branch${others.length === 1 ? "" : "es"} e manter somente ${current}? Essa ação não pode ser desfeita.`,
+      confirmLabel: "Excluir branches",
+      danger: true,
+    });
+    if (!ok) return;
+    setBusy("delete");
+    try {
+      const deleted = await api.gitDeleteOtherBranches(projectId);
+      await load();
+      window.dispatchEvent(new Event("toph:git-changed"));
+      onChanged();
+      notify("success", `${deleted} branch${deleted === 1 ? "" : "es"} excluída${deleted === 1 ? "" : "s"}.`);
+    } catch (err) {
+      notify("error", err instanceof Error ? err.message : "Não foi possível excluir as branches.");
+    } finally {
+      setBusy("");
+    }
+  }
+
   async function create() {
     const value = name.trim();
     if (!value || busy) return;
@@ -62,12 +109,12 @@ export default function MobileBranchSheet({ open, projectId, onClose, onChanged 
     try {
       const created = await api.gitCreateBranch(projectId, value);
       setName("");
+      setCreateOpen(false);
       await load();
       window.dispatchEvent(new Event("toph:git-changed"));
       onChanged();
       setBusy("");
       await checkout(created);
-      return;
     } catch (err) {
       notify("error", err instanceof Error ? err.message : "Não foi possível criar a branch.");
     } finally {
@@ -76,43 +123,46 @@ export default function MobileBranchSheet({ open, projectId, onClose, onChanged 
   }
 
   return (
-    <Modal isOpen={open} onClose={onClose} title="Branch" description="Troque ou crie uma branch do projeto." placement="bottom" size="sm" bodyClassName="p-3">
-      <div className="flex flex-col gap-3">
-        <div className="flex items-center gap-2 rounded-2xl border border-border-button-default bg-background-secondary-default p-3">
-          <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-accent-500/15 text-accent-500">
-            <GitBranch className="size-4" />
-          </span>
-          <span className="flex min-w-0 flex-1 flex-col">
-            <span className="text-caption-2-regular text-text-tertiary">Branch atual</span>
-            <span className="truncate text-body-2-medium text-text-primary">{current || "detached"}</span>
-          </span>
-          <Badge color="neutral">{branches.length}</Badge>
-        </div>
+    <>
+      <Modal isOpen={open} onClose={onClose} label="Branch" placement="bottom" size="sm" bodyClassName="p-0" swipeToClose>
+        <BranchPicker
+          current={current}
+          branches={visible}
+          filter={filter}
+          onFilterChange={setFilter}
+          onCheckout={(branch) => void checkout(branch)}
+          onCreate={() => { setName(""); setCreateOpen(true); }}
+          onDeleteOthers={() => void deleteOthers()}
+          onRetry={() => void load()}
+          error={error}
+          loading={loading}
+          busy={busy}
+          count={branches.length}
+          deleteDisabled={branches.length <= 1}
+          listClassName="max-h-[min(46dvh,360px)]"
+        />
+      </Modal>
 
-        <div className="flex max-h-[min(46dvh,360px)] flex-col gap-1 overflow-y-auto">
-          {error && <p className="rounded-xl bg-status-rose-background p-3 text-caption-1-regular text-status-rose-text">{error}</p>}
-          {branches.map((branch) => (
-            <Button
-              key={branch}
-              variant={branch === current ? "secondary" : "ghost"}
-              className="h-auto w-full justify-start gap-2 py-2.5"
-              disabled={Boolean(busy)}
-              onClick={() => void checkout(branch)}
-            >
-              <GitBranch className="size-4 shrink-0" />
-              <span className="min-w-0 flex-1 truncate text-start text-body-2-medium">{branch}</span>
-              {branch === current ? <Badge color="primary">atual</Badge> : null}
-            </Button>
-          ))}
-        </div>
-
-        <div className="flex flex-col gap-2 border-t border-separator-border pt-3">
-          <Input value={name} onChange={setName} placeholder="nova-branch" aria-label="Nome da nova branch" fieldClassName="h-9" />
-          <Button className="w-full justify-center" leadingIcon={Plus} disabled={!name.trim() || Boolean(busy)} onClick={() => void create()}>
+      <Modal
+        isOpen={createOpen}
+        onClose={() => setCreateOpen(false)}
+        title="Nova branch"
+        description="Crie uma branch a partir da branch atual."
+        placement="bottom"
+        size="sm"
+        bodyClassName="p-3"
+        swipeToClose
+      >
+        <div className="flex flex-col gap-3">
+          <Input value={name} onChange={setName} placeholder="nome-da-branch" aria-label="Nome da nova branch" fieldClassName="h-10" />
+          <Button className="h-11 w-full justify-center" leadingIcon={Plus} disabled={!name.trim() || Boolean(busy)} onClick={() => void create()}>
             {busy === "create" ? "Criando..." : "Criar branch"}
           </Button>
+          <Button variant="ghost" className="w-full justify-center" leadingIcon={GitBranch} onClick={() => setCreateOpen(false)}>
+            Cancelar
+          </Button>
         </div>
-      </div>
-    </Modal>
+      </Modal>
+    </>
   );
 }

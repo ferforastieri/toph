@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { FolderPlus } from "@toph/icons";
+import { Bot, Database, FileCode2, Files, FolderPlus, GitBranch, Globe2, TerminalSquare } from "@toph/icons";
 import { api, type Repository, type SchemaTable, type WebTarget } from "../api";
 import { useApp, type AppNotification } from "../store";
 import { useIsMobile } from "../ui/useIsMobile";
@@ -52,6 +52,7 @@ export default function MobileApp() {
 
   const [screen, setScreen] = useState<MobileScreen>("bots");
   const pageTitle = screen === "bots" ? "Bots" : screen === "files" ? "Arquivos" : screen === "scm" ? "Git" : screen === "db" ? "Bancos" : screen === "web" ? "Web apps" : (activeTab?.title ?? "Editor");
+  const pageIcon = screen === "bots" ? Bot : screen === "files" ? Files : screen === "scm" ? GitBranch : screen === "db" ? Database : screen === "web" ? Globe2 : FileCode2;
   const [menuOpen, setMenuOpen] = useState(false);
   const [terminalOpen, setTerminalOpen] = useState(false);
   const [projectsOpen, setProjectsOpen] = useState(false);
@@ -61,6 +62,7 @@ export default function MobileApp() {
   const [accountOpen, setAccountOpen] = useState(false);
   const swipeStart = useRef<{ x: number; y: number } | null>(null);
   const [currentBranch, setCurrentBranch] = useState("");
+  const pageSubtitle = screen === "scm" && currentBranch ? currentBranch : (project?.name ?? "");
 
   useEffect(() => {
     setScreen("bots");
@@ -324,8 +326,10 @@ export default function MobileApp() {
     >
       <MobileTopBar
         title={pageTitle}
+        subtitle={pageSubtitle}
         projectName={project.name}
         unreadCount={unreadCount}
+        icon={pageIcon}
         onMenu={() => setMenuOpen(true)}
         onNotifications={() => setNotificationsOpen(true)}
         onProjects={() => setProjectsOpen(true)}
@@ -352,7 +356,7 @@ export default function MobileApp() {
           <WebAppsScreen onOpenWeb={openWeb} />
         ) : (
           <>
-            <Tabs />
+            {tabs.length > 1 ? <Tabs /> : null}
             <div className="relative flex min-h-0 flex-1 overflow-hidden">
               {!activeTab ? (
                 <div className="flex h-full w-full flex-col items-center justify-center gap-4 p-6 text-center">
@@ -405,8 +409,10 @@ export default function MobileApp() {
         >
           <MobileTopBar
             title="Terminal"
+            subtitle={project.name}
             projectName={project.name}
             unreadCount={unreadCount}
+            icon={TerminalSquare}
             onMenu={() => setMenuOpen(true)}
             onNotifications={() => setNotificationsOpen(true)}
             onProjects={() => setProjectsOpen(true)}
@@ -417,7 +423,7 @@ export default function MobileApp() {
         </div>
       )}
 
-      <Modal isOpen={projectsOpen} onClose={() => setProjectsOpen(false)} label="Projetos" placement="bottom" size="sm" bodyClassName="p-2.5">
+      <Modal isOpen={projectsOpen} onClose={() => setProjectsOpen(false)} label="Projetos" placement="bottom" size="sm" bodyClassName="p-2.5" swipeToClose>
         <ProjectSwitcher
           onSelect={(id) => { setActiveProject(id); setProjectsOpen(false); setScreen("bots"); }}
           onCloseProject={(id) => void closeProject(id)}
