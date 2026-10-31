@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { FolderPlus } from "@toph/icons";
+import { Database, FileCode2, FolderPlus, GitBranch, Globe2, TerminalSquare } from "@toph/icons";
 import { api, type Repository, type SchemaTable, type WebTarget } from "../api";
-import { useApp } from "../store";
+import { useApp, type AppNotification } from "../store";
 import { useIsMobile } from "../ui/useIsMobile";
 import { nativePushToken, requestMobileNotificationPermission } from "../notifications";
 import { basename, quoteIdentifier } from "../lib";
@@ -23,7 +23,12 @@ import TerminalPanel from "../panels/TerminalPanel";
 import Toasts from "../components/Toasts";
 import FilesScreen from "./screens/FilesScreen";
 import ProjectSwitcher from "../components/ProjectSwitcher";
+import ScreenHeader from "./components/ScreenHeader";
 import { useConfirm } from "../ui/confirm";
+import { useBots } from "../bots";
+import MobileBranchSheet from "./MobileBranchSheet";
+import MobileNotificationsSheet from "./MobileNotificationsSheet";
+import MobileAccountSheet from "./MobileAccountSheet";
 
 export default function MobileApp() {
   const projects = useApp((state) => state.projects);
@@ -34,25 +39,57 @@ export default function MobileApp() {
   const activeTabId = useApp((state) => state.activeTabId);
   const openTab = useApp((state) => state.openTab);
   const notify = useApp((state) => state.notify);
+  const user = useApp((state) => state.user);
+  const notifications = useApp((state) => state.notifications);
+  const markNotificationRead = useApp((state) => state.markNotificationRead);
   const closeProjectTab = useApp((state) => state.closeProjectTab);
   const confirm = useConfirm();
 
   const mobile = useIsMobile();
   const project = projects.find((item) => item.id === activeProjectId) ?? null;
   const activeTab = tabs.find((tab) => tab.id === activeTabId) ?? null;
+  const unreadCount = notifications.filter((notification) => !notification.read && notification.projectId === project?.id).length;
 
   const [screen, setScreen] = useState<MobileScreen>("bots");
   const [menuOpen, setMenuOpen] = useState(false);
   const [terminalOpen, setTerminalOpen] = useState(false);
   const [projectsOpen, setProjectsOpen] = useState(false);
   const [repoPickerOpen, setRepoPickerOpen] = useState(false);
+  const [branchOpen, setBranchOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
   const swipeStart = useRef<{ x: number; y: number } | null>(null);
+  const [currentBranch, setCurrentBranch] = useState("");
 
   useEffect(() => {
     setScreen("bots");
     setMenuOpen(false);
     setTerminalOpen(false);
   }, [activeProjectId]);
+
+  function refreshBranch() {
+    if (!project) {
+      setCurrentBranch("");
+      return;
+    }
+    api.gitBranches(project.id)
+      .then((info) => setCurrentBranch(info.current))
+      .catch(() => setCurrentBranch(""));
+  }
+
+  useEffect(() => {
+    refreshBranch();
+  }, [project?.id]);
+
+  function openNotification(notification: AppNotification) {
+    if (notification.projectId) {
+      setActiveProject(notification.projectId);
+      if (notification.botId) useBots.getState().setActiveBot(notification.projectId, notification.botId);
+    }
+    markNotificationRead(notification.id);
+    setScreen("bots");
+    setNotificationsOpen(false);
+  }
 
   useEffect(() => {
     if (!mobile) return;
@@ -247,7 +284,7 @@ export default function MobileApp() {
             Abrir repositório
           </Button>
         </section>
-        {repoPickerOpen && <RepoPicker onClose={() => setRepoPickerOpen(false)} onOpen={openRepo} />}
+      {repoPickerOpen && <RepoPicker onClose={() => setRepoPickerOpen(false)} onOpen={openRepo} />}
         <Toasts />
       </main>
     );
@@ -292,19 +329,29 @@ export default function MobileApp() {
             <FilesScreen project={project} onOpenFile={openFile} />
           </div>
         ) : screen === "scm" ? (
-          <div className="min-h-0 flex-1 overflow-hidden">
-            <SourceControlPanel project={project} view="scm" embedded onOpenDiff={openDiff} />
+          <div className="flex min-h-0 flex-1 flex-col">
+            <ScreenHeader title="Git" subtitle={currentBranch || project.name} icon={GitBranch} />
+            <div className="min-h-0 flex-1 overflow-hidden">
+              <SourceControlPanel project={project} view="scm" embedded onOpenDiff={openDiff} />
+            </div>
           </div>
         ) : screen === "db" ? (
-          <div className="min-h-0 flex-1 overflow-hidden">
-            <DatabasesPanel project={project} embedded onOpenQuery={openQuery} onOpenTable={openTable} />
+          <div className="flex min-h-0 flex-1 flex-col">
+            <ScreenHeader title="Bancos" subtitle={project.name} icon={Database} />
+            <div className="min-h-0 flex-1 overflow-hidden">
+              <DatabasesPanel project={project} embedded onOpenQuery={openQuery} onOpenTable={openTable} />
+            </div>
           </div>
         ) : screen === "web" ? (
-          <div className="min-h-0 flex-1 overflow-hidden">
-            <WebSidebar onOpenWeb={openWeb} embedded />
+          <div className="flex min-h-0 flex-1 flex-col">
+            <ScreenHeader title="Web apps" subtitle={project.name} icon={Globe2} />
+            <div className="min-h-0 flex-1 overflow-hidden">
+              <WebSidebar onOpenWeb={openWeb} embedded />
+            </div>
           </div>
         ) : (
           <>
+            <ScreenHeader title={activeTab?.title ?? "Editor"} subtitle={project.name} icon={FileCode2} />
             <Tabs />
             <div className="relative flex min-h-0 flex-1 overflow-hidden">
               {!activeTab ? (
@@ -332,8 +379,15 @@ export default function MobileApp() {
         <MobileMenu
           screen={screen}
           hasWorkspace={Boolean(activeTab)}
+          user={user}
+          projectName={project.name}
+          branch={currentBranch}
+          unreadCount={unreadCount}
           onSelect={selectScreen}
           onProjects={() => { setMenuOpen(false); setProjectsOpen(true); }}
+          onBranch={() => { setMenuOpen(false); setBranchOpen(true); }}
+          onNotifications={() => { setMenuOpen(false); setNotificationsOpen(true); }}
+          onAccount={() => { setMenuOpen(false); setAccountOpen(true); }}
           onTerminal={() => { setMenuOpen(false); setTerminalOpen(true); }}
           onClose={() => setMenuOpen(false)}
         />
@@ -349,7 +403,8 @@ export default function MobileApp() {
             paddingRight: "var(--safe-right)",
           }}
         >
-          <Button variant="ghost" className="m-2 w-[calc(100%-1rem)] shrink-0 justify-start" onClick={() => setTerminalOpen(false)}>
+          <ScreenHeader title="Terminal" subtitle={project.name} icon={TerminalSquare} />
+          <Button variant="ghost" className="mx-2 mt-2 shrink-0 justify-start" onClick={() => setTerminalOpen(false)}>
             Fechar terminal
           </Button>
           <div className="min-h-0 flex-1">
@@ -366,6 +421,20 @@ export default function MobileApp() {
         />
       </Modal>
 
+      <MobileBranchSheet
+        open={branchOpen}
+        projectId={project.id}
+        onClose={() => setBranchOpen(false)}
+        onChanged={refreshBranch}
+      />
+      <MobileNotificationsSheet
+        open={notificationsOpen}
+        projectId={project.id}
+        projectName={project.name}
+        onClose={() => setNotificationsOpen(false)}
+        onOpenNotification={openNotification}
+      />
+      <MobileAccountSheet open={accountOpen} user={user} onClose={() => setAccountOpen(false)} />
       {repoPickerOpen && <RepoPicker onClose={() => setRepoPickerOpen(false)} onOpen={openRepo} />}
       <Toasts />
     </div>

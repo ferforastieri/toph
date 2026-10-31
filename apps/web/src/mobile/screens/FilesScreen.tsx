@@ -1,6 +1,8 @@
+import { Files } from "@toph/icons";
 import type { Project } from "../../api";
 import ProjectSearch from "../../components/ProjectSearch";
 import FileTree from "../../panels/FileTree";
+import ScreenHeader from "../components/ScreenHeader";
 
 interface Props {
   project: Project;
@@ -11,6 +13,7 @@ interface Props {
 export default function FilesScreen({ project, onOpenFile }: Props) {
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-background-primary-default">
+      <ScreenHeader title="Arquivos" subtitle={project.name} icon={Files} />
       <div className="relative z-20 shrink-0 border-b border-separator-border bg-background-primary-default p-3">
         <ProjectSearch project={project} onOpenFile={onOpenFile} />
       </div>
