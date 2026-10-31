@@ -765,7 +765,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
         {activeBot && <BotConfig projectId={project.id} bot={activeBot} />}
       </aside>
 
-      <Modal isOpen={configOpen} onClose={() => setConfigOpen(false)} title={activeBot.name} description="Configure o bot da equipe." placement="bottom" size="lg" bodyClassName="p-0">
+      <Modal isOpen={configOpen} onClose={() => setConfigOpen(false)} title={activeBot.name} description="Configure o bot da equipe." placement="bottom" size="lg" bodyClassName="p-0" swipeToClose={mobile}>
         {activeBot && <BotConfig projectId={project.id} bot={activeBot} />}
       </Modal>
 

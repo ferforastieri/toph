@@ -123,7 +123,7 @@ export default function EditorPanel({ tab, project, onOpenChanges, mobile = fals
           {stale ? <Badge color="neutral" className="text-[10px] text-status-yellow-text">changed on disk</Badge> : null}
         </div>
       ) : null}
-      <div className="min-h-0 flex-1 overflow-hidden">
+      <div className="min-h-0 flex-1 overflow-hidden [&_.iPadShowKeyboard]:hidden">
         <CodeEditor path={tab.path ?? tab.title} projectId={project.id} projectRoot={project.root} onOpenChanges={onOpenChanges} value={tab.content} language={languageFor(tab.path ?? tab.title)} line={tab.line} blame={blame} onChange={(content) => updateTab(tab.id, { content, dirty: true })} onCursorPosition={(line, column) => { window.dispatchEvent(new CustomEvent("toph:cursor", { detail: { line, column, language: languageFor(tab.path ?? tab.title) } })); }} onSave={() => void save()} />
       </div>
     </div>

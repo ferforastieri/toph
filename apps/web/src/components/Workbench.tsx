@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { Bot, ChevronRight, CircleAlert, FolderPlus, GitBranch, Plus, Trash2 } from "@toph/icons";
-import { SearchField } from "@/boardui/base/search-field/search-field";
+import { Bot, ChevronRight, FolderPlus, GitBranch } from "@toph/icons";
 import { api, getApiBase, type Repository, type SchemaTable, type WebTarget } from "../api";
 import { basename, expandGitPattern, languageFor, quoteIdentifier, sanitizeBranchName } from "../lib";
 import { useApp, type AppNotification, type Sidebar, type Tab } from "../store";
@@ -22,9 +21,9 @@ import BotStudioTab from "../panels/BotStudioTab";
 import BotsSidebar from "./BotsSidebar";
 import NotificationBell from "./NotificationBell";
 import HeaderAccordion from "./HeaderAccordion";
+import BranchPicker from "./BranchPicker";
 import ProjectSwitcher from "./ProjectSwitcher";
 import { IconButton } from "@/boardui/base/buttons/icon-button";
-import { Accordion, AccordionItem } from "@/boardui/base/accordion/accordion";
 import WebPanelTab from "../panels/WebPanelTab";
 import DiffPanelTab from "../panels/DiffPanelTab";
 import TerminalPanel from "../panels/TerminalPanel";
@@ -34,7 +33,6 @@ import { Button } from "@/boardui/base/buttons/button";
 import { Input } from "@/boardui/base/input/input";
 import { Avatar } from "@/boardui/base/avatar/avatar";
 import { Checkbox } from "@/boardui/base/checkbox/checkbox";
-import { RadioDot } from "@/boardui/base/radio/radio";
 import { Radio, RadioGroup } from "@/boardui/base/radio/radio";
 import { Kbd } from "@/boardui/base/kbd/kbd";
 import { Modal } from "@/boardui/base/modal/modal";
@@ -45,7 +43,6 @@ import { useConfirm } from "../ui/confirm";
 import { cx } from "@/boardui/utils/cx";
 import { suggestGitChanges } from "../gitAi";
 import { parseGitStatus } from "../gitStatus";
-import LoadingState from "./LoadingState";
 
 export default function Workbench() {
   const projects = useApp((state) => state.projects);
@@ -83,7 +80,6 @@ export default function Workbench() {
   const [gitStatus, setGitStatus] = useState("");
   const [branchMenuOpen, setBranchMenuOpen] = useState(false);
   const [branchCreateOpen, setBranchCreateOpen] = useState(false);
-  const [branchListOpen, setBranchListOpen] = useState(true);
   const [quickOpenToken, setQuickOpenToken] = useState(0);
   const [layoutOpen, setLayoutOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
@@ -566,7 +562,6 @@ export default function Workbench() {
   function openBranchMenu() {
     if (!project) return;
     setBranchMenuOpen(true);
-    setBranchListOpen(true);
     setNewBranchName("");
     setBranchFilter("");
     void loadBranches();
@@ -915,90 +910,21 @@ export default function Workbench() {
   ) : null;
   function branchPickerBody() {
     return (
-      <div className="flex min-h-0 flex-col gap-2 p-3">
-        <div className="flex min-w-0 items-center gap-2.5 px-1">
-          <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-accent-500/15 text-accent-500">
-            <GitBranch size={15} />
-          </span>
-          <div className="min-w-0 flex-1">
-            <p className="text-caption-2-regular text-text-tertiary">Branch atual</p>
-            <p className="truncate text-caption-1-semibold text-text-primary">{branchInfo?.current || branch || "detached"}</p>
-          </div>
-        </div>
-        <Accordion
-          variant="divided"
-          expandedKeys={branchListOpen ? ["branches"] : []}
-          onExpandedChange={(keys) => setBranchListOpen(Array.from(keys).includes("branches"))}
-          className="px-1"
-        >
-          <AccordionItem
-            id="branches"
-            icon={GitBranch}
-            title={<span className="text-caption-2-semibold uppercase tracking-[0.14em] text-text-tertiary">Branches</span>}
-            triggerClassName="py-1"
-            contentClassName="p-0"
-            actions={
-              <div className="flex items-center gap-1">
-                <span className="text-caption-1-regular text-text-tertiary">{branchInfo ? branchInfo.branches.length : "..."}</span>
-                <Button
-                  variant="ghost"
-                  size="xs"
-                  iconOnly
-                  leadingIcon={Trash2}
-                  aria-label="Excluir todas as branches, exceto a atual"
-                  title="Excluir todas as branches, exceto a atual"
-                  disabled={!branchInfo || branchInfo.branches.length <= 1 || Boolean(branchBusy)}
-                  onClick={() => void deleteOtherBranches()}
-                />
-                <Button
-                  variant="ghost"
-                  size="xs"
-                  iconOnly
-                  leadingIcon={Plus}
-                  aria-label="Criar nova branch"
-                  title="Criar nova branch"
-                  disabled={Boolean(branchBusy)}
-                  onClick={() => { setNewBranchName(""); setBranchCreateOpen(true); }}
-                />
-              </div>
-            }
-          >
-            <div className="flex flex-col gap-2">
-              <SearchField value={branchFilter} onChange={setBranchFilter} placeholder="Filtrar branches" aria-label="Filtrar branches" shape="rounded" size="small" fieldClassName="h-8" />
-              <div className="no-scrollbar flex max-h-[min(280px,calc(100dvh-360px))] flex-col gap-1 overflow-y-auto overflow-x-hidden">
-                {branchError ? (
-                  <div className="flex flex-col items-center gap-2 px-2 py-4 text-center">
-                    <CircleAlert size={20} className="text-rose-500" />
-                    <p className="text-caption-1-regular text-text-secondary">{branchError}</p>
-                    <Button variant="secondary" size="small" onClick={() => void loadBranches()}>Tentar novamente</Button>
-                  </div>
-                ) : branchInfo ? visibleBranches.map((name) => {
-                  const current = name === branchInfo.current;
-                  return (
-                    <button
-                      key={name}
-                      type="button"
-                      disabled={Boolean(branchBusy)}
-                      onClick={() => void checkoutBranch(name)}
-                      className={cx(
-                        "flex min-h-9 w-full shrink-0 items-center justify-between gap-2.5 overflow-hidden rounded-lg p-2 text-start transition-colors disabled:cursor-not-allowed disabled:opacity-60",
-                        current ? "bg-dropdown-item-hover-background" : "hover:bg-dropdown-item-hover-background",
-                      )}
-                    >
-                      <span className="flex min-w-0 flex-1 items-center gap-2">
-                        <GitBranch size={14} className="shrink-0 text-foreground-icon-secondary" />
-                        <span className="truncate text-body-medium text-text-primary">{name}</span>
-                      </span>
-                      {current ? <RadioDot selected size="sm" /> : null}
-                    </button>
-                  );
-                }) : <LoadingState label="Carregando branches..." className="px-2 py-3" />}
-                {!branchError && branchInfo && visibleBranches.length === 0 && <p className="px-2 py-4 text-center text-caption-1-regular text-text-secondary">Nenhuma branch encontrada.</p>}
-              </div>
-            </div>
-          </AccordionItem>
-        </Accordion>
-      </div>
+      <BranchPicker
+        current={branchInfo?.current || branch || "detached"}
+        branches={visibleBranches}
+        filter={branchFilter}
+        onFilterChange={setBranchFilter}
+        onCheckout={(name) => void checkoutBranch(name)}
+        onCreate={() => { setNewBranchName(""); setBranchCreateOpen(true); }}
+        onDeleteOthers={() => void deleteOtherBranches()}
+        onRetry={() => void loadBranches()}
+        error={branchError}
+        loading={!branchInfo && !branchError}
+        busy={branchBusy}
+        count={branchInfo?.branches.length}
+        deleteDisabled={!branchInfo || branchInfo.branches.length <= 1}
+      />
     );
   }
   const headerBranch = statusVisible ? (

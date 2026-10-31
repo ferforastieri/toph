@@ -178,7 +178,7 @@ export default function DatabasesScreen({ project, onOpenQuery, onOpenTable }: P
         })}
       </div>
 
-      <Modal isOpen={formOpen} onClose={() => setFormOpen(false)} title="Nova conexão" description="Adicione um banco ao workspace." placement="bottom" size="sm" bodyClassName="p-3">
+      <Modal isOpen={formOpen} onClose={() => setFormOpen(false)} title="Nova conexão" description="Adicione um banco ao workspace." placement="bottom" size="sm" bodyClassName="p-3" swipeToClose>
         <ConnectionForm
           projectRoot={project.root}
           onCreated={() => { setFormOpen(false); void load(true); }}

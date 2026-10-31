@@ -42,7 +42,7 @@ export default function MobileNotificationsSheet({ open, projectId, projectName,
   }, [markProjectNotificationsRead, open, projectId]);
 
   return (
-    <Modal isOpen={open} onClose={onClose} title="Notificações" description={projectName} placement="bottom" size="sm" bodyClassName="p-2">
+    <Modal isOpen={open} onClose={onClose} title="Notificações" description={projectName} placement="bottom" size="sm" bodyClassName="p-2" swipeToClose>
       <div className="mb-2 flex items-center justify-between rounded-2xl border border-border-button-default bg-background-secondary-default px-3 py-2">
         <span className="flex items-center gap-2 text-body-2-medium text-text-primary">
           <Bell className="size-4 text-accent-500" /> Notificações do projeto

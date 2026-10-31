@@ -22,6 +22,8 @@ export interface ModalProps {
   placement?: "center" | "bottom";
   /** Accessible name when no visible title is supplied. */
   label?: string;
+  /** Bottom sheets: show a grabber and allow closing with a downward swipe. */
+  swipeToClose?: boolean;
 }
 
 const sizes: Record<ModalSize, string> = {
@@ -44,11 +46,40 @@ export function Modal({
   bodyClassName,
   placement = "center",
   label,
+  swipeToClose = false,
 }: ModalProps) {
   const [mounted, setMounted] = useState(false);
   const [visible, setVisible] = useState(false);
+  const [dragY, setDragY] = useState(0);
   const panelRef = useRef<HTMLDivElement>(null);
   const timer = useRef<number | null>(null);
+  const dragStart = useRef<number | null>(null);
+  const dragDistance = useRef(0);
+  const dragging = useRef(false);
+
+  function onSheetTouchStart(event: React.TouchEvent<HTMLDivElement>) {
+    if (!swipeToClose || placement !== "bottom" || !(event.target as HTMLElement).closest("[data-sheet-drag]")) return;
+    dragStart.current = event.touches[0]?.clientY ?? null;
+    dragDistance.current = 0;
+    dragging.current = true;
+  }
+
+  function onSheetTouchMove(event: React.TouchEvent<HTMLDivElement>) {
+    if (dragStart.current == null) return;
+    const distance = Math.max(0, (event.touches[0]?.clientY ?? dragStart.current) - dragStart.current);
+    dragDistance.current = distance;
+    setDragY(distance);
+  }
+
+  function onSheetTouchEnd() {
+    if (dragStart.current == null) return;
+    const shouldClose = dragDistance.current > 110;
+    dragStart.current = null;
+    dragging.current = false;
+    dragDistance.current = 0;
+    setDragY(0);
+    if (shouldClose) onClose();
+  }
 
   useEffect(() => {
     if (isOpen) {
@@ -106,6 +137,11 @@ export function Modal({
         aria-modal="true"
         aria-label={label ?? (typeof title === "string" ? title : undefined)}
         tabIndex={-1}
+        style={swipeToClose && dragY > 0 ? { transform: `translateY(${dragY}px)`, transition: dragging.current ? "none" : undefined } : undefined}
+        onTouchStart={onSheetTouchStart}
+        onTouchMove={onSheetTouchMove}
+        onTouchEnd={onSheetTouchEnd}
+        onTouchCancel={onSheetTouchEnd}
         className={cx(
           "relative flex w-full flex-col overflow-clip outline-none",
           "bg-background-primary-default shadow-xs",
@@ -117,8 +153,13 @@ export function Modal({
           className,
         )}
       >
+        {swipeToClose && placement === "bottom" ? (
+          <div data-sheet-drag className="flex shrink-0 touch-none justify-center pb-1 pt-2.5">
+            <span className="h-1.5 w-10 rounded-full bg-border-button-default" />
+          </div>
+        ) : null}
         {(title || description) && (
-          <header className="flex shrink-0 items-start justify-between gap-4 border-b border-border-button-default px-5 py-4">
+          <header data-sheet-drag={swipeToClose ? true : undefined} className="flex shrink-0 touch-none items-start justify-between gap-4 border-b border-border-button-default px-5 py-4">
             <div className="flex min-w-0 flex-col gap-1">
               {title ? <h2 className="text-title-3-medium text-text-primary">{title}</h2> : null}
               {description ? <p className="text-body-regular text-text-secondary">{description}</p> : null}
