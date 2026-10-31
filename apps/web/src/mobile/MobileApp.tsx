@@ -331,22 +331,28 @@ export default function MobileApp() {
         ) : screen === "scm" ? (
           <div className="flex min-h-0 flex-1 flex-col">
             <ScreenHeader title="Git" subtitle={currentBranch || project.name} icon={GitBranch} />
-            <div className="min-h-0 flex-1 overflow-hidden">
-              <SourceControlPanel project={project} view="scm" embedded onOpenDiff={openDiff} />
+            <div className="flex min-h-0 flex-1 flex-col p-3">
+              <div className="min-h-0 flex-1 overflow-hidden rounded-3xl border border-border-button-white bg-background-primary-default shadow-xs">
+                <SourceControlPanel project={project} view="scm" embedded onOpenDiff={openDiff} />
+              </div>
             </div>
           </div>
         ) : screen === "db" ? (
           <div className="flex min-h-0 flex-1 flex-col">
             <ScreenHeader title="Bancos" subtitle={project.name} icon={Database} />
-            <div className="min-h-0 flex-1 overflow-hidden">
-              <DatabasesPanel project={project} embedded onOpenQuery={openQuery} onOpenTable={openTable} />
+            <div className="flex min-h-0 flex-1 flex-col p-3">
+              <div className="min-h-0 flex-1 overflow-hidden rounded-3xl border border-border-button-white bg-background-primary-default shadow-xs">
+                <DatabasesPanel project={project} embedded onOpenQuery={openQuery} onOpenTable={openTable} />
+              </div>
             </div>
           </div>
         ) : screen === "web" ? (
           <div className="flex min-h-0 flex-1 flex-col">
             <ScreenHeader title="Web apps" subtitle={project.name} icon={Globe2} />
-            <div className="min-h-0 flex-1 overflow-hidden">
-              <WebSidebar onOpenWeb={openWeb} embedded />
+            <div className="flex min-h-0 flex-1 flex-col p-3">
+              <div className="min-h-0 flex-1 overflow-hidden rounded-3xl border border-border-button-white bg-background-primary-default shadow-xs">
+                <WebSidebar onOpenWeb={openWeb} embedded />
+              </div>
             </div>
           </div>
         ) : (
