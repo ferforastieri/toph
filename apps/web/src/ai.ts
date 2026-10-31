@@ -43,7 +43,13 @@ export const useAI = create<AIState>((set) => ({
   async loadModels() {
     set({ loadingModels: true });
     try {
-      set({ models: (await api.aiModels()).models, loadingModels: false });
+      const seen = new Set<string>();
+      const models = (await api.aiModels()).models.filter((model) => {
+        if (!model.id || seen.has(model.id)) return false;
+        seen.add(model.id);
+        return true;
+      });
+      set({ models, loadingModels: false });
     } catch {
       set({ models: [], loadingModels: false });
     }

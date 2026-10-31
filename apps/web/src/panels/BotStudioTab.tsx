@@ -18,6 +18,7 @@ import { Textarea } from "@/boardui/base/textarea/textarea";
 
 interface Props {
   project: Project;
+  mobile?: boolean;
 }
 
 function splitModel(model: string): { providerID: string; id: string } | null {
@@ -144,7 +145,7 @@ function toAiMessage(message: BotMessage): AiMessage {
   };
 }
 
-export default function BotStudioTab({ project }: Props) {
+export default function BotStudioTab({ project, mobile = false }: Props) {
   const workspace = useBots((state) => state.byProject[project.id]);
   const ensure = useBots((state) => state.ensure);
   const addBot = useBots((state) => state.addBot);
@@ -596,6 +597,19 @@ export default function BotStudioTab({ project }: Props) {
   return (
     <div className="flex h-full min-h-0 w-full flex-1 gap-1" onPointerDown={unlockBotSound}>
       <section className="flex min-w-0 flex-1 flex-col overflow-hidden bg-background-primary-default max-[900px]:rounded-none max-[900px]:border-0 max-[900px]:shadow-none min-[901px]:rounded-3xl min-[901px]:border min-[901px]:border-border-button-white min-[901px]:shadow-sidebar">
+        {mobile ? (
+          <div className="grid shrink-0 grid-cols-3 gap-2 border-b border-separator-border bg-background-secondary-default p-2">
+            <Button variant="secondary" size="small" leadingIcon={Settings2} onClick={() => setConfigOpen(true)} className="h-14 w-full flex-col justify-center gap-1 rounded-2xl px-1">
+              <span className="text-caption-2-medium">Configurar</span>
+            </Button>
+            <Button variant="secondary" size="small" leadingIcon={SlidersHorizontal} onClick={() => setSettingsOpen(true)} className="h-14 w-full flex-col justify-center gap-1 rounded-2xl px-1">
+              <span className="text-caption-2-medium">IA</span>
+            </Button>
+            <Button variant="secondary" size="small" leadingIcon={MessageSquarePlus} onClick={newBot} className="h-14 w-full flex-col justify-center gap-1 rounded-2xl px-1">
+              <span className="text-caption-2-medium">Novo bot</span>
+            </Button>
+          </div>
+        ) : (
         <header className="flex shrink-0 flex-col items-stretch gap-2 border-b p-3 min-[901px]:h-11 min-[901px]:flex-row min-[901px]:items-center min-[901px]:gap-2 min-[901px]:px-3 min-[901px]:py-0">
           <div className="flex min-w-0 flex-1 items-center gap-2">
             <Bot size={15} className="text-accent-500" />
@@ -615,6 +629,7 @@ export default function BotStudioTab({ project }: Props) {
             <Button variant="ghost" size="xs" iconOnly leadingIcon={MessageSquarePlus} aria-label="Novo bot" title="Novo bot" onClick={newBot} />
           </div>
         </header>
+        )}
 
         <div
           ref={scrollRef}
