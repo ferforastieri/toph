@@ -51,7 +51,7 @@ export default function MobileApp() {
   const unreadCount = notifications.filter((notification) => !notification.read && notification.projectId === project?.id).length;
 
   const [screen, setScreen] = useState<MobileScreen>("bots");
-  const pageTitle = screen === "bots" ? "Bots" : screen === "files" ? "Arquivos" : screen === "scm" ? "Git" : screen === "db" ? "Bancos" : screen === "web" ? "Web apps" : (activeTab?.title ?? "Editor");
+  const pageTitle = screen === "bots" ? "Tophs" : screen === "files" ? "Arquivos" : screen === "scm" ? "Git" : screen === "db" ? "Bancos" : screen === "web" ? "Web apps" : (activeTab?.title ?? "Editor");
   const pageIcon = screen === "bots" ? Bot : screen === "files" ? Files : screen === "scm" ? GitBranch : screen === "db" ? Database : screen === "web" ? Globe2 : FileCode2;
   const [menuOpen, setMenuOpen] = useState(false);
   const [terminalOpen, setTerminalOpen] = useState(false);

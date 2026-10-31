@@ -3,10 +3,11 @@ import { useAI } from "../ai";
 import AiSettings from "../panels/AiSettings";
 import AiConnectionsPanel from "./AiConnectionsPanel";
 import McpPanel from "./McpPanel";
+import EmailPanel from "./EmailPanel";
 import { Button } from "@/boardui/base/buttons/button";
 import { Modal } from "@/boardui/base/modal/modal";
 
-export type AiSettingsTab = "general" | "connections" | "mcp";
+export type AiSettingsTab = "general" | "connections" | "mcp" | "email";
 
 interface Props {
   open: boolean;
@@ -37,7 +38,7 @@ export default function AiSettingsModal({
       isOpen={open}
       onClose={onClose}
       title="Configurações de IA"
-      description="Provider, modelo, autocomplete, contas e ferramentas MCP."
+      description="Provider, modelo, contas, MCP e email."
       size="lg"
       bodyClassName="p-0"
       footer={<Button variant="secondary" onClick={onClose}>Fechar</Button>}
@@ -72,6 +73,15 @@ export default function AiSettingsModal({
             >
               MCP
             </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === "email"}
+              className={`-mb-px cursor-pointer border-b-2 px-2 py-3 text-body-2-medium transition-colors ${activeTab === "email" ? "border-accent-500 text-text-primary" : "border-transparent text-text-secondary hover:text-text-primary"}`}
+              onClick={() => setTab("email")}
+            >
+              Email
+            </button>
           </div>
         )}
         <div className="min-h-0 p-5">
@@ -82,8 +92,10 @@ export default function AiSettingsModal({
               projectRoot={projectRoot}
               onConnectionsChanged={() => void loadModels()}
             />
-          ) : (
+          ) : activeTab === "mcp" ? (
             <McpPanel projectRoot={projectRoot} />
+          ) : (
+            <EmailPanel />
           )}
         </div>
       </div>

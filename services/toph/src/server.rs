@@ -30,6 +30,7 @@ use crate::auth::AuthManager;
 use crate::config::Config;
 use crate::crypto::new_id;
 use crate::database::{DatabaseService, ProfileInput, RowChange};
+use crate::email::{AccountInput, EmailService, PublicAccount, SendInput, DEFAULT_LIST_LIMIT};
 use crate::errors::{AppError, AppResult};
 use crate::events::{EventHub, ProjectWatcher};
 use crate::model::{DbProfile, PetConfig, Project, Session, User, WebTarget};
@@ -52,6 +53,7 @@ pub struct AppState {
     pub workspace: WorkspaceService,
     pub terminals: Arc<TerminalManager>,
     pub database: DatabaseService,
+    pub email: EmailService,
     pub ai: AiService,
     pub opencode: OpenCodeProxy,
     pub push: PushService,
@@ -162,6 +164,7 @@ impl AppState {
         let workspace = WorkspaceService::new(roots)?;
         let terminals = Arc::new(TerminalManager::new(None));
         let database = DatabaseService::new(store.clone(), &config.master_key_file)?;
+        let email = EmailService::new(store.clone(), &config.data_dir, &config.master_key_file)?;
         let ai = AiService::new(
             store.clone(),
             &config.master_key_file,
@@ -191,6 +194,7 @@ impl AppState {
             workspace,
             terminals,
             database,
+            email,
             ai,
             opencode,
             push,
@@ -462,6 +466,31 @@ fn router(state: Arc<AppState>) -> Router {
         .route("/api/ai/test", post(test_ai))
         .route("/api/ai/chat", post(chat_ai))
         .route("/api/ai/complete", post(complete_ai))
+        .route(
+            "/api/email/accounts",
+            get(list_email_accounts).post(create_email_account),
+        )
+        .route(
+            "/api/email/accounts/{account_id}",
+            delete(delete_email_account),
+        )
+        .route(
+            "/api/email/accounts/{account_id}/test",
+            post(test_email_account),
+        )
+        .route(
+            "/api/email/accounts/{account_id}/messages",
+            get(list_email_messages),
+        )
+        .route(
+            "/api/email/accounts/{account_id}/messages/{uid}",
+            get(get_email_message),
+        )
+        .route(
+            "/api/email/accounts/{account_id}/messages/{uid}/delete",
+            post(delete_email_message),
+        )
+        .route("/api/email/accounts/{account_id}/send", post(send_email))
         .route(
             "/api/db/profiles",
             get(list_db_profiles).post(create_db_profile),
@@ -1686,6 +1715,69 @@ async fn complete_ai(
 
 async fn ai_models(State(state): State<Arc<AppState>>) -> AppResult<Json<Value>> {
     Ok(Json(json!({ "models": state.ai.models().await? })))
+}
+
+async fn list_email_accounts(
+    State(state): State<Arc<AppState>>,
+) -> AppResult<Json<Vec<PublicAccount>>> {
+    Ok(Json(state.email.list().await?))
+}
+
+async fn create_email_account(
+    State(state): State<Arc<AppState>>,
+    Json(input): Json<AccountInput>,
+) -> AppResult<Response> {
+    let account = state.email.create(input).await?;
+    Ok((StatusCode::CREATED, Json(account)).into_response())
+}
+
+async fn delete_email_account(
+    State(state): State<Arc<AppState>>,
+    Path(account_id): Path<String>,
+) -> AppResult<Json<Value>> {
+    state.email.delete(&account_id).await?;
+    Ok(Json(json!({ "ok": true })))
+}
+
+async fn test_email_account(
+    State(state): State<Arc<AppState>>,
+    Path(account_id): Path<String>,
+) -> AppResult<Json<Value>> {
+    Ok(Json(state.email.test(&account_id).await?))
+}
+
+async fn list_email_messages(
+    State(state): State<Arc<AppState>>,
+    Path(account_id): Path<String>,
+    Query(query): Query<HashMap<String, String>>,
+) -> AppResult<Json<Vec<Value>>> {
+    let limit = query
+        .get("limit")
+        .and_then(|value| value.parse::<usize>().ok())
+        .unwrap_or(DEFAULT_LIST_LIMIT);
+    Ok(Json(state.email.messages(&account_id, limit).await?))
+}
+
+async fn get_email_message(
+    State(state): State<Arc<AppState>>,
+    Path((account_id, uid)): Path<(String, String)>,
+) -> AppResult<Json<Value>> {
+    Ok(Json(state.email.message(&account_id, &uid).await?))
+}
+
+async fn delete_email_message(
+    State(state): State<Arc<AppState>>,
+    Path((account_id, uid)): Path<(String, String)>,
+) -> AppResult<Json<Value>> {
+    Ok(Json(state.email.delete_message(&account_id, &uid).await?))
+}
+
+async fn send_email(
+    State(state): State<Arc<AppState>>,
+    Path(account_id): Path<String>,
+    Json(input): Json<SendInput>,
+) -> AppResult<Json<Value>> {
+    Ok(Json(state.email.send(&account_id, input).await?))
 }
 
 async fn list_db_profiles(

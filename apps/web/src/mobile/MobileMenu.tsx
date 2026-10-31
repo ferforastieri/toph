@@ -24,7 +24,7 @@ interface Props {
 }
 
 const screens: Array<{ id: MobileScreen; label: string; description: string; icon: ComponentType<{ className?: string }> }> = [
-  { id: "bots", label: "Bots", description: "Equipe e conversa do projeto", icon: Bot },
+  { id: "bots", label: "Tophs", description: "Sua equipe de agentes", icon: Bot },
   { id: "files", label: "Arquivos", description: "Explore o repositório", icon: Files },
   { id: "scm", label: "Git", description: "Mudanças, branches e commits", icon: GitBranch },
   { id: "db", label: "Bancos", description: "Conexões, schemas e queries", icon: Database },
