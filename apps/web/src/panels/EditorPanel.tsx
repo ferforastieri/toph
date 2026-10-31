@@ -12,9 +12,10 @@ interface Props {
   tab: Tab;
   project: Project;
   onOpenChanges?: (path: string) => void;
+  mobile?: boolean;
 }
 
-export default function EditorPanel({ tab, project, onOpenChanges }: Props) {
+export default function EditorPanel({ tab, project, onOpenChanges, mobile = false }: Props) {
   const updateTab = useApp((state) => state.updateTab);
   const notify = useApp((state) => state.notify);
   const [blame, setBlame] = useState<GitBlameLine[]>([]);
@@ -104,17 +105,24 @@ export default function EditorPanel({ tab, project, onOpenChanges }: Props) {
 
   return (
     <div className="flex h-full min-h-0 w-full flex-1 flex-col">
-      <Breadcrumb className="h-8 min-w-0 shrink-0 items-center border-b px-2">
-        <BreadcrumbItem current className="shrink-0">{project.name}</BreadcrumbItem>
-        <BreadcrumbItem current className="min-w-0">
-          <span className="flex min-w-0 items-center gap-1.5">
-            <FileIcon name={tab.path ?? tab.title} path={tab.path} size={13} />
-            <span className="truncate">{tab.path}</span>
-          </span>
-        </BreadcrumbItem>
-        {tab.dirty && <BreadcrumbItem><Badge color="primary" className="text-[10px]">modified</Badge></BreadcrumbItem>}
-        {stale && <BreadcrumbItem><Badge color="neutral" className="text-[10px] text-status-yellow-text">changed on disk</Badge></BreadcrumbItem>}
-      </Breadcrumb>
+      {!mobile ? (
+        <Breadcrumb className="h-8 min-w-0 shrink-0 items-center border-b px-2">
+          <BreadcrumbItem current className="shrink-0">{project.name}</BreadcrumbItem>
+          <BreadcrumbItem current className="min-w-0">
+            <span className="flex min-w-0 items-center gap-1.5">
+              <FileIcon name={tab.path ?? tab.title} path={tab.path} size={13} />
+              <span className="truncate">{tab.path}</span>
+            </span>
+          </BreadcrumbItem>
+          {tab.dirty && <BreadcrumbItem><Badge color="primary" className="text-[10px]">modified</Badge></BreadcrumbItem>}
+          {stale && <BreadcrumbItem><Badge color="neutral" className="text-[10px] text-status-yellow-text">changed on disk</Badge></BreadcrumbItem>}
+        </Breadcrumb>
+      ) : tab.dirty || stale ? (
+        <div className="flex h-8 shrink-0 items-center gap-2 border-b px-3">
+          {tab.dirty ? <Badge color="primary" className="text-[10px]">modified</Badge> : null}
+          {stale ? <Badge color="neutral" className="text-[10px] text-status-yellow-text">changed on disk</Badge> : null}
+        </div>
+      ) : null}
       <div className="min-h-0 flex-1 overflow-hidden">
         <CodeEditor path={tab.path ?? tab.title} projectId={project.id} projectRoot={project.root} onOpenChanges={onOpenChanges} value={tab.content} language={languageFor(tab.path ?? tab.title)} line={tab.line} blame={blame} onChange={(content) => updateTab(tab.id, { content, dirty: true })} onCursorPosition={(line, column) => { window.dispatchEvent(new CustomEvent("toph:cursor", { detail: { line, column, language: languageFor(tab.path ?? tab.title) } })); }} onSave={() => void save()} />
       </div>

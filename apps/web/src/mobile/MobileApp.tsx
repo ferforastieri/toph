@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Database, FileCode2, FolderPlus, GitBranch, Globe2, TerminalSquare } from "@toph/icons";
+import { FolderPlus } from "@toph/icons";
 import { api, type Repository, type SchemaTable, type WebTarget } from "../api";
 import { useApp, type AppNotification } from "../store";
 import { useIsMobile } from "../ui/useIsMobile";
@@ -9,21 +9,21 @@ import BrandMark from "@toph/brand";
 import { Button } from "@/boardui/base/buttons/button";
 import { Modal } from "@/boardui/base/modal/modal";
 import BotStudioTab from "../panels/BotStudioTab";
-import DatabasesPanel from "../panels/DatabasesPanel";
 import DbPanelTab from "../panels/DbPanelTab";
 import DiffPanelTab from "../panels/DiffPanelTab";
 import EditorPanel from "../panels/EditorPanel";
-import SourceControlPanel from "../panels/SourceControlPanel";
 import WebPanelTab from "../panels/WebPanelTab";
-import WebSidebar from "../panels/WebSidebar";
 import Tabs from "../components/Tabs";
 import MobileMenu, { type MobileScreen } from "./MobileMenu";
 import RepoPicker from "../components/RepoPicker";
 import TerminalPanel from "../panels/TerminalPanel";
 import Toasts from "../components/Toasts";
 import FilesScreen from "./screens/FilesScreen";
+import GitScreen from "./screens/GitScreen";
+import DatabasesScreen from "./screens/DatabasesScreen";
+import WebAppsScreen from "./screens/WebAppsScreen";
 import ProjectSwitcher from "../components/ProjectSwitcher";
-import ScreenHeader from "./components/ScreenHeader";
+import MobileTopBar from "./components/MobileTopBar";
 import { useConfirm } from "../ui/confirm";
 import { useBots } from "../bots";
 import MobileBranchSheet from "./MobileBranchSheet";
@@ -51,6 +51,7 @@ export default function MobileApp() {
   const unreadCount = notifications.filter((notification) => !notification.read && notification.projectId === project?.id).length;
 
   const [screen, setScreen] = useState<MobileScreen>("bots");
+  const pageTitle = screen === "bots" ? "Bots" : screen === "files" ? "Arquivos" : screen === "scm" ? "Git" : screen === "db" ? "Bancos" : screen === "web" ? "Web apps" : (activeTab?.title ?? "Editor");
   const [menuOpen, setMenuOpen] = useState(false);
   const [terminalOpen, setTerminalOpen] = useState(false);
   const [projectsOpen, setProjectsOpen] = useState(false);
@@ -321,43 +322,36 @@ export default function MobileApp() {
       }}
       onTouchEnd={() => { swipeStart.current = null; }}
     >
+      <MobileTopBar
+        title={pageTitle}
+        projectName={project.name}
+        unreadCount={unreadCount}
+        onMenu={() => setMenuOpen(true)}
+        onNotifications={() => setNotificationsOpen(true)}
+        onProjects={() => setProjectsOpen(true)}
+      />
       <main className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background-primary-default">
         {screen === "bots" ? (
-          <BotStudioTab project={project} />
+          <BotStudioTab project={project} mobile />
         ) : screen === "files" ? (
           <div className="min-h-0 flex-1 overflow-hidden">
             <FilesScreen project={project} onOpenFile={openFile} />
           </div>
         ) : screen === "scm" ? (
           <div className="flex min-h-0 flex-1 flex-col">
-            <ScreenHeader title="Git" subtitle={currentBranch || project.name} icon={GitBranch} />
-            <div className="flex min-h-0 flex-1 flex-col p-3">
-              <div className="min-h-0 flex-1 overflow-hidden rounded-3xl border border-border-button-white bg-background-primary-default shadow-xs">
-                <SourceControlPanel project={project} view="scm" embedded onOpenDiff={openDiff} />
-              </div>
-            </div>
+            <GitScreen
+              project={project}
+              branch={currentBranch}
+              onOpenDiff={openDiff}
+              onBranch={() => setBranchOpen(true)}
+            />
           </div>
         ) : screen === "db" ? (
-          <div className="flex min-h-0 flex-1 flex-col">
-            <ScreenHeader title="Bancos" subtitle={project.name} icon={Database} />
-            <div className="flex min-h-0 flex-1 flex-col p-3">
-              <div className="min-h-0 flex-1 overflow-hidden rounded-3xl border border-border-button-white bg-background-primary-default shadow-xs">
-                <DatabasesPanel project={project} embedded onOpenQuery={openQuery} onOpenTable={openTable} />
-              </div>
-            </div>
-          </div>
+          <DatabasesScreen project={project} onOpenQuery={openQuery} onOpenTable={openTable} />
         ) : screen === "web" ? (
-          <div className="flex min-h-0 flex-1 flex-col">
-            <ScreenHeader title="Web apps" subtitle={project.name} icon={Globe2} />
-            <div className="flex min-h-0 flex-1 flex-col p-3">
-              <div className="min-h-0 flex-1 overflow-hidden rounded-3xl border border-border-button-white bg-background-primary-default shadow-xs">
-                <WebSidebar onOpenWeb={openWeb} embedded />
-              </div>
-            </div>
-          </div>
+          <WebAppsScreen onOpenWeb={openWeb} />
         ) : (
           <>
-            <ScreenHeader title={activeTab?.title ?? "Editor"} subtitle={project.name} icon={FileCode2} />
             <Tabs />
             <div className="relative flex min-h-0 flex-1 overflow-hidden">
               {!activeTab ? (
@@ -372,7 +366,7 @@ export default function MobileApp() {
                   </Button>
                 </div>
               ) : null}
-              {activeTab?.kind === "editor" && <EditorPanel tab={activeTab} project={project} onOpenChanges={(path) => openDiff(path, false)} />}
+              {activeTab?.kind === "editor" && <EditorPanel tab={activeTab} project={project} mobile onOpenChanges={(path) => openDiff(path, false)} />}
               {activeTab?.kind === "db" && <DbPanelTab tab={activeTab} />}
               {activeTab?.kind === "web" && <WebPanelTab tab={activeTab} />}
               {activeTab?.kind === "diff" && <DiffPanelTab tab={activeTab} project={project} />}
@@ -409,10 +403,14 @@ export default function MobileApp() {
             paddingRight: "var(--safe-right)",
           }}
         >
-          <ScreenHeader title="Terminal" subtitle={project.name} icon={TerminalSquare} />
-          <Button variant="ghost" className="mx-2 mt-2 shrink-0 justify-start" onClick={() => setTerminalOpen(false)}>
-            Fechar terminal
-          </Button>
+          <MobileTopBar
+            title="Terminal"
+            projectName={project.name}
+            unreadCount={unreadCount}
+            onMenu={() => setMenuOpen(true)}
+            onNotifications={() => setNotificationsOpen(true)}
+            onProjects={() => setProjectsOpen(true)}
+          />
           <div className="min-h-0 flex-1">
             <TerminalPanel project={project} onOpenFile={openFile} sheet onClose={() => setTerminalOpen(false)} />
           </div>

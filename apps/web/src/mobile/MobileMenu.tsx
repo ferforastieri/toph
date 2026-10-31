@@ -63,7 +63,7 @@ export default function MobileMenu({
         className="mobile-backdrop-in absolute inset-0 bg-black/60"
         onClick={onClose}
       />
-      <aside className="mobile-drawer-in absolute bottom-[calc(var(--safe-bottom)+0.5rem)] left-[calc(var(--safe-left)+0.5rem)] top-[calc(var(--safe-top)+0.5rem)] flex w-[min(calc(100vw-1rem-var(--safe-left)-var(--safe-right)),390px)] flex-col overflow-hidden rounded-3xl border border-border-button-white bg-background-primary-default shadow-sidebar">
+      <aside className="mobile-drawer-in absolute bottom-[calc(var(--safe-bottom)+0.5rem)] left-[calc(var(--safe-left)+0.5rem)] top-[calc(var(--safe-top)+0.5rem)] flex w-[min(calc(100vw-3rem-var(--safe-left)-var(--safe-right)),360px)] flex-col overflow-hidden rounded-3xl border border-border-button-white bg-background-primary-default shadow-sidebar">
         <button
           type="button"
           className="flex w-full items-center gap-3 border-b border-separator-border p-3 text-start hover:bg-background-primary-hover"
@@ -77,6 +77,7 @@ export default function MobileMenu({
         </button>
 
         <div className="no-scrollbar flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto p-2">
+          <div className="px-2 pb-1 pt-2 text-caption-2-semibold uppercase tracking-[0.16em] text-text-tertiary">Navegar</div>
           {screens.map((item) => {
             const disabled = item.id === "workspace" && !hasWorkspace;
             return (
@@ -98,17 +99,16 @@ export default function MobileMenu({
         </div>
 
         <div className="flex shrink-0 flex-col gap-1 border-t border-separator-border p-2">
-          <Button variant="ghost" className="h-auto w-full justify-start gap-2 px-3 py-2.5" onClick={onBranch}>
-            <GitBranch className="size-4 text-foreground-icon-secondary" />
+          <div className="px-2 pb-1 pt-1 text-caption-2-semibold uppercase tracking-[0.16em] text-text-tertiary">Projeto</div>
+          <Button variant="ghost" leadingIcon={GitBranch} className="h-auto w-full justify-start gap-2 px-3 py-2.5" onClick={onBranch}>
             <span className="flex min-w-0 flex-1 flex-col text-start">
               <span className="text-body-2-medium">Branch</span>
               <span className="truncate text-caption-2-regular text-text-tertiary">{branch || "detached"}</span>
             </span>
           </Button>
-          <Button variant="ghost" className="h-auto w-full justify-start gap-2 px-3 py-2.5" onClick={onNotifications}>
-            <Bell className="size-4 text-foreground-icon-secondary" />
+          <Button variant="ghost" leadingIcon={Bell} className="h-auto w-full justify-start gap-2 px-3 py-2.5" onClick={onNotifications}>
             <span className="flex flex-1 text-body-2-medium">Notificações</span>
-            {unreadCount > 0 ? <Badge color="primary">{unreadCount > 9 ? "9+" : unreadCount}</Badge> : null}
+            {unreadCount > 0 ? <Badge color="primary" className="ms-2">{unreadCount > 9 ? "9+" : unreadCount}</Badge> : null}
           </Button>
           <Button variant="ghost" leadingIcon={FolderGit2} className="h-auto w-full justify-start gap-2 px-3 py-2.5" onClick={onProjects}>
             <span className="flex-1 text-body-2-medium">Projetos</span>
