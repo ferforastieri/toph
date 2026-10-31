@@ -1,6 +1,5 @@
-import { Bot, ChevronRight, Database, FileCode2, Files, FolderGit2, GitBranch, Globe2, Search, TerminalSquare } from "@toph/icons";
+import { Bot, Database, FileCode2, Files, FolderGit2, GitBranch, Globe2, TerminalSquare } from "@toph/icons";
 import { Button } from "@/boardui/base/buttons/button";
-import { cx } from "@/boardui/utils/cx";
 import type { ComponentType } from "react";
 
 export type MobileScreen = "bots" | "files" | "scm" | "db" | "web" | "workspace";
@@ -10,7 +9,6 @@ interface Props {
   hasWorkspace: boolean;
   onSelect: (screen: MobileScreen) => void;
   onProjects: () => void;
-  onSearch: () => void;
   onTerminal: () => void;
   onClose: () => void;
 }
@@ -24,7 +22,7 @@ const screens: Array<{ id: MobileScreen; label: string; description: string; ico
   { id: "workspace", label: "Editor", description: "Aba ativa do workspace", icon: FileCode2 },
 ];
 
-export default function MobileMenu({ screen, hasWorkspace, onSelect, onProjects, onSearch, onTerminal, onClose }: Props) {
+export default function MobileMenu({ screen, hasWorkspace, onSelect, onProjects, onTerminal, onClose }: Props) {
   return (
     <div className="fixed inset-0 z-[130]">
       <button
@@ -55,12 +53,6 @@ export default function MobileMenu({ screen, hasWorkspace, onSelect, onProjects,
                   <span className="text-body-2-medium">{item.label}</span>
                   <span className="text-caption-2-regular text-text-tertiary">{item.description}</span>
                 </span>
-                <ChevronRight
-                  className={cx(
-                    "size-4 shrink-0 text-foreground-icon-tertiary transition-[rotate,color] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
-                    screen === item.id && "rotate-90 text-accent-500",
-                  )}
-                />
               </Button>
             );
           })}
@@ -69,15 +61,9 @@ export default function MobileMenu({ screen, hasWorkspace, onSelect, onProjects,
         <div className="mx-3 flex shrink-0 flex-col gap-1 border-t border-separator-border py-3">
           <Button variant="ghost" leadingIcon={FolderGit2} className="h-auto w-full justify-start gap-2 px-3 py-2.5" onClick={onProjects}>
             <span className="flex-1 text-body-2-medium">Projetos</span>
-            <ChevronRight className="size-4 text-foreground-icon-tertiary" />
-          </Button>
-          <Button variant="ghost" leadingIcon={Search} className="h-auto w-full justify-start gap-2 px-3 py-2.5" onClick={onSearch}>
-            <span className="flex-1 text-body-2-medium">Buscar</span>
-            <ChevronRight className="size-4 text-foreground-icon-tertiary" />
           </Button>
           <Button variant="ghost" leadingIcon={TerminalSquare} className="h-auto w-full justify-start gap-2 px-3 py-2.5" onClick={onTerminal}>
             <span className="flex-1 text-body-2-medium">Terminal</span>
-            <ChevronRight className="size-4 text-foreground-icon-tertiary" />
           </Button>
         </div>
       </aside>

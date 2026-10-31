@@ -269,15 +269,15 @@ export default function TerminalPanel({ project, onOpenFile, sheet = false, onCl
     >
       {!sheet && <ResizeHandle className="terminal-resize -mb-1" orientation="horizontal" value={terminalHeight} min={180} max={640} invert label="Resize terminal" onChange={(height) => document.documentElement.style.setProperty("--terminal-height", `${height}px`)} onCommit={(height) => updateSettings({ terminalHeight: height })} />}
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-3xl border border-border-button-white bg-background-inner-default shadow-sidebar">
-      <div className="bg-background-tertiary-default flex h-9 shrink-0 items-center justify-between border-b border-border-button-default pe-2">
-        <PillTabList className="h-full px-2" aria-label="Terminal panel">
+      <div className={cx("bg-background-tertiary-default flex h-9 shrink-0 items-center border-b border-border-button-default pe-2", sheet ? "justify-end" : "justify-between")}>
+        {!sheet && <PillTabList className="h-full px-2" aria-label="Terminal panel">
           {terminalTabs.map((item) => (
             <PillTab key={item.id} variant="gray" isSelected={tab === item.id} onSelect={() => setTab(item.id)}>
               {item.label}
               {item.id === "problems" && diagnostics.length > 0 && <Badge color="neutral" className="ms-1 h-4 px-1 text-caption-2-regular">{diagnostics.length}</Badge>}
             </PillTab>
           ))}
-        </PillTabList>
+        </PillTabList>}
         <div className="flex shrink-0 items-center gap-0.5">
           <Dropdown isOpen={shellMenuOpen} onOpenChange={setShellMenuOpen}>
             <DropdownTrigger aria-label="Selecionar shell" className="flex h-7 items-center gap-1 rounded-md px-1.5 text-caption-1-medium text-foreground-icon-primary hover:bg-background-primary-hover">

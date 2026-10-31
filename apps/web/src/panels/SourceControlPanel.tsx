@@ -16,8 +16,6 @@ import { suggestGitChanges } from "../gitAi";
 import { parseGitStatus, statusLabel } from "../gitStatus";
 import { useSettings } from "../settings";
 import { useApp } from "../store";
-import { useIsMobile } from "../ui/useIsMobile";
-import { cx } from "@/boardui/utils/cx";
 import { useAI } from "../ai";
 import { usePet } from "../pet";
 import { Button } from "@/boardui/base/buttons/button";
@@ -60,7 +58,6 @@ export default function SourceControlPanel({
   const aiConfig = useAI((state) => state.config);
   const settings = useSettings();
   const confirm = useConfirm();
-  const mobile = useIsMobile();
   const [status, setStatus] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState("");
@@ -267,7 +264,7 @@ export default function SourceControlPanel({
         </div>
       )}
       {showBranch && (
-        <div className={cx("flex shrink-0 border-b px-2 py-1.5", mobile ? "flex-wrap items-center gap-1.5" : "items-center gap-1.5")}>
+        <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-b px-2 py-1.5">
           <GitBranch size={13} className="shrink-0 text-muted-foreground" />
           <span className="min-w-0 flex-1 truncate text-xs">{parsed.branch || "detached"}</span>
           <Badge color="neutral">{parsed.changes.length}</Badge>
@@ -303,9 +300,9 @@ export default function SourceControlPanel({
         <div className="min-h-0 flex-1 overflow-y-auto">
           {staged.length > 0 && (
             <section className="border-b pb-1">
-              <div className={cx("flex px-2", mobile ? "flex-col items-stretch gap-1 py-1" : "h-8 items-center justify-between")}>
+              <div className="flex flex-col items-stretch gap-1 px-2 py-1 min-[901px]:h-8 min-[901px]:flex-row min-[901px]:items-center min-[901px]:justify-between min-[901px]:py-0">
                 <span className="text-caption-1-semibold uppercase tracking-wide text-text-secondary">Staged Changes</span>
-                <span className={cx("flex items-center gap-1", mobile && "w-full")}>
+                <span className="flex w-full items-center gap-1 min-[901px]:w-auto">
                   <Button variant="ghost" size="xs" iconOnly leadingIcon={Minus} aria-label="Unstage all" title="Unstage all" onClick={() => void unstage(staged.map((change) => change.path))} />
                   <Button variant="ghost" size="xs" iconOnly leadingIcon={Undo2} aria-label="Discard all staged changes" title="Discard all staged changes" onClick={() => void discard(staged.map((change) => change.path), true)} />
                   <span className="flex size-5 items-center justify-center rounded-full bg-background-tertiary-default text-caption-2-semibold text-text-secondary">{staged.length}</span>

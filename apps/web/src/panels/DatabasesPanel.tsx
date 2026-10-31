@@ -11,16 +11,15 @@ import { Select, SelectItem } from "@/boardui/base/select/select";
 import { Chip } from "@/boardui/base/badges/chip";
 import { useProjectEvents } from "../projectEvents";
 import LoadingState from "../components/LoadingState";
-import { useIsMobile } from "../ui/useIsMobile";
-import { cx } from "@/boardui/utils/cx";
 
 interface Props {
   project: Project;
   onOpenQuery: (profileId: string, sql: string) => void;
   onOpenTable: (profileId: string, table: SchemaTable, driver: string) => void;
+  embedded?: boolean;
 }
 
-export default function DatabasesPanel({ project, onOpenQuery, onOpenTable }: Props) {
+export default function DatabasesPanel({ project, onOpenQuery, onOpenTable, embedded = false }: Props) {
   const [profiles, setProfiles] = useState<DBProfile[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [schemas, setSchemas] = useState<Record<string, SchemaTable[] | undefined>>({});
@@ -30,7 +29,6 @@ export default function DatabasesPanel({ project, onOpenQuery, onOpenTable }: Pr
   const [error, setError] = useState("");
   const notify = useApp((state) => state.notify);
   const confirm = useConfirm();
-  const mobile = useIsMobile();
 
   async function load(quiet = false): Promise<DBProfile[]> {
     if (!quiet) setBusy(true);
@@ -59,10 +57,16 @@ export default function DatabasesPanel({ project, onOpenQuery, onOpenTable }: Pr
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className={cx("flex shrink-0 border-b px-2", mobile ? "flex-col items-stretch gap-2 py-2" : "h-9 items-center justify-between")}>
-        <span className="text-caption-1-medium text-text-secondary">Databases</span>
-        <Button variant={mobile ? "secondary" : "ghost"} size={mobile ? "small" : "xs"} iconOnly={!mobile} leadingIcon={Plus} aria-label="Nova conexão" className={mobile ? "w-full justify-start" : undefined} onClick={() => setShowForm((value) => !value)}>{mobile ? "Nova conexão" : undefined}</Button>
-      </div>
+      {embedded ? (
+        <div className="shrink-0 border-b border-separator-border p-2">
+          <Button variant="secondary" size="small" leadingIcon={Plus} className="w-full justify-start" onClick={() => setShowForm((value) => !value)}>Nova conexão</Button>
+        </div>
+      ) : (
+        <div className="flex shrink-0 flex-col items-stretch gap-2 border-b px-2 py-2 min-[901px]:h-9 min-[901px]:flex-row min-[901px]:items-center min-[901px]:justify-between min-[901px]:gap-0 min-[901px]:py-0">
+          <span className="text-caption-1-medium text-text-secondary">Databases</span>
+          <Button variant="ghost" size="xs" iconOnly leadingIcon={Plus} aria-label="Nova conexão" className="max-[900px]:h-8 max-[900px]:w-full" onClick={() => setShowForm((value) => !value)} />
+        </div>
+      )}
       {showForm && <ConnectionForm projectRoot={project.root} onCreated={() => { setShowForm(false); void load(); }} />}
       {busy && <LoadingState label="Carregando..." className="px-1 py-1" />}
       {error && <Chip color="rose" variant="subtle" className="mx-2 mt-2 justify-start whitespace-normal px-2 py-1">{error}</Chip>}
@@ -87,7 +91,7 @@ export default function DatabasesPanel({ project, onOpenQuery, onOpenTable }: Pr
                     <span className="truncate text-caption-1-regular">{profile.name}</span>
                     <Badge color="neutral" className="px-1 text-[9px] uppercase">{profile.driver}</Badge>
                   </Button>
-                  <span className={cx("flex shrink-0", mobile ? "opacity-100" : "opacity-0 group-hover:opacity-100")}>
+                  <span className="flex shrink-0 opacity-100 min-[901px]:opacity-0 min-[901px]:group-hover:opacity-100">
                     <Button variant="ghost" size="xs" aria-label="Nova query" onClick={() => onOpenQuery(profile.id, "")}><Play size={13} /></Button>
                     <Button variant="ghost" size="xs" aria-label="Testar conexão" onClick={() => { api.testDBProfile(profile.id).then(() => notify("success", `${profile.name} is reachable.`)).catch((err) => notify("error", err instanceof Error ? err.message : "Connection failed.")); }}><Wifi size={13} /></Button>
                     <Button variant="ghost" size="xs" aria-label="Excluir conexão" onClick={async () => { const ok = await confirm({ title: "Excluir conexão?", message: `Excluir "${profile.name}" deste workspace?`, confirmLabel: "Excluir", danger: true }); if (!ok) return; try { await api.deleteDBProfile(profile.id); await load(); } catch (err) { notify("error", err instanceof Error ? err.message : "Could not delete."); } }}><Trash2 size={13} /></Button>

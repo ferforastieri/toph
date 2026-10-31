@@ -57,10 +57,22 @@ function mobileTarget(baseUrl: string): string {
 
 export default function App() {
   const [initialServer] = useState(readSavedServer);
+  const [mobileRedirect] = useState(() => {
+    const query = new URLSearchParams(window.location.search);
+    if (query.get("change") === "1") return null;
+    if (!mobileUserAgent()) return null;
+    const saved = readSavedServer();
+    if (!saved) return null;
+    try {
+      return mobileTarget(saved);
+    } catch {
+      return null;
+    }
+  });
   const [url, setUrl] = useState(initialServer);
   const [booting, setBooting] = useState(() => {
     const query = new URLSearchParams(window.location.search);
-    return Boolean(initialServer) && query.get("change") !== "1";
+    return Boolean(initialServer) && query.get("change") !== "1" && !mobileUserAgent();
   });
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
@@ -75,6 +87,10 @@ export default function App() {
   const bootStarted = useRef(false);
 
   useEffect(() => {
+    if (mobileRedirect) {
+      window.location.replace(mobileRedirect);
+      return;
+    }
     if (bootStarted.current) return;
     bootStarted.current = true;
 
@@ -131,7 +147,7 @@ export default function App() {
         setBusy(false);
       }
     })();
-  }, []);
+  }, [mobileRedirect]);
 
   async function connect(event: FormEvent) {
     event.preventDefault();
@@ -241,6 +257,8 @@ export default function App() {
       setBusy(false);
     }
   }
+
+  if (mobileRedirect) return <main className="shell" />;
 
   if (booting) {
     return (
