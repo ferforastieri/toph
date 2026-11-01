@@ -34,11 +34,13 @@ export default function TophSessionsSheet({ open, project, mode, bot, activeSess
     listOpenCodeSessions(project.root, 100)
       .then((items) => {
         if (cancelled) return;
-        const scoped = items.filter((session) =>
-          session.metadata?.tophBotId === bot.id
-          || session.id === bot.sessionId
-          || Boolean(session.title?.startsWith(`${bot.name} · `)),
-        );
+        const scoped = mode === "solo"
+          ? items.filter((session) => !session.parentID && (!session.metadata?.tophBotId || session.metadata.tophBotId === bot.id))
+          : items.filter((session) =>
+            session.metadata?.tophBotId === bot.id
+            || session.id === bot.sessionId
+            || Boolean(session.title?.startsWith(`${bot.name} · `)),
+          );
         setSessions(scoped);
       })
       .catch((err) => {
@@ -49,7 +51,7 @@ export default function TophSessionsSheet({ open, project, mode, bot, activeSess
       })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [open, project.root, bot?.id, bot?.sessionId]);
+  }, [open, project.root, mode, bot?.id, bot?.sessionId]);
 
   return (
     <Modal
