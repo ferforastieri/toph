@@ -10,6 +10,7 @@ import { Textarea } from "@/boardui/base/textarea/textarea";
 import { Switch } from "@/boardui/base/switch/switch";
 import { Checkbox } from "@/boardui/base/checkbox/checkbox";
 import { Select, SelectItem } from "@/boardui/base/select/select";
+import ProviderModelPicker from "../ui/ProviderModelPicker";
 import { Chip } from "@/boardui/base/badges/chip";
 
 const providers = [
@@ -110,7 +111,6 @@ export default function AiSettings() {
     }
   }
 
-  const uniqueModels = [...new Map(models.map((model) => [model.id, model])).values()];
   const isOpenCode = form.provider === "opencode";
 
   return (
@@ -141,16 +141,7 @@ export default function AiSettings() {
           />
           <div className="flex flex-col gap-1.5">
             <span className="text-body-medium text-text-secondary">Modelo</span>
-            <Select selectedKey={form.model || null} onSelectionChange={(key) => patch({ model: key ? String(key) : "" })} isDisabled={loadingModels || uniqueModels.length === 0} aria-label="Modelo" className="w-full" renderValue={({ selectedText }) => selectedText || "Escolha um modelo"}>
-              {form.model && !uniqueModels.some((model) => model.id === form.model) && (
-                <SelectItem id={form.model}>{form.model}</SelectItem>
-              )}
-              {uniqueModels.map((model) => (
-                <SelectItem key={model.id} id={model.id}>
-                  {model.label}{model.provider ? ` · ${model.provider}` : ""}
-                </SelectItem>
-              ))}
-            </Select>
+            <ProviderModelPicker models={models} model={form.model} onChange={(value) => patch({ model: value })} placeholder="Escolha um modelo" disabled={loadingModels || models.length === 0} className="w-full" />
           </div>
           <Input
             label={
@@ -207,23 +198,10 @@ export default function AiSettings() {
           {form.autocomplete && isOpenCode && (
             <div className="flex flex-col gap-1.5 border-t border-border-button-default pt-3">
               <span className="text-body-medium text-text-secondary">Modelo de autocomplete</span>
-              <Select
-                selectedKey={form.autocompleteModel || "auto"}
-                onSelectionChange={(key) => patch({ autocompleteModel: key === "auto" ? "" : String(key) })}
-                aria-label="Modelo de autocomplete"
-                className="w-full"
-                renderValue={({ selectedText }) => selectedText || "Automático"}
-              >
-                <SelectItem id="auto">Automático (recomendado)</SelectItem>
-                {form.autocompleteModel && !uniqueModels.some((model) => model.id === form.autocompleteModel) && (
-                  <SelectItem id={form.autocompleteModel}>{form.autocompleteModel}</SelectItem>
-                )}
-                {uniqueModels.map((model) => (
-                  <SelectItem key={model.id} id={model.id}>
-                    {model.label}{model.provider ? ` · ${model.provider}` : ""}
-                  </SelectItem>
-                ))}
-              </Select>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <Button type="button" size="small" variant={form.autocompleteModel ? "ghost" : "secondary"} onClick={() => patch({ autocompleteModel: "" })}>Automático</Button>
+                <ProviderModelPicker models={models} model={form.autocompleteModel} onChange={(value) => patch({ autocompleteModel: value })} placeholder="Automático (recomendado)" disabled={loadingModels || models.length === 0} className="w-full" />
+              </div>
               <p className="text-caption-2-regular text-text-secondary">
                 No automático, o Toph escolhe um modelo leve compatível com o OpenCode. Você pode fixar outro modelo se preferir.
               </p>

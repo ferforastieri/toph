@@ -964,7 +964,6 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
             <Select selectedKey={permissionMode} onSelectionChange={(key) => setPermissionMode(String(key) as "yolo" | "ask" | "deny")} aria-label="Permissões" className="w-auto [&_button]:text-text-secondary" triggerClassName="h-7 gap-1 border-0 bg-transparent px-1.5 text-body-2-medium text-text-secondary shadow-none">
               <SelectItem id="yolo">YOLO</SelectItem>
               <SelectItem id="ask">Perguntar</SelectItem>
-              <SelectItem id="deny">Negar</SelectItem>
             </Select>
           </>
         }

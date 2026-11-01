@@ -57,15 +57,39 @@ export const useAI = create<AIState>((set) => ({
   setConfig: (config) => set({ config }),
 }));
 
+export function modelGroup(model: { id: string; label: string; provider?: string }): string {
+  const text = `${model.id} ${model.label}`.toLowerCase();
+  if (/claude|anthropic/.test(text)) return "claude";
+  if (/gemini|gemma|google/.test(text)) return "google";
+  if (/deepseek/.test(text)) return "deepseek";
+  if (/grok|xai/.test(text)) return "xai";
+  if (/qwen|alibaba/.test(text)) return "qwen";
+  if (/glm|zhipu/.test(text)) return "glm";
+  if (/llama|meta\b/.test(text)) return "meta";
+  if (/mistral/.test(text)) return "mistral";
+  if (/kimi|moonshot/.test(text)) return "moonshot";
+  if (/gpt|openai|codex/.test(text)) return "openai";
+  return "opencode";
+}
+
 export function providerLabel(provider?: string): string {
   switch (provider) {
     case "openai": return "OpenAI";
     case "codex": return "Codex";
     case "claude":
     case "anthropic": return "Claude";
+    case "google": return "Google / Gemini";
+    case "deepseek": return "DeepSeek";
+    case "xai": return "Grok / xAI";
+    case "qwen": return "Qwen";
+    case "glm": return "GLM";
+    case "meta": return "Llama / Meta";
+    case "mistral": return "Mistral";
+    case "moonshot": return "Kimi / Moonshot";
     case "ollama": return "Ollama";
     case "custom": return "Custom AI";
     case "opencode": return "OpenCode";
+    case "opencode-go": return "OpenCode Go";
     default: return "Agent";
   }
 }

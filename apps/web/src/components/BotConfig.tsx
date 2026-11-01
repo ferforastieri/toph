@@ -11,6 +11,7 @@ import { Input } from "@/boardui/base/input/input";
 import { Textarea } from "@/boardui/base/textarea/textarea";
 import { Switch } from "@/boardui/base/switch/switch";
 import { Select, SelectItem } from "@/boardui/base/select/select";
+import ModelPicker from "../ui/ModelPicker";
 import { useConfirm } from "../ui/confirm";
 
 interface Props {
@@ -40,7 +41,6 @@ export default function BotConfig({ projectId, projectRoot, bot, mode }: Props) 
   const removeBot = useBots((state) => state.removeBot);
   const models = useAI((state) => state.models);
   const selectedModel = models.find((model) => model.id === bot.model);
-  const efforts = selectedModel?.variants ?? [];
   const confirm = useConfirm();
   const [mcpServers, setMcpServers] = useState<string[]>([]);
   const [mcpLoading, setMcpLoading] = useState(false);
@@ -126,34 +126,17 @@ export default function BotConfig({ projectId, projectRoot, bot, mode }: Props) 
       </label>
 
       <label className="flex flex-col gap-1">
-        <span className="text-caption-1-medium text-text-secondary">Modelo</span>
-        <Select
-          selectedKey={bot.model || "default"}
-          onSelectionChange={(key) => update({ model: key === "default" ? "" : String(key) })}
-          aria-label="Modelo do bot"
-          className="w-full"
-        >
-          <SelectItem id="default">Usar o modelo padrão da IA</SelectItem>
-          {models.map((model) => (
-            <SelectItem key={model.id} id={model.id}>{model.label}</SelectItem>
-          ))}
-        </Select>
+        <span className="text-caption-1-medium text-text-secondary">Modelo e esforço</span>
+        <ModelPicker
+          models={models}
+          model={bot.model}
+          onModelChange={(value) => update({ model: value })}
+          effort={bot.effort ?? ""}
+          efforts={selectedModel?.variants ?? []}
+          onEffortChange={(value) => update({ effort: value })}
+          fullWidth
+        />
       </label>
-
-      {efforts.length > 0 && (
-        <label className="flex flex-col gap-1">
-          <span className="text-caption-1-medium text-text-secondary">Esforço</span>
-          <Select
-            selectedKey={bot.effort || "default"}
-            onSelectionChange={(key) => update({ effort: key === "default" ? "" : String(key) })}
-            aria-label="Esforço do bot"
-            className="w-full"
-          >
-            <SelectItem id="default">Padrão</SelectItem>
-            {efforts.map((effort) => <SelectItem key={effort} id={effort}>{effort}</SelectItem>)}
-          </Select>
-        </label>
-      )}
 
       <div className="grid grid-cols-2 gap-2">
         <label className="flex flex-col gap-1">
@@ -165,10 +148,9 @@ export default function BotConfig({ projectId, projectRoot, bot, mode }: Props) 
         </label>
         <label className="flex flex-col gap-1">
           <span className="text-caption-1-medium text-text-secondary">Permissões</span>
-          <Select selectedKey={bot.permissionMode ?? "yolo"} onSelectionChange={(key) => update({ permissionMode: String(key) as "yolo" | "ask" | "deny" })} aria-label="Permissões" className="w-full">
+          <Select selectedKey={bot.permissionMode ?? "yolo"} onSelectionChange={(key) => update({ permissionMode: String(key) as "yolo" | "ask" })} aria-label="Permissões" className="w-full">
             <SelectItem id="yolo">YOLO</SelectItem>
             <SelectItem id="ask">Perguntar</SelectItem>
-            <SelectItem id="deny">Negar</SelectItem>
           </Select>
         </label>
       </div>
