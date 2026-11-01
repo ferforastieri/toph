@@ -1,6 +1,6 @@
-import { memo, useState } from "react";
+import { memo, useEffect, useState } from "react";
 import type { Components } from "react-markdown";
-import ReactMarkdown from "react-markdown";
+import ReactMarkdown, { defaultUrlTransform } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Check, ChevronDown, CircleAlert, Copy, LoaderCircle, X } from "@toph/icons";
 import type { AiMessage } from "../store";
@@ -26,6 +26,11 @@ const markdownComponents: Components = {
   strong: ({ children }) => <strong className="font-semibold text-text-primary">{children}</strong>,
   em: ({ children }) => <em className="italic">{children}</em>,
   a: ({ href, children }) => <a href={href} className="text-accent-500 underline underline-offset-2 hover:text-accent-400" target="_blank" rel="noreferrer">{children}</a>,
+  img: ({ src, alt }) => src ? (
+    <a href={src} target="_blank" rel="noreferrer" className="my-2 block w-fit max-w-full">
+      <img src={src} alt={alt ?? "Imagem"} loading="lazy" className="max-h-[420px] max-w-full rounded-xl border border-border-button-default bg-background-secondary-default object-contain" />
+    </a>
+  ) : null,
   blockquote: ({ children }) => <blockquote className="my-2 border-l-2 border-accent-500/40 pl-3 text-text-secondary">{children}</blockquote>,
   hr: () => <hr className="my-3 border-separator-border" />,
   code: ({ node: _node, className, children, ...props }) => {
@@ -69,6 +74,60 @@ function parsedToolValue(value?: string): Record<string, any> | null {
   } catch {
     return null;
   }
+}
+
+interface ToolImage {
+  uri: string;
+  mime: string;
+  name?: string;
+}
+
+function extractToolImages(value?: string): ToolImage[] {
+  if (!value) return [];
+  const images = new Map<string, ToolImage>();
+  const add = (uri: string, mime: string, name?: string) => {
+    if (!uri) return;
+    const existing = images.get(uri);
+    if (existing) {
+      if (name) existing.name = name;
+      if (mime && mime !== "image/*") existing.mime = mime;
+      return;
+    }
+    images.set(uri, { uri, mime: mime || "image/*", name });
+  };
+  const visit = (input: unknown, depth = 0) => {
+    if (depth > 6 || input == null) return;
+    if (typeof input === "string") {
+      const pattern = /data:(image\/[a-z0-9.+-]+);base64,[a-z0-9+/=\r\n]+/gi;
+      let match: RegExpExecArray | null;
+      while ((match = pattern.exec(input))) add(match[0].replace(/\s+/g, ""), match[1] ?? "image/*");
+      const start = input.indexOf("{");
+      if (start >= 0) {
+        try { visit(JSON.parse(input.slice(start)), depth + 1); } catch { /* keep the raw tool output */ }
+      }
+      return;
+    }
+    if (Array.isArray(input)) {
+      for (const item of input) visit(item, depth + 1);
+      return;
+    }
+    if (typeof input === "object") {
+      const item = input as Record<string, unknown>;
+      const mime = String(item.mime ?? item.mimeType ?? "");
+      const uri = String(item.uri ?? item.url ?? item.src ?? "");
+      if (uri && (mime.startsWith("image/") || /^data:image\//i.test(uri) || /\.(png|jpe?g|webp|gif|avif)(\?|#|$)/i.test(uri))) {
+        const inferred = uri.match(/^data:(image\/[^;]+)/i)?.[1] ?? "image/*";
+        add(uri, mime || inferred, typeof item.name === "string" ? item.name : undefined);
+      }
+      for (const nested of Object.values(item)) visit(nested, depth + 1);
+    }
+  };
+  visit(value);
+  return [...images.values()];
+}
+
+function imageLabel(image: ToolImage): string {
+  return image.name?.split("/").pop() || "Imagem";
 }
 
 function rawToolName(message: AiMessage): string {
@@ -133,9 +192,23 @@ function PermissionActions({ message, onPermission }: { message: AiMessage; onPe
   );
 }
 
-function ToolOutput({ message }: { message: AiMessage }) {
+function ToolOutput({ message, images }: { message: AiMessage; images: ToolImage[] }) {
   const name = toolKind(message);
   const input = parsedToolValue(message.text);
+  if (images.length > 0) {
+    return (
+      <div className="mt-2 flex max-w-full flex-col gap-2">
+        {images.map((image, index) => (
+          <figure key={`${imageLabel(image)}-${index}`} className="w-fit max-w-full">
+            <a href={image.uri} target="_blank" rel="noreferrer" className="block w-fit max-w-full">
+              <img src={image.uri} alt={imageLabel(image)} loading="lazy" className="max-h-[420px] max-w-full rounded-xl border border-border-button-default bg-background-secondary-default object-contain" />
+            </a>
+            <figcaption className="mt-1 max-w-full truncate text-[11px] text-text-tertiary">{imageLabel(image)}</figcaption>
+          </figure>
+        ))}
+      </div>
+    );
+  }
   const oldText = String(input?.oldString ?? "");
   const newText = String(input?.newString ?? input?.content ?? input?.text ?? "");
   if (/edit|write|patch|apply/.test(name) && (oldText || newText)) {
@@ -169,10 +242,15 @@ function ToolOutput({ message }: { message: AiMessage }) {
 
 function ToolRow({ message, onPermission }: { message: AiMessage; onPermission?: MessageProps["onPermission"] }) {
   const [open, setOpen] = useState(false);
+  const images = extractToolImages(message.detail);
+  const hasImage = images.length > 0;
   const label = toolLabel(message);
   const subtitle = toolSubtitle(message);
   const status = toolStatus(message);
   const isRunning = message.status === "running";
+  useEffect(() => {
+    if (hasImage) setOpen(true);
+  }, [hasImage]);
   return (
     <div className="py-0.5">
       <button
@@ -188,7 +266,7 @@ function ToolRow({ message, onPermission }: { message: AiMessage; onPermission?:
       </button>
       {open ? (
         <div className="ps-2">
-          <ToolOutput message={message} />
+          <ToolOutput message={message} images={images} />
         </div>
       ) : null}
       <PermissionActions message={message} onPermission={onPermission} />
@@ -220,7 +298,11 @@ function ToolGroup({ messages, onPermission }: { messages: AiMessage[]; onPermis
   const [open, setOpen] = useState(false);
   const tools = messages.filter((message) => message.role === "tool");
   const thoughts = messages.filter((message) => message.role === "reasoning");
+  const hasImage = tools.some((message) => extractToolImages(message.detail).length > 0);
   const count = tools.length || thoughts.length;
+  useEffect(() => {
+    if (hasImage) setOpen(true);
+  }, [hasImage]);
   const labels: string[] = [];
   for (const tool of tools) {
     const label = toolLabel(tool);
@@ -282,7 +364,11 @@ const TranscriptMessage = memo(function TranscriptMessage({ message, showCaret, 
   }
   return (
     <div className="min-w-0">
-      <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={markdownComponents}
+        urlTransform={(url) => url.startsWith("data:image/") ? url : defaultUrlTransform(url)}
+      >
         {message.text}
       </ReactMarkdown>
       {showCaret && (

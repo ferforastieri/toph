@@ -8,7 +8,7 @@ import { DropdownDivider, DropdownGroup, DropdownItem } from "@/boardui/base/dro
 import ComposerMenu from "./ComposerMenu";
 import { ComposerLoader } from "@/boardui/application/composer-loader/composer-loader";
 import ModelPicker from "./ModelPicker";
-import { colorWithAlpha, readableTextOn } from "../lib";
+import { readableTextOn } from "../lib";
 
 export interface AgentAttachment { name: string; uri: string; mime: string; size: number; }
 
@@ -34,8 +34,6 @@ export function AgentComposer({ value, onChange, onSend, onStop, busy, models, m
   const [attachments, setAttachments] = useState<AgentAttachment[]>([]);
   const accent = accentColor ?? "var(--color-accent-500)";
   const accentText = accent.startsWith("var(") ? "var(--color-text-on-accent)" : readableTextOn(accent);
-  const accentTint = accent.startsWith("var(") ? "color-mix(in srgb, var(--color-accent-500) 8%, transparent)" : colorWithAlpha(accent, 0.08);
-  const accentBorder = accent.startsWith("var(") ? "color-mix(in srgb, var(--color-accent-500) 50%, transparent)" : colorWithAlpha(accent, 0.5);
   const [error, setError] = useState("");
   const [addMenuOpen, setAddMenuOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -85,8 +83,7 @@ export function AgentComposer({ value, onChange, onSend, onStop, busy, models, m
       <ComposerLoader active={busy} radius={14} surface={false}>
         <form
           onSubmit={(event) => { event.preventDefault(); submit(); }}
-          className="flex flex-col gap-2 rounded-[14px] border p-3 pb-2 shadow-xs"
-          style={{ borderColor: accentBorder, backgroundColor: accentTint }}
+          className="flex flex-col gap-2 rounded-[14px] border border-border-button-default bg-background-primary-default p-3 pb-2 shadow-xs"
           onKeyDownCapture={(event) => { if (event.key === "Enter" && !event.shiftKey && event.target === areaRef.current) { event.preventDefault(); submit(); } }}
           onPaste={(event) => {
             if (!allowAttachments) return;
