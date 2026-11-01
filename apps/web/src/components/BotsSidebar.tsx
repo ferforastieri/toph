@@ -74,7 +74,7 @@ export default function BotsSidebar({ project }: Props) {
         >
           {solo ? <UserRound size={14} className="shrink-0 text-accent-500" /> : <Sparkles size={14} className="shrink-0 text-accent-500" />}
           <span className="min-w-0 flex-1">
-            <span className="block font-medium">{solo ? "Toph Solo" : "Equipe do projeto"}</span>
+            <span className="block font-medium">{solo ? "Toph" : "Equipe do projeto"}</span>
             <span className="block truncate text-caption-2-regular text-text-secondary">{solo ? "Seu agente pessoal" : "Conversar com todos os Tophs"}</span>
           </span>
         </button>

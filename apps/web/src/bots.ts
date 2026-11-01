@@ -69,6 +69,7 @@ export interface TophThread {
 export interface BotWorkspace extends TophThread {
   version?: number;
   mode?: TophMode | "unset";
+  modeExplicit?: boolean;
   savedSolo?: TophThread;
   savedTeam?: TophThread;
 }
@@ -111,7 +112,7 @@ export interface TophPreset {
 }
 
 export const TOPH_PRESETS: TophPreset[] = [
-  { name: "Toph", role: "Agente solo", description: "Seu agente pessoal para conversar, programar e executar tarefas.", personality: "Direto, curioso e focado em resolver o problema.", color: "#B9DE7A", avatar: "shield", coordinator: true },
+  { name: "Toph", role: "Assistente", description: "Seu agente pessoal para conversar, programar e executar tarefas.", personality: "Direto, curioso e focado em resolver o problema.", color: "#B9DE7A", avatar: "shield", coordinator: true },
   { name: "Atlas", role: "Coordenador", description: "Organiza o time, distribui tarefas e cobra o fechamento.", personality: "Estratégico, calmo e obcecado por clareza.", color: "#7FD4E8", avatar: "hexagon", coordinator: true },
   { name: "Nova", role: "Produto", description: "Transforma pedidos vagos em escopo e critérios de aceite.", personality: "Curiosa, objetiva e implacável com ambiguidade.", color: "#FF9EC4", avatar: "flower" },
   { name: "Leo", role: "Dev", description: "Implementa, refatora e resolve bugs no código.", personality: "Pragmático, direto e cuidadoso com regressões.", color: "#8FB5F5", avatar: "gear" },
@@ -167,7 +168,7 @@ function sanitizeBots(input: MiniBot[] | undefined): MiniBot[] {
     .map((bot) => ({
       ...bot,
       handle: bot.handle || slugifyBot(bot.name),
-      role: bot.role ?? "",
+      role: bot.role === "Agente solo" ? "Assistente" : (bot.role ?? ""),
       description: bot.description ?? "",
       personality: bot.personality ?? "",
       model: bot.model ?? "",
@@ -224,23 +225,37 @@ function sanitizeWorkspace(workspace: BotWorkspace): BotWorkspace {
     && active.bots.length === 4
     && active.bots.every((bot) => legacyNames.has(bot.name));
   const bots = legacyDefaults ? [] : active.bots;
-  const mode: TophMode | "unset" = workspace.mode === "solo" || workspace.mode === "team"
-    ? workspace.mode
-    : (bots.length > 0 ? "team" : "unset");
+  const savedMode = workspace.mode === "solo" || workspace.mode === "team" ? workspace.mode : null;
+  // Older layouts could be saved as an empty team by the old mode picker.
+  // Solo is now the default, so only an explicitly chosen team stays in team.
+  const legacyEmptyTeam = savedMode === "team"
+    && workspace.modeExplicit !== true
+    && bots.length === 0
+    && active.messages.length === 0;
+  const mode: TophMode | "unset" = savedMode === null || legacyEmptyTeam
+    ? "solo"
+    : savedMode;
+  const movedToSolo = savedMode === null || legacyEmptyTeam;
   const stamp = (thread: TophThread | undefined, threadMode: TophMode): TophThread | undefined => thread
     ? { ...thread, messages: thread.messages.map((message) => ({ ...message, mode: message.mode ?? threadMode })) }
     : undefined;
-  const savedTeamRaw = workspace.savedTeam ? sanitizeThread(workspace.savedTeam) : (mode === "team" ? { bots, messages: legacyDefaults ? [] : active.messages, activeBotId: active.activeBotId } : undefined);
-  const savedSoloRaw = workspace.savedSolo ? sanitizeThread(workspace.savedSolo) : undefined;
-  const activeRaw: TophThread = {
+  const activeTeamRaw: TophThread = {
     bots,
     messages: legacyDefaults ? [] : active.messages,
     activeBotId: active.activeBotId,
   };
+  const savedTeamRaw = workspace.savedTeam ? sanitizeThread(workspace.savedTeam) : (savedMode === "team" || movedToSolo ? activeTeamRaw : undefined);
+  const savedSoloRaw = workspace.savedSolo ? sanitizeThread(workspace.savedSolo) : undefined;
+  const activeRaw: TophThread = mode === "solo"
+    ? movedToSolo
+      ? (savedSoloRaw ?? { bots: [], messages: [], activeBotId: null })
+      : (activeTeamRaw.bots.length === 0 && activeTeamRaw.messages.length === 0 && savedSoloRaw ? savedSoloRaw : activeTeamRaw)
+    : activeTeamRaw;
   const currentMode: TophMode = mode === "solo" ? "solo" : "team";
   return {
-    version: 3,
+    version: 4,
     mode,
+    modeExplicit: workspace.modeExplicit === true || (mode === "team" && bots.length > 0),
     bots: activeRaw.bots,
     messages: (stamp(activeRaw, currentMode) ?? activeRaw).messages,
     activeBotId: activeRaw.activeBotId,
@@ -250,7 +265,7 @@ function sanitizeWorkspace(workspace: BotWorkspace): BotWorkspace {
 }
 
 function createEmptyWorkspace(): BotWorkspace {
-  return { version: 3, mode: "unset", bots: [], messages: [], activeBotId: null };
+  return { version: 4, mode: "solo", modeExplicit: false, bots: [], messages: [], activeBotId: null };
 }
 
 export const useBots = create<BotStore>((set, get) => ({
@@ -278,8 +293,9 @@ export const useBots = create<BotStore>((set, get) => ({
     const workspace = get().byProject[projectId];
     if (!workspace) return null;
     return {
-      version: 3,
-      mode: workspace.mode ?? "unset",
+      version: 4,
+      mode: workspace.mode ?? "solo",
+      modeExplicit: workspace.modeExplicit === true,
       bots: workspace.bots,
       activeBotId: workspace.activeBotId,
       messages: workspace.messages.filter((message) => !message.pending).slice(-200),
@@ -309,6 +325,7 @@ export const useBots = create<BotStore>((set, get) => ({
           [projectId]: {
             ...workspace,
             mode,
+            modeExplicit: true,
             ...(target ?? { bots: [], messages: [], activeBotId: null }),
             savedSolo,
             savedTeam,
@@ -324,7 +341,7 @@ export const useBots = create<BotStore>((set, get) => ({
     if (!next || next.bots.length > 0) return;
     get().addBot(projectId, {
       name: "Toph",
-      role: "Agente solo",
+      role: "Assistente",
       description: "Seu agente pessoal para conversar, programar e executar tarefas.",
       personality: "Direto, curioso e focado em resolver o problema.",
       avatar: "shield",

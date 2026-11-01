@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { OpenCode } from "@opencode/client";
 import { connectClientMcp, type ClientMcpTool } from "@opencode/client/mcp";
-import { Bot, ChevronDown, Copy, History, MessageSquarePlus, Settings2, SlidersHorizontal, UserRound } from "@toph/icons";
+import { Bot, ChevronDown, Copy, History, LoaderCircle, MessageSquarePlus, Settings2, SlidersHorizontal, UserRound } from "@toph/icons";
 import { api, openCodeBase, type AIMessage, type Project } from "../api";
 import { useAI } from "../ai";
 import { TOPH_PRESETS, useBots, type BotMessage, type MiniBot } from "../bots";
@@ -282,7 +282,6 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
   const setActiveBot = useBots((state) => state.setActiveBot);
   const setMode = useBots((state) => state.setMode);
   const createSolo = useBots((state) => state.createSolo);
-  const createTeam = useBots((state) => state.createTeam);
   const addMessage = useBots((state) => state.addMessage);
   const updateMessage = useBots((state) => state.updateMessage);
   const updateBot = useBots((state) => state.updateBot);
@@ -415,6 +414,11 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
   const savedDraft = useTophDrafts((state) => state.drafts[draftKey] ?? "");
   const setDraft = useTophDrafts((state) => state.setDraft);
   const clearDraft = useTophDrafts((state) => state.clearDraft);
+
+  useEffect(() => {
+    if (!workspace || mode === "team" || bots.length > 0) return;
+    createSolo(project.id);
+  }, [workspace, mode, bots.length, createSolo, project.id]);
 
   useEffect(() => {
     const handler = (event: Event) => {
@@ -1126,7 +1130,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
               <h2 className="mt-1 text-title-3-medium text-text-primary">Monte seu time de Tophs</h2>
               <p className="mt-1 max-w-xl text-caption-1-regular text-text-secondary">A equipe começa vazia. Escolha os Tophs que vão trabalhar com você. Cada um tem papel, cor, avatar e ferramentas próprias.</p>
               <div className="mt-3 flex flex-wrap gap-2">
-                <Button variant="secondary" size="small" leadingIcon={UserRound} onClick={() => createSolo(project.id)}>Ir para modo Solo</Button>
+                <Button variant="secondary" size="small" leadingIcon={UserRound} onClick={() => createSolo(project.id)}>Mudar para modo Solo</Button>
                 <Button variant="ghost" size="small" leadingIcon={SlidersHorizontal} onClick={() => setSettingsOpen(true)}>Configurar IA</Button>
               </div>
             </div>
@@ -1156,44 +1160,10 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
 
   if (!activeBot) {
     return (
-      <>
-        <div className="no-scrollbar flex h-full flex-col gap-3 overflow-y-auto p-4">
-          <div className="rounded-3xl border border-border-button-white bg-background-secondary-default p-4">
-            <span className="text-caption-2-semibold uppercase tracking-[0.16em] text-text-tertiary">Tophs</span>
-            <h2 className="mt-1 text-title-3-medium text-text-primary">Como você quer trabalhar?</h2>
-            <p className="mt-1 text-caption-1-regular text-text-secondary">Escolha um modo para este projeto. Você pode trocar depois sem perder as conversas.</p>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => createSolo(project.id)}
-            className="group flex w-full items-center gap-3 rounded-3xl border border-border-button-white bg-background-primary-default p-4 text-start shadow-xs transition-colors hover:border-accent-500/40 hover:bg-accent-500/5"
-          >
-            <span className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-accent-500/15 text-accent-500"><UserRound className="size-5" /></span>
-            <span className="min-w-0 flex-1">
-              <strong className="block text-body-medium text-text-primary">Toph Solo</strong>
-              <span className="mt-0.5 block text-caption-1-regular text-text-secondary">Um agente para conversar, programar e executar tarefas.</span>
-              <span className="mt-2 flex flex-wrap gap-1 text-caption-2-regular text-text-tertiary"><span className="rounded-full border border-border-button-default px-2 py-0.5">modelo</span><span className="rounded-full border border-border-button-default px-2 py-0.5">esforço</span><span className="rounded-full border border-border-button-default px-2 py-0.5">plano</span><span className="rounded-full border border-border-button-default px-2 py-0.5">YOLO</span><span className="rounded-full border border-border-button-default px-2 py-0.5">MCP</span></span>
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => createTeam(project.id)}
-            className="group flex w-full items-center gap-3 rounded-3xl border border-border-button-white bg-background-primary-default p-4 text-start shadow-xs transition-colors hover:border-accent-500/40 hover:bg-accent-500/5"
-          >
-            <span className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-emerald-500/15 text-emerald-400"><Bot className="size-5" /></span>
-            <span className="min-w-0 flex-1">
-              <strong className="block text-body-medium text-text-primary">Equipe</strong>
-              <span className="mt-0.5 block text-caption-1-regular text-text-secondary">Um coordenador e membros especialistas trabalhando juntos.</span>
-              <span className="mt-2 flex flex-wrap gap-1 text-caption-2-regular text-text-tertiary"><span className="rounded-full border border-border-button-default px-2 py-0.5">coordenador</span><span className="rounded-full border border-border-button-default px-2 py-0.5">membros</span><span className="rounded-full border border-border-button-default px-2 py-0.5">funções</span><span className="rounded-full border border-border-button-default px-2 py-0.5">MCP + email</span></span>
-            </span>
-          </button>
-
-          <Button variant="ghost" leadingIcon={SlidersHorizontal} onClick={() => setSettingsOpen(true)} className="w-full justify-start">Configurações de IA</Button>
-        </div>
-      <AiSettingsModal open={settingsOpen} projectRoot={project.root} onClose={() => setSettingsOpen(false)} />
-      </>
+      <div className="flex h-full min-h-0 flex-col items-center justify-center gap-2 bg-background-full text-caption-1-regular text-text-tertiary">
+        <LoaderCircle className="size-4 animate-spin" />
+        Preparando seu Toph...
+      </div>
     );
   }
 
