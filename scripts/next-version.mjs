@@ -25,6 +25,11 @@ const tagsAtHead = git(["tag", "--points-at", "HEAD", "--list", "v*"])
   .map((tag) => tag.trim())
   .filter(Boolean);
 
+if (process.env.RELEASABLE === "false") {
+  output({ release: "false", reason: "no releasable component changed" });
+  process.exit(0);
+}
+
 if (tagsAtHead.length > 0) {
   output({ release: "false", reason: `HEAD is already tagged ${tagsAtHead.join(", ")}` });
   process.exit(0);

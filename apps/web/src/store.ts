@@ -256,11 +256,20 @@ export const useApp = create<AppState>((set, get) => ({
       const aiDockTab = state.aiDockTab?.projectId === id ? null : state.aiDockTab;
       const terminalIds = { ...state.terminalIds };
       delete terminalIds[id];
+      const closedTabIds = new Set(state.tabs.filter((tab) => tab.projectId === id).map((tab) => tab.id));
+      const aiMessages = Object.fromEntries(
+        Object.entries(state.aiMessages).filter(([tabId]) => !closedTabIds.has(tabId)),
+      );
+      const aiStreaming = Object.fromEntries(
+        Object.entries(state.aiStreaming).filter(([tabId]) => !closedTabIds.has(tabId)),
+      );
       persistProjectState(activeProjectId, openProjectIds);
       return {
         openProjectIds,
         activeProjectId,
         terminalIds,
+        aiMessages,
+        aiStreaming,
         tabs,
         activeTabId,
         aiDockTab,

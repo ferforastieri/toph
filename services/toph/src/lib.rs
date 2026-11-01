@@ -9,6 +9,7 @@ pub mod errors;
 pub mod events;
 pub mod model;
 pub mod opencode;
+pub mod processes;
 pub mod push;
 pub mod server;
 pub mod store;

@@ -462,6 +462,7 @@ fn router(state: Arc<AppState>) -> Router {
                 .put(save_layout)
                 .layer(DefaultBodyLimit::max(32 * 1024 * 1024)),
         )
+        .route("/api/projects/{project_id}/close", post(close_project))
         .route(
             "/api/projects/{project_id}/terminals",
             post(create_terminal).delete(close_terminals),
@@ -1626,6 +1627,29 @@ async fn close_terminals(
 ) -> Json<Value> {
     let closed = state.terminals.close_project(&project_id);
     Json(json!({ "ok": true, "closed": closed }))
+}
+
+async fn close_project(
+    State(state): State<Arc<AppState>>,
+    Path(project_id): Path<String>,
+) -> AppResult<Json<Value>> {
+    let project = state.store.project(&project_id).await?;
+    let terminals = state.terminals.close_project(&project_id);
+    let had_debug = state.debug.get(&project_id).is_some();
+    state.debug.close_project(&project_id).await;
+    let root = project.root.clone();
+    let cleanup = tokio::task::spawn_blocking(move || {
+        crate::processes::terminate_project_processes(FsPath::new(&root))
+    })
+    .await
+    .map_err(|error| crate::errors::internal(error.to_string()))?;
+    Ok(Json(json!({
+        "ok": true,
+        "terminals": terminals,
+        "debug": had_debug,
+        "processes": cleanup.terminated,
+        "failed": cleanup.failed,
+    })))
 }
 
 async fn terminal_ws(

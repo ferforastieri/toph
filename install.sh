@@ -59,8 +59,7 @@ if ! command -v curl >/dev/null 2>&1 || ! command -v openssl >/dev/null 2>&1; th
 fi
 
 if [ "$VERSION" = "latest" ]; then
-  VERSION="$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" \
-    | sed -n 's/.*"tag_name":[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)"
+  VERSION=""
 fi
 if [ -z "$VERSION" ]; then
   echo "Could not determine the latest Toph release." >&2
@@ -120,6 +119,35 @@ case "$ARCH" in
   aarch64|arm64) ASSET="toph-linux-arm64" ;;
   *) echo "Unsupported architecture: $ARCH" >&2; exit 1 ;;
 esac
+
+if [ -z "$VERSION" ]; then
+  # Releases are partial: an Android-only release may not contain a server
+  # binary. Resolve the newest release that actually carries this architecture.
+  RELEASES_JSON="$(curl -fsSL "https://api.github.com/repos/${REPO}/releases?per_page=100" 2>/dev/null || true)"
+  if [ -n "$RELEASES_JSON" ]; then
+    VERSION="$(printf '%s\n' "$RELEASES_JSON" | awk -v asset="$ASSET" '
+      /"tag_name"[[:space:]]*:/ {
+        tag=$0
+        sub(/^.*"tag_name"[[:space:]]*:[[:space:]]*"/, "", tag)
+        sub(/".*$/, "", tag)
+      }
+      /"name"[[:space:]]*:/ {
+        name=$0
+        sub(/^.*"name"[[:space:]]*:[[:space:]]*"/, "", name)
+        sub(/".*$/, "", name)
+        if (name == asset && tag != "") { print tag; exit }
+      }
+    ')"
+  fi
+  if [ -z "$VERSION" ]; then
+    VERSION="$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" \
+      | sed -n 's/.*"tag_name":[[:space:]]*"\([^"]*\)".*/\1/p' | head -1 || true)"
+  fi
+fi
+if [ -z "$VERSION" ]; then
+  echo "Could not determine the latest Toph release with ${ASSET}." >&2
+  exit 1
+fi
 
 URL="https://github.com/${REPO}/releases/download/${VERSION}/${ASSET}"
 TMP="$(mktemp)"

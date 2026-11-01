@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Bot, Bug, Database, FileCode2, Files, FolderPlus, GitBranch, Globe2, TerminalSquare } from "@toph/icons";
-import { api, type Repository, type SchemaTable, type WebTarget } from "../api";
+import { api, type Project, type Repository, type SchemaTable, type WebTarget } from "../api";
 import { useApp, type AppNotification } from "../store";
 import { useIsMobile } from "../ui/useIsMobile";
 import { nativePushToken, requestMobileNotificationPermission } from "../notifications";
@@ -24,10 +24,11 @@ import GitScreen from "./screens/GitScreen";
 import DatabasesScreen from "./screens/DatabasesScreen";
 import WebAppsScreen from "./screens/WebAppsScreen";
 import ProjectSwitcher from "../components/ProjectSwitcher";
+import CloseProjectModal from "../components/CloseProjectModal";
 import MobileTopBar from "./components/MobileTopBar";
 import TophsHeaderActions from "./TophsHeaderActions";
-import { useConfirm } from "../ui/confirm";
-import { useBots } from "../bots";
+import { useBots, botSessionIds } from "../bots";
+import { useTophDrafts } from "../tophDrafts";
 import MobileBranchSheet from "./MobileBranchSheet";
 import MobileNotificationsSheet from "./MobileNotificationsSheet";
 import MobileAccountSheet from "./MobileAccountSheet";
@@ -45,8 +46,6 @@ export default function MobileApp() {
   const notifications = useApp((state) => state.notifications);
   const markNotificationRead = useApp((state) => state.markNotificationRead);
   const closeProjectTab = useApp((state) => state.closeProjectTab);
-  const confirm = useConfirm();
-
   const mobile = useIsMobile();
   const project = projects.find((item) => item.id === activeProjectId) ?? null;
   const activeTab = tabs.find((tab) => tab.id === activeTabId) ?? null;
@@ -58,6 +57,9 @@ export default function MobileApp() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [terminalOpen, setTerminalOpen] = useState(false);
   const [projectsOpen, setProjectsOpen] = useState(false);
+  const [closeTarget, setCloseTarget] = useState<Project | null>(null);
+  const [closeBusy, setCloseBusy] = useState(false);
+  const [closeError, setCloseError] = useState("");
   const [repoPickerOpen, setRepoPickerOpen] = useState(false);
   const [branchOpen, setBranchOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
@@ -257,26 +259,40 @@ export default function MobileApp() {
     notify("success", `Opened ${next.name}.`);
   }
 
-  async function closeProject(id: string) {
+  function requestCloseProject(id: string) {
     const target = projects.find((item) => item.id === id);
     if (!target) return;
-    const ok = await confirm({
-      title: "Fechar projeto?",
-      message: `Fechar ${target.name}? Isso encerra terminais, abas de banco, web e agentes deste projeto. Ele continua disponível para reabrir.`,
-      confirmLabel: "Fechar projeto",
-    });
-    if (!ok) return;
-    try {
-      await Promise.all([
-        api.closeProjectTerminals(id),
-        api.debugStop(id).catch(() => undefined),
-      ]);
-    } catch (error) {
-      notify("error", error instanceof Error ? error.message : "Could not stop project terminals.");
-    }
-    closeProjectTab(id);
     setProjectsOpen(false);
-    notify("info", `Projeto ${target.name} fechado.`);
+    setCloseError("");
+    setCloseTarget(target);
+  }
+
+  async function confirmCloseProject() {
+    if (!closeTarget || closeBusy) return;
+    const id = closeTarget.id;
+    const target = closeTarget;
+    setCloseBusy(true);
+    setCloseError("");
+    try {
+      const sessions = botSessionIds(useBots.getState().byProject[id]);
+      await Promise.all(sessions.map((sessionId) => api.interruptOpencodeSession(sessionId).catch(() => undefined)));
+      const result = await api.closeProject(id);
+      useBots.getState().forget(id);
+      useTophDrafts.getState().clearProject(id);
+      const wasActive = activeProjectId === id;
+      closeProjectTab(id);
+      setCloseTarget(null);
+      if (wasActive) setScreen("bots");
+      const count = result.processes.length;
+      notify("info", `Projeto ${target.name} fechado. ${count} processo${count === 1 ? "" : "s"} encerrado${count === 1 ? "" : "s"}.`);
+      if (result.failed.length > 0) {
+        notify("error", `${result.failed.length} processo${result.failed.length === 1 ? "" : "s"} não puderam ser encerrados.`);
+      }
+    } catch (error) {
+      setCloseError(error instanceof Error ? error.message : "Não foi possível fechar o projeto.");
+    } finally {
+      setCloseBusy(false);
+    }
   }
 
   if (!project) {
@@ -431,7 +447,7 @@ export default function MobileApp() {
       <Modal isOpen={projectsOpen} onClose={() => setProjectsOpen(false)} label="Projetos" placement="bottom" size="sm" bodyClassName="p-2.5" swipeToClose>
         <ProjectSwitcher
           onSelect={(id) => { setActiveProject(id); setProjectsOpen(false); setScreen("bots"); }}
-          onCloseProject={(id) => void closeProject(id)}
+          onCloseProject={(id) => requestCloseProject(id)}
           onOpenRepo={() => { setProjectsOpen(false); setRepoPickerOpen(true); }}
         />
       </Modal>
@@ -450,6 +466,15 @@ export default function MobileApp() {
         onOpenNotification={openNotification}
       />
       <MobileAccountSheet open={accountOpen} user={user} onClose={() => setAccountOpen(false)} />
+      <CloseProjectModal
+        open={Boolean(closeTarget)}
+        project={closeTarget}
+        busy={closeBusy}
+        error={closeError}
+        mobile
+        onClose={() => { if (!closeBusy) setCloseTarget(null); }}
+        onConfirm={() => void confirmCloseProject()}
+      />
       {repoPickerOpen && <RepoPicker onClose={() => setRepoPickerOpen(false)} onOpen={openRepo} />}
       <Toasts />
     </div>
