@@ -66,6 +66,7 @@ export default function Workbench() {
   const markNotificationRead = useApp((state) => state.markNotificationRead);
   const botWorkspace = useBots((state) => activeProjectId ? state.byProject[activeProjectId] : undefined);
   const pendingBotSelection = useRef<{ projectId: string; botId: string } | null>(null);
+  const savedMode = useRef<string | null>(null);
   const loadBots = useBots((state) => state.load);
   const snapshotBots = useBots((state) => state.snapshot);
   const loadAI = useAI((state) => state.load);
@@ -447,6 +448,7 @@ export default function Workbench() {
     if (!activeProjectId) return;
     let cancelled = false;
     loadedProject.current = null;
+    savedMode.current = null;
     setTabs([]);
     setTerminalOpen(true);
     setSidebar("files");
@@ -525,6 +527,24 @@ export default function Workbench() {
     }, 500);
     return () => window.clearTimeout(timer);
   }, [activeProjectId, layoutKey, layoutTabs, terminalOpen, sidebar, activeTabId, botWorkspace, snapshotBots]);
+
+  // Mode is a deliberate choice: persist it immediately so leaving and
+  // returning to Tophs does not fall back to the other thread.
+  useEffect(() => {
+    if (!activeProjectId || loadedProject.current !== activeProjectId) return;
+    const mode = botWorkspace?.mode;
+    if (!mode || savedMode.current === mode) return;
+    savedMode.current = mode;
+    void api
+      .saveLayout(activeProjectId, {
+        tabs: layoutTabs,
+        activeTabId,
+        sidebar,
+        terminalOpen,
+        bots: snapshotBots(activeProjectId),
+      })
+      .catch(() => undefined);
+  }, [activeProjectId, botWorkspace?.mode, layoutTabs, terminalOpen, sidebar, activeTabId, snapshotBots]);
 
   function switchProject(next: string) {
     if (next === activeProjectId) return;

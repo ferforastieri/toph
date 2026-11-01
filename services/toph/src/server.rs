@@ -6,7 +6,7 @@ use std::time::{Duration, Instant};
 
 use axum::body::Body;
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
-use axum::extract::{ConnectInfo, Extension, Path, Query, State};
+use axum::extract::{ConnectInfo, DefaultBodyLimit, Extension, Path, Query, State};
 use axum::http::header::{self, HeaderValue};
 use axum::http::{HeaderMap, Method, Request, StatusCode, Uri};
 use axum::middleware::{self, Next};
@@ -458,7 +458,7 @@ fn router(state: Arc<AppState>) -> Router {
         .route("/api/projects/{project_id}/git/discard", post(git_discard))
         .route(
             "/api/projects/{project_id}/workspace",
-            get(get_layout).put(save_layout),
+            get(get_layout).put(save_layout).layer(DefaultBodyLimit::max(32 * 1024 * 1024)),
         )
         .route(
             "/api/projects/{project_id}/terminals",
