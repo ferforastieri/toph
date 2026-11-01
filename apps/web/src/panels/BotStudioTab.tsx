@@ -184,7 +184,7 @@ function partStatus(part: Record<string, any>): "running" | "complete" | "error"
   return "complete";
 }
 
-function restoreBotMessages(context: unknown, botId: string, channel: string): BotMessage[] {
+function restoreBotMessages(context: unknown, botId: string, channel: string, mode: "solo" | "team"): BotMessage[] {
   if (!Array.isArray(context)) return [];
   const restored: BotMessage[] = [];
   for (const raw of context as Array<Record<string, any>>) {
@@ -192,7 +192,7 @@ function restoreBotMessages(context: unknown, botId: string, channel: string): B
     if (raw.type === "user") {
       const text = String(raw.text ?? "");
       if (/Sua função:|Sua personalidade:|MCPs habilitados para você:|Mensagem atual:/.test(text)) continue;
-      restored.push({ id: `history-user-${raw.id}`, role: "user", content: text, channel, createdAt: messageCreated });
+      restored.push({ id: `history-user-${raw.id}`, role: "user", content: text, channel, mode, createdAt: messageCreated });
       continue;
     }
     if (raw.type !== "assistant") continue;
@@ -210,6 +210,7 @@ function restoreBotMessages(context: unknown, botId: string, channel: string): B
         botId,
         content: textRun,
         channel,
+        mode,
         status: "complete",
         createdAt: textStartedAt || messageCreated,
       });
@@ -233,6 +234,7 @@ function restoreBotMessages(context: unknown, botId: string, channel: string): B
           title: "Thought",
           content: String(part.text ?? ""),
           channel,
+          mode,
           status: "complete",
           durationMs,
           createdAt,
@@ -248,6 +250,7 @@ function restoreBotMessages(context: unknown, botId: string, channel: string): B
         content: toolContent(partInput(part)),
         detail: toolContent(partOutput(part)),
         channel,
+        mode,
         status: partStatus(part),
         createdAt,
       });
@@ -389,16 +392,18 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
   }, [aiConfig?.provider, project.root, ensure, project.id]);
 
   const mode = workspace?.mode ?? "unset";
+  const threadMode: "solo" | "team" = mode === "team" ? "team" : "solo";
   const bots = workspace?.bots ?? [];
   const messages = workspace?.messages ?? [];
   const activeBot = bots.find((bot) => bot.id === workspace?.activeBotId) ?? bots[0] ?? null;
   const coordinator = bots.find((bot) => bot.coordinator) ?? bots[0] ?? null;
   const activeWorker = mode === "team" && activeBot && activeBot.id !== coordinator?.id ? activeBot : null;
+  const modeMessages = messages.filter((message) => message.mode === mode);
   const displayMessages = mode === "solo"
-    ? messages
+    ? modeMessages
     : activeWorker
-      ? messages.filter((message) => message.channel === `worker:${activeWorker.id}` || (!message.channel && message.botId === activeWorker.id))
-      : messages;
+      ? modeMessages.filter((message) => message.channel === `worker:${activeWorker.id}` || (!message.channel && message.botId === activeWorker.id))
+      : modeMessages;
   const groupedMessages = groupBotMessages(displayMessages);
   const lastBotGroupIndex = new Map<string, number>();
   groupedMessages.forEach((group, index) => {
@@ -534,10 +539,10 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
           if (!bot) continue;
           const assistantID = String(data.assistantMessageID ?? "");
           const messageID = (kind: string, id = assistantID) => `bot-${botId}-${kind}-${id || Date.now()}`;
-          const eventChannel = state.byProject[project.id]?.mode === "solo" || bot.coordinator ? "team" : `worker:${botId}`;
+          const eventChannel = state.byProject[project.id]?.mode === "solo" ? "solo" : bot.coordinator ? "team" : `worker:${botId}`;
           const ensure = (message: BotMessage) => {
             const list = useBots.getState().byProject[project.id]?.messages ?? [];
-            if (!list.some((item) => item.id === message.id)) state.addMessage(project.id, { ...message, channel: message.channel ?? eventChannel });
+            if (!list.some((item) => item.id === message.id)) state.addMessage(project.id, { ...message, mode: state.byProject[project.id]?.mode === "solo" ? "solo" : "team", channel: message.channel ?? eventChannel });
           };
           switch (event.type) {
             case "session.text.started":
@@ -611,6 +616,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
                 permissionId: String(data.id),
                 permissionAction: String(data.action ?? ""),
                 sessionId,
+                mode: state.byProject[project.id]?.mode === "solo" ? "solo" : "team",
                 createdAt: Date.now(),
               });
               break;
@@ -784,10 +790,10 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
 
   async function respondAsBot(bot: MiniBot, userText: string, options: { attachments?: AgentAttachment[]; audience?: "user" | "coordinator"; channel?: string; token?: number } = {}): Promise<string | null> {
     const workspaceNow = useBots.getState().byProject[project.id];
-    const allHistory = workspaceNow?.messages ?? [];
-    const channel = options.channel ?? (bot.coordinator || mode === "solo" ? "team" : `worker:${bot.id}`);
+    const allHistory = (workspaceNow?.messages ?? []).filter((message) => message.mode === threadMode);
+    const channel = options.channel ?? (bot.coordinator || mode === "solo" ? (mode === "solo" ? "solo" : "team") : `worker:${bot.id}`);
     const history = bot.coordinator || mode === "solo"
-      ? allHistory.filter((message) => !message.channel || message.channel === "team")
+      ? allHistory.filter((message) => !message.channel || message.channel === channel)
       : allHistory.filter((message) => message.channel === channel && (message.role === "user" || message.botId === bot.id));
     const startedAt = Date.now();
     setRunningBots((current) => new Set(current).add(bot.id));
@@ -820,6 +826,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
             botId: bot.id,
             content: reply.trim(),
             channel,
+            mode: threadMode,
             audience: options.audience ?? "user",
             status: "complete",
             createdAt: Date.now(),
@@ -847,6 +854,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
         botId: bot.id,
         content: "",
         channel,
+        mode: threadMode,
         audience: options.audience ?? "user",
         pending: true,
         status: "running",
@@ -876,6 +884,8 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
         role: "error",
         botId: bot.id,
         content: text,
+        mode: threadMode,
+        channel,
         createdAt: Date.now(),
       });
       return null;
@@ -925,7 +935,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
   }
 
   function channelForBot(bot: MiniBot): string {
-    return mode === "solo" || bot.coordinator ? "team" : `worker:${bot.id}`;
+    return mode === "solo" ? "solo" : bot.coordinator ? "team" : `worker:${bot.id}`;
   }
 
   async function restoreSession(session: OpenCodeSessionSummary) {
@@ -936,9 +946,9 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
     setSessionsOpen(false);
     try {
       const context = await client.session.context({ sessionID: session.id } as never);
-      replaceChannelMessages(project.id, channel, restoreBotMessages(context, activeBot.id, channel));
+      replaceChannelMessages(project.id, channel, restoreBotMessages(context, activeBot.id, channel, threadMode));
     } catch (err) {
-      addMessage(project.id, { id: `session-error-${Date.now()}`, role: "error", content: err instanceof Error ? err.message : "Não foi possível recuperar a sessão.", channel, createdAt: Date.now() });
+      addMessage(project.id, { id: `session-error-${Date.now()}`, role: "error", content: err instanceof Error ? err.message : "Não foi possível recuperar a sessão.", channel, mode: threadMode, createdAt: Date.now() });
     }
   }
 
@@ -999,7 +1009,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
         const context = await client.session.context({ sessionID: bot.sessionId } as never).catch(() => null);
         if (!Array.isArray(context) || context.length === 0) continue;
         const channel = channelForBot(bot);
-        const restored = restoreBotMessages(context, bot.id, channel);
+        const restored = restoreBotMessages(context, bot.id, channel, threadMode);
         if (restored.length) replaceChannelMessages(project.id, channel, restored);
       }
     } finally {
@@ -1028,12 +1038,13 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
     const direct = mentionedBots(bots, text);
     const activeWorker = mode === "team" && activeBot && activeBot.id !== coordinator?.id ? activeBot : null;
     const targetWorker = activeWorker;
-    const channel = targetWorker ? `worker:${targetWorker.id}` : "team";
+    const channel = targetWorker ? `worker:${targetWorker.id}` : mode === "solo" ? "solo" : "team";
     addMessage(project.id, {
       id: `bot-user-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       role: "user",
       content: text || attachments.map((file) => file.name).join(", "),
       channel,
+      mode: threadMode,
       createdAt: Date.now(),
     });
     setSending(true);
