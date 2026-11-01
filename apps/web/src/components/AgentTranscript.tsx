@@ -4,12 +4,14 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Check, ChevronDown, CircleAlert, Copy, LoaderCircle, X } from "@toph/icons";
 import type { AiMessage } from "../store";
+import { readableTextOn } from "../lib";
 import { Button } from "@/boardui/base/buttons/button";
 import { Chip } from "@/boardui/base/badges/chip";
 
 interface Props {
   messages: AiMessage[];
   streaming: boolean;
+  accentColor?: string;
   onPermission?: (messageId: string, permissionId: string, decision: "once" | "always" | "reject") => void;
   className?: string;
 }
@@ -58,6 +60,7 @@ const markdownComponents: Components = {
 interface MessageProps {
   message: AiMessage;
   showCaret: boolean;
+  accentColor?: string;
   onPermission?: (messageId: string, permissionId: string, decision: "once" | "always" | "reject") => void;
 }
 
@@ -257,14 +260,14 @@ function ToolGroup({ messages, onPermission }: { messages: AiMessage[]; onPermis
   );
 }
 
-const TranscriptMessage = memo(function TranscriptMessage({ message, showCaret, onPermission }: MessageProps) {
+const TranscriptMessage = memo(function TranscriptMessage({ message, showCaret, accentColor, onPermission }: MessageProps) {
   if (message.role === "error") {
     return <Chip color="rose" variant="subtle" className="justify-start gap-1.5 whitespace-normal px-2 py-1.5"><CircleAlert size={13} /> {message.text}</Chip>;
   }
   if (message.role === "user") {
     return (
       <div className="ms-auto flex min-w-0 max-w-[88%] flex-col items-end gap-1">
-        <p className="min-w-0 max-w-full overflow-hidden rounded-2xl bg-blue-600/20 px-3.5 py-2 text-[14px] leading-[1.55] whitespace-pre-wrap break-words text-text-primary">
+        <p className="min-w-0 max-w-full overflow-hidden rounded-2xl px-3.5 py-2 text-[14px] leading-[1.55] whitespace-pre-wrap break-words" style={accentColor ? { backgroundColor: accentColor, color: readableTextOn(accentColor) } : undefined}>
           {message.text}
         </p>
         <Button variant="ghost" size="xs" iconOnly leadingIcon={Copy} aria-label="Copiar mensagem" title="Copiar mensagem" onClick={() => void navigator.clipboard.writeText(message.text).catch(() => undefined)} className="size-6 text-text-tertiary opacity-50 hover:opacity-100" />
@@ -292,7 +295,7 @@ const TranscriptMessage = memo(function TranscriptMessage({ message, showCaret, 
   );
 }, (prev, next) => prev.message === next.message && prev.showCaret === next.showCaret);
 
-export default function AgentTranscript({ messages, streaming, onPermission, className }: Props) {
+export default function AgentTranscript({ messages, streaming, accentColor, onPermission, className }: Props) {
   const nodes: Array<{ kind: "message"; message: AiMessage } | { kind: "group"; messages: AiMessage[] }> = [];
   let group: AiMessage[] = [];
   const flush = () => {
@@ -319,6 +322,7 @@ export default function AgentTranscript({ messages, streaming, onPermission, cla
           key={node.message.id}
           message={node.message}
           showCaret={streaming && node.message.id === lastMessage?.id && node.message.status === "running"}
+          accentColor={accentColor}
           onPermission={onPermission}
         />
       ))}

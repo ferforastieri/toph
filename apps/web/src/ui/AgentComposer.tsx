@@ -4,10 +4,11 @@ import type { AIModel } from "../api";
 import { Button } from "@/boardui/base/buttons/button";
 import { IconButton } from "@/boardui/base/buttons/icon-button";
 import { Textarea } from "@/boardui/base/textarea/textarea";
-import { Dropdown, DropdownDivider, DropdownGroup, DropdownItem, DropdownPopover, DropdownTrigger } from "@/boardui/base/dropdown/dropdown";
+import { DropdownDivider, DropdownGroup, DropdownItem } from "@/boardui/base/dropdown/dropdown";
+import ComposerMenu from "./ComposerMenu";
 import { ComposerLoader } from "@/boardui/application/composer-loader/composer-loader";
 import ModelPicker from "./ModelPicker";
-import { readableTextOn } from "../lib";
+import { colorWithAlpha, readableTextOn } from "../lib";
 
 export interface AgentAttachment { name: string; uri: string; mime: string; size: number; }
 
@@ -80,7 +81,8 @@ export function AgentComposer({ value, onChange, onSend, onStop, busy, models, m
       <ComposerLoader active={busy} radius={14} surface={false}>
         <form
           onSubmit={(event) => { event.preventDefault(); submit(); }}
-          className="flex flex-col gap-2 rounded-[14px] border border-border-button-default bg-background-primary-default p-3 pb-2 shadow-xs"
+          className="flex flex-col gap-2 rounded-[14px] border p-3 pb-2 shadow-xs"
+          style={accentColor ? { borderColor: colorWithAlpha(accentColor, 0.5), backgroundColor: colorWithAlpha(accentColor, 0.08) } : undefined}
           onKeyDownCapture={(event) => { if (event.key === "Enter" && !event.shiftKey && event.target === areaRef.current) { event.preventDefault(); submit(); } }}
           onPaste={(event) => {
             if (!allowAttachments) return;
@@ -116,22 +118,28 @@ export function AgentComposer({ value, onChange, onSend, onStop, busy, models, m
             className="min-h-[38px] px-0 py-0 text-[13.5px] leading-[1.5]"
           />
           <div className="flex min-w-0 items-center gap-1">
-            <Dropdown isOpen={addMenuOpen} onOpenChange={setAddMenuOpen}>
-              <DropdownTrigger aria-label="Adicionar contexto ou arquivo" className="flex h-7 shrink-0 items-center gap-1.5 rounded-md px-1.5 text-body-2-medium text-text-secondary outline-none transition-colors hover:bg-background-secondary-hover focus-visible:ring-2 focus-visible:ring-border-focus-ring">
-                <Plus size={15} />
-              </DropdownTrigger>
-              <DropdownPopover aria-label="Adicionar contexto" placement="top start" className="w-56">
-                <DropdownGroup>
-                  {allowAttachments && <DropdownItem onSelect={() => { setAddMenuOpen(false); fileRef.current?.click(); }}><ImagePlus size={15} /> Imagens e arquivos <span className="ms-auto text-caption-2-regular text-text-tertiary">Ctrl+U</span></DropdownItem>}
-                  <DropdownItem onSelect={() => { setAddMenuOpen(false); insert("/"); }}><TerminalSquare size={15} /> Comandos <span className="ms-auto text-caption-2-regular text-text-tertiary">/</span></DropdownItem>
-                  <DropdownItem onSelect={() => { setAddMenuOpen(false); insert("@"); }}><AtSign size={15} /> Contexto <span className="ms-auto text-caption-2-regular text-text-tertiary">@</span></DropdownItem>
-                </DropdownGroup>
-                <DropdownDivider />
-                <DropdownGroup>
-                  <DropdownItem onSelect={() => { setAddMenuOpen(false); insert("!"); }}><TerminalSquare size={15} /> Comando do shell <span className="ms-auto text-caption-2-regular text-text-tertiary">!</span></DropdownItem>
-                </DropdownGroup>
-              </DropdownPopover>
-            </Dropdown>
+            <ComposerMenu
+              label="Adicionar contexto ou arquivo"
+              isOpen={addMenuOpen}
+              onOpenChange={setAddMenuOpen}
+              trigger={<Plus size={15} />}
+              popoverClassName="w-56"
+              contentClassName="flex flex-col gap-1"
+            >
+              {(close) => (
+                <>
+                  <DropdownGroup>
+                    {allowAttachments && <DropdownItem onSelect={() => { close(); fileRef.current?.click(); }}><ImagePlus size={15} /> Imagens e arquivos <span className="ms-auto text-caption-2-regular text-text-tertiary">Ctrl+U</span></DropdownItem>}
+                    <DropdownItem onSelect={() => { close(); insert("/"); }}><TerminalSquare size={15} /> Comandos <span className="ms-auto text-caption-2-regular text-text-tertiary">/</span></DropdownItem>
+                    <DropdownItem onSelect={() => { close(); insert("@"); }}><AtSign size={15} /> Contexto <span className="ms-auto text-caption-2-regular text-text-tertiary">@</span></DropdownItem>
+                  </DropdownGroup>
+                  <DropdownDivider />
+                  <DropdownGroup>
+                    <DropdownItem onSelect={() => { close(); insert("!"); }}><TerminalSquare size={15} /> Comando do shell <span className="ms-auto text-caption-2-regular text-text-tertiary">!</span></DropdownItem>
+                  </DropdownGroup>
+                </>
+              )}
+            </ComposerMenu>
             <div className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
               <ModelPicker models={models} model={model} onModelChange={onModelChange} effort={effort} efforts={efforts} onEffortChange={onEffortChange} />
               {modeControls && <div className="flex shrink-0 items-center gap-0.5">{modeControls}</div>}
@@ -139,7 +147,7 @@ export function AgentComposer({ value, onChange, onSend, onStop, busy, models, m
             {busy && onStop ? (
               <Button type="button" variant="secondary" size="small" iconOnly leadingIcon={Square} onClick={onStop} aria-label="Parar" className="size-8 shrink-0 rounded-lg border-0 hover:opacity-90" style={accentColor ? { backgroundColor: accentColor, color: readableTextOn(accentColor) } : undefined} />
             ) : (
-              <Button type="submit" size="small" iconOnly leadingIcon={ArrowUp} disabled={!value.trim() && attachments.length === 0} aria-label="Enviar" className="size-8 shrink-0 rounded-lg border-0 bg-text-primary text-background-full hover:bg-text-secondary disabled:bg-background-tertiary-default disabled:text-text-tertiary" style={accentColor && (value.trim() || attachments.length > 0) ? { backgroundColor: accentColor, color: readableTextOn(accentColor) } : undefined} />
+              <Button type="submit" size="small" iconOnly leadingIcon={ArrowUp} disabled={!value.trim() && attachments.length === 0} aria-label="Enviar" className="size-8 shrink-0 rounded-lg border-0 bg-text-primary text-background-full hover:bg-text-secondary disabled:opacity-40" style={accentColor ? { backgroundColor: accentColor, color: readableTextOn(accentColor) } : undefined} />
             )}
           </div>
         </form>

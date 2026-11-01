@@ -62,13 +62,13 @@ export default function MobileNotificationsSheet({ open, projectId, projectName,
           <Button
             key={notification.id}
             variant="ghost"
-            className="h-auto w-full justify-start gap-2.5 rounded-2xl px-2.5 py-2.5 text-start"
+            className="h-auto w-full justify-start gap-3.5 rounded-2xl px-2.5 py-2.5 text-start"
             onClick={() => { onOpenNotification(notification); onClose(); }}
           >
             <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-accent-500/10 text-accent-500">
               <Bot className="size-4" />
             </span>
-            <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+            <span className="flex min-w-0 flex-1 flex-col gap-1 ps-0.5">
               <span className="flex min-w-0 items-baseline justify-between gap-2">
                 <strong className="truncate text-caption-1-semibold text-text-primary">{notification.title}</strong>
                 <span className="shrink-0 text-caption-2-regular text-text-tertiary">{timeAgo(notification.createdAt)}</span>
