@@ -18,6 +18,7 @@ import type { AiMessage } from "../store";
 import { Button } from "@/boardui/base/buttons/button";
 import { Modal } from "@/boardui/base/modal/modal";
 import { cx } from "@/boardui/utils/cx";
+import { useTophDrafts } from "../tophDrafts";
 import { AgentComposer, type AgentAttachment } from "../ui/AgentComposer";
 import { Select, SelectItem } from "@/boardui/base/select/select";
 
@@ -227,6 +228,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
     ensure(project.id);
   }, [ensure, project.id]);
 
+
   useEffect(() => {
     if (aiConfig?.provider !== "opencode") return;
     const toolResult = (data: unknown) => ({ content: [{ type: "text" as const, text: JSON.stringify(data) }] });
@@ -314,6 +316,31 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
       : messages.filter((message) => !message.channel || message.channel === "team");
   const activeModel = activeBot?.model || aiConfig?.model || models[0]?.id || "";
   const activeEfforts = models.find((model) => model.id === activeModel)?.variants ?? [];
+  const draftKey = `${project.id}:${mode}:${activeBot?.id ?? "none"}:${activeBot?.sessionId ?? "new"}`;
+  const savedDraft = useTophDrafts((state) => state.drafts[draftKey] ?? "");
+  const setDraft = useTophDrafts((state) => state.setDraft);
+  const clearDraft = useTophDrafts((state) => state.clearDraft);
+
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const action = (event as CustomEvent<{ action?: string }>).detail?.action;
+      if (action === "config") setConfigOpen(true);
+      else if (action === "settings") setSettingsOpen(true);
+      else if (action === "sessions") setSessionsOpen(true);
+      else if (action === "new") newBot();
+    };
+    window.addEventListener("toph:tophs-action", handler);
+    return () => window.removeEventListener("toph:tophs-action", handler);
+  }, [project.id, mode, activeBot?.id]);
+
+  useEffect(() => {
+    setInput(savedDraft);
+  }, [draftKey]);
+
+  function updateInput(value: string) {
+    setInput(value);
+    setDraft(draftKey, value);
+  }
 
   useEffect(() => {
     if (!workspace) return;
@@ -754,6 +781,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
     if ((!text.trim() && attachments.length === 0) || sending || bots.length === 0) return;
     unlockBotSound();
     setInput("");
+    clearDraft(draftKey);
     stickToBottom.current = true;
     const direct = mentionedBots(bots, text);
     const activeWorker = mode === "team" && activeBot && activeBot.id !== coordinator?.id ? activeBot : null;
@@ -857,6 +885,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
   return (
     <div className="flex h-full min-h-0 w-full flex-1 gap-1" onPointerDown={unlockBotSound}>
       <section className="flex min-w-0 flex-1 flex-col overflow-hidden bg-background-primary-default max-[900px]:rounded-none max-[900px]:border-0 max-[900px]:shadow-none min-[901px]:rounded-3xl min-[901px]:border min-[901px]:border-border-button-white min-[901px]:shadow-sidebar">
+        {!mobile ? (
         <div className="flex shrink-0 items-center gap-1 border-b border-separator-border bg-background-secondary-default px-2 py-1.5">
           <Button variant="ghost" size="small" iconOnly leadingIcon={Settings2} aria-label={mode === "solo" ? "Configurar Toph" : "Configurar Toph ativo"} title={mode === "solo" ? "Configurar Toph" : "Configurar Toph ativo"} onClick={() => setConfigOpen(true)} className="size-9" />
           <Button variant="ghost" size="small" iconOnly leadingIcon={SlidersHorizontal} aria-label="Configurações de IA" title="Configurações de IA" onClick={() => setSettingsOpen(true)} className="size-9" />
@@ -870,6 +899,8 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
             <Button variant={mode === "team" ? "secondary" : "ghost"} size="xs" iconOnly leadingIcon={Bot} aria-label="Modo equipe" title="Modo equipe" onClick={() => setMode(project.id, "team")} className="size-8 rounded-lg" />
           </div>
         </div>
+
+        ) : null}
 
         {mode === "team" && bots.length > 0 ? (
           <div className="shrink-0 border-b border-separator-border px-3 py-2.5">
@@ -915,13 +946,13 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
 
         <div
           ref={scrollRef}
-          className="min-h-0 flex-1 overflow-y-auto"
+          className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-x-none"
           onScroll={(event) => {
             const element = event.currentTarget;
             stickToBottom.current = element.scrollHeight - element.scrollTop - element.clientHeight < 80;
           }}
         >
-          <div className="mx-auto flex min-h-full w-full max-w-3xl flex-col gap-4 p-4">
+          <div className="mx-auto flex min-h-full w-full min-w-0 max-w-3xl flex-col gap-4 overflow-x-hidden p-4 [&_img]:max-w-full [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_table]:block [&_table]:max-w-full [&_table]:overflow-x-auto">
             {displayMessages.length === 0 && (
               <div className="my-auto flex flex-col items-center gap-3 px-6 py-10 text-center">
                 <div className="flex -space-x-2">
@@ -941,7 +972,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
             {groupBotMessages(displayMessages).map((group, index) => {
               if (group.kind === "user") {
                 return (
-                  <p key={`user-${group.message.id}`} className="ms-auto max-w-[88%] rounded-2xl border border-accent-500/20 bg-accent-500/10 px-3.5 py-2 text-[13.5px] leading-[1.5] whitespace-pre-wrap break-words text-text-primary">
+                  <p key={`user-${group.message.id}`} className="ms-auto min-w-0 max-w-[88%] overflow-hidden rounded-2xl border border-accent-500/20 bg-accent-500/10 px-3.5 py-2 text-[13.5px] leading-[1.5] whitespace-pre-wrap break-words text-text-primary">
                     {group.message.content}
                   </p>
                 );
@@ -952,7 +983,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
               const bot = bots.find((item) => item.id === group.botId);
               if (!bot) return null;
               return (
-                <section key={`bot-${group.botId}-${index}`} className="flex flex-col gap-2">
+                <section key={`bot-${group.botId}-${index}`} className="flex min-w-0 max-w-full flex-col gap-2 overflow-x-hidden">
                   <header className="flex items-center gap-2">
                     <BotAvatar bot={bot} size={28} />
                     <div className="flex min-w-0 items-baseline gap-2">
@@ -1013,7 +1044,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
         <div className="shrink-0">
           <AgentComposer
             value={input}
-            onChange={setInput}
+            onChange={updateInput}
             onSend={(value, attachments) => void send(value, attachments)}
             onStop={() => void stop()}
             busy={sending || runningBots.size > 0}

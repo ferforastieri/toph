@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Check, History, Plus } from "@toph/icons";
 import type { Project } from "../api";
 import type { MiniBot } from "../bots";
@@ -9,6 +9,26 @@ import { Avatar } from "@/boardui/base/avatar/avatar";
 import { Chip } from "@/boardui/base/badges/chip";
 import { Modal } from "@/boardui/base/modal/modal";
 import LoadingState from "./LoadingState";
+
+const sessionCache = new Map<string, OpenCodeSessionSummary[]>();
+const sessionRequests = new Map<string, Promise<OpenCodeSessionSummary[]>>();
+
+function loadProjectSessions(root: string, force = false): Promise<OpenCodeSessionSummary[]> {
+  if (!force) {
+    const cached = sessionCache.get(root);
+    if (cached) return Promise.resolve(cached);
+  }
+  const existing = sessionRequests.get(root);
+  if (existing) return existing;
+  const request = listOpenCodeSessions(root, 100)
+    .then((items) => {
+      sessionCache.set(root, items);
+      return items;
+    })
+    .finally(() => { sessionRequests.delete(root); });
+  sessionRequests.set(root, request);
+  return request;
+}
 
 interface Props {
   open: boolean;
@@ -22,36 +42,55 @@ interface Props {
 }
 
 export default function TophSessionsSheet({ open, project, mode, bot, activeSessionId, onClose, onSelect, onNew }: Props) {
-  const [sessions, setSessions] = useState<OpenCodeSessionSummary[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [allSessions, setAllSessions] = useState<OpenCodeSessionSummary[]>(() => sessionCache.get(project.root) ?? []);
+  const [loading, setLoading] = useState(!sessionCache.has(project.root));
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (!open || !bot) return;
+    if (!bot) return;
     let cancelled = false;
-    setLoading(true);
-    setError("");
-    listOpenCodeSessions(project.root, 100)
+    const cached = sessionCache.get(project.root);
+    if (cached) {
+      setAllSessions(cached);
+      setLoading(false);
+    }
+    loadProjectSessions(project.root, Boolean(cached))
       .then((items) => {
         if (cancelled) return;
-        const scoped = mode === "solo"
-          ? items.filter((session) => !session.parentID && (!session.metadata?.tophBotId || session.metadata.tophBotId === bot.id))
-          : items.filter((session) =>
-            session.metadata?.tophBotId === bot.id
-            || session.id === bot.sessionId
-            || Boolean(session.title?.startsWith(`${bot.name} · `)),
-          );
-        setSessions(scoped);
+        setAllSessions(items);
+        setError("");
       })
       .catch((err) => {
-        if (!cancelled) {
-          setSessions([]);
-          setError(err instanceof Error ? err.message : "Não foi possível carregar as sessões.");
-        }
+        if (cancelled) return;
+        setError(err instanceof Error ? err.message : "Não foi possível carregar as sessões.");
       })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [open, project.root, mode, bot?.id, bot?.sessionId]);
+  }, [project.root, bot?.id]);
+
+  useEffect(() => {
+    if (!open || !bot) return;
+    const cached = sessionCache.get(project.root);
+    if (cached) {
+      setAllSessions(cached);
+      setLoading(false);
+    }
+    loadProjectSessions(project.root, true)
+      .then((items) => { setAllSessions(items); setError(""); })
+      .catch((err) => setError(err instanceof Error ? err.message : "Não foi possível carregar as sessões."))
+      .finally(() => setLoading(false));
+  }, [open, project.root, bot?.id]);
+
+  const sessions = useMemo(() => {
+    if (!bot) return [];
+    return mode === "solo"
+      ? allSessions.filter((session) => !session.parentID && (!session.metadata?.tophBotId || session.metadata.tophBotId === bot.id))
+      : allSessions.filter((session) =>
+        session.metadata?.tophBotId === bot.id
+        || session.id === bot.sessionId
+        || Boolean(session.title?.startsWith(`${bot.name} · `)),
+      );
+  }, [allSessions, bot, mode]);
 
   return (
     <Modal

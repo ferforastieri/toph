@@ -4,6 +4,7 @@ import type { AIModel } from "../api";
 import { modelGroup, providerLabel } from "../ai";
 import { Dropdown, DropdownPopover, DropdownTrigger } from "@/boardui/base/dropdown/dropdown";
 import { cx } from "@/boardui/utils/cx";
+import { Slider } from "@/boardui/base/slider/slider";
 
 interface Props {
   models: AIModel[];
@@ -22,6 +23,7 @@ const EFFORT_LABEL: Record<string, string> = {
   high: "Alto",
   max: "Max",
   xhigh: "Máximo",
+  none: "Nenhum",
 };
 
 function effortLabel(value: string): string {
@@ -86,12 +88,12 @@ export default function ModelPicker({ models, model, onModelChange, effort, effo
         aria-label="Modelo e esforço"
         className={cx(
           "flex h-7 min-w-0 items-center gap-1.5 rounded-md px-1.5 text-body-2-medium text-text-secondary outline-none transition-colors hover:bg-background-secondary-hover focus-visible:ring-2 focus-visible:ring-border-focus-ring",
-          fullWidth ? "w-full max-w-none justify-start border border-border-button-default bg-background-primary-default" : "max-w-[190px]",
+          fullWidth ? "w-full max-w-none justify-start border border-border-button-default bg-background-primary-default" : "max-w-[150px]",
         )}
       >
-        <Bot size={13} className="shrink-0 text-foreground-icon-tertiary" />
+        {fullWidth ? <Bot size={13} className="shrink-0 text-foreground-icon-tertiary" /> : null}
         <span className="truncate">{selected?.label ?? (model ? model.split("/").pop() : "Modelo")}</span>
-        {variants.length > 0 ? <span className="shrink-0 text-caption-2-regular text-text-tertiary">· {effortLabel(effort)}</span> : null}
+        {fullWidth && variants.length > 0 ? <span className="shrink-0 text-caption-2-regular text-text-tertiary">· {effortLabel(effort)}</span> : null}
         <ChevronDown size={12} className="size-3 shrink-0 text-foreground-icon-tertiary" />
       </DropdownTrigger>
       <DropdownPopover aria-label="Modelos e esforço" placement="top start" className="w-[300px] max-w-[calc(100vw-24px)] p-0" dialogClassName="gap-0">
@@ -132,24 +134,25 @@ export default function ModelPicker({ models, model, onModelChange, effort, effo
                             {itemVariants.length > 0 ? <ChevronDown size={12} className={cx("shrink-0 text-foreground-icon-tertiary transition-transform", effortOpen ? "rotate-180" : "")} /> : null}
                           </button>
                           {effortOpen ? (
-                            <div className="flex flex-wrap gap-1 px-2 pb-2 pt-0.5">
-                              <button
-                                type="button"
-                                onClick={() => pick(item, "", false)}
-                                className={cx("rounded-full border px-2 py-1 text-caption-2-medium transition-colors", effort === "" ? "border-accent-500/40 bg-accent-500/10 text-accent-600" : "border-border-button-default text-text-secondary hover:bg-background-primary-hover")}
-                              >
-                                Padrão
-                              </button>
-                              {itemVariants.map((level) => (
-                                <button
-                                  key={level}
-                                  type="button"
-                                  onClick={() => pick(item, level)}
-                                  className={cx("rounded-full border px-2 py-1 text-caption-2-medium transition-colors", effort === level ? "border-accent-500/40 bg-accent-500/10 text-accent-600" : "border-border-button-default text-text-secondary hover:bg-background-primary-hover")}
-                                >
-                                  {effortLabel(level)}
-                                </button>
-                              ))}
+                            <div className="px-2 pb-3 pt-1">
+                              <div className="mb-1 flex items-center justify-between gap-2 text-caption-2-regular">
+                                <span className="text-text-tertiary">Esforço</span>
+                                <span className="text-text-secondary">{effortLabel(effort)}</span>
+                              </div>
+                              <Slider
+                                aria-label="Esforço"
+                                minValue={0}
+                                maxValue={itemVariants.length}
+                                step={1}
+                                value={effort && itemVariants.includes(effort) ? itemVariants.indexOf(effort) + 1 : 0}
+                                onChange={(value) => pick(item, Number(value) === 0 ? "" : itemVariants[Number(value) - 1] ?? "", false)}
+                                showTooltip={false}
+                                thumbLabel="Esforço"
+                              />
+                              <div className="flex items-center justify-between text-[10px] leading-none text-text-tertiary">
+                                <span>Padrão</span>
+                                <span>{effortLabel(itemVariants[itemVariants.length - 1])}</span>
+                              </div>
                             </div>
                           ) : null}
                         </div>
