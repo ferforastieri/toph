@@ -1,6 +1,19 @@
 import { create } from "zustand";
 
-export type BotAvatar = "shield" | "star" | "diamond" | "blob" | "circle";
+export const BOT_AVATARS = [
+  "shield", "star", "diamond", "blob", "circle",
+  "hexagon", "flower", "gear", "cloud", "leaf",
+  "drop", "spark", "ring", "wave", "ghost",
+  "egg", "square", "triangle", "moon", "cat",
+] as const;
+export type BotAvatar = (typeof BOT_AVATARS)[number];
+
+export const BOT_AVATAR_LABELS: Record<BotAvatar, string> = {
+  shield: "Escudo", star: "Estrela", diamond: "Diamante", blob: "Blob", circle: "Círculo",
+  hexagon: "Hexágono", flower: "Flor", gear: "Engrenagem", cloud: "Nuvem", leaf: "Folha",
+  drop: "Gota", spark: "Faísca", ring: "Anel", wave: "Onda", ghost: "Fantasma",
+  egg: "Ovo", square: "Quadrado", triangle: "Triângulo", moon: "Lua", cat: "Gato",
+};
 export type BotLanguage = "auto" | "pt" | "en" | "es";
 
 export interface MiniBot {
@@ -79,14 +92,44 @@ interface BotStore {
 }
 
 export const BOT_COLORS = [
-  "#B9DE7A",
-  "#A8DDE8",
-  "#D6C4F2",
-  "#FFB547",
-  "#F3A6A0",
-  "#7CC7B0",
-  "#8FB5F5",
-  "#E7C96F",
+  "#B9DE7A", "#A8DDE8", "#D6C4F2", "#FFB547", "#F3A6A0",
+  "#7CC7B0", "#8FB5F5", "#E7C96F", "#F08C72", "#8CD3B4",
+  "#C7A3FF", "#FF9EC4", "#7FD4E8", "#F7B267", "#B8E986",
+  "#9BB7FF", "#F28BA8", "#84E0C2", "#D8B4FE", "#FFD166",
+  "#6EE7B7", "#93C5FD", "#FDA4AF", "#FCD34D",
+];
+
+export interface TophPreset {
+  name: string;
+  role: string;
+  description: string;
+  personality: string;
+  color: string;
+  avatar: BotAvatar;
+  coordinator?: boolean;
+}
+
+export const TOPH_PRESETS: TophPreset[] = [
+  { name: "Toph", role: "Agente solo", description: "Seu agente pessoal para conversar, programar e executar tarefas.", personality: "Direto, curioso e focado em resolver o problema.", color: "#B9DE7A", avatar: "shield", coordinator: true },
+  { name: "Atlas", role: "Coordenador", description: "Organiza o time, distribui tarefas e cobra o fechamento.", personality: "Estratégico, calmo e obcecado por clareza.", color: "#7FD4E8", avatar: "hexagon", coordinator: true },
+  { name: "Nova", role: "Produto", description: "Transforma pedidos vagos em escopo e critérios de aceite.", personality: "Curiosa, objetiva e implacável com ambiguidade.", color: "#FF9EC4", avatar: "flower" },
+  { name: "Leo", role: "Dev", description: "Implementa, refatora e resolve bugs no código.", personality: "Pragmático, direto e cuidadoso com regressões.", color: "#8FB5F5", avatar: "gear" },
+  { name: "Nico", role: "Revisor", description: "Revisa código, aponta riscos e exige testes.", personality: "Cético, detalhista e construtivo.", color: "#C7A3FF", avatar: "diamond" },
+  { name: "Bia", role: "Dados", description: "Investiga dados, métricas e consultas.", personality: "Analítica, paciente e orientada a evidências.", color: "#84E0C2", avatar: "drop" },
+  { name: "Pia", role: "Design", description: "Cuida de interface, consistência visual e experiência.", personality: "Sensível ao detalhe e direta no feedback.", color: "#D8B4FE", avatar: "spark" },
+  { name: "Rafa", role: "Suporte", description: "Responde tickets e transforma bugs em issues claras.", personality: "Empática, organizada e rápida no diagnóstico.", color: "#FFD166", avatar: "cloud" },
+  { name: "Maya", role: "Pesquisa", description: "Explora código, documentação e referências externas.", personality: "Investigativa e cética com respostas fáceis.", color: "#6EE7B7", avatar: "leaf" },
+  { name: "Theo", role: "Infra", description: "Cuida de containers, deploy, logs e observabilidade.", personality: "Metódico, direto e avesso a mudanças sem rollback.", color: "#93C5FD", avatar: "wave" },
+  { name: "Lia", role: "QA", description: "Cria casos de teste e caça regressões.", personality: "Desconfiada por princípio e obcecada por reprodução.", color: "#FDA4AF", avatar: "star" },
+  { name: "Caio", role: "Segurança", description: "Revisa permissões, segredos e superfícies de ataque.", personality: "Cauteloso, preciso e sem alarmismo.", color: "#FCD34D", avatar: "shield" },
+  { name: "Vera", role: "Documentação", description: "Mantém README, guias e decisões técnicas.", personality: "Clara, paciente e alérgica a texto vago.", color: "#A8DDE8", avatar: "square" },
+  { name: "Dante", role: "Backend", description: "APIs, banco de dados e integrações.", personality: "Sistemático, curioso e focado em contratos.", color: "#F08C72", avatar: "triangle" },
+  { name: "Iris", role: "Frontend", description: "Implementa interfaces acessíveis e responsivas.", personality: "Detalhista, visual e atenta a estados de erro.", color: "#8CD3B4", avatar: "circle" },
+  { name: "Otto", role: "Automação", description: "Scripts, rotinas e integrações entre ferramentas.", personality: "Prático, resiliente e inimigo de trabalho manual.", color: "#F7B267", avatar: "gear" },
+  { name: "Luna", role: "Conteúdo", description: "Escreve, revisa e adapta textos para cada canal.", personality: "Criativa, direta e atenta ao tom da marca.", color: "#B8E986", avatar: "moon" },
+  { name: "Zoe", role: "Growth", description: "Testa hipóteses, funis e experimentos.", personality: "Orientada a métrica, rápida e transparente.", color: "#9BB7FF", avatar: "spark" },
+  { name: "Ravi", role: "Mobile", description: "Cuida de Android, iOS e experiência em movimento.", personality: "Pragmático, atento a performance e gestos.", color: "#F28BA8", avatar: "egg" },
+  { name: "Nina", role: "Arquitetura", description: "Desenha limites, dependências e decisões estruturais.", personality: "Sistêmica, questionadora e econômica nas escolhas.", color: "#FFB547", avatar: "hexagon" },
 ];
 
 export function slugifyBot(value: string): string {
@@ -134,7 +177,7 @@ function sanitizeBots(input: MiniBot[] | undefined): MiniBot[] {
       emailAccountIds: Array.isArray(bot.emailAccountIds) ? bot.emailAccountIds.filter((item) => typeof item === "string") : [],
       language: (["auto", "pt", "en", "es"].includes(bot.language) ? bot.language : "auto") as BotLanguage,
       color: bot.color || BOT_COLORS[0],
-      avatar: (["shield", "star", "diamond", "blob", "circle"].includes(bot.avatar) ? bot.avatar : "shield") as BotAvatar,
+      avatar: (BOT_AVATARS.includes(bot.avatar as BotAvatar) ? bot.avatar : "shield") as BotAvatar,
       notifications: bot.notifications !== false,
       sessionPrimed: bot.sessionPrimed === true,
       coordinator: bot.coordinator === true,
@@ -283,14 +326,20 @@ export const useBots = create<BotStore>((set, get) => ({
     if (workspace.mode !== "team") get().setMode(projectId, "team");
     const next = get().byProject[projectId];
     if (!next || next.bots.length > 0) return;
-    get().addBot(projectId, {
-      name: "Atlas",
-      role: "Coordenador",
-      description: "Coordena a equipe e distribui as tarefas.",
-      personality: "Organizado, direto e atento ao contexto do projeto.",
-      avatar: "shield",
-      coordinator: true,
-    });
+    let coordinatorId = "";
+    for (const preset of TOPH_PRESETS.filter((item) => item.name !== "Toph").slice(0, 5)) {
+      const bot = get().addBot(projectId, {
+        name: preset.name,
+        role: preset.role,
+        description: preset.description,
+        personality: preset.personality,
+        color: preset.color,
+        avatar: preset.avatar,
+        coordinator: preset.coordinator === true,
+      });
+      if (preset.coordinator) coordinatorId = bot.id;
+    }
+    if (coordinatorId) get().setActiveBot(projectId, coordinatorId);
   },
 
   addBot: (projectId, patch = {}) => {

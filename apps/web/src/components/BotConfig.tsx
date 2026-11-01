@@ -3,7 +3,7 @@ import { Bot, Check, Trash2 } from "@toph/icons";
 import { OpenCode } from "@opencode/client";
 import { openCodeBase, api, type EmailAccount } from "../api";
 import type { BotAvatar as BotAvatarShape, MiniBot, TophMode } from "../bots";
-import { BOT_COLORS, useBots } from "../bots";
+import { BOT_AVATAR_LABELS, BOT_AVATARS, BOT_COLORS, useBots } from "../bots";
 import { useAI } from "../ai";
 import BotAvatar from "./BotAvatar";
 import { Button } from "@/boardui/base/buttons/button";
@@ -21,13 +21,10 @@ interface Props {
   mode?: TophMode | "unset";
 }
 
-const AVATARS: Array<{ id: BotAvatarShape; label: string }> = [
-  { id: "shield", label: "Escudo" },
-  { id: "star", label: "Estrela" },
-  { id: "diamond", label: "Diamante" },
-  { id: "blob", label: "Blob" },
-  { id: "circle", label: "Círculo" },
-];
+const AVATARS: Array<{ id: BotAvatarShape; label: string }> = BOT_AVATARS.map((id) => ({
+  id,
+  label: BOT_AVATAR_LABELS[id],
+}));
 
 const LANGUAGES = [
   { id: "auto", label: "Detectar automaticamente" },
