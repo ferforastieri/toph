@@ -62,6 +62,7 @@ export {
   LogOut,
   Mail,
   Maximize,
+  Menu,
   MessageCircleQuestion,
   MessageSquarePlus,
   Minus,

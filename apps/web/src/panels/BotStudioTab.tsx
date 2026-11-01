@@ -902,7 +902,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
   if (!activeBot) {
     return (
       <>
-        <div className="no-scrollbar flex h-full flex-col gap-3 overflow-y-auto p-4">
+        <div className={cx("no-scrollbar flex h-full flex-col gap-3 overflow-y-auto p-4", mobile && "pt-[4.25rem]")}>
           <div className="rounded-3xl border border-border-button-white bg-background-secondary-default p-4">
             <span className="text-caption-2-semibold uppercase tracking-[0.16em] text-text-tertiary">Tophs</span>
             <h2 className="mt-1 text-title-3-medium text-text-primary">Como você quer trabalhar?</h2>

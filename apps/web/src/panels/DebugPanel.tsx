@@ -27,6 +27,8 @@ import { useDebug } from "../debug";
 import { useApp } from "../store";
 import { Button } from "@/boardui/base/buttons/button";
 import { Input } from "@/boardui/base/input/input";
+import { Select, SelectItem } from "@/boardui/base/select/select";
+import { Textarea, TextareaBase } from "@/boardui/base/textarea/textarea";
 import { Modal } from "@/boardui/base/modal/modal";
 import { Badge } from "@/boardui/base/badges/badge";
 import { cx } from "@/boardui/utils/cx";
@@ -825,11 +827,18 @@ export default function DebugPanel({ project, mobile = false }: Props) {
             </div>
             <div className="mb-1.5 flex items-center gap-1.5">
               <span className="text-caption-2-regular text-text-tertiary">Exceções</span>
-              <select value={config.pauseOnExceptions} onChange={(event) => setConfig(project.id, { pauseOnExceptions: event.target.value as "none" | "uncaught" | "all" })} className="h-6 flex-1 rounded-md border border-border-button-default bg-background-primary-default px-1 text-caption-2-regular text-text-secondary outline-none">
-                <option value="none">não pausar</option>
-                <option value="uncaught">não tratadas</option>
-                <option value="all">todas</option>
-              </select>
+              <Select
+                size="sm"
+                aria-label="Pausar em exceções"
+                selectedKey={config.pauseOnExceptions}
+                onSelectionChange={(key) => setConfig(project.id, { pauseOnExceptions: String(key) as "none" | "uncaught" | "all" })}
+                className="min-w-0 flex-1"
+                triggerClassName="h-6 px-1.5 text-caption-2-regular"
+              >
+                <SelectItem id="none">não pausar</SelectItem>
+                <SelectItem id="uncaught">não tratadas</SelectItem>
+                <SelectItem id="all">todas</SelectItem>
+              </Select>
             </div>
             <div className="flex items-center gap-2 text-caption-2-regular text-text-tertiary">
               <Badge color="neutral" className={paused ? "text-status-yellow-text" : connected ? "text-status-lime-text" : ""}>{paused ? "Pausado" : connected ? "Executando" : "Parado"}</Badge>
@@ -902,9 +911,23 @@ export default function DebugPanel({ project, mobile = false }: Props) {
               <Badge color="neutral" className={bug && reproduction ? "text-status-lime-text" : "text-status-yellow-text"}>{bug && reproduction ? "contexto ok" : "bug + reprodução"}</Badge>
             </div>
             <label className="mb-1 block text-caption-2-regular text-text-tertiary">Qual é o bug?</label>
-            <textarea value={bug} onChange={(event) => setConfig(project.id, { bug: event.target.value })} placeholder="Descreva o comportamento errado..." className="mb-1.5 min-h-14 w-full resize-y rounded-lg border border-border-button-default bg-background-primary-default px-2 py-1.5 text-caption-1-regular text-text-primary outline-none focus:ring-1 focus:ring-accent-500" />
+            <Textarea
+              value={bug}
+              onChange={(value) => setConfig(project.id, { bug: value })}
+              placeholder="Descreva o comportamento errado..."
+              rows={2}
+              resize="none"
+              fieldClassName="mb-1.5 min-h-14"
+            />
             <label className="mb-1 block text-caption-2-regular text-text-tertiary">Como reproduzir?</label>
-            <textarea value={reproduction} onChange={(event) => setConfig(project.id, { reproduction: event.target.value })} placeholder="Passos, comando, URL, entrada..." className="min-h-14 w-full resize-y rounded-lg border border-border-button-default bg-background-primary-default px-2 py-1.5 text-caption-1-regular text-text-primary outline-none focus:ring-1 focus:ring-accent-500" />
+            <Textarea
+              value={reproduction}
+              onChange={(value) => setConfig(project.id, { reproduction: value })}
+              placeholder="Passos, comando, URL, entrada..."
+              rows={2}
+              resize="none"
+              fieldClassName="min-h-14"
+            />
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto p-2">
             {chatLines.length === 0 ? (
@@ -918,7 +941,18 @@ export default function DebugPanel({ project, mobile = false }: Props) {
             <div ref={chatEndRef} />
           </div>
           <div className="flex shrink-0 items-end gap-1.5 border-t border-separator-border p-2">
-            <textarea value={chatInput} onChange={(event) => setChatInput(event.target.value)} placeholder="Pergunte ao Debug Toph..." rows={2} className="min-h-9 min-w-0 flex-1 resize-none rounded-xl border border-border-button-default bg-background-primary-default px-2.5 py-2 text-caption-1-regular text-text-primary outline-none focus:ring-1 focus:ring-accent-500" onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void sendChat(); } }} />
+            <TextareaBase
+              value={chatInput}
+              onChange={(event) => setChatInput(event.target.value)}
+              placeholder="Pergunte ao Debug Toph..."
+              rows={2}
+              autoResize
+              maxRows={5}
+              resize="none"
+              fieldClassName="min-h-9 min-w-0 flex-1"
+              className="text-caption-1-regular"
+              onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void sendChat(); } }}
+            />
             <Button variant="primary" size="small" iconOnly leadingIcon={chatBusy ? RefreshCw : Send} aria-label="Enviar" disabled={chatBusy || !chatInput.trim()} onClick={() => void sendChat()} className="size-9" />
           </div>
         </div>
@@ -984,14 +1018,28 @@ export default function DebugPanel({ project, mobile = false }: Props) {
     <div className={cx("flex h-full min-h-0 flex-col bg-background-primary-default", mobile && "pb-1")}>
       <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-separator-border p-2">
         <span className="flex items-center gap-1.5 text-body-2-medium text-text-primary"><span className="flex size-7 items-center justify-center rounded-xl bg-accent-500/10 text-accent-500"><Bug className="size-4" /></span> Debug</span>
-        <select value={language} onChange={(event) => setConfig(project.id, { language: event.target.value as "node" | "python" })} className="h-7 rounded-lg border border-border-button-default bg-background-primary-default px-1.5 text-caption-1-regular text-text-primary outline-none">
-          <option value="node">Node.js / Chrome</option>
-          <option value="python">Python</option>
-        </select>
-        <select value={mode} onChange={(event) => setConfig(project.id, { mode: event.target.value as "launch" | "attach" })} className="h-7 rounded-lg border border-border-button-default bg-background-primary-default px-1.5 text-caption-1-regular text-text-primary outline-none">
-          <option value="launch">Iniciar</option>
-          <option value="attach" disabled={language === "python"}>Anexar</option>
-        </select>
+        <Select
+          size="sm"
+          aria-label="Linguagem de debug"
+          selectedKey={language}
+          onSelectionChange={(key) => setConfig(project.id, { language: String(key) as "node" | "python", ...(String(key) === "python" && mode === "attach" ? { mode: "launch" as const } : {}) })}
+          className="w-[6.7rem] shrink-0"
+          triggerClassName="h-7 px-2 text-caption-1-regular"
+        >
+          <SelectItem id="node">Node.js / Chrome</SelectItem>
+          <SelectItem id="python">Python</SelectItem>
+        </Select>
+        <Select
+          size="sm"
+          aria-label="Modo de debug"
+          selectedKey={mode}
+          onSelectionChange={(key) => setConfig(project.id, { mode: String(key) as "launch" | "attach" })}
+          className="w-[5.5rem] shrink-0"
+          triggerClassName="h-7 px-2 text-caption-1-regular"
+        >
+          <SelectItem id="launch">Iniciar</SelectItem>
+          <SelectItem id="attach" isDisabled={language === "python"}>Anexar</SelectItem>
+        </Select>
         <div className="min-w-[8rem] flex-1">
           {mode === "attach" ? (
             <Input value={config.address} onChange={(value) => setConfig(project.id, { address: value })} placeholder="127.0.0.1:9229 ou 9222" fieldClassName="h-7 text-caption-1" />
@@ -1052,9 +1100,9 @@ export default function DebugPanel({ project, mobile = false }: Props) {
       <Modal isOpen={intakeOpen} onClose={() => setIntakeOpen(false)} title="Antes de debugar" description="O Debug Toph precisa saber o que está errado e como reproduzir." placement="bottom" size="sm" bodyClassName="p-3" swipeToClose>
         <div className="flex flex-col gap-2">
           <label className="text-caption-1-regular text-text-secondary">Qual é o bug?</label>
-          <textarea value={bug} onChange={(event) => setConfig(project.id, { bug: event.target.value })} className="min-h-20 rounded-lg border border-border-button-default bg-background-primary-default px-2 py-1.5 text-caption-1-regular text-text-primary outline-none focus:ring-1 focus:ring-accent-500" />
+          <Textarea value={bug} onChange={(value) => setConfig(project.id, { bug: value })} rows={3} resize="none" />
           <label className="text-caption-1-regular text-text-secondary">Como reproduzir?</label>
-          <textarea value={reproduction} onChange={(event) => setConfig(project.id, { reproduction: event.target.value })} className="min-h-20 rounded-lg border border-border-button-default bg-background-primary-default px-2 py-1.5 text-caption-1-regular text-text-primary outline-none focus:ring-1 focus:ring-accent-500" />
+          <Textarea value={reproduction} onChange={(value) => setConfig(project.id, { reproduction: value })} rows={3} resize="none" />
           <Button className="w-full" onClick={() => setIntakeOpen(false)} disabled={!bug.trim() || !reproduction.trim()}>Salvar contexto</Button>
         </div>
       </Modal>

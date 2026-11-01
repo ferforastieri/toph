@@ -21,11 +21,11 @@ export default function TophsHeaderActions({ projectId }: Props) {
 
   return (
     <>
-      <Button variant="ghost" size="small" iconOnly leadingIcon={Settings2} aria-label="Configurar Toph" title="Configurar Toph" onClick={() => fire("config")} className="size-7" />
-      <Button variant="ghost" size="small" iconOnly leadingIcon={SlidersHorizontal} aria-label="Configurações de IA" title="Configurações de IA" onClick={() => fire("settings")} className="size-7" />
-      <Button variant="ghost" size="small" iconOnly leadingIcon={History} aria-label="Sessões" title="Sessões" onClick={() => fire("sessions")} className="size-7" />
+      <Button variant="ghost" size="small" iconOnly leadingIcon={Settings2} aria-label="Configurar Toph" title="Configurar Toph" onClick={() => fire("config")} className="size-7 shrink-0" />
+      <Button variant="ghost" size="small" iconOnly leadingIcon={SlidersHorizontal} aria-label="Configurações de IA" title="Configurações de IA" onClick={() => fire("settings")} className="size-7 shrink-0" />
+      <Button variant="ghost" size="small" iconOnly leadingIcon={History} aria-label="Sessões" title="Sessões" onClick={() => fire("sessions")} className="size-7 shrink-0" />
       {mode === "team" ? (
-        <Button variant="ghost" size="small" iconOnly leadingIcon={MessageSquarePlus} aria-label="Novo Toph" title="Novo Toph" onClick={() => fire("new")} className="size-7" />
+        <Button variant="ghost" size="small" iconOnly leadingIcon={MessageSquarePlus} aria-label="Novo Toph" title="Novo Toph" onClick={() => fire("new")} className="size-7 shrink-0" />
       ) : null}
       <Button
         variant="ghost"
@@ -35,7 +35,7 @@ export default function TophsHeaderActions({ projectId }: Props) {
         aria-label={mode === "solo" ? "Mudar para equipe" : "Mudar para solo"}
         title={mode === "solo" ? "Mudar para equipe" : "Mudar para solo"}
         onClick={() => setMode(projectId, mode === "solo" ? "team" : "solo")}
-        className="ms-auto size-7"
+        className="size-7 shrink-0"
       />
     </>
   );
