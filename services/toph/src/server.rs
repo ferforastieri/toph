@@ -458,7 +458,9 @@ fn router(state: Arc<AppState>) -> Router {
         .route("/api/projects/{project_id}/git/discard", post(git_discard))
         .route(
             "/api/projects/{project_id}/workspace",
-            get(get_layout).put(save_layout).layer(DefaultBodyLimit::max(32 * 1024 * 1024)),
+            get(get_layout)
+                .put(save_layout)
+                .layer(DefaultBodyLimit::max(32 * 1024 * 1024)),
         )
         .route(
             "/api/projects/{project_id}/terminals",
