@@ -932,7 +932,7 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
         </div>
       )}
       {error && <Chip color="rose" variant="subtle" className="mx-2 justify-start whitespace-normal px-2 py-1">{error}</Chip>}
-      <AgentComposer
+      <AgentComposer accentColor={project.color}
         value={input}
         onChange={setInput}
         onSend={(text, attachments) => void send(text, attachments)}

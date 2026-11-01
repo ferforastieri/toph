@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { OpenCode } from "@opencode/client";
 import { connectClientMcp, type ClientMcpTool } from "@opencode/client/mcp";
-import { Bot, Copy, History, MessageSquarePlus, Settings2, SlidersHorizontal, UserRound } from "@toph/icons";
+import { Bot, ChevronDown, Copy, History, MessageSquarePlus, Settings2, SlidersHorizontal, UserRound } from "@toph/icons";
 import { api, openCodeBase, type AIMessage, type Project } from "../api";
 import { useAI } from "../ai";
-import { useBots, type BotMessage, type MiniBot } from "../bots";
+import { TOPH_PRESETS, useBots, type BotMessage, type MiniBot } from "../bots";
 import { notifyAiResponse } from "../aiNotifications";
 import { playBotResponseSound, unlockBotSound } from "../botSound";
 import BotAvatar from "../components/BotAvatar";
@@ -19,8 +19,9 @@ import { Button } from "@/boardui/base/buttons/button";
 import { Modal } from "@/boardui/base/modal/modal";
 import { cx } from "@/boardui/utils/cx";
 import { useTophDrafts } from "../tophDrafts";
+import { colorWithAlpha } from "../lib";
 import { AgentComposer, type AgentAttachment } from "../ui/AgentComposer";
-import { Select, SelectItem } from "@/boardui/base/select/select";
+import { Dropdown, DropdownItem, DropdownPopover, DropdownTrigger } from "@/boardui/base/dropdown/dropdown";
 
 interface Props {
   project: Project;
@@ -117,8 +118,8 @@ function botPrompt(bot: MiniBot, bots: MiniBot[], messages: BotMessage[], userTe
   const teamRules = mode === "solo"
     ? "Você é o único agente deste projeto. Não há coordenador nem outros membros para acionar."
     : bot.coordinator
-      ? "Você é o coordenador principal. Só você pode distribuir tarefas para os membros. Receba os retornos, consolide e responda ao usuário."
-      : `Você é membro da equipe coordenada por ${coordinator?.name ?? "o coordenador"}. Receba tarefas apenas do coordenador e devolva o resultado apenas a ele. Nunca fale com outros membros. O usuário pode abrir uma conversa direta com você; nessa conversa, responda diretamente ao usuário sem acionar a equipe.`;
+      ? "Você é o coordenador do canal compartilhado. Distribua tarefas com @menções, acompanhe os retornos, peça revisão quando necessário e consolide a resposta final. O trabalho dos membros é visível no canal."
+      : `Você é membro da equipe coordenada por ${coordinator?.name ?? "o coordenador"} e trabalha em um canal compartilhado. Responda ao usuário, colabore com os outros membros usando @menções, faça handoff e revise entregas quando fizer sentido. Não esconda seu trabalho dos outros.`;
   return [
     `Você é ${bot.name}, ${bot.role || "especialista"} na empresa do projeto ${company}.`,
     bot.description ? `Sua função: ${bot.description}` : "",
@@ -397,7 +398,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
     ? messages
     : activeWorker
       ? messages.filter((message) => message.channel === `worker:${activeWorker.id}` || (!message.channel && message.botId === activeWorker.id))
-      : messages.filter((message) => !message.channel || message.channel === "team");
+      : messages;
   const groupedMessages = groupBotMessages(displayMessages);
   const lastBotGroupIndex = new Map<string, number>();
   groupedMessages.forEach((group, index) => {
@@ -636,11 +637,22 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
   }, [client, project.id, connectionEpoch]);
 
   function newBot() {
+    const used = new Set(bots.map((bot) => bot.name));
+    const preset = TOPH_PRESETS.find((item) => !used.has(item.name))
+      ?? TOPH_PRESETS[Math.floor(Math.random() * TOPH_PRESETS.length)];
+    let name = preset.name;
+    let suffix = 2;
+    while (used.has(name)) {
+      name = `${preset.name} ${suffix}`;
+      suffix += 1;
+    }
     const bot = addBot(project.id, {
-      name: "Novo bot",
-      role: "Especialista",
-      description: "Descreva o papel deste bot.",
-      personality: "Direto, útil e focado em resultado.",
+      name,
+      role: preset.role,
+      description: preset.description,
+      personality: preset.personality,
+      color: preset.color,
+      avatar: preset.avatar,
       model: aiConfig?.model || models[0]?.id || "",
     });
     setActiveBot(project.id, bot.id);
@@ -1015,10 +1027,8 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
     const token = ++runToken.current;
     const direct = mentionedBots(bots, text);
     const activeWorker = mode === "team" && activeBot && activeBot.id !== coordinator?.id ? activeBot : null;
-    const directWorker = mode === "team" ? direct.find((bot) => !bot.coordinator) ?? null : null;
-    const targetWorker = activeWorker ?? directWorker;
+    const targetWorker = activeWorker;
     const channel = targetWorker ? `worker:${targetWorker.id}` : "team";
-    if (directWorker && directWorker.id !== activeBot?.id) setActiveBot(project.id, directWorker.id);
     addMessage(project.id, {
       id: `bot-user-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       role: "user",
@@ -1035,28 +1045,29 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
           : coordinator
             ? [coordinator]
             : bots.slice(0, 1);
-      let coordinatorReply: string | null = null;
-      for (const bot of firstWave) {
-        if (token !== runToken.current) break;
+      const firstReplies = await Promise.all(firstWave.map(async (bot) => {
+        if (token !== runToken.current) return null;
         const reply = await respondAsBot(bot, text, { attachments, channel, token });
-        if (bot.id === coordinator?.id) coordinatorReply = reply;
-      }
+        return reply === null ? null : { botId: bot.id, reply };
+      }));
+      const coordinatorReply = firstReplies.find((item) => item?.botId === coordinator?.id)?.reply ?? null;
 
-      // The coordinator is the only Toph allowed to delegate. Workers never
-      // receive tasks from other workers and never mention each other.
+      // The coordinator delegates in the shared channel and the team replies
+      // are visible to the user. Workers may also mention each other for
+      // review/handoff in their own response.
       if (mode === "team" && !direct.length && !activeWorker && !targetWorker && coordinator && coordinatorReply) {
         const workers = mentionedBots(bots, coordinatorReply).filter((bot) => bot.id !== coordinator.id);
         if (workers.length > 0) {
-          const results: string[] = [];
-          for (const worker of workers) {
-            if (token !== runToken.current) break;
+          const workerReplies = await Promise.all(workers.map(async (worker) => {
+            if (token !== runToken.current) return null;
             const reply = await respondAsBot(
               worker,
               `Tarefa do coordenador ${coordinator.name}:\n\n${coordinatorReply}\n\nPedido original do usuário:\n${text}`,
               { attachments, audience: "coordinator", channel: `worker:${worker.id}`, token },
             );
-            if (reply) results.push(`${worker.name}: ${reply}`);
-          }
+            return reply ? `${worker.name}: ${reply}` : null;
+          }));
+          const results = workerReplies.filter((item): item is string => Boolean(item));
           if (results.length > 0) {
             await respondAsBot(
               coordinator,
@@ -1147,10 +1158,24 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
             {mode === "team" && bots.length > 0 ? (
               <div className="shrink-0 border-b border-separator-border pb-2.5">
                 <div className="mb-2 flex items-center justify-between gap-2">
-                  <span className="text-caption-2-semibold uppercase tracking-[0.16em] text-text-tertiary">Equipe Toph</span>
+                  <span className="text-caption-2-semibold uppercase tracking-[0.16em] text-text-tertiary"># geral <span className="normal-case tracking-normal text-text-tertiary">· canal compartilhado</span></span>
                   <span className="text-caption-2-regular text-text-tertiary">{bots.length} {bots.length === 1 ? "agente" : "agentes"}</span>
                 </div>
                 <div className="no-scrollbar flex gap-2 overflow-x-auto pb-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const lead = bots.find((bot) => bot.coordinator) ?? bots[0];
+                      if (lead) setActiveBot(project.id, lead.id);
+                    }}
+                    className={cx(
+                      "flex min-w-[98px] shrink-0 flex-col items-start justify-center gap-1 rounded-2xl border p-2 text-start transition-colors",
+                      activeBot?.coordinator ? "border-accent-500/40 bg-accent-500/10" : "border-border-button-white bg-background-primary-default hover:bg-background-primary-hover",
+                    )}
+                  >
+                    <span className="text-caption-2-semibold uppercase tracking-[0.12em] text-accent-500"># geral</span>
+                    <span className="truncate text-caption-2-regular text-text-tertiary">canal do time</span>
+                  </button>
                   {bots.map((bot) => {
                     const active = bot.id === activeBot?.id;
                     return (
@@ -1192,7 +1217,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
                     ? "Pergunte, programe, anexe arquivos ou peça para executar uma tarefa."
                     : activeWorker
                       ? "Esta é uma conversa direta. O coordenador não participa desta thread."
-                      : `${bots.map((bot) => bot.name).join(", ")} estão aqui. Fale com o coordenador ou abra a conversa de um membro.`}
+                      : `${bots.map((bot) => bot.name).join(", ")} estão no canal #geral. Fale com o time ou abra a conversa de um membro.`}
                 </p>
               </div>
             )}
@@ -1201,7 +1226,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
               if (group.kind === "user") {
                 return (
                   <div key={`user-${group.message.id}`} className="ms-auto flex min-w-0 max-w-[88%] flex-col items-end gap-1">
-                    <p className="min-w-0 max-w-full overflow-hidden rounded-2xl bg-blue-600/20 px-3.5 py-2 text-[14px] leading-[1.55] whitespace-pre-wrap break-words text-text-primary">
+                    <p className="min-w-0 max-w-full overflow-hidden rounded-2xl px-3.5 py-2 text-[14px] leading-[1.55] whitespace-pre-wrap break-words text-text-primary" style={{ backgroundColor: colorWithAlpha(project.color, 0.2), border: `1px solid ${colorWithAlpha(project.color, 0.28)}` }}>
                       {group.message.content}
                     </p>
                     <Button variant="ghost" size="xs" iconOnly leadingIcon={Copy} aria-label="Copiar mensagem" title="Copiar mensagem" onClick={() => void navigator.clipboard.writeText(group.message.content).catch(() => undefined)} className="size-6 text-text-tertiary" />
@@ -1289,6 +1314,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
 
         <div className="shrink-0">
           <AgentComposer
+            accentColor={project.color}
             value={input}
             onChange={updateInput}
             onSend={(value, attachments) => void send(value, attachments)}
@@ -1303,26 +1329,26 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
             placeholder={mode === "solo" ? "Pergunte ao seu Toph... / comandos, @ contexto" : activeBot.id === coordinator?.id ? "Fale com o coordenador ou @mencione um membro..." : `Pergunte para ${activeBot.name}...`}
             modeControls={
               <>
-                <Select
-                  selectedKey={activeBot.agentMode ?? "build"}
-                  onSelectionChange={(key) => updateBot(project.id, activeBot.id, { agentMode: String(key) as "build" | "plan" })}
-                  aria-label="Modo do agente"
-                  className="w-auto [&_button]:text-text-secondary"
-                  triggerClassName="h-7 gap-1 border-0 bg-transparent px-1.5 text-body-2-medium text-text-secondary shadow-none"
-                >
-                  <SelectItem id="build">Build</SelectItem>
-                  <SelectItem id="plan">Plano</SelectItem>
-                </Select>
-                <Select
-                  selectedKey={activeBot.permissionMode ?? "yolo"}
-                  onSelectionChange={(key) => updateBot(project.id, activeBot.id, { permissionMode: String(key) as "yolo" | "ask" })}
-                  aria-label="Permissões"
-                  className="w-auto [&_button]:text-text-secondary"
-                  triggerClassName="h-7 gap-1 border-0 bg-transparent px-1.5 text-body-2-medium text-text-secondary shadow-none"
-                >
-                  <SelectItem id="yolo">YOLO</SelectItem>
-                  <SelectItem id="ask">Perguntar</SelectItem>
-                </Select>
+                <Dropdown>
+                  <DropdownTrigger aria-label="Modo do agente" className="flex h-7 items-center gap-1 rounded-md px-1.5 text-body-2-medium text-text-secondary outline-none transition-colors hover:bg-background-secondary-hover focus-visible:ring-2 focus-visible:ring-border-focus-ring">
+                    <span>{activeBot.agentMode === "plan" ? "Plano" : "Build"}</span>
+                    <ChevronDown size={12} className="size-3 text-foreground-icon-tertiary" />
+                  </DropdownTrigger>
+                  <DropdownPopover aria-label="Modo do agente" placement="top start" className="w-36">
+                    <DropdownItem onSelect={() => updateBot(project.id, activeBot.id, { agentMode: "build" })}>Build</DropdownItem>
+                    <DropdownItem onSelect={() => updateBot(project.id, activeBot.id, { agentMode: "plan" })}>Plano</DropdownItem>
+                  </DropdownPopover>
+                </Dropdown>
+                <Dropdown>
+                  <DropdownTrigger aria-label="Permissões" className="flex h-7 items-center gap-1 rounded-md px-1.5 text-body-2-medium text-text-secondary outline-none transition-colors hover:bg-background-secondary-hover focus-visible:ring-2 focus-visible:ring-border-focus-ring">
+                    <span>{(activeBot.permissionMode ?? "yolo") === "yolo" ? "YOLO" : "Perguntar"}</span>
+                    <ChevronDown size={12} className="size-3 text-foreground-icon-tertiary" />
+                  </DropdownTrigger>
+                  <DropdownPopover aria-label="Permissões" placement="top start" className="w-40">
+                    <DropdownItem onSelect={() => updateBot(project.id, activeBot.id, { permissionMode: "yolo" })}>YOLO</DropdownItem>
+                    <DropdownItem onSelect={() => updateBot(project.id, activeBot.id, { permissionMode: "ask" })}>Perguntar</DropdownItem>
+                  </DropdownPopover>
+                </Dropdown>
               </>
             }
           />

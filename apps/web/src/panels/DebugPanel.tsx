@@ -67,8 +67,6 @@ interface ChatLine {
   text: string;
 }
 
-type SideTab = "debug" | "toph";
-type MobileTab = "editor" | "debug" | "toph";
 
 function id(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -197,8 +195,6 @@ export default function DebugPanel({ project, mobile = false }: Props) {
   const [watchesOpen, setWatchesOpen] = useState(false);
   const [newWatch, setNewWatch] = useState("");
   const [statusError, setStatusError] = useState("");
-  const [sideTab, setSideTab] = useState<SideTab>("debug");
-  const [mobileTab, setMobileTab] = useState<MobileTab>("editor");
   const [files, setFiles] = useState<string[]>([]);
   const [filesOpen, setFilesOpen] = useState(false);
   const [fileQuery, setFileQuery] = useState("");
@@ -228,6 +224,7 @@ export default function DebugPanel({ project, mobile = false }: Props) {
 
   const bug = config?.bug ?? "";
   const reproduction = config?.reproduction ?? "";
+  const agentReady = Boolean(bug.trim() && reproduction.trim());
   const breakpoints = config?.breakpoints ?? [];
   const language = config?.language ?? "node";
   const mode = config?.mode ?? "launch";
@@ -281,7 +278,6 @@ export default function DebugPanel({ project, mobile = false }: Props) {
       setCurrentPath(path);
       currentPathRef.current = path;
       setFileDirty(false);
-      setMobileTab("editor");
       if (line && line > 0) setCursorLine(line);
     } catch (error) {
       showStatus(error instanceof Error ? error.message : "Não foi possível abrir o arquivo.");
@@ -539,14 +535,11 @@ export default function DebugPanel({ project, mobile = false }: Props) {
     setStatusError("");
     if (!bug.trim() || !reproduction.trim()) {
       setIntakeOpen(true);
-      setSideTab("toph");
-      setMobileTab("toph");
       appendConsole("muted", "Debug Toph: informe o bug e a reprodução antes de iniciar.");
       return;
     }
     if (!currentPathRef.current) {
       setFilesOpen(true);
-      setMobileTab("editor");
       showStatus("Abra um arquivo e clique na gutter para definir o primeiro breakpoint.");
       return;
     }
@@ -567,8 +560,6 @@ export default function DebugPanel({ project, mobile = false }: Props) {
       setSession(next);
       if (next.language === "node") await connectNode(next);
       else connectPython(next);
-      setSideTab("debug");
-      setMobileTab("debug");
     } catch (error) {
       showStatus(error instanceof Error ? error.message : "Não foi possível iniciar o debugger.");
     } finally {
@@ -807,23 +798,82 @@ export default function DebugPanel({ project, mobile = false }: Props) {
 
   const debugSide = (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex shrink-0 items-center gap-1 border-b border-separator-border p-2">
-        <Button variant={sideTab === "debug" ? "secondary" : "ghost"} size="xs" leadingIcon={Bug} onClick={() => setSideTab("debug")}>Debug</Button>
-        <Button variant={sideTab === "toph" ? "secondary" : "ghost"} size="xs" leadingIcon={Braces} onClick={() => setSideTab("toph")}>Toph</Button>
+      <div className="flex shrink-0 items-center gap-2 border-b border-separator-border px-2 py-1.5">
+        <span className="flex items-center gap-1.5 text-caption-1-medium text-text-primary"><Bug className="size-3.5 text-accent-500" /> Debug Toph</span>
         <span className="ms-auto flex items-center gap-1.5">
           <span className={cx("size-2 rounded-full", connected ? (paused ? "bg-status-yellow-text" : "bg-status-lime-text") : "bg-text-tertiary")} />
           <span className="text-caption-2-regular text-text-tertiary">{connected ? (paused ? "pausado" : "rodando") : "parado"}</span>
         </span>
       </div>
-      {sideTab === "debug" ? (
-        <div className="min-h-0 flex-1 overflow-y-auto">
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="border-b border-separator-border">
+          <div className="px-2 pt-2 text-caption-2-semibold uppercase tracking-[0.14em] text-text-tertiary">Agente</div>
+                  <div className="flex min-h-0 flex-col">
+          <div className="max-h-[45%] shrink-0 overflow-y-auto border-b border-separator-border p-2">
+            <div className="mb-1.5 flex items-center justify-between gap-1">
+              <span className="text-caption-2-semibold uppercase tracking-[0.12em] text-text-tertiary">Debug Toph</span>
+              <Badge color="neutral" className={bug && reproduction ? "text-status-lime-text" : "text-status-yellow-text"}>{bug && reproduction ? "contexto ok" : "bug + reprodução"}</Badge>
+            </div>
+            <label className="mb-1 block text-caption-2-regular text-text-tertiary">Qual é o bug?</label>
+            <Textarea
+              value={bug}
+              onChange={(value) => setConfig(project.id, { bug: value })}
+              placeholder="Descreva o comportamento errado..."
+              rows={2}
+              resize="none"
+              fieldClassName="mb-1.5 min-h-14"
+            />
+            <label className="mb-1 block text-caption-2-regular text-text-tertiary">Como reproduzir?</label>
+            <Textarea
+              value={reproduction}
+              onChange={(value) => setConfig(project.id, { reproduction: value })}
+              placeholder="Passos, comando, URL, entrada..."
+              rows={2}
+              resize="none"
+              fieldClassName="min-h-14"
+            />
+          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto p-2">
+            {chatLines.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-border-button-default p-3 text-caption-1-regular text-text-secondary">
+                <p className="mb-1 font-medium text-text-primary">Debug Toph</p>
+                <p>Eu sempre começo pelo bug e pela reprodução. Depois olho o código, garanto um breakpoint e conduzo a investigação com você.</p>
+              </div>
+            ) : chatLines.map((line) => (
+              <div key={line.id} className={cx("mb-2 rounded-xl px-2.5 py-2 text-caption-1-regular whitespace-pre-wrap break-words", line.role === "user" ? "ms-5 bg-accent-500/10 text-text-primary" : "me-2 bg-background-secondary-default text-text-secondary")}>{line.text}</div>
+            ))}
+            <div ref={chatEndRef} />
+          </div>
+          <div className="flex shrink-0 items-end gap-1.5 border-t border-separator-border p-2">
+            <TextareaBase
+              value={chatInput}
+              onChange={(event) => setChatInput(event.target.value)}
+              placeholder="Pergunte ao Debug Toph..."
+              rows={2}
+              autoResize
+              maxRows={5}
+              resize="none"
+              fieldClassName="min-h-9 min-w-0 flex-1"
+              className="text-caption-1-regular"
+              onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void sendChat(); } }}
+            />
+            <Button variant="primary" size="small" iconOnly leadingIcon={chatBusy ? RefreshCw : Send} aria-label="Enviar" disabled={chatBusy || !chatInput.trim()} onClick={() => void sendChat()} className="size-9" />
+          </div>
+        </div>
+
+        </div>
+        <details className="group border-b border-separator-border">
+          <summary className="flex cursor-pointer list-none items-center gap-1.5 px-3 py-2 text-caption-2-semibold uppercase tracking-[0.14em] text-text-tertiary hover:bg-background-primary-hover">
+            <ChevronDown className="size-3.5 transition-transform group-open:rotate-180" /> Ferramentas de debug
+          </summary>
+                  <div className="min-h-0">
           <section className="border-b border-separator-border p-2">
             <div className="mb-1.5 flex items-center gap-1.5">
-              <Button variant="secondary" size="xs" iconOnly leadingIcon={paused ? Play : Pause} aria-label={paused ? "Continuar" : "Pausar"} onClick={() => void togglePause()} disabled={!connected || (session?.language === "python" && !paused)} className="size-7" />
-              <Button variant="ghost" size="xs" iconOnly leadingIcon={StepOverIcon} aria-label="Step over" onClick={() => void step("Debugger.stepOver")} disabled={!paused} className="size-7" />
-              <Button variant="ghost" size="xs" iconOnly leadingIcon={StepIntoIcon} aria-label="Step into" onClick={() => void step("Debugger.stepInto")} disabled={!paused} className="size-7" />
-              <Button variant="ghost" size="xs" iconOnly leadingIcon={StepOutIcon} aria-label="Step out" onClick={() => void step("Debugger.stepOut")} disabled={!paused} className="size-7" />
-              <Button variant="ghost" size="xs" iconOnly leadingIcon={Square} aria-label="Parar debug" onClick={() => void stop()} disabled={!session} className="ms-auto size-7 text-status-rose-text" />
+              <Button variant="secondary" size="xs" iconOnly leadingIcon={paused ? Play : Pause} aria-label={paused ? "Continuar" : "Pausar"} onClick={() => void togglePause()} disabled={!agentReady || !connected || (session?.language === "python" && !paused)} className="size-7" />
+              <Button variant="ghost" size="xs" iconOnly leadingIcon={StepOverIcon} aria-label="Step over" onClick={() => void step("Debugger.stepOver")} disabled={!agentReady || !paused} className="size-7" />
+              <Button variant="ghost" size="xs" iconOnly leadingIcon={StepIntoIcon} aria-label="Step into" onClick={() => void step("Debugger.stepInto")} disabled={!agentReady || !paused} className="size-7" />
+              <Button variant="ghost" size="xs" iconOnly leadingIcon={StepOutIcon} aria-label="Step out" onClick={() => void step("Debugger.stepOut")} disabled={!agentReady || !paused} className="size-7" />
+              <Button variant="ghost" size="xs" iconOnly leadingIcon={Square} aria-label="Parar debug" onClick={() => void stop()} disabled={!agentReady || !session} className="ms-auto size-7 text-status-rose-text" />
             </div>
             <div className="mb-1.5 flex items-center gap-1.5">
               <span className="text-caption-2-regular text-text-tertiary">Exceções</span>
@@ -903,60 +953,9 @@ export default function DebugPanel({ project, mobile = false }: Props) {
             </div>
           </section>
         </div>
-      ) : (
-        <div className="flex min-h-0 flex-1 flex-col">
-          <div className="max-h-[45%] shrink-0 overflow-y-auto border-b border-separator-border p-2">
-            <div className="mb-1.5 flex items-center justify-between gap-1">
-              <span className="text-caption-2-semibold uppercase tracking-[0.12em] text-text-tertiary">Debug Toph</span>
-              <Badge color="neutral" className={bug && reproduction ? "text-status-lime-text" : "text-status-yellow-text"}>{bug && reproduction ? "contexto ok" : "bug + reprodução"}</Badge>
-            </div>
-            <label className="mb-1 block text-caption-2-regular text-text-tertiary">Qual é o bug?</label>
-            <Textarea
-              value={bug}
-              onChange={(value) => setConfig(project.id, { bug: value })}
-              placeholder="Descreva o comportamento errado..."
-              rows={2}
-              resize="none"
-              fieldClassName="mb-1.5 min-h-14"
-            />
-            <label className="mb-1 block text-caption-2-regular text-text-tertiary">Como reproduzir?</label>
-            <Textarea
-              value={reproduction}
-              onChange={(value) => setConfig(project.id, { reproduction: value })}
-              placeholder="Passos, comando, URL, entrada..."
-              rows={2}
-              resize="none"
-              fieldClassName="min-h-14"
-            />
-          </div>
-          <div className="min-h-0 flex-1 overflow-y-auto p-2">
-            {chatLines.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-border-button-default p-3 text-caption-1-regular text-text-secondary">
-                <p className="mb-1 font-medium text-text-primary">Debug Toph</p>
-                <p>Eu sempre começo pelo bug e pela reprodução. Depois olho o código, garanto um breakpoint e conduzo a investigação com você.</p>
-              </div>
-            ) : chatLines.map((line) => (
-              <div key={line.id} className={cx("mb-2 rounded-xl px-2.5 py-2 text-caption-1-regular whitespace-pre-wrap break-words", line.role === "user" ? "ms-5 bg-accent-500/10 text-text-primary" : "me-2 bg-background-secondary-default text-text-secondary")}>{line.text}</div>
-            ))}
-            <div ref={chatEndRef} />
-          </div>
-          <div className="flex shrink-0 items-end gap-1.5 border-t border-separator-border p-2">
-            <TextareaBase
-              value={chatInput}
-              onChange={(event) => setChatInput(event.target.value)}
-              placeholder="Pergunte ao Debug Toph..."
-              rows={2}
-              autoResize
-              maxRows={5}
-              resize="none"
-              fieldClassName="min-h-9 min-w-0 flex-1"
-              className="text-caption-1-regular"
-              onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void sendChat(); } }}
-            />
-            <Button variant="primary" size="small" iconOnly leadingIcon={chatBusy ? RefreshCw : Send} aria-label="Enviar" disabled={chatBusy || !chatInput.trim()} onClick={() => void sendChat()} className="size-9" />
-          </div>
-        </div>
-      )}
+
+        </details>
+      </div>
     </div>
   );
 
@@ -1050,7 +1049,7 @@ export default function DebugPanel({ project, mobile = false }: Props) {
           )}
         </div>
         <Input value={config.cwd} onChange={(value) => setConfig(project.id, { cwd: value })} placeholder="cwd (opcional)" fieldClassName="h-7 text-caption-1" className="hidden md:block w-32" />
-        <Button variant="primary" size="small" leadingIcon={session ? Square : Play} aria-label={session ? "Parar debug" : "Iniciar debug"} onClick={() => session ? void stop() : void start()} disabled={starting} className="h-7">
+        <Button variant="primary" size="small" leadingIcon={session ? Square : Play} aria-label={session ? "Parar debug" : "Iniciar debug"} onClick={() => session ? void stop() : void start()} disabled={starting || (!session && !agentReady)} className="h-7">
           {starting ? "Iniciando..." : session ? "Parar" : "Debug"}
         </Button>
         <Button variant="ghost" size="small" iconOnly leadingIcon={RefreshCw} aria-label="Recarregar sessão" title="Reler sessão" onClick={() => { api.debugSession(project.id).then((active) => { if (active) setSession(active); }).catch(() => undefined); }} className="size-7" />
@@ -1058,16 +1057,13 @@ export default function DebugPanel({ project, mobile = false }: Props) {
       </div>
       {statusError ? <div className="shrink-0 border-b border-status-rose-text/20 bg-status-rose-text/10 px-3 py-1.5 text-caption-1-regular text-status-rose-text">{statusError}</div> : null}
       {mobile ? (
-        <>
-          <div className="flex shrink-0 border-b border-separator-border p-1.5">
-            {(["editor", "debug", "toph"] as const).map((tab) => (
-              <Button key={tab} variant={mobileTab === tab ? "secondary" : "ghost"} size="xs" className="flex-1" onClick={() => { setMobileTab(tab); if (tab === "debug") setSideTab("debug"); if (tab === "toph") setSideTab("toph"); }}>{tab === "editor" ? "Editor" : tab === "debug" ? "Debug" : "Toph"}</Button>
-            ))}
-          </div>
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-            {mobileTab === "editor" ? editorPane : mobileTab === "debug" ? debugSide : debugSide}
-          </div>
-        </>
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">{debugSide}</div>
+          <details className="shrink-0 border-t border-separator-border bg-background-secondary-default">
+            <summary className="cursor-pointer px-3 py-2 text-caption-1-medium text-text-secondary">Editor e breakpoints</summary>
+            <div className="h-[45dvh] min-h-0 border-t border-separator-border">{editorPane}</div>
+          </details>
+        </div>
       ) : (
         <div className="flex min-h-0 flex-1 overflow-hidden">
           <aside className="hidden w-52 shrink-0 flex-col border-e border-separator-border bg-background-secondary-default md:flex">
@@ -1083,7 +1079,7 @@ export default function DebugPanel({ project, mobile = false }: Props) {
             <div className="border-t border-separator-border p-2 text-caption-2-regular text-text-tertiary">{filteredFiles.length} arquivos</div>
           </aside>
           <div className="flex min-w-0 flex-1 flex-col">{editorPane}</div>
-          <aside className="hidden w-[22rem] shrink-0 border-s border-separator-border bg-background-secondary-default lg:flex">{debugSide}</aside>
+          <aside className="flex w-[22rem] shrink-0 border-s border-separator-border bg-background-secondary-default">{debugSide}</aside>
         </div>
       )}
       <Modal isOpen={filesOpen} onClose={() => setFilesOpen(false)} title="Abrir arquivo" description={project.name} placement="bottom" size="lg" bodyClassName="p-3" swipeToClose>

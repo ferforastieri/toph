@@ -24,7 +24,7 @@ export default function MobileTopBar({ title, subtitle, projectName, unreadCount
     <header className={cx(
       floating
         ? "fixed inset-x-3 top-[calc(var(--safe-top)+0.5rem)] z-50 flex items-center justify-between gap-2"
-        : "relative shrink-0 overflow-hidden border-b border-separator-border bg-background-secondary-default px-3 pb-1 pt-1",
+        : "relative shrink-0 overflow-hidden border-b border-separator-border bg-background-secondary-default px-3 pb-2 pt-2",
     )}>
       {!extraActions ? <div className="pointer-events-none absolute -right-10 -top-16 size-36 rounded-full bg-accent-500/10 blur-2xl" /> : null}
       <div className="relative flex w-full min-w-0 items-center gap-2">
@@ -37,7 +37,7 @@ export default function MobileTopBar({ title, subtitle, projectName, unreadCount
             "relative flex shrink-0 items-center justify-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus-ring",
             floating
               ? "size-10 rounded-full bg-foreground-icon-primary/10 text-text-primary shadow-xs backdrop-blur-md hover:bg-foreground-icon-primary/15"
-              : "size-8 rounded-xl border border-accent-500/20 bg-accent-500/10 text-accent-500 shadow-xs hover:bg-accent-500/15",
+              : "size-9 rounded-xl border border-accent-500/20 bg-accent-500/10 text-accent-500 shadow-xs hover:bg-accent-500/15",
           )}
         >
           {floating ? <Menu className="size-5" /> : <Icon className="size-4" />}
@@ -49,7 +49,7 @@ export default function MobileTopBar({ title, subtitle, projectName, unreadCount
         </button>
         {!floating && !hideTitle ? (
           <div className="flex min-w-0 flex-1 flex-col gap-0">
-            <h1 className="truncate text-[18px] leading-5 font-medium text-text-primary">{title}</h1>
+            <h1 className="truncate text-[20px] leading-6 font-medium text-text-primary">{title}</h1>
             <p className="truncate text-caption-2-regular text-text-secondary">{subtitle ?? projectName}</p>
           </div>
         ) : floating ? (
@@ -66,7 +66,7 @@ export default function MobileTopBar({ title, subtitle, projectName, unreadCount
               aria-label={unreadCount > 0 ? `Notificações, ${unreadCount} não lidas` : "Notificações"}
               title="Notificações"
               onClick={onNotifications}
-              className={cx("rounded-full", floating ? "size-8" : "size-8 [&_svg]:size-4")}
+              className={cx("rounded-full", floating ? "size-8" : "size-9 [&_svg]:size-4")}
             />
             {unreadCount > 0 ? (
               <Badge color="primary" className="pointer-events-none absolute -right-0.5 -top-0.5 min-w-4 px-1 text-[10px]">
@@ -81,7 +81,7 @@ export default function MobileTopBar({ title, subtitle, projectName, unreadCount
             aria-label={`Projeto ${projectName}. Selecionar projeto`}
             title="Selecionar projeto"
             onClick={onProjects}
-            className={cx("shrink-0 gap-1 rounded-full", floating ? "h-8 px-1" : "h-8 px-1 [&_svg]:size-4")}
+            className={cx("shrink-0 gap-1 rounded-full", floating ? "h-8 px-1" : "h-9 px-1 [&_svg]:size-4")}
           >
             <span className={cx("min-w-0 truncate text-caption-2-medium", extraActions ? "max-w-20 max-[430px]:hidden" : "max-w-24")}>{projectName}</span>
           </Button>

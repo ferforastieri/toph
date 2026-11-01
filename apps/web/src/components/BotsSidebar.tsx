@@ -1,10 +1,11 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Bot, Plus, Sparkles, UserRound } from "@toph/icons";
 import type { Project } from "../api";
 import { useAI } from "../ai";
-import { useBots } from "../bots";
+import { TOPH_PRESETS, useBots } from "../bots";
 import BotAvatar from "./BotAvatar";
 import { Button } from "@/boardui/base/buttons/button";
+import { Modal } from "@/boardui/base/modal/modal";
 import { cx } from "@/boardui/utils/cx";
 
 interface Props {
@@ -18,6 +19,7 @@ export default function BotsSidebar({ project }: Props) {
   const setActiveBot = useBots((state) => state.setActiveBot);
   const config = useAI((state) => state.config);
   const models = useAI((state) => state.models);
+  const [galleryOpen, setGalleryOpen] = useState(false);
 
   useEffect(() => {
     ensure(project.id);
@@ -32,14 +34,24 @@ export default function BotsSidebar({ project }: Props) {
     window.dispatchEvent(new CustomEvent("toph:close-mobile-panel"));
   }
 
-  function createBot() {
+  function addPreset(preset: (typeof TOPH_PRESETS)[number]) {
+    const existing = new Set(bots.map((bot) => bot.name));
+    let name = preset.name;
+    let suffix = 2;
+    while (existing.has(name)) {
+      name = `${preset.name} ${suffix}`;
+      suffix += 1;
+    }
     const bot = addBot(project.id, {
-      name: "Novo Toph",
-      role: "Especialista",
-      description: "Descreva o papel deste Toph.",
-      personality: "Direto, útil e focado em resultado.",
+      name,
+      role: preset.role,
+      description: preset.description,
+      personality: preset.personality,
+      color: preset.color,
+      avatar: preset.avatar,
       model: config?.model || models[0]?.id || "",
     });
+    setGalleryOpen(false);
     openBot(bot.id);
   }
 
@@ -53,7 +65,11 @@ export default function BotsSidebar({ project }: Props) {
       <div className="min-h-0 flex-1 overflow-y-auto p-2">
         <button
           type="button"
-          onClick={() => window.dispatchEvent(new CustomEvent("toph:close-mobile-panel"))}
+          onClick={() => {
+            const coordinator = bots.find((bot) => bot.coordinator) ?? bots[0];
+            if (coordinator) setActiveBot(project.id, coordinator.id);
+            window.dispatchEvent(new CustomEvent("toph:close-mobile-panel"));
+          }}
           className="mb-2 flex w-full items-center gap-2 rounded-xl border border-accent-500/25 bg-accent-500/10 px-2.5 py-2 text-start text-caption-1-medium text-text-primary hover:bg-accent-500/15"
         >
           {solo ? <UserRound size={14} className="shrink-0 text-accent-500" /> : <Sparkles size={14} className="shrink-0 text-accent-500" />}
@@ -87,11 +103,29 @@ export default function BotsSidebar({ project }: Props) {
       </div>
       {!solo ? (
         <div className="shrink-0 border-t p-2">
-          <Button type="button" variant="secondary" size="small" className="w-full justify-start" leadingIcon={Plus} onClick={createBot}>
-            Novo Toph
+          <Button type="button" variant="secondary" size="small" className="w-full justify-start" leadingIcon={Plus} onClick={() => setGalleryOpen(true)}>
+            Adicionar Toph
           </Button>
         </div>
       ) : null}
+      <Modal isOpen={galleryOpen} onClose={() => setGalleryOpen(false)} title="Adicionar Toph" description="20 identidades com visuais e cores únicas." placement="bottom" size="lg" bodyClassName="p-3" swipeToClose>
+        <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
+          {TOPH_PRESETS.map((preset) => (
+            <button
+              key={preset.name}
+              type="button"
+              onClick={() => addPreset(preset)}
+              className="flex min-w-0 items-center gap-2 rounded-2xl border border-border-button-white bg-background-primary-default p-2 text-start transition-colors hover:border-accent-500/40 hover:bg-accent-500/5"
+            >
+              <BotAvatar bot={{ name: preset.name, color: preset.color, avatar: preset.avatar }} size={34} />
+              <span className="flex min-w-0 flex-col">
+                {(() => { const exists = bots.some((bot) => bot.name === preset.name); return <strong className="truncate text-caption-1-semibold text-text-primary">{exists ? `${preset.name} 2` : preset.name}</strong>; })()}
+                <span className="truncate text-caption-2-regular text-text-tertiary">{preset.role}</span>
+              </span>
+            </button>
+          ))}
+        </div>
+      </Modal>
     </div>
   );
 }

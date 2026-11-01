@@ -7,6 +7,7 @@ import { Textarea } from "@/boardui/base/textarea/textarea";
 import { Dropdown, DropdownDivider, DropdownGroup, DropdownItem, DropdownPopover, DropdownTrigger } from "@/boardui/base/dropdown/dropdown";
 import { ComposerLoader } from "@/boardui/application/composer-loader/composer-loader";
 import ModelPicker from "./ModelPicker";
+import { readableTextOn } from "../lib";
 
 export interface AgentAttachment { name: string; uri: string; mime: string; size: number; }
 
@@ -24,10 +25,11 @@ interface Props {
   onEffortChange: (value: string) => void;
   placeholder: string;
   allowAttachments?: boolean;
+  accentColor?: string;
   modeControls?: ReactNode;
 }
 
-export function AgentComposer({ value, onChange, onSend, onStop, busy, models, model, onModelChange, effort, efforts, onEffortChange, placeholder, allowAttachments = true, modeControls }: Props) {
+export function AgentComposer({ value, onChange, onSend, onStop, busy, models, model, onModelChange, effort, efforts, onEffortChange, placeholder, allowAttachments = true, accentColor, modeControls }: Props) {
   const [attachments, setAttachments] = useState<AgentAttachment[]>([]);
   const [error, setError] = useState("");
   const [addMenuOpen, setAddMenuOpen] = useState(false);
@@ -115,8 +117,8 @@ export function AgentComposer({ value, onChange, onSend, onStop, busy, models, m
           />
           <div className="flex min-w-0 items-center gap-1">
             <Dropdown isOpen={addMenuOpen} onOpenChange={setAddMenuOpen}>
-              <DropdownTrigger aria-label="Adicionar contexto ou arquivo" className="flex size-7 shrink-0 items-center justify-center rounded-md bg-transparent text-foreground-icon-secondary transition-colors hover:bg-background-secondary-hover">
-                <Plus size={17} />
+              <DropdownTrigger aria-label="Adicionar contexto ou arquivo" className="flex h-7 shrink-0 items-center gap-1.5 rounded-md px-1.5 text-body-2-medium text-text-secondary outline-none transition-colors hover:bg-background-secondary-hover focus-visible:ring-2 focus-visible:ring-border-focus-ring">
+                <Plus size={15} />
               </DropdownTrigger>
               <DropdownPopover aria-label="Adicionar contexto" placement="top start" className="w-56">
                 <DropdownGroup>
@@ -135,9 +137,9 @@ export function AgentComposer({ value, onChange, onSend, onStop, busy, models, m
               {modeControls && <div className="flex shrink-0 items-center gap-0.5">{modeControls}</div>}
             </div>
             {busy && onStop ? (
-              <Button type="button" variant="secondary" size="small" iconOnly leadingIcon={Square} onClick={onStop} aria-label="Parar" className="size-8 shrink-0 rounded-lg border-0 bg-text-primary text-background-full hover:bg-text-secondary" />
+              <Button type="button" variant="secondary" size="small" iconOnly leadingIcon={Square} onClick={onStop} aria-label="Parar" className="size-8 shrink-0 rounded-lg border-0 hover:opacity-90" style={accentColor ? { backgroundColor: accentColor, color: readableTextOn(accentColor) } : undefined} />
             ) : (
-              <Button type="submit" size="small" iconOnly leadingIcon={ArrowUp} disabled={!value.trim() && attachments.length === 0} aria-label="Enviar" className="size-8 shrink-0 rounded-lg border-0 bg-text-primary text-background-full hover:bg-text-secondary disabled:bg-background-tertiary-default disabled:text-text-tertiary" />
+              <Button type="submit" size="small" iconOnly leadingIcon={ArrowUp} disabled={!value.trim() && attachments.length === 0} aria-label="Enviar" className="size-8 shrink-0 rounded-lg border-0 bg-text-primary text-background-full hover:bg-text-secondary disabled:bg-background-tertiary-default disabled:text-text-tertiary" style={accentColor && (value.trim() || attachments.length > 0) ? { backgroundColor: accentColor, color: readableTextOn(accentColor) } : undefined} />
             )}
           </div>
         </form>
