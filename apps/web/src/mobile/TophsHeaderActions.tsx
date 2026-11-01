@@ -17,7 +17,21 @@ export default function TophsHeaderActions({ projectId }: Props) {
   const mode = workspace?.mode ?? "unset";
   const active = Boolean(workspace?.bots.length);
 
-  if (!active) return null;
+  if (!active) {
+    if (mode !== "team") return null;
+    return (
+      <Button
+        variant="ghost"
+        size="small"
+        iconOnly
+        leadingIcon={UserRound}
+        aria-label="Mudar para solo"
+        title="Mudar para solo"
+        onClick={() => setMode(projectId, "solo")}
+        className="size-7 shrink-0 [&_svg]:size-4"
+      />
+    );
+  }
 
   return (
     <>
