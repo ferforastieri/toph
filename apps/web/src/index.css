@@ -575,3 +575,16 @@
   border-bottom: 5px solid transparent;
   border-left: 8px solid #f59e0b;
 }
+
+
+/* OpenCode-style tool rows: keep the global amber hover glow out of the
+   transcript so tools read as quiet metadata, not CTAs. */
+.toph-tool-row:hover {
+  animation: none !important;
+  color: var(--color-text-secondary) !important;
+  text-shadow: none !important;
+}
+.toph-tool-row:hover svg {
+  animation: none !important;
+  filter: none !important;
+}

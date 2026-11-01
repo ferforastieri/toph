@@ -11,6 +11,7 @@ import BotAvatar from "../components/BotAvatar";
 import BotConfig from "../components/BotConfig";
 import AiSettingsModal from "../components/AiSettingsModal";
 import AgentTranscript from "../components/AgentTranscript";
+import TophsHeaderActions from "../mobile/TophsHeaderActions";
 import OpenCodeFormCard, { type OpenCodeForm, type OpenCodeFormAnswer } from "../components/OpenCodeFormCard";
 import TophSessionsSheet from "../components/TophSessionsSheet";
 import type { OpenCodeSessionSummary } from "../opencodeSessions";
@@ -31,6 +32,28 @@ function splitModel(model: string): { providerID: string; id: string } | null {
   const index = model.indexOf("/");
   if (index <= 0 || index >= model.length - 1) return null;
   return { providerID: model.slice(0, index), id: model.slice(index + 1) };
+}
+
+function prettyModel(value?: string): string {
+  if (!value) return "Agent";
+  const raw = value.split("/").pop() ?? value;
+  return raw
+    .replace(/^deepseek/i, "DeepSeek")
+    .replace(/^gpt/i, "GPT")
+    .replace(/^claude/i, "Claude")
+    .replace(/^gemini/i, "Gemini")
+    .replace(/^qwen/i, "Qwen")
+    .replace(/^glm/i, "GLM")
+    .replace(/[-_]+/g, " ")
+    .replace(/\b([a-z])/g, (match) => match.toUpperCase());
+}
+
+function groupDuration(messages: BotMessage[]): string {
+  if (messages.length < 2) return "";
+  const first = messages[0]?.createdAt ?? 0;
+  const last = messages[messages.length - 1]?.createdAt ?? 0;
+  if (last <= first) return "";
+  return `${Math.max(1, Math.round((last - first) / 1000))}s`;
 }
 
 function toolContent(value: unknown): string {
@@ -902,7 +925,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
   if (!activeBot) {
     return (
       <>
-        <div className={cx("no-scrollbar flex h-full flex-col gap-3 overflow-y-auto p-4", mobile && "pt-[4.25rem]")}>
+        <div className="no-scrollbar flex h-full flex-col gap-3 overflow-y-auto p-4">
           <div className="rounded-3xl border border-border-button-white bg-background-secondary-default p-4">
             <span className="text-caption-2-semibold uppercase tracking-[0.16em] text-text-tertiary">Tophs</span>
             <h2 className="mt-1 text-title-3-medium text-text-primary">Como você quer trabalhar?</h2>
@@ -944,7 +967,8 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
 
   return (
     <div className="flex h-full min-h-0 w-full flex-1 gap-1" onPointerDown={unlockBotSound}>
-      <section className="flex min-w-0 flex-1 flex-col overflow-hidden bg-background-primary-default max-[900px]:rounded-none max-[900px]:border-0 max-[900px]:shadow-none min-[901px]:rounded-3xl min-[901px]:border min-[901px]:border-border-button-white min-[901px]:shadow-sidebar">
+      <section className="flex min-w-0 flex-1 flex-col overflow-hidden bg-background-full max-[900px]:rounded-none max-[900px]:border-0 max-[900px]:shadow-none min-[901px]:rounded-3xl min-[901px]:border min-[901px]:border-border-button-white min-[901px]:shadow-sidebar">
+        {mobile ? <div className="flex shrink-0 items-center gap-0.5 border-b border-separator-border px-3 py-1.5"><TophsHeaderActions projectId={project.id} /></div> : null}
         {!mobile ? (
         <div className="flex shrink-0 items-center gap-1 border-b border-separator-border bg-background-secondary-default px-2 py-1.5">
           <Button variant="ghost" size="small" iconOnly leadingIcon={Settings2} aria-label={mode === "solo" ? "Configurar Toph" : "Configurar Toph ativo"} title={mode === "solo" ? "Configurar Toph" : "Configurar Toph ativo"} onClick={() => setConfigOpen(true)} className="size-9" />
@@ -970,7 +994,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
             stickToBottom.current = element.scrollHeight - element.scrollTop - element.clientHeight < 80;
           }}
         >
-          <div className={cx("mx-auto flex min-h-full w-full min-w-0 max-w-3xl flex-col gap-4 overflow-x-hidden p-4 [&_img]:max-w-full [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_table]:block [&_table]:max-w-full [&_table]:overflow-x-auto", mobile && "pt-[4.25rem]")}>
+          <div className="mx-auto flex min-h-full w-full min-w-0 max-w-[960px] flex-col gap-4 overflow-x-hidden p-4 [&_img]:max-w-full [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_table]:block [&_table]:max-w-full [&_table]:overflow-x-auto">
             {mode === "team" && bots.length > 0 ? (
               <div className="shrink-0 border-b border-separator-border pb-2.5">
                 <div className="mb-2 flex items-center justify-between gap-2">
@@ -1028,7 +1052,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
               if (group.kind === "user") {
                 return (
                   <div key={`user-${group.message.id}`} className="ms-auto flex min-w-0 max-w-[88%] flex-col items-end gap-1">
-                    <p className="min-w-0 max-w-full overflow-hidden rounded-2xl border border-accent-500/20 bg-accent-500/10 px-3.5 py-2 text-[13.5px] leading-[1.5] whitespace-pre-wrap break-words text-text-primary">
+                    <p className="min-w-0 max-w-full overflow-hidden rounded-2xl bg-blue-600/20 px-3.5 py-2 text-[14px] leading-[1.55] whitespace-pre-wrap break-words text-text-primary">
                       {group.message.content}
                     </p>
                     <Button variant="ghost" size="xs" iconOnly leadingIcon={Copy} aria-label="Copiar mensagem" title="Copiar mensagem" onClick={() => void navigator.clipboard.writeText(group.message.content).catch(() => undefined)} className="size-6 text-text-tertiary" />
@@ -1041,19 +1065,29 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
               const bot = bots.find((item) => item.id === group.botId);
               if (!bot) return null;
               return (
-                <section key={`bot-${group.botId}-${index}`} className="flex min-w-0 max-w-full flex-col gap-2 overflow-x-hidden">
-                  <header className="flex items-center gap-2">
-                    <BotAvatar bot={bot} size={28} />
-                    <div className="flex min-w-0 items-baseline gap-2">
-                      <strong className="truncate text-caption-1-semibold text-text-primary">{bot.name}</strong>
-                      <span className="truncate text-caption-2-regular text-text-tertiary">{bot.role}</span>
-                    </div>
-                  </header>
+                <section key={`bot-${group.botId}-${index}`} className="flex min-w-0 max-w-full flex-col gap-1.5 overflow-x-hidden">
+                  {mode === "team" ? (
+                    <header className="flex items-center gap-2">
+                      <BotAvatar bot={bot} size={28} />
+                      <div className="flex min-w-0 items-baseline gap-2">
+                        <strong className="truncate text-caption-1-semibold text-text-primary">{bot.name}</strong>
+                        <span className="truncate text-caption-2-regular text-text-tertiary">{bot.role}</span>
+                      </div>
+                    </header>
+                  ) : null}
                   <AgentTranscript
                     messages={group.messages.map(toAiMessage)}
                     streaming={runningBots.has(bot.id)}
                     onPermission={(messageId, permissionId, decision) => void replyPermission(bot, messageId, permissionId, decision)}
                   />
+                  {mode === "solo" ? (
+                    <div className="flex items-center gap-1.5 px-1 text-[11px] text-text-tertiary">
+                      <span>{bot.agentMode === "plan" ? "Plan" : "Build"}</span>
+                      <span>·</span>
+                      <span className="truncate">{models.find((item) => item.id === (bot.model || activeModel))?.label ?? prettyModel(bot.model || activeModel)}</span>
+                      {groupDuration(group.messages) ? <><span>·</span><span>{groupDuration(group.messages)}</span></> : null}
+                    </div>
+                  ) : null}
                 </section>
               );
             })}
@@ -1112,7 +1146,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
             effort={activeBot.effort ?? ""}
             efforts={activeEfforts}
             onEffortChange={(value) => updateBot(project.id, activeBot.id, { effort: value })}
-            placeholder={mode === "solo" ? "Pergunte ao seu Toph..." : activeBot.id === coordinator?.id ? "Fale com o coordenador ou @mencione um membro..." : `Pergunte para ${activeBot.name}...`}
+            placeholder={mode === "solo" ? "Pergunte ao seu Toph... / comandos, @ contexto" : activeBot.id === coordinator?.id ? "Fale com o coordenador ou @mencione um membro..." : `Pergunte para ${activeBot.name}...`}
             modeControls={
               <>
                 <Select
@@ -1141,9 +1175,6 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
         </div>
       </section>
 
-      <aside className="hidden w-[300px] shrink-0 flex-col overflow-hidden rounded-3xl border border-border-button-white bg-background-primary-default shadow-sidebar lg:flex">
-        {activeBot && <BotConfig projectId={project.id} projectRoot={project.root} bot={activeBot} mode={mode} />}
-      </aside>
 
       <Modal isOpen={configOpen} onClose={() => setConfigOpen(false)} title={activeBot.name} description={mode === "solo" ? "Configure seu Toph." : "Configure o membro da equipe."} placement="bottom" size="lg" bodyClassName="p-0" swipeToClose={mobile}>
         {activeBot && <BotConfig projectId={project.id} projectRoot={project.root} bot={activeBot} mode={mode} />}

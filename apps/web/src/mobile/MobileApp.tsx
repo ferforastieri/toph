@@ -25,7 +25,6 @@ import DatabasesScreen from "./screens/DatabasesScreen";
 import WebAppsScreen from "./screens/WebAppsScreen";
 import ProjectSwitcher from "../components/ProjectSwitcher";
 import MobileTopBar from "./components/MobileTopBar";
-import TophsHeaderActions from "./TophsHeaderActions";
 import { useConfirm } from "../ui/confirm";
 import { useBots } from "../bots";
 import MobileBranchSheet from "./MobileBranchSheet";
@@ -330,7 +329,6 @@ export default function MobileApp() {
       onTouchEnd={() => { swipeStart.current = null; }}
     >
       <MobileTopBar
-        floating={screen === "bots"}
         title={pageTitle}
         subtitle={pageSubtitle}
         projectName={project.name}
@@ -339,8 +337,6 @@ export default function MobileApp() {
         onMenu={() => setMenuOpen(true)}
         onNotifications={() => setNotificationsOpen(true)}
         onProjects={() => setProjectsOpen(true)}
-        extraActions={screen === "bots" ? <TophsHeaderActions projectId={project.id} /> : undefined}
-        hideTitle={screen === "bots"}
       />
       <main className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background-primary-default">
         {screen === "bots" ? (
