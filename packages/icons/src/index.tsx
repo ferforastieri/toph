@@ -19,6 +19,7 @@ export {
   CircleAlert,
   CircleCheck,
   Container,
+  Copy,
   Database,
   Download,
   ExternalLink,

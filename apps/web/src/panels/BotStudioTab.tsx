@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { OpenCode } from "@opencode/client";
 import { connectClientMcp, type ClientMcpTool } from "@opencode/client/mcp";
-import { Bot, History, MessageSquarePlus, Settings2, SlidersHorizontal, UserRound } from "@toph/icons";
+import { Bot, Copy, History, MessageSquarePlus, Settings2, SlidersHorizontal, UserRound } from "@toph/icons";
 import { api, openCodeBase, type AIMessage, type Project } from "../api";
 import { useAI } from "../ai";
 import { useBots, type BotMessage, type MiniBot } from "../bots";
@@ -214,6 +214,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
   const [sessionsOpen, setSessionsOpen] = useState(false);
   const [connectionEpoch, setConnectionEpoch] = useState(0);
   const sendingRef = useRef(false);
+  const runToken = useRef(0);
   const [runningBots, setRunningBots] = useState<Set<string>>(new Set());
   const [forms, setForms] = useState<Array<{ form: OpenCodeForm; botId: string }>>([]);
   const [formBusy, setFormBusy] = useState<string | null>(null);
@@ -583,7 +584,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
     }
   }
 
-  async function openCodeReply(bot: MiniBot, prompt: string, attachments: AgentAttachment[] = []): Promise<string> {
+  async function openCodeReply(bot: MiniBot, prompt: string, attachments: AgentAttachment[] = [], token = runToken.current): Promise<string> {
     const current = storedBot(bot);
     await applyMcpSelection(current);
     const sessionId = await ensureSession(current);
@@ -595,6 +596,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
       } as never).catch(() => undefined);
     }
     await client.session.switchAgent({ sessionID: sessionId, agent: current.agentMode ?? "build" } as never).catch(() => undefined);
+    if (token !== runToken.current) throw new Error("__stopped__");
     const before = lastAssistant(await client.session.context({ sessionID: sessionId } as never).catch(() => null))?.id ?? "";
     await client.session.prompt({
       sessionID: sessionId,
@@ -605,6 +607,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
     let latest = "";
     while (Date.now() < deadline) {
       await new Promise((resolve) => window.setTimeout(resolve, 800));
+      if (token !== runToken.current) throw new Error("__stopped__");
       const [active, context] = await Promise.all([
         client.session.active().catch(() => null),
         client.session.context({ sessionID: sessionId } as never).catch(() => null),
@@ -642,7 +645,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
     return result.text;
   }
 
-  async function respondAsBot(bot: MiniBot, userText: string, options: { attachments?: AgentAttachment[]; audience?: "user" | "coordinator"; channel?: string } = {}): Promise<string | null> {
+  async function respondAsBot(bot: MiniBot, userText: string, options: { attachments?: AgentAttachment[]; audience?: "user" | "coordinator"; channel?: string; token?: number } = {}): Promise<string | null> {
     const workspaceNow = useBots.getState().byProject[project.id];
     const allHistory = workspaceNow?.messages ?? [];
     const channel = options.channel ?? (bot.coordinator || mode === "solo" ? "team" : `worker:${bot.id}`);
@@ -657,7 +660,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
         const openCodePrompt = current.sessionPrimed
           ? userText
           : botPrompt(current, bots, [], userText, project.name, mode);
-        const reply = await openCodeReply(current, openCodePrompt, options.attachments);
+        const reply = await openCodeReply(current, openCodePrompt, options.attachments, options.token);
         if (!current.sessionPrimed) updateBot(project.id, current.id, { sessionPrimed: true });
         const currentMessages = useBots.getState().byProject[project.id]?.messages ?? [];
         const hasEventReply = currentMessages.some((message) =>
@@ -722,6 +725,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
       }
       return reply.trim();
     } catch (error) {
+      if (error instanceof Error && error.message === "__stopped__") return null;
       const text = error instanceof Error ? error.message : "Não foi possível falar com este bot.";
       addMessage(project.id, {
         id: `bot-error-${bot.id}-${Date.now()}`,
@@ -819,12 +823,13 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
   }
 
   async function stop() {
-    if (!activeBot?.sessionId) {
-      setSending(false);
-      return;
+    runToken.current += 1;
+    sendingRef.current = false;
+    setSending(false);
+    setRunningBots(new Set());
+    for (const bot of bots) {
+      if (bot.sessionId) await client.session.interrupt({ sessionID: bot.sessionId } as never).catch(() => undefined);
     }
-    await client.session.interrupt({ sessionID: activeBot.sessionId } as never).catch(() => undefined);
-    setRunningBots((current) => { const next = new Set(current); next.delete(activeBot.id); return next; });
   }
 
   async function send(text: string, attachments: AgentAttachment[] = []) {
@@ -834,6 +839,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
     setInput("");
     clearDraft(draftKey);
     stickToBottom.current = true;
+    const token = ++runToken.current;
     const direct = mentionedBots(bots, text);
     const activeWorker = mode === "team" && activeBot && activeBot.id !== coordinator?.id ? activeBot : null;
     const directWorker = mode === "team" ? direct.find((bot) => !bot.coordinator) ?? null : null;
@@ -858,7 +864,8 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
             : bots.slice(0, 1);
       let coordinatorReply: string | null = null;
       for (const bot of firstWave) {
-        const reply = await respondAsBot(bot, text, { attachments, channel });
+        if (token !== runToken.current) break;
+        const reply = await respondAsBot(bot, text, { attachments, channel, token });
         if (bot.id === coordinator?.id) coordinatorReply = reply;
       }
 
@@ -869,10 +876,11 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
         if (workers.length > 0) {
           const results: string[] = [];
           for (const worker of workers) {
+            if (token !== runToken.current) break;
             const reply = await respondAsBot(
               worker,
               `Tarefa do coordenador ${coordinator.name}:\n\n${coordinatorReply}\n\nPedido original do usuário:\n${text}`,
-              { attachments, audience: "coordinator", channel: `worker:${worker.id}` },
+              { attachments, audience: "coordinator", channel: `worker:${worker.id}`, token },
             );
             if (reply) results.push(`${worker.name}: ${reply}`);
           }
@@ -880,7 +888,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
             await respondAsBot(
               coordinator,
               `Retornos dos membros da equipe:\n\n${results.join("\n\n")}\n\nConsolide esses retornos em uma resposta final para o usuário.`,
-              { audience: "user", channel: "team" },
+              { audience: "user", channel: "team", token },
             );
           }
         }
@@ -1019,9 +1027,12 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
             {groupBotMessages(displayMessages).map((group, index) => {
               if (group.kind === "user") {
                 return (
-                  <p key={`user-${group.message.id}`} className="ms-auto min-w-0 max-w-[88%] overflow-hidden rounded-2xl border border-accent-500/20 bg-accent-500/10 px-3.5 py-2 text-[13.5px] leading-[1.5] whitespace-pre-wrap break-words text-text-primary">
-                    {group.message.content}
-                  </p>
+                  <div key={`user-${group.message.id}`} className="ms-auto flex min-w-0 max-w-[88%] flex-col items-end gap-1">
+                    <p className="min-w-0 max-w-full overflow-hidden rounded-2xl border border-accent-500/20 bg-accent-500/10 px-3.5 py-2 text-[13.5px] leading-[1.5] whitespace-pre-wrap break-words text-text-primary">
+                      {group.message.content}
+                    </p>
+                    <Button variant="ghost" size="xs" iconOnly leadingIcon={Copy} aria-label="Copiar mensagem" title="Copiar mensagem" onClick={() => void navigator.clipboard.writeText(group.message.content).catch(() => undefined)} className="size-6 text-text-tertiary" />
+                  </div>
                 );
               }
               if (group.kind === "system") {
