@@ -15,14 +15,17 @@ interface Props {
   onProjects: () => void;
   extraActions?: ReactNode;
   hideTitle?: boolean;
+  floating?: boolean;
 }
 
 /** Compact version of the mobile hero header, with the app controls on the right. */
-export default function MobileTopBar({ title, subtitle, projectName, unreadCount, icon: Icon, onMenu, onNotifications, onProjects, extraActions, hideTitle = false }: Props) {
+export default function MobileTopBar({ title, subtitle, projectName, unreadCount, icon: Icon, onMenu, onNotifications, onProjects, extraActions, hideTitle = false, floating = false }: Props) {
   return (
     <header className={cx(
-      "relative shrink-0 overflow-hidden px-3 pt-2",
-      extraActions ? "border-b-0 bg-transparent pb-1" : "border-b border-separator-border bg-background-secondary-default pb-2.5",
+      floating
+        ? "fixed inset-x-0 top-0 z-50 overflow-hidden border-0 bg-transparent px-3 pb-1 pt-[calc(var(--safe-top)+0.5rem)]"
+        : "relative shrink-0 overflow-hidden px-3 pt-2",
+      !floating && (extraActions ? "border-b-0 bg-transparent pb-1" : "border-b border-separator-border bg-background-secondary-default pb-2.5"),
     )}>
       {!extraActions ? <div className="pointer-events-none absolute -right-10 -top-16 size-36 rounded-full bg-accent-500/10 blur-2xl" /> : null}
       <div className="relative flex min-w-0 items-center gap-2.5">
