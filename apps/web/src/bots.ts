@@ -324,22 +324,7 @@ export const useBots = create<BotStore>((set, get) => ({
   createTeam: (projectId) => {
     const workspace = get().ensure(projectId);
     if (workspace.mode !== "team") get().setMode(projectId, "team");
-    const next = get().byProject[projectId];
-    if (!next || next.bots.length > 0) return;
-    let coordinatorId = "";
-    for (const preset of TOPH_PRESETS.filter((item) => item.name !== "Toph").slice(0, 5)) {
-      const bot = get().addBot(projectId, {
-        name: preset.name,
-        role: preset.role,
-        description: preset.description,
-        personality: preset.personality,
-        color: preset.color,
-        avatar: preset.avatar,
-        coordinator: preset.coordinator === true,
-      });
-      if (preset.coordinator) coordinatorId = bot.id;
-    }
-    if (coordinatorId) get().setActiveBot(projectId, coordinatorId);
+    // A equipe começa vazia. O usuário adiciona os Tophs pela galeria.
   },
 
   addBot: (projectId, patch = {}) => {
@@ -367,12 +352,15 @@ export const useBots = create<BotStore>((set, get) => ({
       sessionPrimed: patch.sessionPrimed ?? false,
       createdAt: Date.now(),
     };
+    const nextBots = bot.coordinator
+      ? workspace.bots.map((item) => item.id === bot.id ? item : { ...item, coordinator: false })
+      : workspace.bots;
     set((state) => ({
       byProject: {
         ...state.byProject,
         [projectId]: {
           ...workspace,
-          bots: [...workspace.bots, bot],
+          bots: [...nextBots, bot],
           activeBotId: bot.id,
         },
       },
