@@ -150,7 +150,9 @@ function restoreBotMessages(context: unknown, botId: string, channel: string): B
   for (const raw of context as Array<Record<string, any>>) {
     const createdAt = Number(raw.time?.created ?? Date.now());
     if (raw.type === "user") {
-      restored.push({ id: `history-user-${raw.id}`, role: "user", content: String(raw.text ?? ""), channel, createdAt });
+      const text = String(raw.text ?? "");
+      if (/Sua função:|Sua personalidade:|MCPs habilitados para você:|Mensagem atual:/.test(text)) continue;
+      restored.push({ id: `history-user-${raw.id}`, role: "user", content: text, channel, createdAt });
       continue;
     }
     if (raw.type !== "assistant") continue;
@@ -210,6 +212,8 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
   const [configOpen, setConfigOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [sessionsOpen, setSessionsOpen] = useState(false);
+  const [connectionEpoch, setConnectionEpoch] = useState(0);
+  const sendingRef = useRef(false);
   const [runningBots, setRunningBots] = useState<Set<string>>(new Set());
   const [forms, setForms] = useState<Array<{ form: OpenCodeForm; botId: string }>>([]);
   const [formBusy, setFormBusy] = useState<string | null>(null);
@@ -375,6 +379,25 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
   }, [messages, sending, forms.length]);
 
   useEffect(() => {
+    if (!bots.some((bot) => bot.sessionId)) return;
+    void syncFromOpenCode();
+  }, [project.id, bots.length]);
+
+  useEffect(() => {
+    const refresh = () => {
+      if (document.hidden) return;
+      setConnectionEpoch((value) => value + 1);
+      void syncFromOpenCode();
+    };
+    document.addEventListener("visibilitychange", refresh);
+    window.addEventListener("online", refresh);
+    return () => {
+      document.removeEventListener("visibilitychange", refresh);
+      window.removeEventListener("online", refresh);
+    };
+  }, [project.id, bots.length]);
+
+  useEffect(() => {
     const controller = new AbortController();
     (async () => {
       try {
@@ -490,7 +513,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
       }
     })();
     return () => controller.abort();
-  }, [client, project.id]);
+  }, [client, project.id, connectionEpoch]);
 
   function newBot() {
     const bot = addBot(project.id, {
@@ -778,6 +801,23 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
     replaceChannelMessages(project.id, channel, []);
   }
 
+  async function syncFromOpenCode() {
+    if (!bots.some((bot) => bot.sessionId) || sendingRef.current) return;
+    const active = await client.session.active().catch(() => null);
+    const running = new Set(
+      bots.filter((bot) => bot.sessionId && active?.[bot.sessionId]?.type === "running").map((bot) => bot.id),
+    );
+    setRunningBots(running);
+    for (const bot of bots) {
+      if (!bot.sessionId) continue;
+      const context = await client.session.context({ sessionID: bot.sessionId } as never).catch(() => null);
+      if (!Array.isArray(context) || context.length === 0) continue;
+      const channel = channelForBot(bot);
+      const restored = restoreBotMessages(context, bot.id, channel);
+      if (restored.length) replaceChannelMessages(project.id, channel, restored);
+    }
+  }
+
   async function stop() {
     if (!activeBot?.sessionId) {
       setSending(false);
@@ -789,6 +829,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
 
   async function send(text: string, attachments: AgentAttachment[] = []) {
     if ((!text.trim() && attachments.length === 0) || sending || bots.length === 0) return;
+    sendingRef.current = true;
     unlockBotSound();
     setInput("");
     clearDraft(draftKey);
@@ -845,6 +886,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
         }
       }
     } finally {
+      sendingRef.current = false;
       setSending(false);
     }
   }
@@ -912,48 +954,6 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
 
         ) : null}
 
-        {mode === "team" && bots.length > 0 ? (
-          <div className="shrink-0 border-b border-separator-border px-3 py-2.5">
-            <div className="mb-2 flex items-center justify-between gap-2">
-              <span className="text-caption-2-semibold uppercase tracking-[0.16em] text-text-tertiary">Equipe Toph</span>
-              <span className="text-caption-2-regular text-text-tertiary">{bots.length} {bots.length === 1 ? "agente" : "agentes"}</span>
-            </div>
-            <div className="no-scrollbar flex gap-2 overflow-x-auto pb-1">
-              {bots.map((bot) => {
-                const active = bot.id === activeBot?.id;
-                return (
-                  <button
-                    key={bot.id}
-                    type="button"
-                    onClick={() => setActiveBot(project.id, bot.id)}
-                    className={cx(
-                      "flex min-w-[124px] shrink-0 items-center gap-2 rounded-2xl border p-2 text-start transition-colors",
-                      active ? "border-accent-500/40 bg-accent-500/10" : "border-border-button-white bg-background-primary-default hover:bg-background-primary-hover",
-                    )}
-                  >
-                    <span className="relative shrink-0">
-                      <BotAvatar bot={bot} size={34} />
-                      <span className={cx("absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full border-2 border-background-primary-default", runningBots.has(bot.id) ? "bg-emerald-400" : active ? "bg-accent-500" : "bg-text-tertiary/40")} />
-                    </span>
-                    <span className="flex min-w-0 flex-col">
-                      <strong className="truncate text-caption-1-semibold text-text-primary">{bot.name}</strong>
-                      <span className="truncate text-caption-2-regular text-text-tertiary">{bot.role || "Toph"}</span>
-                    </span>
-                  </button>
-                );
-              })}
-              <button
-                type="button"
-                onClick={newBot}
-                className="flex min-w-[82px] shrink-0 flex-col items-center justify-center gap-1 rounded-2xl border border-dashed border-border-button-default p-2 text-text-tertiary transition-colors hover:bg-background-primary-hover hover:text-text-primary"
-              >
-                <span className="flex size-8 items-center justify-center rounded-full bg-background-secondary-default"><MessageSquarePlus className="size-4" /></span>
-                <span className="text-caption-2-medium">Novo</span>
-              </button>
-            </div>
-          </div>
-        ) : null}
-
         <div
           ref={scrollRef}
           className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-x-none"
@@ -962,7 +962,44 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
             stickToBottom.current = element.scrollHeight - element.scrollTop - element.clientHeight < 80;
           }}
         >
-          <div className="mx-auto flex min-h-full w-full min-w-0 max-w-3xl flex-col gap-4 overflow-x-hidden p-4 [&_img]:max-w-full [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_table]:block [&_table]:max-w-full [&_table]:overflow-x-auto">
+          <div className={cx("mx-auto flex min-h-full w-full min-w-0 max-w-3xl flex-col gap-4 overflow-x-hidden p-4 [&_img]:max-w-full [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_table]:block [&_table]:max-w-full [&_table]:overflow-x-auto", mobile && "pt-[4.25rem]")}>
+            {mode === "team" && bots.length > 0 ? (
+              <div className="shrink-0 border-b border-separator-border pb-2.5">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <span className="text-caption-2-semibold uppercase tracking-[0.16em] text-text-tertiary">Equipe Toph</span>
+                  <span className="text-caption-2-regular text-text-tertiary">{bots.length} {bots.length === 1 ? "agente" : "agentes"}</span>
+                </div>
+                <div className="no-scrollbar flex gap-2 overflow-x-auto pb-1">
+                  {bots.map((bot) => {
+                    const active = bot.id === activeBot?.id;
+                    return (
+                      <button
+                        key={bot.id}
+                        type="button"
+                        onClick={() => setActiveBot(project.id, bot.id)}
+                        className={cx(
+                          "flex min-w-[124px] shrink-0 items-center gap-2 rounded-2xl border p-2 text-start transition-colors",
+                          active ? "border-accent-500/40 bg-accent-500/10" : "border-border-button-white bg-background-primary-default hover:bg-background-primary-hover",
+                        )}
+                      >
+                        <span className="relative shrink-0">
+                          <BotAvatar bot={bot} size={34} />
+                          <span className={cx("absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full border-2 border-background-primary-default", runningBots.has(bot.id) ? "bg-emerald-400" : active ? "bg-accent-500" : "bg-text-tertiary/40")} />
+                        </span>
+                        <span className="flex min-w-0 flex-col">
+                          <strong className="truncate text-caption-1-semibold text-text-primary">{bot.name}</strong>
+                          <span className="truncate text-caption-2-regular text-text-tertiary">{bot.role || "Toph"}</span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                  <button type="button" onClick={newBot} className="flex min-w-[82px] shrink-0 flex-col items-center justify-center gap-1 rounded-2xl border border-dashed border-border-button-default p-2 text-text-tertiary transition-colors hover:bg-background-primary-hover hover:text-text-primary">
+                    <span className="flex size-8 items-center justify-center rounded-full bg-background-secondary-default"><MessageSquarePlus className="size-4" /></span>
+                    <span className="text-caption-2-medium">Novo</span>
+                  </button>
+                </div>
+              </div>
+            ) : null}
             {displayMessages.length === 0 && (
               <div className="my-auto flex flex-col items-center gap-3 px-6 py-10 text-center">
                 <div className="flex -space-x-2">

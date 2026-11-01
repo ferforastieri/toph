@@ -78,6 +78,7 @@ class MainActivity : TauriActivity() {
   override fun onWebViewCreate(webView: WebView) {
     super.onWebViewCreate(webView)
     webView.addJavascriptInterface(SafeAreaBridge(), "TophInsets")
+    webView.addJavascriptInterface(ThemeBridge(), "TophTheme")
     webView.addJavascriptInterface(NotificationBridge(), "TophNotifications")
     TophPush.attach(webView)
     trackSafeArea(webView)
@@ -173,6 +174,22 @@ class MainActivity : TauriActivity() {
     fun insets(): String {
       val current = safeInsets
       return """{"top":${dp(current.top)},"bottom":${dp(current.bottom)},"left":${dp(current.left)},"right":${dp(current.right)},"keyboard":${dp(current.keyboard)}}"""
+    }
+  }
+
+  @Keep
+  private inner class ThemeBridge {
+    @JavascriptInterface
+    fun setDarkTheme(dark: Boolean) {
+      runOnUiThread {
+        WindowCompat.getInsetsController(window, window.decorView).apply {
+          isAppearanceLightStatusBars = !dark
+          isAppearanceLightNavigationBars = !dark
+        }
+        window.setBackgroundDrawable(ColorDrawable(if (dark) Color.BLACK else Color.WHITE))
+        window.statusBarColor = Color.TRANSPARENT
+        window.navigationBarColor = Color.TRANSPARENT
+      }
     }
   }
 

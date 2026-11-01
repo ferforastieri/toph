@@ -296,7 +296,7 @@ export default function MobileApp() {
 
   return (
     <div
-      className="flex h-dvh flex-col overflow-hidden bg-background-full"
+      className="relative flex h-dvh flex-col overflow-hidden bg-background-full"
       style={{
         height: "min(var(--visual-viewport-height, 100dvh), calc(100dvh - var(--keyboard-inset, 0px)))",
         paddingTop: "var(--safe-top)",
@@ -326,6 +326,7 @@ export default function MobileApp() {
       onTouchEnd={() => { swipeStart.current = null; }}
     >
       <MobileTopBar
+        floating={screen === "bots"}
         title={pageTitle}
         subtitle={pageSubtitle}
         projectName={project.name}

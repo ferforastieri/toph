@@ -94,6 +94,8 @@ export function applyTheme(theme: Theme): void {
   root.classList.toggle("dark", theme !== "light");
   root.style.colorScheme = theme === "light" ? "light" : "dark";
   root.dataset.theme = theme;
+  const nativeTheme = (window as unknown as { TophTheme?: { setDarkTheme?: (dark: boolean) => void } }).TophTheme;
+  nativeTheme?.setDarkTheme?.(theme !== "light");
 }
 
 export function applyLayout(settings: Pick<typeof defaultSettings, "sidebarWidth" | "aiPanelWidth" | "terminalHeight">): void {
