@@ -910,7 +910,6 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
             </div>
           )}
           <AgentTranscript
-          accentColor={project.color}
             messages={messages}
             streaming={streaming}
             onPermission={(messageId, permissionId, decision) => void replyPermission(messageId, permissionId, decision)}
@@ -933,7 +932,7 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
         </div>
       )}
       {error && <Chip color="rose" variant="subtle" className="mx-2 justify-start whitespace-normal px-2 py-1">{error}</Chip>}
-      <AgentComposer accentColor={project.color}
+      <AgentComposer
         value={input}
         onChange={setInput}
         onSend={(text, attachments) => void send(text, attachments)}

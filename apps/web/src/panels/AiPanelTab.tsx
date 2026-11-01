@@ -115,11 +115,11 @@ function GenericAiPanel({ tab, project, config, onClose }: Props & { config: AIC
               <p className="text-caption-1-regular text-text-secondary">O agente pode ler {project.root} através do servidor.</p>
             </div>
           )}
-          <AgentTranscript messages={messages} streaming={streaming} accentColor={project.color} />
+          <AgentTranscript messages={messages} streaming={streaming} />
           <div ref={bottomRef} />
         </div>
       </div>
-      <AgentComposer accentColor={project.color} value={input} onChange={setInput} onSend={(text) => void send(text)} busy={streaming} models={models} model={model} onModelChange={setModel} effort={effort} efforts={[]} onEffortChange={setEffort} placeholder={`Pergunte ao ${label}...`} allowAttachments={false} />
+      <AgentComposer value={input} onChange={setInput} onSend={(text) => void send(text)} busy={streaming} models={models} model={model} onModelChange={setModel} effort={effort} efforts={[]} onEffortChange={setEffort} placeholder={`Pergunte ao ${label}...`} allowAttachments={false} />
       <AiSettingsModal open={settingsOpen} projectRoot={project.root} showConnections={false} onClose={() => setSettingsOpen(false)} />
     </div>
   );

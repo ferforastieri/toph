@@ -32,6 +32,10 @@ interface Props {
 
 export function AgentComposer({ value, onChange, onSend, onStop, busy, models, model, onModelChange, effort, efforts, onEffortChange, placeholder, allowAttachments = true, accentColor, modeControls }: Props) {
   const [attachments, setAttachments] = useState<AgentAttachment[]>([]);
+  const accent = accentColor ?? "var(--color-accent-500)";
+  const accentText = accent.startsWith("var(") ? "var(--color-text-on-accent)" : readableTextOn(accent);
+  const accentTint = accent.startsWith("var(") ? "color-mix(in srgb, var(--color-accent-500) 8%, transparent)" : colorWithAlpha(accent, 0.08);
+  const accentBorder = accent.startsWith("var(") ? "color-mix(in srgb, var(--color-accent-500) 50%, transparent)" : colorWithAlpha(accent, 0.5);
   const [error, setError] = useState("");
   const [addMenuOpen, setAddMenuOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -82,7 +86,7 @@ export function AgentComposer({ value, onChange, onSend, onStop, busy, models, m
         <form
           onSubmit={(event) => { event.preventDefault(); submit(); }}
           className="flex flex-col gap-2 rounded-[14px] border p-3 pb-2 shadow-xs"
-          style={accentColor ? { borderColor: colorWithAlpha(accentColor, 0.5), backgroundColor: colorWithAlpha(accentColor, 0.08) } : undefined}
+          style={{ borderColor: accentBorder, backgroundColor: accentTint }}
           onKeyDownCapture={(event) => { if (event.key === "Enter" && !event.shiftKey && event.target === areaRef.current) { event.preventDefault(); submit(); } }}
           onPaste={(event) => {
             if (!allowAttachments) return;
@@ -145,9 +149,9 @@ export function AgentComposer({ value, onChange, onSend, onStop, busy, models, m
               {modeControls && <div className="flex shrink-0 items-center gap-0.5">{modeControls}</div>}
             </div>
             {busy && onStop ? (
-              <Button type="button" variant="secondary" size="small" iconOnly leadingIcon={Square} onClick={onStop} aria-label="Parar" className="size-8 shrink-0 rounded-lg border-0 hover:opacity-90" style={accentColor ? { backgroundColor: accentColor, color: readableTextOn(accentColor) } : undefined} />
+              <Button type="button" variant="secondary" size="small" iconOnly leadingIcon={Square} onClick={onStop} aria-label="Parar" className="size-8 shrink-0 rounded-lg border-0 hover:opacity-90" style={{ backgroundColor: accent, color: accentText }} />
             ) : (
-              <Button type="submit" size="small" iconOnly leadingIcon={ArrowUp} disabled={!value.trim() && attachments.length === 0} aria-label="Enviar" className="size-8 shrink-0 rounded-lg border-0 bg-text-primary text-background-full hover:bg-text-secondary disabled:opacity-40" style={accentColor ? { backgroundColor: accentColor, color: readableTextOn(accentColor) } : undefined} />
+              <Button type="submit" size="small" iconOnly leadingIcon={ArrowUp} disabled={!value.trim() && attachments.length === 0} aria-label="Enviar" className="size-8 shrink-0 rounded-lg border-0 bg-text-primary text-background-full hover:bg-text-secondary disabled:opacity-40" style={{ backgroundColor: accent, color: accentText }} />
             )}
           </div>
         </form>

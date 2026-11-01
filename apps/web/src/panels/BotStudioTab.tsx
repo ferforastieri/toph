@@ -19,7 +19,6 @@ import { Button } from "@/boardui/base/buttons/button";
 import { Modal } from "@/boardui/base/modal/modal";
 import { cx } from "@/boardui/utils/cx";
 import { useTophDrafts } from "../tophDrafts";
-import { readableTextOn } from "../lib";
 import { AgentComposer, type AgentAttachment } from "../ui/AgentComposer";
 import { DropdownItem } from "@/boardui/base/dropdown/dropdown";
 import ComposerMenu from "../ui/ComposerMenu";
@@ -1297,7 +1296,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
               if (group.kind === "user") {
                 return (
                   <div key={`user-${group.message.id}`} className="ms-auto flex min-w-0 max-w-[88%] flex-col items-end gap-1">
-                    <p className="min-w-0 max-w-full overflow-hidden rounded-2xl px-3.5 py-2 text-[14px] leading-[1.55] whitespace-pre-wrap break-words text-text-primary" style={{ backgroundColor: project.color, color: readableTextOn(project.color) }}>
+                    <p className="min-w-0 max-w-full overflow-hidden rounded-2xl bg-accent-500 px-3.5 py-2 text-[14px] leading-[1.55] whitespace-pre-wrap break-words text-text-on-accent">
                       {group.message.content}
                     </p>
                     <Button variant="ghost" size="xs" iconOnly leadingIcon={Copy} aria-label="Copiar mensagem" title="Copiar mensagem" onClick={() => void navigator.clipboard.writeText(group.message.content).catch(() => undefined)} className="size-6 text-text-tertiary" />
@@ -1305,7 +1304,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
                 );
               }
               if (group.kind === "system") {
-                return <AgentTranscript key={`system-${index}`} messages={group.messages.map(toAiMessage)} streaming={false} accentColor={project.color} />;
+                return <AgentTranscript key={`system-${index}`} messages={group.messages.map(toAiMessage)} streaming={false} />;
               }
               const bot = bots.find((item) => item.id === group.botId);
               if (!bot) return null;
@@ -1325,7 +1324,6 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
                   ) : null}
                   <AgentTranscript
                     messages={group.messages.map(toAiMessage)}
-                    accentColor={project.color}
                     streaming={isLatestBotGroup && runningBots.has(bot.id)}
                     onPermission={(messageId, permissionId, decision) => void replyPermission(bot, messageId, permissionId, decision)}
                   />
@@ -1386,7 +1384,6 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
 
         <div className="shrink-0">
           <AgentComposer
-            accentColor={project.color}
             value={input}
             onChange={updateInput}
             onSend={(value, attachments) => void send(value, attachments)}
