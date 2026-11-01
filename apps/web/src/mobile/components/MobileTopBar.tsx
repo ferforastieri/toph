@@ -1,6 +1,7 @@
-import type { ComponentType } from "react";
+import type { ComponentType, ReactNode } from "react";
 import { Bell, FolderGit2, LayoutPanelLeft } from "@toph/icons";
 import { Badge } from "@/boardui/base/badges/badge";
+import { cx } from "@/boardui/utils/cx";
 import { Button } from "@/boardui/base/buttons/button";
 
 interface Props {
@@ -12,10 +13,12 @@ interface Props {
   onMenu: () => void;
   onNotifications: () => void;
   onProjects: () => void;
+  extraActions?: ReactNode;
+  hideTitle?: boolean;
 }
 
 /** Compact version of the mobile hero header, with the app controls on the right. */
-export default function MobileTopBar({ title, subtitle, projectName, unreadCount, icon: Icon, onMenu, onNotifications, onProjects }: Props) {
+export default function MobileTopBar({ title, subtitle, projectName, unreadCount, icon: Icon, onMenu, onNotifications, onProjects, extraActions, hideTitle = false }: Props) {
   return (
     <header className="relative shrink-0 overflow-hidden border-b border-separator-border bg-background-secondary-default px-3 pb-2.5 pt-2">
       <div className="pointer-events-none absolute -right-10 -top-16 size-36 rounded-full bg-accent-500/10 blur-2xl" />
@@ -32,10 +35,14 @@ export default function MobileTopBar({ title, subtitle, projectName, unreadCount
             <LayoutPanelLeft className="size-2.5" />
           </span>
         </button>
-        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-          <h1 className="truncate text-title-2-medium text-text-primary">{title}</h1>
-          <p className="truncate text-caption-2-regular text-text-secondary">{subtitle ?? projectName}</p>
-        </div>
+        {extraActions ? (
+          <div className="flex min-w-0 flex-1 items-center gap-0.5">{extraActions}</div>
+        ) : !hideTitle ? (
+          <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+            <h1 className="truncate text-title-2-medium text-text-primary">{title}</h1>
+            <p className="truncate text-caption-2-regular text-text-secondary">{subtitle ?? projectName}</p>
+          </div>
+        ) : null}
         <div className="flex shrink-0 items-center gap-0.5">
           <div className="relative">
             <Button
@@ -61,9 +68,9 @@ export default function MobileTopBar({ title, subtitle, projectName, unreadCount
             aria-label={`Projeto ${projectName}. Selecionar projeto`}
             title="Selecionar projeto"
             onClick={onProjects}
-            className="h-9 max-w-[92px] gap-1 px-1"
+            className="h-9 gap-1 px-1"
           >
-            <span className="min-w-0 truncate text-caption-1-medium">{projectName}</span>
+            <span className={cx("min-w-0 truncate text-caption-1-medium", extraActions ? "max-w-16" : "max-w-24")}>{projectName}</span>
           </Button>
         </div>
       </div>

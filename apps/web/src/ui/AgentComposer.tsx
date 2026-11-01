@@ -130,7 +130,7 @@ export function AgentComposer({ value, onChange, onSend, onStop, busy, models, m
                 </DropdownGroup>
               </DropdownPopover>
             </Dropdown>
-            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
+            <div className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
               <ModelPicker models={models} model={model} onModelChange={onModelChange} effort={effort} efforts={efforts} onEffortChange={onEffortChange} />
               {modeControls && <div className="flex shrink-0 items-center gap-0.5">{modeControls}</div>}
             </div>
