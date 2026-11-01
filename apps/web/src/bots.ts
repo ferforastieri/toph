@@ -227,15 +227,25 @@ function sanitizeWorkspace(workspace: BotWorkspace): BotWorkspace {
   const mode: TophMode | "unset" = workspace.mode === "solo" || workspace.mode === "team"
     ? workspace.mode
     : (bots.length > 0 ? "team" : "unset");
-  const savedTeam = workspace.savedTeam ? sanitizeThread(workspace.savedTeam) : (mode === "team" ? { bots, messages: legacyDefaults ? [] : active.messages, activeBotId: active.activeBotId } : undefined);
-  return {
-    version: 3,
-    mode,
+  const stamp = (thread: TophThread | undefined, threadMode: TophMode): TophThread | undefined => thread
+    ? { ...thread, messages: thread.messages.map((message) => ({ ...message, mode: message.mode ?? threadMode })) }
+    : undefined;
+  const savedTeamRaw = workspace.savedTeam ? sanitizeThread(workspace.savedTeam) : (mode === "team" ? { bots, messages: legacyDefaults ? [] : active.messages, activeBotId: active.activeBotId } : undefined);
+  const savedSoloRaw = workspace.savedSolo ? sanitizeThread(workspace.savedSolo) : undefined;
+  const activeRaw: TophThread = {
     bots,
     messages: legacyDefaults ? [] : active.messages,
     activeBotId: active.activeBotId,
-    savedSolo: workspace.savedSolo ? sanitizeThread(workspace.savedSolo) : undefined,
-    savedTeam,
+  };
+  const currentMode: TophMode = mode === "solo" ? "solo" : "team";
+  return {
+    version: 3,
+    mode,
+    bots: activeRaw.bots,
+    messages: (stamp(activeRaw, currentMode) ?? activeRaw).messages,
+    activeBotId: activeRaw.activeBotId,
+    savedSolo: stamp(savedSoloRaw, "solo"),
+    savedTeam: stamp(savedTeamRaw, "team"),
   };
 }
 
