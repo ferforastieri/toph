@@ -135,9 +135,9 @@ export function AgentComposer({ value, onChange, onSend, onStop, busy, models, m
               {modeControls && <div className="flex shrink-0 items-center gap-0.5">{modeControls}</div>}
             </div>
             {busy && onStop ? (
-              <Button type="button" variant="secondary" size="small" iconOnly leadingIcon={Square} onClick={onStop} aria-label="Parar" className="size-8 shrink-0 rounded-lg" />
+              <Button type="button" variant="secondary" size="small" iconOnly leadingIcon={Square} onClick={onStop} aria-label="Parar" className="size-8 shrink-0 rounded-lg border-0 bg-text-primary text-background-full hover:bg-text-secondary" />
             ) : (
-              <Button type="submit" size="small" iconOnly leadingIcon={ArrowUp} disabled={!value.trim() && attachments.length === 0} aria-label="Enviar" className="size-8 shrink-0 rounded-lg" />
+              <Button type="submit" size="small" iconOnly leadingIcon={ArrowUp} disabled={!value.trim() && attachments.length === 0} aria-label="Enviar" className="size-8 shrink-0 rounded-lg border-0 bg-text-primary text-background-full hover:bg-text-secondary disabled:bg-background-tertiary-default disabled:text-text-tertiary" />
             )}
           </div>
         </form>
