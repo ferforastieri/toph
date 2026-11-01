@@ -1083,6 +1083,65 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
     }
   }
 
+  function addPresetBot(preset: (typeof TOPH_PRESETS)[number]) {
+    const used = new Set(bots.map((bot) => bot.name));
+    let name = preset.name;
+    let suffix = 2;
+    while (used.has(name)) {
+      name = `${preset.name} ${suffix}`;
+      suffix += 1;
+    }
+    const bot = addBot(project.id, {
+      name,
+      role: preset.role,
+      description: preset.description,
+      personality: preset.personality,
+      color: preset.color,
+      avatar: preset.avatar,
+      model: aiConfig?.model || models[0]?.id || "",
+      coordinator: preset.coordinator === true,
+    });
+    setActiveBot(project.id, bot.id);
+  }
+
+  if (!activeBot && mode === "team") {
+    return (
+      <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background-full">
+        <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto p-4">
+          <div className="mx-auto flex w-full max-w-[960px] flex-col gap-4">
+            <div className="rounded-3xl border border-border-button-white bg-background-secondary-default p-4">
+              <span className="text-caption-2-semibold uppercase tracking-[0.16em] text-text-tertiary">Equipe</span>
+              <h2 className="mt-1 text-title-3-medium text-text-primary">Monte seu time de Tophs</h2>
+              <p className="mt-1 max-w-xl text-caption-1-regular text-text-secondary">A equipe começa vazia. Escolha os Tophs que vão trabalhar com você. Cada um tem papel, cor, avatar e ferramentas próprias.</p>
+              <div className="mt-3 flex gap-2">
+                <Button variant="secondary" size="small" onClick={() => createSolo(project.id)}>Usar Toph Solo</Button>
+                <Button variant="ghost" size="small" leadingIcon={SlidersHorizontal} onClick={() => setSettingsOpen(true)}>Configurar IA</Button>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
+              {TOPH_PRESETS.map((preset) => (
+                <button
+                  key={preset.name}
+                  type="button"
+                  onClick={() => addPresetBot(preset)}
+                  className="flex min-w-0 items-start gap-2 rounded-2xl border border-border-button-white bg-background-primary-default p-3 text-start transition-colors hover:border-accent-500/40 hover:bg-accent-500/5"
+                >
+                  <BotAvatar bot={{ name: preset.name, color: preset.color, avatar: preset.avatar }} size={38} />
+                  <span className="flex min-w-0 flex-1 flex-col">
+                    <strong className="truncate text-caption-1-semibold text-text-primary">{preset.name}</strong>
+                    <span className="truncate text-caption-2-regular text-accent-500">{preset.role}</span>
+                    <span className="mt-0.5 line-clamp-2 text-caption-2-regular text-text-tertiary">{preset.description}</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+        <AiSettingsModal open={settingsOpen} projectRoot={project.root} onClose={() => setSettingsOpen(false)} />
+      </div>
+    );
+  }
+
   if (!activeBot) {
     return (
       <>
