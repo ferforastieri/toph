@@ -11,7 +11,6 @@ import BotAvatar from "../components/BotAvatar";
 import BotConfig from "../components/BotConfig";
 import AiSettingsModal from "../components/AiSettingsModal";
 import AgentTranscript from "../components/AgentTranscript";
-import TophsHeaderActions from "../mobile/TophsHeaderActions";
 import OpenCodeFormCard, { type OpenCodeForm, type OpenCodeFormAnswer } from "../components/OpenCodeFormCard";
 import TophSessionsSheet from "../components/TophSessionsSheet";
 import type { OpenCodeSessionSummary } from "../opencodeSessions";
@@ -48,12 +47,8 @@ function prettyModel(value?: string): string {
     .replace(/\b([a-z])/g, (match) => match.toUpperCase());
 }
 
-function groupDuration(messages: BotMessage[]): string {
-  if (messages.length < 2) return "";
-  const first = messages[0]?.createdAt ?? 0;
-  const last = messages[messages.length - 1]?.createdAt ?? 0;
-  if (last <= first) return "";
-  return `${Math.max(1, Math.round((last - first) / 1000))}s`;
+function formatMessageTime(createdAt: number): string {
+  return new Date(createdAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 }
 
 function toolContent(value: unknown): string {
@@ -167,37 +162,96 @@ function groupBotMessages(messages: BotMessage[]): BotChatGroup[] {
   return groups;
 }
 
+function partTime(part: Record<string, any>, fallback: number, index: number): number {
+  const time = part?.time ?? {};
+  const value = Number(time.created ?? time.start ?? time.ran ?? time.completed);
+  return Number.isFinite(value) && value > 0 ? value : fallback + index;
+}
+
+function partInput(part: Record<string, any>): unknown {
+  return part?.state?.input ?? part?.input ?? part?.inputText ?? null;
+}
+
+function partOutput(part: Record<string, any>): unknown {
+  return part?.state?.content ?? part?.content ?? part?.output ?? part?.state?.metadata ?? null;
+}
+
+function partStatus(part: Record<string, any>): "running" | "complete" | "error" {
+  const status = part?.state?.status ?? part?.status;
+  if (status === "error" || part?.state?.error) return "error";
+  if (status === "running" || status === "pending") return "running";
+  return "complete";
+}
+
 function restoreBotMessages(context: unknown, botId: string, channel: string): BotMessage[] {
   if (!Array.isArray(context)) return [];
   const restored: BotMessage[] = [];
   for (const raw of context as Array<Record<string, any>>) {
-    const createdAt = Number(raw.time?.created ?? Date.now());
+    const messageCreated = Number(raw.time?.created ?? Date.now());
     if (raw.type === "user") {
       const text = String(raw.text ?? "");
       if (/Sua função:|Sua personalidade:|MCPs habilitados para você:|Mensagem atual:/.test(text)) continue;
-      restored.push({ id: `history-user-${raw.id}`, role: "user", content: text, channel, createdAt });
+      restored.push({ id: `history-user-${raw.id}`, role: "user", content: text, channel, createdAt: messageCreated });
       continue;
     }
     if (raw.type !== "assistant") continue;
-    const parts = (raw.content ?? []) as Array<Record<string, any>>;
-    const text = parts.filter((part) => part.type === "text" && part.text).map((part) => String(part.text)).join("");
-    if (text) restored.push({ id: `history-assistant-${raw.id}`, role: "assistant", botId, content: text, channel, status: "complete", createdAt });
-    const reasoning = parts.filter((part) => part.type === "reasoning" && part.text).map((part) => String(part.text)).join("");
-    if (reasoning) restored.push({ id: `history-reasoning-${raw.id}`, role: "reasoning", botId, content: reasoning, channel, status: "complete", createdAt });
-    for (const part of parts) {
-      if (part.type !== "tool") continue;
+    const parts = Array.isArray(raw.content) ? raw.content as Array<Record<string, any>> : [];
+    let textRun = "";
+    let textStartedAt = 0;
+    const flushText = () => {
+      if (!textRun.trim()) {
+        textRun = "";
+        return;
+      }
       restored.push({
-        id: `history-tool-${raw.id}-${String(part.id ?? part.name)}`,
+        id: `history-assistant-${raw.id}-${restored.length}`,
+        role: "assistant",
+        botId,
+        content: textRun,
+        channel,
+        status: "complete",
+        createdAt: textStartedAt || messageCreated,
+      });
+      textRun = "";
+    };
+    parts.forEach((part, index) => {
+      const createdAt = partTime(part, messageCreated, index);
+      if (part.type === "text") {
+        if (!textRun) textStartedAt = createdAt;
+        textRun += String(part.text ?? "");
+        return;
+      }
+      flushText();
+      if (part.type === "reasoning") {
+        const completed = Number(part.time?.completed ?? 0);
+        const durationMs = completed > createdAt ? completed - createdAt : undefined;
+        restored.push({
+          id: `history-reasoning-${raw.id}-${index}`,
+          role: "reasoning",
+          botId,
+          title: "Raciocínio",
+          content: String(part.text ?? ""),
+          channel,
+          status: "complete",
+          durationMs,
+          createdAt,
+        });
+        return;
+      }
+      if (part.type !== "tool") return;
+      restored.push({
+        id: `history-tool-${raw.id}-${index}`,
         role: "tool",
         botId,
         title: `Tool · ${String(part.name ?? "call")}`,
-        content: toolContent(part.input),
-        detail: toolContent(part.content ?? part.output),
+        content: toolContent(partInput(part)),
+        detail: toolContent(partOutput(part)),
         channel,
-        status: part.state === "error" ? "error" : "complete",
+        status: partStatus(part),
         createdAt,
       });
-    }
+    });
+    flushText();
   }
   return restored;
 }
@@ -212,6 +266,7 @@ function toAiMessage(message: BotMessage): AiMessage {
     status: message.status,
     permissionId: message.permissionId,
     permissionAction: message.permissionAction,
+    durationMs: message.durationMs,
     createdAt: message.createdAt,
   };
 }
@@ -463,17 +518,24 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
               state.updateMessage(project.id, messageID("assistant"), { content: String(data.text ?? ""), status: "complete" });
               break;
             case "session.reasoning.started":
-              ensure({ id: messageID("reasoning"), role: "reasoning", botId, title: "Thought", content: "", status: "running", createdAt: Date.now() });
+              ensure({ id: messageID("reasoning"), role: "reasoning", botId, title: "Raciocínio", content: "", status: "running", createdAt: Date.now() });
               break;
             case "session.reasoning.delta": {
               const id = messageID("reasoning");
-              ensure({ id, role: "reasoning", botId, title: "Thought", content: "", status: "running", createdAt: Date.now() });
+              ensure({ id, role: "reasoning", botId, title: "Raciocínio", content: "", status: "running", createdAt: Date.now() });
               state.appendMessage(project.id, id, String(data.delta ?? ""));
               break;
             }
-            case "session.reasoning.ended":
-              state.updateMessage(project.id, messageID("reasoning"), { content: String(data.text ?? ""), status: "complete" });
+            case "session.reasoning.ended": {
+              const reasoningId = messageID("reasoning");
+              const startedAt = state.byProject[project.id]?.messages.find((item) => item.id === reasoningId)?.createdAt;
+              state.updateMessage(project.id, reasoningId, {
+                content: String(data.text ?? ""),
+                status: "complete",
+                durationMs: startedAt ? Math.max(0, Date.now() - startedAt) : undefined,
+              });
               break;
+            }
             case "session.tool.input.started":
               ensure({ id: messageID("tool", String(data.id ?? "")), role: "tool", botId, title: `Tool · ${String(data.name ?? "call")}`, content: "", detail: "", status: "running", createdAt: Date.now() });
               break;
@@ -607,7 +669,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
     }
   }
 
-  async function openCodeReply(bot: MiniBot, prompt: string, attachments: AgentAttachment[] = [], token = runToken.current): Promise<string> {
+  async function openCodeReply(bot: MiniBot, userText: string, attachments: AgentAttachment[] = [], token = runToken.current): Promise<string> {
     const current = storedBot(bot);
     await applyMcpSelection(current);
     const sessionId = await ensureSession(current);
@@ -620,7 +682,13 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
     }
     await client.session.switchAgent({ sessionID: sessionId, agent: current.agentMode ?? "build" } as never).catch(() => undefined);
     if (token !== runToken.current) throw new Error("__stopped__");
-    const before = lastAssistant(await client.session.context({ sessionID: sessionId } as never).catch(() => null))?.id ?? "";
+    const context = await client.session.context({ sessionID: sessionId } as never).catch(() => null);
+    const contextMessages = Array.isArray(context) ? context as Array<Record<string, any>> : [];
+    const hasHistory = contextMessages.some((message) => message?.type === "user" || message?.type === "assistant") || (!Array.isArray(context) && Boolean(current.sessionPrimed));
+    const prompt = hasHistory
+      ? userText
+      : botPrompt(current, bots, [], userText, project.name, mode);
+    const before = lastAssistant(context)?.id ?? "";
     await client.session.prompt({
       sessionID: sessionId,
       text: prompt,
@@ -680,10 +748,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
     try {
       if (aiConfig?.provider === "opencode") {
         const current = storedBot(bot);
-        const openCodePrompt = current.sessionPrimed
-          ? userText
-          : botPrompt(current, bots, [], userText, project.name, mode);
-        const reply = await openCodeReply(current, openCodePrompt, options.attachments, options.token);
+        const reply = await openCodeReply(current, userText, options.attachments, options.token);
         if (!current.sessionPrimed) updateBot(project.id, current.id, { sessionPrimed: true });
         const currentMessages = useBots.getState().byProject[project.id]?.messages ?? [];
         const hasEventReply = currentMessages.some((message) =>
@@ -968,7 +1033,6 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
   return (
     <div className="flex h-full min-h-0 w-full flex-1 gap-1" onPointerDown={unlockBotSound}>
       <section className="flex min-w-0 flex-1 flex-col overflow-hidden bg-background-full max-[900px]:rounded-none max-[900px]:border-0 max-[900px]:shadow-none min-[901px]:rounded-3xl min-[901px]:border min-[901px]:border-border-button-white min-[901px]:shadow-sidebar">
-        {mobile ? <div className="flex shrink-0 items-center gap-0.5 border-b border-separator-border px-3 py-1.5"><TophsHeaderActions projectId={project.id} /></div> : null}
         {!mobile ? (
         <div className="flex shrink-0 items-center gap-1 border-b border-separator-border bg-background-secondary-default px-2 py-1.5">
           <Button variant="ghost" size="small" iconOnly leadingIcon={Settings2} aria-label={mode === "solo" ? "Configurar Toph" : "Configurar Toph ativo"} title={mode === "solo" ? "Configurar Toph" : "Configurar Toph ativo"} onClick={() => setConfigOpen(true)} className="size-9" />
@@ -1064,6 +1128,8 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
               }
               const bot = bots.find((item) => item.id === group.botId);
               if (!bot) return null;
+              const footerAssistant = [...group.messages].reverse().find((message) => message.role === "assistant" && !message.pending);
+              const footerBusy = runningBots.has(bot.id) || group.messages.some((message) => message.status === "running");
               return (
                 <section key={`bot-${group.botId}-${index}`} className="flex min-w-0 max-w-full flex-col gap-1.5 overflow-x-hidden">
                   {mode === "team" ? (
@@ -1080,12 +1146,14 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
                     streaming={runningBots.has(bot.id)}
                     onPermission={(messageId, permissionId, decision) => void replyPermission(bot, messageId, permissionId, decision)}
                   />
-                  {mode === "solo" ? (
+                  {mode === "solo" && !footerBusy && footerAssistant ? (
                     <div className="flex items-center gap-1.5 px-1 text-[11px] text-text-tertiary">
                       <span>{bot.agentMode === "plan" ? "Plan" : "Build"}</span>
                       <span>·</span>
                       <span className="truncate">{models.find((item) => item.id === (bot.model || activeModel))?.label ?? prettyModel(bot.model || activeModel)}</span>
-                      {groupDuration(group.messages) ? <><span>·</span><span>{groupDuration(group.messages)}</span></> : null}
+                      <span>·</span>
+                      <span className="shrink-0">{formatMessageTime(footerAssistant.createdAt)}</span>
+                      <Button variant="ghost" size="xs" iconOnly leadingIcon={Copy} aria-label="Copiar resposta" title="Copiar resposta" className="size-5 text-text-tertiary" onClick={() => void navigator.clipboard.writeText(footerAssistant.content).catch(() => undefined)} />
                     </div>
                   ) : null}
                 </section>

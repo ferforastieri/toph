@@ -40,6 +40,7 @@ export interface BotMessage {
   channel?: string;
   audience?: "user" | "coordinator";
   pending?: boolean;
+  durationMs?: number;
   createdAt: number;
 }
 
@@ -151,6 +152,7 @@ function sanitizeMessages(input: BotMessage[] | undefined): BotMessage[] {
       channel: message.channel ?? "team",
       audience: (message.audience === "coordinator" ? "coordinator" : "user") as BotMessage["audience"],
       pending: false,
+      durationMs: Number.isFinite(message.durationMs) ? message.durationMs : undefined,
       createdAt: message.createdAt ?? Date.now(),
     }))
     .slice(-200);
@@ -437,7 +439,7 @@ export const useBots = create<BotStore>((set, get) => ({
             messages: [
               ...workspace.messages.filter((message) => (message.channel ?? "team") !== channel),
               ...messages,
-            ].slice(-200),
+            ].sort((a, b) => a.createdAt - b.createdAt).slice(-200),
           },
         },
       };

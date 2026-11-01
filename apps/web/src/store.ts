@@ -38,6 +38,7 @@ export interface AiMessage {
   title?: string;
   permissionId?: string;
   permissionAction?: string;
+  durationMs?: number;
 }
 
 export interface Toast {
