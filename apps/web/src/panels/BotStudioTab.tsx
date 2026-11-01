@@ -229,7 +229,7 @@ function restoreBotMessages(context: unknown, botId: string, channel: string): B
           id: `history-reasoning-${raw.id}-${index}`,
           role: "reasoning",
           botId,
-          title: "Raciocínio",
+          title: "Thought",
           content: String(part.text ?? ""),
           channel,
           status: "complete",
@@ -293,6 +293,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
   const [connectionEpoch, setConnectionEpoch] = useState(0);
   const sendingRef = useRef(false);
   const runToken = useRef(0);
+  const syncInFlight = useRef(false);
   const [runningBots, setRunningBots] = useState<Set<string>>(new Set());
   const [forms, setForms] = useState<Array<{ form: OpenCodeForm; botId: string }>>([]);
   const [formBusy, setFormBusy] = useState<string | null>(null);
@@ -397,6 +398,11 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
     : activeWorker
       ? messages.filter((message) => message.channel === `worker:${activeWorker.id}` || (!message.channel && message.botId === activeWorker.id))
       : messages.filter((message) => !message.channel || message.channel === "team");
+  const groupedMessages = groupBotMessages(displayMessages);
+  const lastBotGroupIndex = new Map<string, number>();
+  groupedMessages.forEach((group, index) => {
+    if (group.kind === "bot") lastBotGroupIndex.set(group.botId, index);
+  });
   const activeModel = activeBot?.model || aiConfig?.model || models[0]?.id || "";
   const activeEfforts = models.find((model) => model.id === activeModel)?.variants ?? [];
   const draftKey = `${project.id}:${mode}:${activeBot?.id ?? "none"}:${activeBot?.sessionId ?? "new"}`;
@@ -457,10 +463,12 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
     return () => window.cancelAnimationFrame(frame);
   }, [messages, sending, forms.length]);
 
+  const sessionKey = bots.map((bot) => bot.sessionId ?? "").join("|");
+
   useEffect(() => {
-    if (!bots.some((bot) => bot.sessionId)) return;
+    if (!sessionKey || sendingRef.current) return;
     void syncFromOpenCode();
-  }, [project.id, bots.length]);
+  }, [project.id, sessionKey]);
 
   useEffect(() => {
     const refresh = () => {
@@ -468,13 +476,39 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
       setConnectionEpoch((value) => value + 1);
       void syncFromOpenCode();
     };
+    const handlePageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) refresh();
+    };
     document.addEventListener("visibilitychange", refresh);
     window.addEventListener("online", refresh);
+    window.addEventListener("focus", refresh);
+    window.addEventListener("pageshow", handlePageShow);
     return () => {
       document.removeEventListener("visibilitychange", refresh);
       window.removeEventListener("online", refresh);
+      window.removeEventListener("focus", refresh);
+      window.removeEventListener("pageshow", handlePageShow);
     };
-  }, [project.id, bots.length]);
+  }, [project.id]);
+
+  useEffect(() => {
+    if (runningBots.size === 0 || sendingRef.current) return;
+    let cancelled = false;
+    const check = async () => {
+      if (cancelled || document.hidden) return;
+      const active = await client.session.active().catch(() => null);
+      if (!active || cancelled) return;
+      // With no local polling loop (for example after the WebView was
+      // recreated), refresh from the authoritative context while the turn is
+      // running too. The final refresh runs as soon as the session is idle.
+      await syncFromOpenCode();
+    };
+    const timer = window.setInterval(() => { void check(); }, 2000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [project.id, runningBots.size]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -518,11 +552,11 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
               state.updateMessage(project.id, messageID("assistant"), { content: String(data.text ?? ""), status: "complete" });
               break;
             case "session.reasoning.started":
-              ensure({ id: messageID("reasoning"), role: "reasoning", botId, title: "Raciocínio", content: "", status: "running", createdAt: Date.now() });
+              ensure({ id: messageID("reasoning"), role: "reasoning", botId, title: "Thought", content: "", status: "running", createdAt: Date.now() });
               break;
             case "session.reasoning.delta": {
               const id = messageID("reasoning");
-              ensure({ id, role: "reasoning", botId, title: "Raciocínio", content: "", status: "running", createdAt: Date.now() });
+              ensure({ id, role: "reasoning", botId, title: "Thought", content: "", status: "running", createdAt: Date.now() });
               state.appendMessage(project.id, id, String(data.delta ?? ""));
               break;
             }
@@ -751,13 +785,23 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
         const reply = await openCodeReply(current, userText, options.attachments, options.token);
         if (!current.sessionPrimed) updateBot(project.id, current.id, { sessionPrimed: true });
         const currentMessages = useBots.getState().byProject[project.id]?.messages ?? [];
-        const hasEventReply = currentMessages.some((message) =>
-          message.botId === bot.id
-          && message.role === "assistant"
-          && message.createdAt >= startedAt
-          && message.content.trim(),
-        );
-        if (!hasEventReply) {
+        const eventReplies = currentMessages
+          .filter((message) => message.botId === bot.id
+            && message.role === "assistant"
+            && message.createdAt >= startedAt)
+          .sort((a, b) => a.createdAt - b.createdAt);
+        const latestEventReply = eventReplies[eventReplies.length - 1];
+        // The OpenCode event stream can miss the final `text.ended`/`idle`
+        // events while the WebView is suspended. The polling result is the
+        // authoritative final text, so update the partial event message
+        // instead of assuming that any event reply is already complete.
+        if (latestEventReply) {
+          updateMessage(project.id, latestEventReply.id, {
+            content: reply.trim(),
+            status: "complete",
+            pending: false,
+          });
+        } else {
           addMessage(project.id, {
             id: `bot-reply-${bot.id}-${Date.now()}`,
             role: "assistant",
@@ -894,19 +938,60 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
   }
 
   async function syncFromOpenCode() {
-    if (!bots.some((bot) => bot.sessionId) || sendingRef.current) return;
-    const active = await client.session.active().catch(() => null);
-    const running = new Set(
-      bots.filter((bot) => bot.sessionId && active?.[bot.sessionId]?.type === "running").map((bot) => bot.id),
-    );
-    setRunningBots(running);
-    for (const bot of bots) {
-      if (!bot.sessionId) continue;
-      const context = await client.session.context({ sessionID: bot.sessionId } as never).catch(() => null);
-      if (!Array.isArray(context) || context.length === 0) continue;
-      const channel = channelForBot(bot);
-      const restored = restoreBotMessages(context, bot.id, channel);
-      if (restored.length) replaceChannelMessages(project.id, channel, restored);
+    if (syncInFlight.current) return;
+    syncInFlight.current = true;
+    try {
+      // Read the live store instead of the closure captured when the effect
+      // was registered. A Tophs session can be created long after the first
+      // render, and the stale closure used to skip the resume sync entirely.
+      const currentBots = useBots.getState().byProject[project.id]?.bots ?? [];
+      if (!currentBots.some((bot) => bot.sessionId)) return;
+      const active = await client.session.active().catch(() => null);
+      if (!active) return;
+      const running = new Set(
+        currentBots.filter((bot) => bot.sessionId && active[bot.sessionId]?.type === "running").map((bot) => bot.id),
+      );
+      setRunningBots(running);
+
+      // While a turn is genuinely running, keep the local streaming timeline.
+      // It is more complete than the last committed context and the event
+      // stream will keep it updated after reconnecting.
+      if (sendingRef.current && running.size > 0) return;
+
+      if (sendingRef.current && running.size === 0) {
+        // Give the server a moment to flip the session to running after a
+        // foreground transition before aborting the in-flight local poll.
+        await new Promise((resolve) => window.setTimeout(resolve, 350));
+        const confirmed = await client.session.active().catch(() => null);
+        if (!confirmed) return;
+        const stillRunning = currentBots
+          .filter((bot) => bot.sessionId && confirmed[bot.sessionId]?.type === "running")
+          .map((bot) => bot.id);
+        if (stillRunning.length > 0) {
+          setRunningBots(new Set(stillRunning));
+          return;
+        }
+      }
+
+      // If the session finished while the app was backgrounded, cancel the
+      // local polling loop before restoring the authoritative final timeline.
+      // Otherwise the old loop could append a duplicate answer afterwards.
+      if (sendingRef.current) {
+        runToken.current += 1;
+        sendingRef.current = false;
+        setSending(false);
+      }
+
+      for (const bot of currentBots) {
+        if (!bot.sessionId) continue;
+        const context = await client.session.context({ sessionID: bot.sessionId } as never).catch(() => null);
+        if (!Array.isArray(context) || context.length === 0) continue;
+        const channel = channelForBot(bot);
+        const restored = restoreBotMessages(context, bot.id, channel);
+        if (restored.length) replaceChannelMessages(project.id, channel, restored);
+      }
+    } finally {
+      syncInFlight.current = false;
     }
   }
 
@@ -1112,7 +1197,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
               </div>
             )}
 
-            {groupBotMessages(displayMessages).map((group, index) => {
+            {groupedMessages.map((group, index) => {
               if (group.kind === "user") {
                 return (
                   <div key={`user-${group.message.id}`} className="ms-auto flex min-w-0 max-w-[88%] flex-col items-end gap-1">
@@ -1129,7 +1214,8 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
               const bot = bots.find((item) => item.id === group.botId);
               if (!bot) return null;
               const footerAssistant = [...group.messages].reverse().find((message) => message.role === "assistant" && !message.pending);
-              const footerBusy = runningBots.has(bot.id) || group.messages.some((message) => message.status === "running");
+              const isLatestBotGroup = lastBotGroupIndex.get(bot.id) === index;
+              const footerBusy = isLatestBotGroup && (runningBots.has(bot.id) || group.messages.some((message) => message.status === "running"));
               return (
                 <section key={`bot-${group.botId}-${index}`} className="flex min-w-0 max-w-full flex-col gap-1.5 overflow-x-hidden">
                   {mode === "team" ? (
@@ -1143,7 +1229,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
                   ) : null}
                   <AgentTranscript
                     messages={group.messages.map(toAiMessage)}
-                    streaming={runningBots.has(bot.id)}
+                    streaming={isLatestBotGroup && runningBots.has(bot.id)}
                     onPermission={(messageId, permissionId, decision) => void replyPermission(bot, messageId, permissionId, decision)}
                   />
                   {mode === "solo" && !footerBusy && footerAssistant ? (
@@ -1162,7 +1248,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
 
             {[...runningBots]
               .filter((botId) => (!activeWorker || botId === activeWorker.id) && (activeWorker || botId === coordinator?.id))
-              .filter((botId) => !displayMessages.some((message) => message.botId === botId && message.createdAt >= Date.now() - 120_000))
+              .filter((botId) => !groupedMessages.some((group) => group.kind === "bot" && group.botId === botId))
               .map((botId) => {
                 const bot = bots.find((item) => item.id === botId);
                 if (!bot) return null;
