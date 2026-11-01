@@ -22,6 +22,7 @@ export interface MiniBot {
   notifications: boolean;
   coordinator: boolean;
   sessionId?: string;
+  sessionPrimed?: boolean;
   createdAt: number;
 }
 
@@ -134,6 +135,7 @@ function sanitizeBots(input: MiniBot[] | undefined): MiniBot[] {
       color: bot.color || BOT_COLORS[0],
       avatar: (["shield", "star", "diamond", "blob", "circle"].includes(bot.avatar) ? bot.avatar : "shield") as BotAvatar,
       notifications: bot.notifications !== false,
+      sessionPrimed: bot.sessionPrimed === true,
       coordinator: bot.coordinator === true,
       createdAt: bot.createdAt ?? Date.now(),
     }));
@@ -311,6 +313,7 @@ export const useBots = create<BotStore>((set, get) => ({
       notifications: patch.notifications !== false,
       coordinator: patch.coordinator === true,
       sessionId: patch.sessionId,
+      sessionPrimed: patch.sessionPrimed ?? false,
       createdAt: Date.now(),
     };
     set((state) => ({

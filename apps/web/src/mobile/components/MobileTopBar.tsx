@@ -20,15 +20,21 @@ interface Props {
 /** Compact version of the mobile hero header, with the app controls on the right. */
 export default function MobileTopBar({ title, subtitle, projectName, unreadCount, icon: Icon, onMenu, onNotifications, onProjects, extraActions, hideTitle = false }: Props) {
   return (
-    <header className="relative shrink-0 overflow-hidden border-b border-separator-border bg-background-secondary-default px-3 pb-2.5 pt-2">
-      <div className="pointer-events-none absolute -right-10 -top-16 size-36 rounded-full bg-accent-500/10 blur-2xl" />
+    <header className={cx(
+      "relative shrink-0 overflow-hidden px-3 pt-2",
+      extraActions ? "border-b-0 bg-transparent pb-1" : "border-b border-separator-border bg-background-secondary-default pb-2.5",
+    )}>
+      {!extraActions ? <div className="pointer-events-none absolute -right-10 -top-16 size-36 rounded-full bg-accent-500/10 blur-2xl" /> : null}
       <div className="relative flex min-w-0 items-center gap-2.5">
         <button
           type="button"
           aria-label="Abrir menu"
           title="Abrir menu"
           onClick={onMenu}
-          className="relative flex size-9 shrink-0 items-center justify-center rounded-2xl border border-accent-500/20 bg-accent-500/10 text-accent-500 shadow-xs transition-colors hover:bg-accent-500/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus-ring"
+          className={cx(
+            "relative flex size-9 shrink-0 items-center justify-center rounded-2xl text-accent-500 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus-ring",
+            extraActions ? "border-0 bg-transparent shadow-none hover:bg-background-primary-hover" : "border border-accent-500/20 bg-accent-500/10 shadow-xs hover:bg-accent-500/15",
+          )}
         >
           <Icon className="size-4.5" />
           <span className="absolute -bottom-1 -right-1 flex size-4 items-center justify-center rounded-full border border-border-button-default bg-background-primary-default text-foreground-icon-secondary shadow-xs">

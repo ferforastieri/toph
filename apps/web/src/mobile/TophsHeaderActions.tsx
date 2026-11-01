@@ -27,10 +27,16 @@ export default function TophsHeaderActions({ projectId }: Props) {
       {mode === "team" ? (
         <Button variant="ghost" size="small" iconOnly leadingIcon={MessageSquarePlus} aria-label="Novo Toph" title="Novo Toph" onClick={() => fire("new")} className="size-7" />
       ) : null}
-      <div className="ms-auto flex shrink-0 items-center rounded-lg border border-border-button-default p-0.5">
-        <Button variant={mode === "solo" ? "secondary" : "ghost"} size="xs" iconOnly leadingIcon={UserRound} aria-label="Modo solo" title="Modo solo" onClick={() => setMode(projectId, "solo")} className="size-7 rounded-md" />
-        <Button variant={mode === "team" ? "secondary" : "ghost"} size="xs" iconOnly leadingIcon={Bot} aria-label="Modo equipe" title="Modo equipe" onClick={() => setMode(projectId, "team")} className="size-7 rounded-md" />
-      </div>
+      <Button
+        variant="ghost"
+        size="small"
+        iconOnly
+        leadingIcon={mode === "solo" ? UserRound : Bot}
+        aria-label={mode === "solo" ? "Mudar para equipe" : "Mudar para solo"}
+        title={mode === "solo" ? "Mudar para equipe" : "Mudar para solo"}
+        onClick={() => setMode(projectId, mode === "solo" ? "team" : "solo")}
+        className="ms-auto size-7"
+      />
     </>
   );
 }

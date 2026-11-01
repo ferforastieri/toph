@@ -505,35 +505,40 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
   }
 
 
+  function storedBot(bot: MiniBot): MiniBot {
+    return useBots.getState().byProject[project.id]?.bots.find((item) => item.id === bot.id) ?? bot;
+  }
+
   async function ensureSession(bot: MiniBot): Promise<string> {
-    if (bot.sessionId) return bot.sessionId;
-    const model = splitModel(bot.model || aiConfig?.model || models[0]?.id || "");
+    const current = storedBot(bot);
+    if (current.sessionId) return current.sessionId;
+    const model = splitModel(current.model || aiConfig?.model || models[0]?.id || "");
     const base = {
-      title: `${bot.name} · ${project.name}`,
+      title: `${current.name} · ${project.name}`,
       location: { directory: project.root },
-      agent: bot.agentMode ?? "build",
-      metadata: { tophBotId: bot.id, tophBot: true },
+      agent: current.agentMode ?? "build",
+      metadata: { tophBotId: current.id, tophBot: true },
       ...(model ? { model } : {}),
     };
     let session: { id: string };
     try {
       session = await client.session.create({
         ...base,
-        ...(bot.permissionMode === "deny"
+        ...(current.permissionMode === "deny"
           ? { permissions: [{ action: "*", resource: "*", effect: "deny" }] }
-          : bot.permissionMode === "ask"
+          : current.permissionMode === "ask"
             ? {}
             : { permissions: [{ action: "*", resource: "*", effect: "allow" }] }),
       } as never) as { id: string };
     } catch {
       session = await client.session.create(base as never) as { id: string };
     }
-    updateBot(project.id, bot.id, { sessionId: session.id });
-    sessionBotMap.current.set(session.id, bot.id);
+    updateBot(project.id, current.id, { sessionId: session.id, sessionPrimed: false });
+    sessionBotMap.current.set(session.id, current.id);
     if (model) {
       await client.session.switchModel({
         sessionID: session.id,
-        model: { ...model, variant: bot.effort || undefined },
+        model: { ...model, variant: current.effort || undefined },
       } as never).catch(() => undefined);
     }
     return session.id;
@@ -556,16 +561,17 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
   }
 
   async function openCodeReply(bot: MiniBot, prompt: string, attachments: AgentAttachment[] = []): Promise<string> {
-    await applyMcpSelection(bot);
-    const sessionId = await ensureSession(bot);
-    const model = splitModel(bot.model || aiConfig?.model || models[0]?.id || "");
+    const current = storedBot(bot);
+    await applyMcpSelection(current);
+    const sessionId = await ensureSession(current);
+    const model = splitModel(current.model || aiConfig?.model || models[0]?.id || "");
     if (model) {
       await client.session.switchModel({
         sessionID: sessionId,
-        model: { ...model, variant: bot.effort || undefined },
+        model: { ...model, variant: current.effort || undefined },
       } as never).catch(() => undefined);
     }
-    await client.session.switchAgent({ sessionID: sessionId, agent: bot.agentMode ?? "build" } as never).catch(() => undefined);
+    await client.session.switchAgent({ sessionID: sessionId, agent: current.agentMode ?? "build" } as never).catch(() => undefined);
     const before = lastAssistant(await client.session.context({ sessionID: sessionId } as never).catch(() => null))?.id ?? "";
     await client.session.prompt({
       sessionID: sessionId,
@@ -623,9 +629,13 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
     const startedAt = Date.now();
     setRunningBots((current) => new Set(current).add(bot.id));
     try {
-      const prompt = botPrompt(bot, bots, history, userText, project.name, mode);
       if (aiConfig?.provider === "opencode") {
-        const reply = await openCodeReply(bot, prompt, options.attachments);
+        const current = storedBot(bot);
+        const openCodePrompt = current.sessionPrimed
+          ? userText
+          : botPrompt(current, bots, [], userText, project.name, mode);
+        const reply = await openCodeReply(current, openCodePrompt, options.attachments);
+        if (!current.sessionPrimed) updateBot(project.id, current.id, { sessionPrimed: true });
         const currentMessages = useBots.getState().byProject[project.id]?.messages ?? [];
         const hasEventReply = currentMessages.some((message) =>
           message.botId === bot.id
@@ -750,7 +760,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
   async function restoreSession(session: OpenCodeSessionSummary) {
     if (!activeBot) return;
     const channel = channelForBot(activeBot);
-    updateBot(project.id, activeBot.id, { sessionId: session.id });
+    updateBot(project.id, activeBot.id, { sessionId: session.id, sessionPrimed: true });
     sessionBotMap.current.set(session.id, activeBot.id);
     setSessionsOpen(false);
     try {
@@ -764,7 +774,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
   function newSession() {
     if (!activeBot) return;
     const channel = channelForBot(activeBot);
-    updateBot(project.id, activeBot.id, { sessionId: undefined });
+    updateBot(project.id, activeBot.id, { sessionId: undefined, sessionPrimed: false });
     replaceChannelMessages(project.id, channel, []);
   }
 
