@@ -23,7 +23,7 @@ export default function MobileTopBar({ title, subtitle, projectName, unreadCount
   return (
     <header className={cx(
       floating
-        ? "fixed inset-x-0 top-0 z-50 overflow-hidden border-0 bg-transparent px-3 pb-1 pt-[calc(var(--safe-top)+0.5rem)]"
+        ? "fixed inset-x-2 top-[calc(var(--safe-top)+0.5rem)] z-50 overflow-hidden rounded-2xl border border-separator-border bg-background-primary-default/95 px-2 py-1 shadow-dropdown backdrop-blur-md"
         : "relative shrink-0 overflow-hidden px-3 pt-2",
       !floating && (extraActions ? "border-b-0 bg-transparent pb-1" : "border-b border-separator-border bg-background-secondary-default pb-2.5"),
     )}>
