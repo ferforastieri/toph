@@ -1,7 +1,6 @@
-import { Bell, Bot, Bug, Database, FileCode2, Files, FolderGit2, GitBranch, Globe2, Moon, Sun, TerminalSquare } from "@toph/icons";
+import { Bot, Bug, Database, FileCode2, Files, GitBranch, Globe2, Moon, Sun, TerminalSquare } from "@toph/icons";
 import type { User } from "../api";
 import { Avatar } from "@/boardui/base/avatar/avatar";
-import { Badge } from "@/boardui/base/badges/badge";
 import { Button } from "@/boardui/base/buttons/button";
 import { Switch } from "@/boardui/base/switch/switch";
 import { useSettings } from "../settings";
@@ -15,11 +14,8 @@ interface Props {
   user: User | null;
   projectName: string;
   branch: string;
-  unreadCount: number;
   onSelect: (screen: MobileScreen) => void;
-  onProjects: () => void;
   onBranch: () => void;
-  onNotifications: () => void;
   onAccount: () => void;
   onTerminal: () => void;
   onClose: () => void;
@@ -49,11 +45,8 @@ export default function MobileMenu({
   user,
   projectName,
   branch,
-  unreadCount,
   onSelect,
-  onProjects,
   onBranch,
-  onNotifications,
   onAccount,
   onTerminal,
   onClose,
@@ -115,13 +108,6 @@ export default function MobileMenu({
               <span className="text-body-2-medium">Branch</span>
               <span className="truncate text-caption-2-regular text-text-tertiary">{branch || "detached"}</span>
             </span>
-          </Button>
-          <Button variant="ghost" leadingIcon={Bell} className="h-auto w-full justify-start gap-2 px-3 py-2.5" onClick={onNotifications}>
-            <span className="flex flex-1 text-body-2-medium">Notificações</span>
-            {unreadCount > 0 ? <Badge color="primary" className="ms-2">{unreadCount > 9 ? "9+" : unreadCount}</Badge> : null}
-          </Button>
-          <Button variant="ghost" leadingIcon={FolderGit2} className="h-auto w-full justify-start gap-2 px-3 py-2.5" onClick={onProjects}>
-            <span className="flex-1 text-body-2-medium">Projetos</span>
           </Button>
           <Button variant="ghost" leadingIcon={TerminalSquare} className="h-auto w-full justify-start gap-2 px-3 py-2.5" onClick={onTerminal}>
             <span className="flex-1 text-body-2-medium">Terminal</span>

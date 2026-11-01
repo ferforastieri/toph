@@ -19,9 +19,10 @@ import { Button } from "@/boardui/base/buttons/button";
 import { Modal } from "@/boardui/base/modal/modal";
 import { cx } from "@/boardui/utils/cx";
 import { useTophDrafts } from "../tophDrafts";
-import { colorWithAlpha } from "../lib";
+import { readableTextOn } from "../lib";
 import { AgentComposer, type AgentAttachment } from "../ui/AgentComposer";
-import { Dropdown, DropdownItem, DropdownPopover, DropdownTrigger } from "@/boardui/base/dropdown/dropdown";
+import { DropdownItem } from "@/boardui/base/dropdown/dropdown";
+import ComposerMenu from "../ui/ComposerMenu";
 
 interface Props {
   project: Project;
@@ -1296,7 +1297,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
               if (group.kind === "user") {
                 return (
                   <div key={`user-${group.message.id}`} className="ms-auto flex min-w-0 max-w-[88%] flex-col items-end gap-1">
-                    <p className="min-w-0 max-w-full overflow-hidden rounded-2xl px-3.5 py-2 text-[14px] leading-[1.55] whitespace-pre-wrap break-words text-text-primary" style={{ backgroundColor: colorWithAlpha(project.color, 0.2), border: `1px solid ${colorWithAlpha(project.color, 0.28)}` }}>
+                    <p className="min-w-0 max-w-full overflow-hidden rounded-2xl px-3.5 py-2 text-[14px] leading-[1.55] whitespace-pre-wrap break-words text-text-primary" style={{ backgroundColor: project.color, color: readableTextOn(project.color) }}>
                       {group.message.content}
                     </p>
                     <Button variant="ghost" size="xs" iconOnly leadingIcon={Copy} aria-label="Copiar mensagem" title="Copiar mensagem" onClick={() => void navigator.clipboard.writeText(group.message.content).catch(() => undefined)} className="size-6 text-text-tertiary" />
@@ -1304,7 +1305,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
                 );
               }
               if (group.kind === "system") {
-                return <AgentTranscript key={`system-${index}`} messages={group.messages.map(toAiMessage)} streaming={false} />;
+                return <AgentTranscript key={`system-${index}`} messages={group.messages.map(toAiMessage)} streaming={false} accentColor={project.color} />;
               }
               const bot = bots.find((item) => item.id === group.botId);
               if (!bot) return null;
@@ -1324,6 +1325,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
                   ) : null}
                   <AgentTranscript
                     messages={group.messages.map(toAiMessage)}
+                    accentColor={project.color}
                     streaming={isLatestBotGroup && runningBots.has(bot.id)}
                     onPermission={(messageId, permissionId, decision) => void replyPermission(bot, messageId, permissionId, decision)}
                   />
@@ -1399,26 +1401,42 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
             placeholder={mode === "solo" ? "Pergunte ao seu Toph... / comandos, @ contexto" : activeBot.id === coordinator?.id ? "Fale com o coordenador ou @mencione um membro..." : `Pergunte para ${activeBot.name}...`}
             modeControls={
               <>
-                <Dropdown>
-                  <DropdownTrigger aria-label="Modo do agente" className="flex h-7 items-center gap-1 rounded-md px-1.5 text-body-2-medium text-text-secondary outline-none transition-colors hover:bg-background-secondary-hover focus-visible:ring-2 focus-visible:ring-border-focus-ring">
-                    <span>{activeBot.agentMode === "plan" ? "Plano" : "Build"}</span>
-                    <ChevronDown size={12} className="size-3 text-foreground-icon-tertiary" />
-                  </DropdownTrigger>
-                  <DropdownPopover aria-label="Modo do agente" placement="top start" className="w-36">
-                    <DropdownItem onSelect={() => updateBot(project.id, activeBot.id, { agentMode: "build" })}>Build</DropdownItem>
-                    <DropdownItem onSelect={() => updateBot(project.id, activeBot.id, { agentMode: "plan" })}>Plano</DropdownItem>
-                  </DropdownPopover>
-                </Dropdown>
-                <Dropdown>
-                  <DropdownTrigger aria-label="Permissões" className="flex h-7 items-center gap-1 rounded-md px-1.5 text-body-2-medium text-text-secondary outline-none transition-colors hover:bg-background-secondary-hover focus-visible:ring-2 focus-visible:ring-border-focus-ring">
-                    <span>{(activeBot.permissionMode ?? "yolo") === "yolo" ? "YOLO" : "Perguntar"}</span>
-                    <ChevronDown size={12} className="size-3 text-foreground-icon-tertiary" />
-                  </DropdownTrigger>
-                  <DropdownPopover aria-label="Permissões" placement="top start" className="w-40">
-                    <DropdownItem onSelect={() => updateBot(project.id, activeBot.id, { permissionMode: "yolo" })}>YOLO</DropdownItem>
-                    <DropdownItem onSelect={() => updateBot(project.id, activeBot.id, { permissionMode: "ask" })}>Perguntar</DropdownItem>
-                  </DropdownPopover>
-                </Dropdown>
+                <ComposerMenu
+                  label="Modo do agente"
+                  trigger={
+                    <>
+                      <span>{activeBot.agentMode === "plan" ? "Plano" : "Build"}</span>
+                      <ChevronDown size={12} className="size-3 text-foreground-icon-tertiary" />
+                    </>
+                  }
+                  popoverClassName="w-36"
+                  contentClassName="flex flex-col gap-1"
+                >
+                  {(close) => (
+                    <>
+                      <DropdownItem selected={activeBot.agentMode !== "plan"} onSelect={() => { updateBot(project.id, activeBot.id, { agentMode: "build" }); close(); }}>Build</DropdownItem>
+                      <DropdownItem selected={activeBot.agentMode === "plan"} onSelect={() => { updateBot(project.id, activeBot.id, { agentMode: "plan" }); close(); }}>Plano</DropdownItem>
+                    </>
+                  )}
+                </ComposerMenu>
+                <ComposerMenu
+                  label="Permissões"
+                  trigger={
+                    <>
+                      <span>{(activeBot.permissionMode ?? "yolo") === "yolo" ? "YOLO" : "Perguntar"}</span>
+                      <ChevronDown size={12} className="size-3 text-foreground-icon-tertiary" />
+                    </>
+                  }
+                  popoverClassName="w-40"
+                  contentClassName="flex flex-col gap-1"
+                >
+                  {(close) => (
+                    <>
+                      <DropdownItem selected={(activeBot.permissionMode ?? "yolo") === "yolo"} onSelect={() => { updateBot(project.id, activeBot.id, { permissionMode: "yolo" }); close(); }}>YOLO</DropdownItem>
+                      <DropdownItem selected={activeBot.permissionMode === "ask"} onSelect={() => { updateBot(project.id, activeBot.id, { permissionMode: "ask" }); close(); }}>Perguntar</DropdownItem>
+                    </>
+                  )}
+                </ComposerMenu>
               </>
             }
           />

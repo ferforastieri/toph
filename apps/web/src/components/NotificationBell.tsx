@@ -76,12 +76,12 @@ export default function NotificationBell({ projectId, projectName, onOpen, align
               key={notification.id}
               type="button"
               onClick={() => { setOpen(false); onOpen(notification); }}
-              className="flex w-full items-start gap-2.5 rounded-xl border border-transparent p-2.5 text-start transition-colors hover:border-accent-500/20 hover:bg-accent-500/[0.06]"
+              className="flex w-full items-start gap-3.5 rounded-xl border border-transparent p-2.5 text-start transition-colors hover:border-accent-500/20 hover:bg-accent-500/[0.06]"
             >
               <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-accent-500/10 text-accent-500">
                 <Bot size={15} />
               </span>
-              <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+              <span className="flex min-w-0 flex-1 flex-col gap-1 ps-0.5">
                 <span className="flex min-w-0 items-baseline justify-between gap-2">
                   <span className="flex min-w-0 items-center gap-1.5">
                     {!notification.read && <span className="size-1.5 shrink-0 rounded-full bg-accent-500" />}

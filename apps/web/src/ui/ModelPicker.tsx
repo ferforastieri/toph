@@ -2,9 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import { Bot, Check, ChevronDown } from "@toph/icons";
 import type { AIModel } from "../api";
 import { modelGroup, providerLabel } from "../ai";
-import { Dropdown, DropdownPopover, DropdownTrigger } from "@/boardui/base/dropdown/dropdown";
 import { cx } from "@/boardui/utils/cx";
 import { Slider } from "@/boardui/base/slider/slider";
+import ComposerMenu from "./ComposerMenu";
 
 interface Props {
   models: AIModel[];
@@ -83,21 +83,24 @@ export default function ModelPicker({ models, model, onModelChange, effort, effo
   }
 
   return (
-    <Dropdown isOpen={open} onOpenChange={setOpen}>
-      <DropdownTrigger
-        aria-label="Modelo e esforço"
-        className={cx(
-          "flex h-7 min-w-0 items-center gap-1.5 rounded-md px-1.5 text-body-2-medium text-text-secondary outline-none transition-colors hover:bg-background-secondary-hover focus-visible:ring-2 focus-visible:ring-border-focus-ring",
-          fullWidth ? "w-full max-w-none justify-start border border-border-button-default bg-background-primary-default" : "max-w-[150px]",
-        )}
-      >
-        {fullWidth ? <Bot size={13} className="shrink-0 text-foreground-icon-tertiary" /> : null}
-        <span className="truncate">{selected?.label ?? (model ? model.split("/").pop() : "Modelo")}</span>
-        {fullWidth && variants.length > 0 ? <span className="shrink-0 text-caption-2-regular text-text-tertiary">· {effortLabel(effort)}</span> : null}
-        <ChevronDown size={12} className="size-3 shrink-0 text-foreground-icon-tertiary" />
-      </DropdownTrigger>
-      <DropdownPopover aria-label="Modelos e esforço" placement="top start" className="w-[300px] max-w-[calc(100vw-24px)] p-0" dialogClassName="gap-0">
-        <div className="max-h-[min(56vh,420px)] overflow-y-auto p-1.5">
+    <ComposerMenu
+      label="Modelo e esforço"
+      isOpen={open}
+      onOpenChange={setOpen}
+      trigger={
+        <>
+          {fullWidth ? <Bot size={13} className="shrink-0 text-foreground-icon-tertiary" /> : null}
+          <span className="truncate">{selected?.label ?? (model ? model.split("/").pop() : "Modelo")}</span>
+          {fullWidth && variants.length > 0 ? <span className="shrink-0 text-caption-2-regular text-text-tertiary">· {effortLabel(effort)}</span> : null}
+          <ChevronDown size={12} className="size-3 shrink-0 text-foreground-icon-tertiary" />
+        </>
+      }
+      triggerClassName={fullWidth ? "w-full max-w-none justify-start border border-border-button-default bg-background-primary-default" : "max-w-[150px]"}
+      popoverClassName="w-[300px] max-w-[calc(100vw-24px)] p-0"
+      contentClassName="max-h-[min(56vh,420px)] overflow-y-auto p-1.5"
+    >
+      {() => (
+        <>
           {groups.length === 0 ? <p className="px-2 py-3 text-caption-1-regular text-text-tertiary">Salve a configuração para carregar os modelos.</p> : null}
           {groups.map(([provider, items]) => {
             const expanded = openProviders.has(provider);
@@ -163,8 +166,8 @@ export default function ModelPicker({ models, model, onModelChange, effort, effo
               </div>
             );
           })}
-        </div>
-      </DropdownPopover>
-    </Dropdown>
+        </>
+      )}
+    </ComposerMenu>
   );
 }

@@ -910,6 +910,7 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
             </div>
           )}
           <AgentTranscript
+          accentColor={project.color}
             messages={messages}
             streaming={streaming}
             onPermission={(messageId, permissionId, decision) => void replyPermission(messageId, permissionId, decision)}

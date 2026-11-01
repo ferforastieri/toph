@@ -7,6 +7,7 @@ import {
   CircleAlert,
   CircleCheck,
   Info,
+  Keyboard,
   Maximize,
   Minimize,
   MoreHorizontal,
@@ -60,6 +61,7 @@ function stripAnsi(value: string): string {
 
 export default function TerminalPanel({ project, onOpenFile, sheet = false, onClose }: Props) {
   const [tab, setTab] = useState<TerminalTab>("terminal");
+  const [focusNonce, setFocusNonce] = useState(0);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [activeId, setActiveId] = useState("");
   const [split, setSplit] = useState(false);
@@ -294,6 +296,7 @@ export default function TerminalPanel({ project, onOpenFile, sheet = false, onCl
             </DropdownPopover>
           </Dropdown>
           <Button variant="ghost" size="xs" iconOnly leadingIcon={Plus} aria-label="Novo terminal" title="Novo terminal" onClick={() => void newSession()} />
+          {sheet ? <Button variant="ghost" size="xs" iconOnly leadingIcon={Keyboard} aria-label="Abrir teclado do terminal" title="Abrir teclado" onClick={() => setFocusNonce((value) => value + 1)} /> : null}
           <Button variant="ghost" size="xs" iconOnly leadingIcon={SplitVertical} aria-label="Dividir terminal" title="Dividir terminal" onClick={() => void splitTerminal()} />
           <Button variant="ghost" size="xs" iconOnly leadingIcon={Trash2} aria-label="Encerrar terminal" title="Encerrar terminal" disabled={!activeSession} onClick={() => void killSession()} />
           <Dropdown isOpen={moreMenuOpen} onOpenChange={setMoreMenuOpen}>
@@ -325,16 +328,16 @@ export default function TerminalPanel({ project, onOpenFile, sheet = false, onCl
             {split && paneSessions.length >= 2 ? (
               <Group orientation="horizontal" className="min-h-0 flex-1">
                 <Panel defaultSize="50" minSize="20">
-                  <TerminalView key={`${paneSessions[0].id}:${reconnectNonce}`} session={paneSessions[0]} theme={theme} clearNonce={clearNonce} onOutput={appendOutput} onOpenFile={onOpenFile} />
+                  <TerminalView key={`${paneSessions[0].id}:${reconnectNonce}`} session={paneSessions[0]} theme={theme} clearNonce={clearNonce} focusNonce={focusNonce} mobile={sheet} onOutput={appendOutput} onOpenFile={onOpenFile} />
                 </Panel>
                 <Separator className="relative w-px bg-separator-border after:absolute after:inset-y-0 after:left-1/2 after:w-2 after:-translate-x-1/2 focus-visible:ring-2 focus-visible:ring-border-focus-ring" />
                 <Panel defaultSize="50" minSize="20">
-                  <TerminalView key={`${paneSessions[1].id}:${reconnectNonce}`} session={paneSessions[1]} theme={theme} clearNonce={clearNonce} onOutput={appendOutput} onOpenFile={onOpenFile} />
+                  <TerminalView key={`${paneSessions[1].id}:${reconnectNonce}`} session={paneSessions[1]} theme={theme} clearNonce={clearNonce} focusNonce={focusNonce} mobile={sheet} onOutput={appendOutput} onOpenFile={onOpenFile} />
                 </Panel>
               </Group>
             ) : (
               <div className="min-h-0 flex-1">
-                {paneSessions[0] ? <TerminalView key={`${paneSessions[0].id}:${reconnectNonce}`} session={paneSessions[0]} theme={theme} clearNonce={clearNonce} onOutput={appendOutput} onOpenFile={onOpenFile} /> : <div className="flex h-full items-center justify-center text-caption-1-regular text-text-secondary">Nenhum terminal aberto.</div>}
+                {paneSessions[0] ? <TerminalView key={`${paneSessions[0].id}:${reconnectNonce}`} session={paneSessions[0]} theme={theme} clearNonce={clearNonce} focusNonce={focusNonce} mobile={sheet} onOutput={appendOutput} onOpenFile={onOpenFile} /> : <div className="flex h-full items-center justify-center text-caption-1-regular text-text-secondary">Nenhum terminal aberto.</div>}
               </div>
             )}
             {sessions.length > 1 && (
@@ -476,7 +479,7 @@ export default function TerminalPanel({ project, onOpenFile, sheet = false, onCl
   );
 }
 
-function TerminalView({ session, theme, clearNonce, onOutput, onOpenFile }: { session: Session; theme: "light" | "dark"; clearNonce: number; onOutput: (text: string) => void; onOpenFile: (path: string, line?: number) => void; }) {
+function TerminalView({ session, theme, clearNonce, focusNonce, mobile, onOutput, onOpenFile }: { session: Session; theme: "light" | "dark"; clearNonce: number; focusNonce: number; mobile: boolean; onOutput: (text: string) => void; onOpenFile: (path: string, line?: number) => void; }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
   const outputCallback = useRef(onOutput);
@@ -563,7 +566,7 @@ function TerminalView({ session, theme, clearNonce, onOutput, onOpenFile }: { se
       },
     });
     fit.fit();
-    term.focus();
+    if (!mobile) term.focus();
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     socket = new WebSocket(`${protocol}//${window.location.host}/api/terminals/${encodeURIComponent(session.id)}/ws`);
     socket.binaryType = "arraybuffer";
@@ -585,6 +588,33 @@ function TerminalView({ session, theme, clearNonce, onOutput, onOpenFile }: { se
   useEffect(() => {
     if (clearNonce > 0) termRef.current?.clear();
   }, [clearNonce]);
+
+  useEffect(() => {
+    if (focusNonce > 0) termRef.current?.focus();
+  }, [focusNonce]);
+
+  useEffect(() => {
+    const host = hostRef.current;
+    if (!host || !mobile) return;
+    let start: { x: number; y: number } | null = null;
+    const onStart = (event: TouchEvent) => {
+      const touch = event.touches[0];
+      start = touch ? { x: touch.clientX, y: touch.clientY } : null;
+    };
+    const onMove = (event: TouchEvent) => {
+      const touch = event.touches[0];
+      if (!start || !touch) return;
+      if (Math.abs(touch.clientX - start.x) > 12 || Math.abs(touch.clientY - start.y) > 18) {
+        termRef.current?.blur();
+      }
+    };
+    host.addEventListener("touchstart", onStart, { passive: true });
+    host.addEventListener("touchmove", onMove, { passive: true });
+    return () => {
+      host.removeEventListener("touchstart", onStart);
+      host.removeEventListener("touchmove", onMove);
+    };
+  }, [mobile]);
 
   return <div className="min-h-0 h-full w-full" ref={hostRef} />;
 }

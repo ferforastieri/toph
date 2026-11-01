@@ -394,11 +394,8 @@ export default function MobileApp() {
           user={user}
           projectName={project.name}
           branch={currentBranch}
-          unreadCount={unreadCount}
           onSelect={selectScreen}
-          onProjects={() => { setMenuOpen(false); setProjectsOpen(true); }}
           onBranch={() => { setMenuOpen(false); setBranchOpen(true); }}
-          onNotifications={() => { setMenuOpen(false); setNotificationsOpen(true); }}
           onAccount={() => { setMenuOpen(false); setAccountOpen(true); }}
           onTerminal={() => { setMenuOpen(false); setTerminalOpen(true); }}
           onClose={() => setMenuOpen(false)}
