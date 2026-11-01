@@ -50,6 +50,7 @@ export interface BotMessage {
   permissionId?: string;
   permissionAction?: string;
   sessionId?: string;
+  mode?: "solo" | "team";
   channel?: string;
   audience?: "user" | "coordinator";
   pending?: boolean;
@@ -194,6 +195,7 @@ function sanitizeMessages(input: BotMessage[] | undefined): BotMessage[] {
       content: message.content ?? "",
       channel: message.channel ?? "team",
       audience: (message.audience === "coordinator" ? "coordinator" : "user") as BotMessage["audience"],
+      mode: message.mode === "solo" || message.mode === "team" ? message.mode : undefined,
       pending: false,
       durationMs: Number.isFinite(message.durationMs) ? message.durationMs : undefined,
       createdAt: message.createdAt ?? Date.now(),
