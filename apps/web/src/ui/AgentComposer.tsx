@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { ArrowUp, AtSign, FilePlus2, ImagePlus, Plus, Square, TerminalSquare, X } from "@toph/icons";
+import { ArrowUp, AtSign, ChevronDown, FilePlus2, ImagePlus, Plus, Square, TerminalSquare, X } from "@toph/icons";
 import type { AIModel } from "../api";
 import { Button } from "@/boardui/base/buttons/button";
 import { IconButton } from "@/boardui/base/buttons/icon-button";
@@ -126,9 +126,9 @@ export function AgentComposer({ value, onChange, onSend, onStop, busy, models, m
               label="Adicionar contexto ou arquivo"
               isOpen={addMenuOpen}
               onOpenChange={setAddMenuOpen}
-              trigger={<Plus size={15} />}
-              popoverClassName="w-56"
-              contentClassName="flex flex-col gap-1"
+              trigger={<><Plus size={15} /><ChevronDown size={12} className="size-3 text-foreground-icon-tertiary" /></>}
+              popoverClassName="w-[300px] p-0"
+              contentClassName="flex flex-col gap-1 p-1.5"
             >
               {(close) => (
                 <>

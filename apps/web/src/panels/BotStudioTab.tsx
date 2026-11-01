@@ -644,8 +644,9 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
 
   function newBot() {
     const used = new Set(bots.map((bot) => bot.name));
-    const preset = TOPH_PRESETS.find((item) => !used.has(item.name))
-      ?? TOPH_PRESETS[Math.floor(Math.random() * TOPH_PRESETS.length)];
+    const teamPresets = TOPH_PRESETS.filter((item) => item.name !== "Toph");
+    const preset = teamPresets.find((item) => !used.has(item.name))
+      ?? teamPresets[Math.floor(Math.random() * teamPresets.length)];
     let name = preset.name;
     let suffix = 2;
     while (used.has(name)) {
@@ -1125,12 +1126,11 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
               <h2 className="mt-1 text-title-3-medium text-text-primary">Monte seu time de Tophs</h2>
               <p className="mt-1 max-w-xl text-caption-1-regular text-text-secondary">A equipe começa vazia. Escolha os Tophs que vão trabalhar com você. Cada um tem papel, cor, avatar e ferramentas próprias.</p>
               <div className="mt-3 flex gap-2">
-                <Button variant="secondary" size="small" onClick={() => createSolo(project.id)}>Usar Toph Solo</Button>
                 <Button variant="ghost" size="small" leadingIcon={SlidersHorizontal} onClick={() => setSettingsOpen(true)}>Configurar IA</Button>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
-              {TOPH_PRESETS.map((preset) => (
+              {TOPH_PRESETS.filter((preset) => preset.name !== "Toph").map((preset) => (
                 <button
                   key={preset.name}
                   type="button"
@@ -1406,8 +1406,8 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
                       <ChevronDown size={12} className="size-3 text-foreground-icon-tertiary" />
                     </>
                   }
-                  popoverClassName="w-36"
-                  contentClassName="flex flex-col gap-1"
+                  popoverClassName="w-[300px] p-0"
+                  contentClassName="flex flex-col gap-1 p-1.5"
                 >
                   {(close) => (
                     <>
@@ -1424,8 +1424,8 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
                       <ChevronDown size={12} className="size-3 text-foreground-icon-tertiary" />
                     </>
                   }
-                  popoverClassName="w-40"
-                  contentClassName="flex flex-col gap-1"
+                  popoverClassName="w-[300px] p-0"
+                  contentClassName="flex flex-col gap-1 p-1.5"
                 >
                   {(close) => (
                     <>
