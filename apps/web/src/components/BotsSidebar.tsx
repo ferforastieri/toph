@@ -110,7 +110,7 @@ export default function BotsSidebar({ project }: Props) {
       ) : null}
       <Modal isOpen={galleryOpen} onClose={() => setGalleryOpen(false)} title="Adicionar Toph" description="20 identidades com visuais e cores únicas." placement="bottom" size="lg" bodyClassName="p-3" swipeToClose>
         <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
-          {TOPH_PRESETS.map((preset) => (
+          {TOPH_PRESETS.filter((preset) => preset.name !== "Toph").map((preset) => (
             <button
               key={preset.name}
               type="button"

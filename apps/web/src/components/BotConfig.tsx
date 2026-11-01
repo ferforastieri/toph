@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Bot, Check, Trash2 } from "@toph/icons";
+import { Bot, Check, ChevronDown, Trash2 } from "@toph/icons";
 import { OpenCode } from "@opencode/client";
 import { openCodeBase, api, type EmailAccount } from "../api";
 import type { BotAvatar as BotAvatarShape, MiniBot, TophMode } from "../bots";
@@ -12,6 +12,7 @@ import { Textarea } from "@/boardui/base/textarea/textarea";
 import { Switch } from "@/boardui/base/switch/switch";
 import { Select, SelectItem } from "@/boardui/base/select/select";
 import ModelPicker from "../ui/ModelPicker";
+import ComposerMenu from "../ui/ComposerMenu";
 import { useConfirm } from "../ui/confirm";
 
 interface Props {
@@ -138,17 +139,37 @@ export default function BotConfig({ projectId, projectRoot, bot, mode }: Props) 
       <div className="grid grid-cols-2 gap-2">
         <label className="flex flex-col gap-1">
           <span className="text-caption-1-medium text-text-secondary">Modo</span>
-          <Select selectedKey={bot.agentMode ?? "build"} onSelectionChange={(key) => update({ agentMode: String(key) as "build" | "plan" })} aria-label="Modo do agente" className="w-full">
-            <SelectItem id="build">Build</SelectItem>
-            <SelectItem id="plan">Plano</SelectItem>
-          </Select>
+          <ComposerMenu
+            label="Modo do agente"
+            trigger={<><span>{bot.agentMode === "plan" ? "Plano" : "Build"}</span><ChevronDown size={12} className="size-3 text-foreground-icon-tertiary" /></>}
+            triggerClassName="h-8 w-full justify-start border border-border-button-default bg-background-primary-default px-2.5"
+            popoverClassName="w-[300px] p-0"
+            contentClassName="flex flex-col gap-1 p-1.5"
+          >
+            {(close) => (
+              <>
+                <button type="button" onClick={() => { update({ agentMode: "build" }); close(); }} className="flex w-full items-center rounded-lg px-2 py-2 text-start text-body-2-regular text-text-primary hover:bg-background-secondary-hover">Build</button>
+                <button type="button" onClick={() => { update({ agentMode: "plan" }); close(); }} className="flex w-full items-center rounded-lg px-2 py-2 text-start text-body-2-regular text-text-primary hover:bg-background-secondary-hover">Plano</button>
+              </>
+            )}
+          </ComposerMenu>
         </label>
         <label className="flex flex-col gap-1">
           <span className="text-caption-1-medium text-text-secondary">Permissões</span>
-          <Select selectedKey={bot.permissionMode ?? "yolo"} onSelectionChange={(key) => update({ permissionMode: String(key) as "yolo" | "ask" })} aria-label="Permissões" className="w-full">
-            <SelectItem id="yolo">YOLO</SelectItem>
-            <SelectItem id="ask">Perguntar</SelectItem>
-          </Select>
+          <ComposerMenu
+            label="Permissões"
+            trigger={<><span>{bot.permissionMode === "ask" ? "Perguntar" : "YOLO"}</span><ChevronDown size={12} className="size-3 text-foreground-icon-tertiary" /></>}
+            triggerClassName="h-8 w-full justify-start border border-border-button-default bg-background-primary-default px-2.5"
+            popoverClassName="w-[300px] p-0"
+            contentClassName="flex flex-col gap-1 p-1.5"
+          >
+            {(close) => (
+              <>
+                <button type="button" onClick={() => { update({ permissionMode: "yolo" }); close(); }} className="flex w-full items-center rounded-lg px-2 py-2 text-start text-body-2-regular text-text-primary hover:bg-background-secondary-hover">YOLO</button>
+                <button type="button" onClick={() => { update({ permissionMode: "ask" }); close(); }} className="flex w-full items-center rounded-lg px-2 py-2 text-start text-body-2-regular text-text-primary hover:bg-background-secondary-hover">Perguntar</button>
+              </>
+            )}
+          </ComposerMenu>
         </label>
       </div>
 

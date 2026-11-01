@@ -107,6 +107,7 @@ export default function Workbench() {
   const project = projects.find((item) => item.id === activeProjectId) ?? null;
   const branch = gitStatus.split("\n")[0]?.replace(/^##\s*/, "").split("...")[0] ?? "";
   const activeTab = tabs.find((tab) => tab.id === activeTabId) ?? null;
+  const botsSolo = sidebar === "bots" && botWorkspace?.mode === "solo";
   const sortedBranches = branchInfo
     ? [...branchInfo.branches].sort((a, b) => {
         if (a === branchInfo.current) return -1;
@@ -904,12 +905,12 @@ export default function Workbench() {
   const primarySidebar = sidebarVisible && activityVisible ? (
     <div className="flex min-h-0 shrink-0 overflow-hidden rounded-3xl border border-border-button-white bg-background-primary-default shadow-sidebar">
       <ActivityBar />
-      <aside className={cx("flex min-h-0 shrink-0 flex-col overflow-hidden bg-background-primary-default", sidebar === "debug" ? "w-0" : "w-[var(--sidebar-width)]")}>
-        <SidebarContent />
+      <aside className={cx("flex min-h-0 shrink-0 flex-col overflow-hidden bg-background-primary-default", sidebar === "debug" || botsSolo ? "w-0" : "w-[var(--sidebar-width)]")}>
+        {!botsSolo ? <SidebarContent /> : null}
       </aside>
     </div>
   ) : null;
-  const primaryResize = sidebarVisible && activityVisible && sidebar !== "debug" ? (
+  const primaryResize = sidebarVisible && activityVisible && sidebar !== "debug" && !botsSolo ? (
     <ResizeHandle className="sidebar-resize" orientation="vertical" value={sidebarWidth} min={220} max={320} invert={!primaryOnLeft} label="Resize sidebar" onChange={(width) => document.documentElement.style.setProperty("--sidebar-width", `${width}px`)} onCommit={(width) => updateSettings({ sidebarWidth: width })} />
   ) : null;
   function branchPickerBody() {
