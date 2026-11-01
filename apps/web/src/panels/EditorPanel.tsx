@@ -7,6 +7,7 @@ import FileIcon from "../ui/FileIcon";
 import { Breadcrumb, BreadcrumbItem } from "@/boardui/base/breadcrumb/breadcrumb";
 import { Badge } from "@/boardui/base/badges/badge";
 import { useProjectEvents } from "../projectEvents";
+import { useDebug } from "../debug";
 
 interface Props {
   tab: Tab;
@@ -20,12 +21,17 @@ export default function EditorPanel({ tab, project, onOpenChanges, mobile = fals
   const notify = useApp((state) => state.notify);
   const [blame, setBlame] = useState<GitBlameLine[]>([]);
   const [stale, setStale] = useState(false);
+  const loadDebug = useDebug((state) => state.load);
+  const breakpoints = useDebug((state) => state.byProject[project.id]?.breakpoints ?? []);
+  const debugLocation = useDebug((state) => state.locations[project.id] ?? null);
+  const toggleBreakpoint = useDebug((state) => state.toggleBreakpoint);
   const tabRef = useRef(tab);
   tabRef.current = tab;
 
   useEffect(() => {
     setStale(false);
-  }, [tab.id, tab.path, tab.hash]);
+    void loadDebug(project.id);
+  }, [tab.id, tab.path, tab.hash, project.id, loadDebug]);
 
   useProjectEvents(project.id, ["files", "git"], (event) => {
     if (!tab.path) return;
@@ -124,7 +130,7 @@ export default function EditorPanel({ tab, project, onOpenChanges, mobile = fals
         </div>
       ) : null}
       <div className="min-h-0 flex-1 overflow-hidden [&_.iPadShowKeyboard]:hidden">
-        <CodeEditor path={tab.path ?? tab.title} projectId={project.id} projectRoot={project.root} onOpenChanges={onOpenChanges} value={tab.content} language={languageFor(tab.path ?? tab.title)} line={tab.line} blame={blame} onChange={(content) => updateTab(tab.id, { content, dirty: true })} onCursorPosition={(line, column) => { window.dispatchEvent(new CustomEvent("toph:cursor", { detail: { line, column, language: languageFor(tab.path ?? tab.title) } })); }} onSave={() => void save()} />
+        <CodeEditor path={tab.path ?? tab.title} projectId={project.id} projectRoot={project.root} onOpenChanges={onOpenChanges} value={tab.content} language={languageFor(tab.path ?? tab.title)} line={tab.line} blame={blame} breakpoints={breakpoints.filter((item) => item.path === tab.path)} debugLine={debugLocation?.path === tab.path ? debugLocation?.line : undefined} onToggleBreakpoint={tab.path ? (line) => toggleBreakpoint(project.id, tab.path!, line) : undefined} onChange={(content) => updateTab(tab.id, { content, dirty: true })} onCursorPosition={(line, column) => { window.dispatchEvent(new CustomEvent("toph:cursor", { detail: { line, column, language: languageFor(tab.path ?? tab.title) } })); }} onSave={() => void save()} />
       </div>
     </div>
   );

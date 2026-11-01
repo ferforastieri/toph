@@ -1,4 +1,4 @@
-import { Bell, Bot, Database, FileCode2, Files, FolderGit2, GitBranch, Globe2, Moon, Sun, TerminalSquare } from "@toph/icons";
+import { Bell, Bot, Bug, Database, FileCode2, Files, FolderGit2, GitBranch, Globe2, Moon, Sun, TerminalSquare } from "@toph/icons";
 import type { User } from "../api";
 import { Avatar } from "@/boardui/base/avatar/avatar";
 import { Badge } from "@/boardui/base/badges/badge";
@@ -7,7 +7,7 @@ import { Switch } from "@/boardui/base/switch/switch";
 import { useSettings } from "../settings";
 import type { ComponentType } from "react";
 
-export type MobileScreen = "bots" | "files" | "scm" | "db" | "web" | "workspace";
+export type MobileScreen = "bots" | "files" | "scm" | "db" | "web" | "debug" | "workspace";
 
 interface Props {
   screen: MobileScreen;
@@ -31,6 +31,7 @@ const screens: Array<{ id: MobileScreen; label: string; description: string; ico
   { id: "scm", label: "Git", description: "Mudanças, branches e commits", icon: GitBranch },
   { id: "db", label: "Bancos", description: "Conexões, schemas e queries", icon: Database },
   { id: "web", label: "Web apps", description: "Sites e ferramentas internas", icon: Globe2 },
+  { id: "debug", label: "Debug", description: "Breakpoints, stack e console", icon: Bug },
   { id: "workspace", label: "Editor", description: "Aba ativa do workspace", icon: FileCode2 },
 ];
 

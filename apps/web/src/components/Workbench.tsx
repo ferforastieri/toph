@@ -18,6 +18,7 @@ import WebSidebar from "../panels/WebSidebar";
 import EditorPanel from "../panels/EditorPanel";
 import DbPanelTab from "../panels/DbPanelTab";
 import BotStudioTab from "../panels/BotStudioTab";
+import DebugPanel from "../panels/DebugPanel";
 import BotsSidebar from "./BotsSidebar";
 import NotificationBell from "./NotificationBell";
 import HeaderAccordion from "./HeaderAccordion";
@@ -817,7 +818,10 @@ export default function Workbench() {
         .catch(() => undefined);
     }
     try {
-      await api.closeProjectTerminals(id);
+      await Promise.all([
+        api.closeProjectTerminals(id),
+        api.debugStop(id).catch(() => undefined),
+      ]);
     } catch (error) {
       notify("error", error instanceof Error ? error.message : "Could not stop project terminals.");
     }
@@ -900,12 +904,12 @@ export default function Workbench() {
   const primarySidebar = sidebarVisible && activityVisible ? (
     <div className="flex min-h-0 shrink-0 overflow-hidden rounded-3xl border border-border-button-white bg-background-primary-default shadow-sidebar">
       <ActivityBar />
-      <aside className="flex min-h-0 w-[var(--sidebar-width)] shrink-0 flex-col overflow-hidden bg-background-primary-default">
+      <aside className={cx("flex min-h-0 shrink-0 flex-col overflow-hidden bg-background-primary-default", sidebar === "debug" ? "w-0" : "w-[var(--sidebar-width)]")}>
         <SidebarContent />
       </aside>
     </div>
   ) : null;
-  const primaryResize = sidebarVisible && activityVisible ? (
+  const primaryResize = sidebarVisible && activityVisible && sidebar !== "debug" ? (
     <ResizeHandle className="sidebar-resize" orientation="vertical" value={sidebarWidth} min={220} max={320} invert={!primaryOnLeft} label="Resize sidebar" onChange={(width) => document.documentElement.style.setProperty("--sidebar-width", `${width}px`)} onCommit={(width) => updateSettings({ sidebarWidth: width })} />
   ) : null;
   function branchPickerBody() {
@@ -1016,6 +1020,8 @@ export default function Workbench() {
           )}>
             {sidebar === "bots" && project ? (
               <BotStudioTab project={project} />
+            ) : sidebar === "debug" && project ? (
+              <DebugPanel project={project} />
             ) : (
               <>
                 <Tabs />

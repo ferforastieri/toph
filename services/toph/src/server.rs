@@ -30,6 +30,7 @@ use crate::auth::AuthManager;
 use crate::config::Config;
 use crate::crypto::new_id;
 use crate::database::{DatabaseService, ProfileInput, RowChange};
+use crate::debug::{DebugManager, DebugStartInput};
 use crate::email::{AccountInput, EmailService, PublicAccount, SendInput, DEFAULT_LIST_LIMIT};
 use crate::errors::{AppError, AppResult};
 use crate::events::{EventHub, ProjectWatcher};
@@ -52,6 +53,7 @@ pub struct AppState {
     pub auth: AuthManager,
     pub workspace: WorkspaceService,
     pub terminals: Arc<TerminalManager>,
+    pub debug: Arc<DebugManager>,
     pub database: DatabaseService,
     pub email: EmailService,
     pub ai: AiService,
@@ -163,6 +165,7 @@ impl AppState {
         }
         let workspace = WorkspaceService::new(roots)?;
         let terminals = Arc::new(TerminalManager::new(None));
+        let debug = Arc::new(DebugManager::new());
         let database = DatabaseService::new(store.clone(), &config.master_key_file)?;
         let email = EmailService::new(store.clone(), &config.data_dir, &config.master_key_file)?;
         let ai = AiService::new(
@@ -193,6 +196,7 @@ impl AppState {
             auth,
             workspace,
             terminals,
+            debug,
             database,
             email,
             ai,
@@ -210,6 +214,15 @@ impl AppState {
         state
             .watcher
             .watch_existing(&projects, &state.config.workspace_roots);
+
+        let maintain_state = state.clone();
+        tokio::spawn(async move {
+            let mut ticker = tokio::time::interval(Duration::from_secs(4));
+            loop {
+                ticker.tick().await;
+                maintain_state.debug.maintain().await;
+            }
+        });
 
         Ok(state)
     }
@@ -316,6 +329,7 @@ impl EmbeddedServer {
             state.opencode.stop();
             state.watcher.stop_all();
             state.terminals.close_all();
+            state.debug.close_all_now();
         }
         if let Some(sender) = self.shutdown.take() {
             let _ = sender.send(());
@@ -372,6 +386,7 @@ pub async fn serve(config: Config) -> AppResult<()> {
     state.opencode.stop();
     state.watcher.stop_all();
     state.terminals.close_all();
+    state.debug.close_all().await;
     Ok(())
 }
 
@@ -454,6 +469,16 @@ fn router(state: Arc<AppState>) -> Router {
         .route("/api/terminals/{terminal_id}/ws", get(terminal_ws))
         .route("/api/ports", get(list_ports))
         .route("/api/projects/{project_id}/debug/eval", post(debug_eval))
+        .route(
+            "/api/projects/{project_id}/debug/config",
+            get(get_debug_config).put(save_debug_config),
+        )
+        .route(
+            "/api/projects/{project_id}/debug/session",
+            get(get_debug_session).post(start_debug).delete(stop_debug),
+        )
+        .route("/api/projects/{project_id}/debug/ws", get(debug_ws))
+        .route("/api/projects/{project_id}/debug/release", post(release_debug))
         .route("/api/repos", get(list_repos))
         .route(
             "/api/workspaces/roots",
@@ -567,7 +592,9 @@ fn session_token(headers: &HeaderMap, uri: &Uri) -> Option<(String, bool)> {
     {
         return Some((value.trim().to_string(), false));
     }
-    if uri.path().starts_with("/api/terminals/") && uri.path().ends_with("/ws") {
+    if (uri.path().starts_with("/api/terminals/") && uri.path().ends_with("/ws"))
+        || (uri.path().starts_with("/api/projects/") && uri.path().ends_with("/debug/ws"))
+    {
         if let Some(token) = uri.query().and_then(|query| {
             query.split('&').find_map(|pair| {
                 let (key, value) = pair.split_once('=')?;
@@ -609,7 +636,8 @@ async fn auth_middleware(
     let long_lived = path == "/api/events/ws"
         || path == "/api/notifications/stream"
         || path.starts_with("/api/opencode/")
-        || (path.starts_with("/api/terminals/") && path.ends_with("/ws"));
+        || (path.starts_with("/api/terminals/") && path.ends_with("/ws"))
+        || (path.starts_with("/api/projects/") && path.ends_with("/debug/ws"));
     if !long_lived
         && path.starts_with("/api/")
         && path != "/api/health"
@@ -1604,6 +1632,95 @@ async fn terminal_ws(
         return AppError::NotFound.into_response();
     };
     ws.on_upgrade(move |socket| terminal_socket(socket, session))
+}
+
+
+async fn get_debug_config(
+    State(state): State<Arc<AppState>>,
+    Path(project_id): Path<String>,
+) -> AppResult<Json<Value>> {
+    let key = format!("debug:{project_id}");
+    match state.store.setting(&key).await {
+        Ok(raw) => Ok(Json(serde_json::from_str(&raw).unwrap_or_else(|_| json!({})))),
+        Err(_) => Ok(Json(json!({}))),
+    }
+}
+
+async fn save_debug_config(
+    State(state): State<Arc<AppState>>,
+    Path(project_id): Path<String>,
+    Json(value): Json<Value>,
+) -> AppResult<Json<Value>> {
+    let raw = value.to_string();
+    if raw.len() > 256 * 1024 {
+        return Err(crate::errors::bad_request("debug config is too large"));
+    }
+    state
+        .store
+        .set_setting(&format!("debug:{project_id}"), &raw)
+        .await?;
+    Ok(Json(json!({ "ok": true })))
+}
+
+async fn start_debug(
+    State(state): State<Arc<AppState>>,
+    Path(project_id): Path<String>,
+    Json(input): Json<DebugStartInput>,
+) -> AppResult<Json<crate::debug::DebugSessionInfo>> {
+    let project = state.store.project(&project_id).await?;
+    let session = state
+        .debug
+        .start(&project_id, FsPath::new(&project.root), input)
+        .await?;
+    Ok(Json(session.info()))
+}
+
+async fn get_debug_session(
+    State(state): State<Arc<AppState>>,
+    Path(project_id): Path<String>,
+) -> Json<Value> {
+    match state.debug.get(&project_id) {
+        Some(session) => Json(json!({ "session": session.info() })),
+        None => Json(json!({ "session": null })),
+    }
+}
+
+async fn stop_debug(
+    State(state): State<Arc<AppState>>,
+    Path(project_id): Path<String>,
+) -> Json<Value> {
+    state.debug.stop(&project_id).await;
+    Json(json!({ "ok": true }))
+}
+
+async fn release_debug(
+    State(state): State<Arc<AppState>>,
+    Path(project_id): Path<String>,
+) -> Json<Value> {
+    if let Some(session) = state.debug.get(&project_id) {
+        session.resume().await;
+    }
+    Json(json!({ "ok": true }))
+}
+
+async fn debug_ws(
+    State(state): State<Arc<AppState>>,
+    Path(project_id): Path<String>,
+    ws: WebSocketUpgrade,
+) -> Response {
+    let Some(session) = state.debug.get(&project_id) else {
+        return AppError::NotFound.into_response();
+    };
+    session.clients.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    ws.on_upgrade(move |socket| async move {
+        if session.language == "node" {
+            crate::debug::proxy_node(session.clone(), socket).await;
+        } else {
+            crate::debug::proxy_python(session.clone(), socket).await;
+        }
+        session.clients.fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
+        session.client_disconnected();
+    })
 }
 
 async fn terminal_socket(mut socket: WebSocket, session: Arc<crate::terminal::TerminalSession>) {
