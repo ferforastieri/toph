@@ -22,14 +22,31 @@ jobs:
       version: ${{ steps.version.outputs.version }}
       tag: ${{ steps.version.outputs.tag }}
       bump: ${{ steps.version.outputs.bump }}
+      server: ${{ steps.changes.outputs.server }}
+      web: ${{ steps.changes.outputs.web }}
+      android: ${{ steps.changes.outputs.android }}
+      desktop: ${{ steps.changes.outputs.desktop }}
+      installer: ${{ steps.changes.outputs.installer }}
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
           fetch-depth: 0
 
-      - name: Fetch tags and determine next version
+      - name: Detect changed components
+        id: changes
+        env:
+          HEAD_REF: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          git fetch --tags --force
+          BASE_REF="$(git describe --tags --abbrev=0 --match 'v*' HEAD^ 2>/dev/null || true)"
+          BASE_REF="$BASE_REF" node scripts/changed-components.mjs
+
+      - name: Determine next version
         id: version
+        env:
+          RELEASABLE: ${{ steps.changes.outputs.releasable }}
         run: |
           set -euo pipefail
           git fetch --tags --force
@@ -37,7 +54,7 @@ jobs:
 
   server:
     needs: prepare
-    if: needs.prepare.outputs.release == 'true'
+    if: needs.prepare.outputs.release == 'true' && needs.prepare.outputs.server == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -67,6 +84,8 @@ jobs:
           workspaces: services/toph -> target
 
       - run: npm ci
+      # The server embeds apps/web/dist, so this is required even when only
+      # backend code changed.
       - run: npm run build:web
 
       - name: Build server binary
@@ -89,7 +108,7 @@ jobs:
 
   android:
     needs: prepare
-    if: needs.prepare.outputs.release == 'true'
+    if: needs.prepare.outputs.release == 'true' && needs.prepare.outputs.android == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -157,7 +176,7 @@ jobs:
 
   desktop:
     needs: prepare
-    if: needs.prepare.outputs.release == 'true'
+    if: needs.prepare.outputs.release == 'true' && needs.prepare.outputs.desktop == 'true'
     uses: ./.github/workflows/desktop.yml
     with:
       version: ${{ needs.prepare.outputs.version }}
@@ -165,10 +184,20 @@ jobs:
 
   publish:
     needs: [prepare, server, android, desktop]
-    if: needs.prepare.outputs.release == 'true'
+    if: |
+      always() &&
+      needs.prepare.outputs.release == 'true' &&
+      (needs.server.result == 'success' || needs.server.result == 'skipped') &&
+      (needs.android.result == 'success' || needs.android.result == 'skipped') &&
+      (needs.desktop.result == 'success' || needs.desktop.result == 'skipped')
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+
       - uses: actions/download-artifact@v4
+        if: needs.server.result == 'success' || needs.android.result == 'success' || needs.desktop.result == 'success'
         with:
           path: artifacts
 
@@ -177,12 +206,22 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p release
-          cp artifacts/server-amd64/install.sh release/
-          cp artifacts/server-amd64/toph-linux-amd64 release/
-          cp artifacts/server-arm64/toph-linux-arm64 release/
-          find artifacts/android -name '*.apk' -exec cp {} release/ \;
-          find artifacts/toph-client-desktop-ubuntu-24.04 -type f \( -name '*.AppImage' -o -name '*.deb' -o -name '*.rpm' \) -exec cp {} release/ \;
-          find artifacts/toph-client-desktop-windows-latest -type f \( -name '*.msi' \) -exec cp {} release/ \;
+          cp install.sh release/
+          if [ -d artifacts/server-amd64 ]; then
+            cp artifacts/server-amd64/toph-linux-amd64 release/
+          fi
+          if [ -d artifacts/server-arm64 ]; then
+            cp artifacts/server-arm64/toph-linux-arm64 release/
+          fi
+          if [ -d artifacts/android ]; then
+            find artifacts/android -name '*.apk' -exec cp {} release/ \;
+          fi
+          if [ -d artifacts/toph-client-desktop-ubuntu-24.04 ]; then
+            find artifacts/toph-client-desktop-ubuntu-24.04 -type f \( -name '*.AppImage' -o -name '*.deb' -o -name '*.rpm' \) -exec cp {} release/ \;
+          fi
+          if [ -d artifacts/toph-client-desktop-windows-latest ]; then
+            find artifacts/toph-client-desktop-windows-latest -type f -name '*.msi' -exec cp {} release/ \;
+          fi
           ls -lh release
 
       - name: Publish release

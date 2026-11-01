@@ -754,20 +754,19 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
     const deadline = Date.now() + 90_000;
     let latest = "";
     while (Date.now() < deadline) {
-      await new Promise((resolve) => window.setTimeout(resolve, 800));
+      await new Promise((resolve) => window.setTimeout(resolve, 900));
       if (token !== runToken.current) throw new Error("__stopped__");
-      const [active, context] = await Promise.all([
-        client.session.active().catch(() => null),
-        client.session.context({ sessionID: sessionId } as never).catch(() => null),
-      ]);
+      const active = await client.session.active().catch(() => null);
+      // While OpenCode is working, the event stream updates the transcript.
+      // Fetching the full session context on every poll duplicates every
+      // message and image in memory, so read it only after the session idles.
+      if (!active || active[sessionId]) continue;
+      const context = await client.session.context({ sessionID: sessionId } as never).catch(() => null);
       const assistant = lastAssistant(context);
       if (!assistant || assistant.id === before) continue;
       if (assistant.error) throw new Error(assistant.error);
       latest = assistant.text || latest;
-      if (!active?.[sessionId]) {
-        if (latest) return latest;
-        throw new Error("O bot terminou sem retornar texto.");
-      }
+      if (latest) return latest;
     }
     if (latest) return latest;
     throw new Error("O bot não respondeu a tempo.");
@@ -1422,17 +1421,6 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
         mode={mode}
         bot={activeBot}
         activeSessionId={activeBot?.sessionId}
-        onClose={() => setSessionsOpen(false)}
-        onSelect={(session) => void restoreSession(session)}
-        onNew={newSession}
-      />
-
-      <TophSessionsSheet
-        open={sessionsOpen}
-        project={project}
-        mode={mode}
-        bot={activeBot}
-        activeSessionId={activeBot.sessionId}
         onClose={() => setSessionsOpen(false)}
         onSelect={(session) => void restoreSession(session)}
         onNew={newSession}

@@ -82,8 +82,14 @@ interface ToolImage {
   name?: string;
 }
 
-function extractToolImages(value?: string): ToolImage[] {
+const toolImageCache = new Map<string, ToolImage[]>();
+
+function extractToolImages(value?: string, cacheKey?: string): ToolImage[] {
   if (!value) return [];
+  if (cacheKey) {
+    const cached = toolImageCache.get(cacheKey);
+    if (cached) return cached;
+  }
   const images = new Map<string, ToolImage>();
   const add = (uri: string, mime: string, name?: string) => {
     if (!uri) return;
@@ -123,7 +129,15 @@ function extractToolImages(value?: string): ToolImage[] {
     }
   };
   visit(value);
-  return [...images.values()];
+  const result = [...images.values()];
+  if (cacheKey) {
+    if (toolImageCache.size >= 48) {
+      const oldest = toolImageCache.keys().next().value;
+      if (oldest) toolImageCache.delete(oldest);
+    }
+    toolImageCache.set(cacheKey, result);
+  }
+  return result;
 }
 
 function imageLabel(image: ToolImage): string {
@@ -242,7 +256,7 @@ function ToolOutput({ message, images }: { message: AiMessage; images: ToolImage
 
 function ToolRow({ message, onPermission }: { message: AiMessage; onPermission?: MessageProps["onPermission"] }) {
   const [open, setOpen] = useState(false);
-  const images = extractToolImages(message.detail);
+  const images = extractToolImages(message.detail, `${message.id}:${message.detail?.length ?? 0}`);
   const hasImage = images.length > 0;
   const label = toolLabel(message);
   const subtitle = toolSubtitle(message);
@@ -298,7 +312,7 @@ function ToolGroup({ messages, onPermission }: { messages: AiMessage[]; onPermis
   const [open, setOpen] = useState(false);
   const tools = messages.filter((message) => message.role === "tool");
   const thoughts = messages.filter((message) => message.role === "reasoning");
-  const hasImage = tools.some((message) => extractToolImages(message.detail).length > 0);
+  const hasImage = tools.some((message) => extractToolImages(message.detail, `${message.id}:${message.detail?.length ?? 0}`).length > 0);
   const count = tools.length || thoughts.length;
   useEffect(() => {
     if (hasImage) setOpen(true);

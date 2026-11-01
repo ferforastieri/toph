@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Bot, ChevronRight, FolderPlus, GitBranch } from "@toph/icons";
-import { api, getApiBase, type Repository, type SchemaTable, type WebTarget } from "../api";
+import { api, getApiBase, type Project, type Repository, type SchemaTable, type WebTarget } from "../api";
 import { basename, expandGitPattern, languageFor, quoteIdentifier, sanitizeBranchName } from "../lib";
 import { useApp, type AppNotification, type Sidebar, type Tab } from "../store";
-import { useBots, type BotWorkspace } from "../bots";
+import { useBots, type BotWorkspace, botSessionIds } from "../bots";
 import { useAI } from "../ai";
 import { PROJECT_EVENT, type ProjectEvent } from "../projectEvents";
 import ActivityBar from "./ActivityBar";
@@ -12,6 +12,7 @@ import Tabs from "./Tabs";
 import TopBar from "./TopBar";
 import Toasts from "./Toasts";
 import RepoPicker from "./RepoPicker";
+import CloseProjectModal from "./CloseProjectModal";
 import ExplorerPanel from "../panels/ExplorerPanel";
 import DatabasesPanel from "../panels/DatabasesPanel";
 import WebSidebar from "../panels/WebSidebar";
@@ -41,6 +42,7 @@ import ResizeHandle from "../ui/resize";
 import { useIsMobile } from "../ui/useIsMobile";
 import { useSettings } from "../settings";
 import { useConfirm } from "../ui/confirm";
+import { useTophDrafts } from "../tophDrafts";
 import { cx } from "@/boardui/utils/cx";
 import { suggestGitChanges } from "../gitAi";
 import { parseGitStatus } from "../gitStatus";
@@ -64,7 +66,7 @@ export default function Workbench() {
   const setTerminalOpen = useApp((state) => state.setTerminalOpen);
   const notify = useApp((state) => state.notify);
   const markNotificationRead = useApp((state) => state.markNotificationRead);
-  const botWorkspace = useBots((state) => activeProjectId ? state.byProject[activeProjectId] : undefined);
+  const botMode = useBots((state) => activeProjectId ? state.byProject[activeProjectId]?.mode : undefined);
   const pendingBotSelection = useRef<{ projectId: string; botId: string } | null>(null);
   const savedMode = useRef<string | null>(null);
   const loadBots = useBots((state) => state.load);
@@ -78,6 +80,9 @@ export default function Workbench() {
   const confirm = useConfirm();
 
   const [showRepoPicker, setShowRepoPicker] = useState(false);
+  const [closeTarget, setCloseTarget] = useState<Project | null>(null);
+  const [closeBusy, setCloseBusy] = useState(false);
+  const [closeError, setCloseError] = useState("");
   const [version, setVersion] = useState("0.1.0");
   const [gitStatus, setGitStatus] = useState("");
   const [branchMenuOpen, setBranchMenuOpen] = useState(false);
@@ -103,12 +108,14 @@ export default function Workbench() {
   const [branchError, setBranchError] = useState("");
   const [cursor, setCursor] = useState({ line: 1, column: 1, language: "" });
   const loadedProject = useRef<string | null>(null);
+  const [projectEpoch, setProjectEpoch] = useState(0);
+  const forceTophsOnLoad = useRef(false);
   const mobile = useIsMobile();
 
   const project = projects.find((item) => item.id === activeProjectId) ?? null;
   const branch = gitStatus.split("\n")[0]?.replace(/^##\s*/, "").split("...")[0] ?? "";
   const activeTab = tabs.find((tab) => tab.id === activeTabId) ?? null;
-  const botsSolo = sidebar === "bots" && botWorkspace?.mode === "solo";
+  const botsSolo = sidebar === "bots" && botMode === "solo";
   const sortedBranches = branchInfo
     ? [...branchInfo.branches].sort((a, b) => {
         if (a === branchInfo.current) return -1;
@@ -407,6 +414,7 @@ export default function Workbench() {
         if (notification) state.markNotificationRead(notification.id);
       }
       state.setActiveProject(payload.projectId);
+      forceTophsOnLoad.current = true;
       if (payload.botId) selectBot(payload.projectId, payload.botId);
       state.setSidebar("bots");
     };
@@ -416,14 +424,16 @@ export default function Workbench() {
 
   useEffect(() => {
     const pending = pendingBotSelection.current;
-    if (!pending || pending.projectId !== activeProjectId || !botWorkspace) return;
-    if (!botWorkspace.bots.some((bot) => bot.id === pending.botId)) {
+    if (!pending || pending.projectId !== activeProjectId || !botMode) return;
+    const workspace = useBots.getState().byProject[activeProjectId];
+    if (!workspace) return;
+    if (!workspace.bots.some((bot) => bot.id === pending.botId)) {
       pendingBotSelection.current = null;
       return;
     }
     useBots.getState().setActiveBot(pending.projectId, pending.botId);
     pendingBotSelection.current = null;
-  }, [activeProjectId, botWorkspace]);
+  }, [activeProjectId, botMode]);
 
 
   useEffect(() => {
@@ -467,7 +477,10 @@ export default function Workbench() {
           typeof layout.activeTabId === "string" ? layout.activeTabId : null,
         );
         loadBots(activeProjectId, layout.bots as BotWorkspace | null | undefined);
-        if (layout.sidebar) {
+        if (forceTophsOnLoad.current) {
+          forceTophsOnLoad.current = false;
+          setSidebar("bots");
+        } else if (layout.sidebar) {
           const savedSidebar =
             layout.sidebar === "search" || layout.sidebar === "scm" || layout.sidebar === "settings"
               ? "files"
@@ -476,9 +489,14 @@ export default function Workbench() {
         }
         setTerminalOpen(typeof layout.terminalOpen === "boolean" ? layout.terminalOpen : true);
         loadedProject.current = activeProjectId;
+        setProjectEpoch((value) => value + 1);
       })
       .catch((error) => {
         if (!cancelled) {
+          if (forceTophsOnLoad.current) {
+            forceTophsOnLoad.current = false;
+            setSidebar("bots");
+          }
           notify("error", error instanceof Error ? error.message : "Could not restore workspace.");
         }
       });
@@ -504,13 +522,6 @@ export default function Workbench() {
       tabs.map(({ content: _content, hash: _hash, dirty: _dirty, autoRun: _autoRun, ...rest }) => rest),
     [tabs],
   );
-  const layoutKey = JSON.stringify({
-    tabs: layoutTabs,
-    activeTabId,
-    sidebar,
-    terminalOpen,
-    bots: botWorkspace,
-  });
 
   useEffect(() => {
     if (!activeProjectId || loadedProject.current !== activeProjectId) return;
@@ -526,13 +537,40 @@ export default function Workbench() {
         .catch(() => undefined);
     }, 500);
     return () => window.clearTimeout(timer);
-  }, [activeProjectId, layoutKey, layoutTabs, terminalOpen, sidebar, activeTabId, botWorkspace, snapshotBots]);
+  }, [activeProjectId, layoutTabs, terminalOpen, sidebar, activeTabId, projectEpoch, snapshotBots]);
+
+  // Subscribe outside the render tree so message/tool updates do not re-render
+  // the whole workbench. The debounce still persists the latest bot history.
+  useEffect(() => {
+    if (!activeProjectId) return;
+    let timer: number | undefined;
+    const unsubscribe = useBots.subscribe((state, previous) => {
+      if (state.byProject[activeProjectId] === previous.byProject[activeProjectId]) return;
+      if (loadedProject.current !== activeProjectId) return;
+      if (timer) window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        api
+          .saveLayout(activeProjectId, {
+            tabs: layoutTabs,
+            activeTabId,
+            sidebar,
+            terminalOpen,
+            bots: useBots.getState().snapshot(activeProjectId),
+          })
+          .catch(() => undefined);
+      }, 500);
+    });
+    return () => {
+      unsubscribe();
+      if (timer) window.clearTimeout(timer);
+    };
+  }, [activeProjectId, layoutTabs, activeTabId, sidebar, terminalOpen, projectEpoch]);
 
   // Mode is a deliberate choice: persist it immediately so leaving and
   // returning to Tophs does not fall back to the other thread.
   useEffect(() => {
     if (!activeProjectId || loadedProject.current !== activeProjectId) return;
-    const mode = botWorkspace?.mode;
+    const mode = botMode;
     if (!mode || savedMode.current === mode) return;
     savedMode.current = mode;
     void api
@@ -544,7 +582,7 @@ export default function Workbench() {
         bots: snapshotBots(activeProjectId),
       })
       .catch(() => undefined);
-  }, [activeProjectId, botWorkspace?.mode, layoutTabs, terminalOpen, sidebar, activeTabId, snapshotBots]);
+  }, [activeProjectId, botMode, layoutTabs, terminalOpen, sidebar, activeTabId, projectEpoch, snapshotBots]);
 
   function switchProject(next: string) {
     if (next === activeProjectId) return;
@@ -557,6 +595,7 @@ export default function Workbench() {
         bots: snapshotBots(project.id),
       });
     }
+    forceTophsOnLoad.current = true;
     loadedProject.current = null;
     setActiveProject(next);
   }
@@ -786,7 +825,10 @@ export default function Workbench() {
     if (!notification.projectId) return;
     setBranchMenuOpen(false);
     markNotificationRead(notification.id);
-    if (notification.projectId !== activeProjectId) setActiveProject(notification.projectId);
+    if (notification.projectId !== activeProjectId) {
+      forceTophsOnLoad.current = true;
+      setActiveProject(notification.projectId);
+    }
     if (notification.botId) selectBot(notification.projectId, notification.botId);
     setSidebar("bots");
     setTerminalOpen(false);
@@ -812,43 +854,59 @@ export default function Workbench() {
       return;
     }
     const next = await api.createProject(repo.name, repo.path, "#FFB547");
+    forceTophsOnLoad.current = true;
     setActiveProject(next.id);
     setProjects([...projects, next]);
     setShowRepoPicker(false);
     notify("success", `Opened ${next.name}.`);
   }
 
-  async function closeProject(id: string) {
+  function requestCloseProject(id: string) {
     const target = projects.find((item) => item.id === id);
     if (!target) return;
-    const ok = await confirm({
-      title: "Fechar projeto?",
-      message: `Fechar ${target.name}? Isso encerra terminais, abas de banco, web e agentes deste projeto. Ele continua disponível para reabrir.`,
-      confirmLabel: "Fechar projeto",
-    });
-    if (!ok) return;
-    if (activeProjectId === id && loadedProject.current === id) {
-      await api
-        .saveLayout(id, {
-          tabs: layoutTabs,
-          activeTabId,
-          sidebar,
-          terminalOpen,
-          bots: snapshotBots(id),
-        })
-        .catch(() => undefined);
-    }
+    setCloseError("");
+    setCloseTarget(target);
+  }
+
+  async function confirmCloseProject() {
+    if (!closeTarget || closeBusy) return;
+    const id = closeTarget.id;
+    const target = closeTarget;
+    setCloseBusy(true);
+    setCloseError("");
     try {
-      await Promise.all([
-        api.closeProjectTerminals(id),
-        api.debugStop(id).catch(() => undefined),
-      ]);
+      const sessions = botSessionIds(useBots.getState().byProject[id]);
+      await Promise.all(sessions.map((sessionId) => api.interruptOpencodeSession(sessionId).catch(() => undefined)));
+      if (activeProjectId === id && loadedProject.current === id) {
+        await api
+          .saveLayout(id, {
+            tabs: layoutTabs,
+            activeTabId,
+            sidebar,
+            terminalOpen,
+            bots: snapshotBots(id),
+          })
+          .catch(() => undefined);
+      }
+      const result = await api.closeProject(id);
+      useBots.getState().forget(id);
+      useTophDrafts.getState().clearProject(id);
+      if (activeProjectId === id) {
+        forceTophsOnLoad.current = true;
+        loadedProject.current = null;
+      }
+      closeProjectTab(id);
+      setCloseTarget(null);
+      const count = result.processes.length;
+      notify("info", `Projeto ${target.name} fechado. ${count} processo${count === 1 ? "" : "s"} encerrado${count === 1 ? "" : "s"}.`);
+      if (result.failed.length > 0) {
+        notify("error", `${result.failed.length} processo${result.failed.length === 1 ? "" : "s"} não puderam ser encerrados.`);
+      }
     } catch (error) {
-      notify("error", error instanceof Error ? error.message : "Could not stop project terminals.");
+      setCloseError(error instanceof Error ? error.message : "Não foi possível fechar o projeto.");
+    } finally {
+      setCloseBusy(false);
     }
-    if (activeProjectId === id) loadedProject.current = null;
-    closeProjectTab(id);
-    notify("info", `Projeto ${target.name} fechado. Processos e abas encerrados.`);
   }
 
   if (projects.length === 0 || !project) {
@@ -985,7 +1043,7 @@ export default function Workbench() {
         >
             <ProjectSwitcher
               onSelect={(id) => { setProjectsMenuOpen(false); switchProject(id); }}
-              onCloseProject={(id) => { setProjectsMenuOpen(false); void closeProject(id); }}
+              onCloseProject={(id) => { setProjectsMenuOpen(false); requestCloseProject(id); }}
               onOpenRepo={() => { setProjectsMenuOpen(false); setShowRepoPicker(true); }}
             />
         </HeaderAccordion>
@@ -1172,6 +1230,15 @@ export default function Workbench() {
       </Modal>
 
       {showRepoPicker && <RepoPicker onClose={() => setShowRepoPicker(false)} onOpen={openRepo} />}
+      <CloseProjectModal
+        open={Boolean(closeTarget)}
+        project={closeTarget}
+        busy={closeBusy}
+        error={closeError}
+        mobile={mobile}
+        onClose={() => { if (!closeBusy) setCloseTarget(null); }}
+        onConfirm={() => void confirmCloseProject()}
+      />
       <Toasts />
     </div>
   );

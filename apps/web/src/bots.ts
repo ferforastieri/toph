@@ -79,6 +79,7 @@ interface BotStore {
   load: (projectId: string, workspace?: BotWorkspace | null) => void;
   ensure: (projectId: string) => BotWorkspace;
   snapshot: (projectId: string) => BotWorkspace | null;
+  forget: (projectId: string) => void;
   setActiveBot: (projectId: string, botId: string | null) => void;
   setMode: (projectId: string, mode: TophMode) => void;
   createSolo: (projectId: string, bot?: Partial<MiniBot>) => void;
@@ -133,6 +134,17 @@ export const TOPH_PRESETS: TophPreset[] = [
   { name: "Ravi", role: "Mobile", description: "Cuida de Android, iOS e experiência em movimento.", personality: "Pragmático, atento a performance e gestos.", color: "#F28BA8", avatar: "egg" },
   { name: "Nina", role: "Arquitetura", description: "Desenha limites, dependências e decisões estruturais.", personality: "Sistêmica, questionadora e econômica nas escolhas.", color: "#FFB547", avatar: "hexagon" },
 ];
+
+export function botSessionIds(workspace: BotWorkspace | undefined): string[] {
+  if (!workspace) return [];
+  const ids = new Set<string>();
+  for (const thread of [workspace, workspace.savedSolo, workspace.savedTeam]) {
+    for (const bot of thread?.bots ?? []) {
+      if (bot.sessionId) ids.add(bot.sessionId);
+    }
+  }
+  return [...ids];
+}
 
 export function slugifyBot(value: string): string {
   return value
@@ -259,8 +271,8 @@ function sanitizeWorkspace(workspace: BotWorkspace): BotWorkspace {
     bots: activeRaw.bots,
     messages: (stamp(activeRaw, currentMode) ?? activeRaw).messages,
     activeBotId: activeRaw.activeBotId,
-    savedSolo: stamp(savedSoloRaw, "solo"),
-    savedTeam: stamp(savedTeamRaw, "team"),
+    savedSolo: mode === "solo" ? undefined : stamp(savedSoloRaw, "solo"),
+    savedTeam: mode === "team" ? undefined : stamp(savedTeamRaw, "team"),
   };
 }
 
@@ -292,17 +304,29 @@ export const useBots = create<BotStore>((set, get) => ({
   snapshot: (projectId) => {
     const workspace = get().byProject[projectId];
     if (!workspace) return null;
+    const mode = workspace.mode ?? "solo";
     return {
       version: 4,
-      mode: workspace.mode ?? "solo",
+      mode,
       modeExplicit: workspace.modeExplicit === true,
       bots: workspace.bots,
       activeBotId: workspace.activeBotId,
       messages: workspace.messages.filter((message) => !message.pending).slice(-200),
-      savedSolo: workspace.savedSolo,
-      savedTeam: workspace.savedTeam ? { ...workspace.savedTeam, messages: workspace.savedTeam.messages.filter((message) => !message.pending).slice(-200) } : undefined,
+      // The active thread is already stored above. Keeping a second copy in
+      // savedSolo/savedTeam doubles the memory and layout payload.
+      savedSolo: mode === "solo" ? undefined : workspace.savedSolo,
+      savedTeam: mode === "team" ? undefined : workspace.savedTeam
+        ? { ...workspace.savedTeam, messages: workspace.savedTeam.messages.filter((message) => !message.pending).slice(-200) }
+        : undefined,
     };
   },
+
+  forget: (projectId) =>
+    set((state) => {
+      const byProject = { ...state.byProject };
+      delete byProject[projectId];
+      return { byProject };
+    }),
 
   setActiveBot: (projectId, activeBotId) =>
     set((state) => {
@@ -327,8 +351,8 @@ export const useBots = create<BotStore>((set, get) => ({
             mode,
             modeExplicit: true,
             ...(target ?? { bots: [], messages: [], activeBotId: null }),
-            savedSolo,
-            savedTeam,
+            savedSolo: mode === "solo" ? undefined : savedSolo,
+            savedTeam: mode === "team" ? undefined : savedTeam,
           },
         },
       };

@@ -13,6 +13,21 @@ export interface Project {
   updatedAt: string;
 }
 
+export interface ClosedProcess {
+  pid: number;
+  name: string;
+  command: string;
+  cwd: string;
+}
+
+export interface ProjectCloseResult {
+  ok: boolean;
+  terminals: number;
+  debug: boolean;
+  processes: ClosedProcess[];
+  failed: ClosedProcess[];
+}
+
 export interface Repository {
   name: string;
   path: string;
@@ -670,6 +685,19 @@ export const api = {
   async closeProjectTerminals(projectId: string): Promise<{ ok: boolean; closed: number }> {
     return request(`/projects/${encodeURIComponent(projectId)}/terminals`, {
       method: "DELETE",
+    });
+  },
+
+  async closeProject(projectId: string): Promise<ProjectCloseResult> {
+    return request(`/projects/${encodeURIComponent(projectId)}/close`, {
+      method: "POST",
+    });
+  },
+
+  async interruptOpencodeSession(sessionId: string): Promise<void> {
+    await request(`/opencode/api/session/${encodeURIComponent(sessionId)}/interrupt`, {
+      method: "POST",
+      body: "{}",
     });
   },
 

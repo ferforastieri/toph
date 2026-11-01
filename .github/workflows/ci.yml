@@ -5,8 +5,50 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+  pull-requests: read
+
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      web: ${{ steps.filter.outputs.web }}
+      server: ${{ steps.filter.outputs.server }}
+      android: ${{ steps.filter.outputs.android }}
+      landing: ${{ steps.filter.outputs.landing }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            web:
+              - 'apps/web/**'
+              - 'packages/**'
+              - 'scripts/**'
+              - 'package.json'
+              - 'package-lock.json'
+              - 'tsconfig.json'
+              - 'apps/web/vite.config.ts'
+            server:
+              - 'services/toph/**'
+              - 'apps/web/**'
+              - 'packages/**'
+              - 'scripts/**'
+              - 'package.json'
+              - 'package-lock.json'
+            android:
+              - 'apps/client/**'
+              - 'packages/**'
+              - 'package.json'
+              - 'package-lock.json'
+            landing:
+              - 'landing-page/**'
+
   rust:
+    needs: changes
+    if: needs.changes.outputs.server == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -23,6 +65,8 @@ jobs:
       - run: cargo test --manifest-path services/toph/Cargo.toml
 
   web:
+    needs: changes
+    if: needs.changes.outputs.web == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -34,9 +78,24 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build:web
+
+  landing:
+    needs: changes
+    if: needs.changes.outputs.landing == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci
       - run: npm run build:landing
 
   android:
+    needs: changes
+    if: needs.changes.outputs.android == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
