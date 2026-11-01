@@ -1,8 +1,10 @@
-import { Bell, Bot, Database, FileCode2, Files, FolderGit2, GitBranch, Globe2, TerminalSquare } from "@toph/icons";
+import { Bell, Bot, Database, FileCode2, Files, FolderGit2, GitBranch, Globe2, Moon, Sun, TerminalSquare } from "@toph/icons";
 import type { User } from "../api";
 import { Avatar } from "@/boardui/base/avatar/avatar";
 import { Badge } from "@/boardui/base/badges/badge";
 import { Button } from "@/boardui/base/buttons/button";
+import { Switch } from "@/boardui/base/switch/switch";
+import { useSettings } from "../settings";
 import type { ComponentType } from "react";
 
 export type MobileScreen = "bots" | "files" | "scm" | "db" | "web" | "workspace";
@@ -55,6 +57,8 @@ export default function MobileMenu({
   onTerminal,
   onClose,
 }: Props) {
+  const theme = useSettings((state) => state.theme);
+  const setTheme = useSettings((state) => state.setTheme);
   return (
     <div className="fixed inset-0 z-[130]">
       <button
@@ -99,6 +103,11 @@ export default function MobileMenu({
         </div>
 
         <div className="flex shrink-0 flex-col gap-1 border-t border-separator-border p-2">
+          <div className="flex items-center gap-2 px-3 py-2">
+            {theme === "dark" ? <Moon className="size-4 text-foreground-icon-secondary" /> : <Sun className="size-4 text-foreground-icon-secondary" />}
+            <span className="flex-1 text-body-2-medium text-text-primary">{theme === "dark" ? "Modo escuro" : "Modo claro"}</span>
+            <Switch isSelected={theme === "dark"} onChange={(selected) => setTheme(selected ? "dark" : "light")} size="sm" aria-label="Alternar tema escuro e claro" />
+          </div>
           <div className="px-2 pb-1 pt-1 text-caption-2-semibold uppercase tracking-[0.16em] text-text-tertiary">Projeto</div>
           <Button variant="ghost" leadingIcon={GitBranch} className="h-auto w-full justify-start gap-2 px-3 py-2.5" onClick={onBranch}>
             <span className="flex min-w-0 flex-1 flex-col text-start">
