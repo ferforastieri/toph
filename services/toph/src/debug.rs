@@ -85,17 +85,29 @@ impl DebugManager {
         self.stop(project_id).await;
         let language = match input.language.as_str() {
             "node" | "python" => input.language.clone(),
-            _ => return Err(AppError::BadRequest("debug language must be node or python".into())),
+            _ => {
+                return Err(AppError::BadRequest(
+                    "debug language must be node or python".into(),
+                ))
+            }
         };
         let mode = match input.mode.as_str() {
             "launch" | "attach" => input.mode.clone(),
-            _ => return Err(AppError::BadRequest("debug mode must be launch or attach".into())),
+            _ => {
+                return Err(AppError::BadRequest(
+                    "debug mode must be launch or attach".into(),
+                ))
+            }
         };
         let cwd = if input.cwd.trim().is_empty() {
             root.to_path_buf()
         } else {
             let raw = PathBuf::from(input.cwd.trim());
-            let candidate = if raw.is_absolute() { raw } else { root.join(raw) };
+            let candidate = if raw.is_absolute() {
+                raw
+            } else {
+                root.join(raw)
+            };
             candidate
                 .canonicalize()
                 .map_err(|_| AppError::BadRequest("debug cwd does not exist".into()))?
@@ -176,8 +188,7 @@ impl DebugManager {
             if session.closed.load(Ordering::SeqCst) {
                 continue;
             }
-            if session.paused.load(Ordering::SeqCst)
-                && session.clients.load(Ordering::SeqCst) == 0
+            if session.paused.load(Ordering::SeqCst) && session.clients.load(Ordering::SeqCst) == 0
             {
                 let idle = session
                     .last_disconnect
@@ -213,7 +224,11 @@ impl DebugSession {
 
     pub async fn resume(&self) {
         if self.language == "node" {
-            let url = self.inspector_url.lock().ok().and_then(|value| value.clone());
+            let url = self
+                .inspector_url
+                .lock()
+                .ok()
+                .and_then(|value| value.clone());
             if let Some(url) = url {
                 let _ = resume_node(&url).await;
             }
@@ -274,8 +289,8 @@ impl DebugSession {
 }
 
 fn port() -> AppResult<u16> {
-    let listener = TcpListener::bind(("127.0.0.1", 0))
-        .map_err(|error| AppError::Internal(error.into()))?;
+    let listener =
+        TcpListener::bind(("127.0.0.1", 0)).map_err(|error| AppError::Internal(error.into()))?;
     listener
         .local_addr()
         .map(|address| address.port())
@@ -304,13 +319,17 @@ async fn inspector_ws(address: &str) -> AppResult<String> {
         .map_err(|error| AppError::BadRequest(format!("debug inspector unavailable: {error}")))?
         .json()
         .await
-        .map_err(|error| AppError::BadRequest(format!("invalid debug inspector response: {error}")))?;
+        .map_err(|error| {
+            AppError::BadRequest(format!("invalid debug inspector response: {error}"))
+        })?;
     value
         .as_array()
         .and_then(|items| {
-            items
-                .iter()
-                .find_map(|item| item.get("webSocketDebuggerUrl")?.as_str().map(str::to_string))
+            items.iter().find_map(|item| {
+                item.get("webSocketDebuggerUrl")?
+                    .as_str()
+                    .map(str::to_string)
+            })
         })
         .ok_or_else(|| AppError::BadRequest("debug inspector has no websocket endpoint".into()))
 }
@@ -336,7 +355,9 @@ async fn start_node(
     if mode == "attach" {
         let address = input.address.trim();
         if address.is_empty() {
-            return Err(AppError::BadRequest("attach requires an inspector address".into()));
+            return Err(AppError::BadRequest(
+                "attach requires an inspector address".into(),
+            ));
         }
         let ws = inspector_ws(address).await?;
         return Ok(new_session(
@@ -386,7 +407,9 @@ async fn start_node(
     if let Some(stderr) = stderr {
         spawn_reader(session.clone(), stderr);
     }
-    let ws = wait_inspector(&address).await.inspect_err(|_| session.close())?;
+    let ws = wait_inspector(&address)
+        .await
+        .inspect_err(|_| session.close())?;
     if let Ok(mut slot) = session.inspector_url.lock() {
         *slot = Some(ws);
     }
@@ -406,7 +429,9 @@ fn start_python(
     }
     let script = python_script(&input.command);
     if script.is_empty() {
-        return Err(AppError::BadRequest("launch requires a Python script".into()));
+        return Err(AppError::BadRequest(
+            "launch requires a Python script".into(),
+        ));
     }
     let python = which_python();
     let mut command = Command::new(&python);
@@ -536,12 +561,16 @@ async fn resume_node(inspector_url: &str) -> AppResult<()> {
         .map_err(|error| AppError::Internal(error.into()))?;
     let _ = socket
         .send(WsMessage::Text(
-            json!({ "id": 1, "method": "Runtime.runIfWaitingForDebugger" }).to_string().into(),
+            json!({ "id": 1, "method": "Runtime.runIfWaitingForDebugger" })
+                .to_string()
+                .into(),
         ))
         .await;
     let _ = socket
         .send(WsMessage::Text(
-            json!({ "id": 2, "method": "Debugger.resume" }).to_string().into(),
+            json!({ "id": 2, "method": "Debugger.resume" })
+                .to_string()
+                .into(),
         ))
         .await;
     let _ = socket.close(None).await;
@@ -549,7 +578,12 @@ async fn resume_node(inspector_url: &str) -> AppResult<()> {
 }
 
 pub async fn proxy_node(session: Arc<DebugSession>, socket: axum::extract::ws::WebSocket) {
-    let Some(url) = session.inspector_url.lock().ok().and_then(|value| value.clone()) else {
+    let Some(url) = session
+        .inspector_url
+        .lock()
+        .ok()
+        .and_then(|value| value.clone())
+    else {
         return;
     };
     let Ok((upstream, _)) = tokio_tungstenite::connect_async(&url).await else {

@@ -478,7 +478,10 @@ fn router(state: Arc<AppState>) -> Router {
             get(get_debug_session).post(start_debug).delete(stop_debug),
         )
         .route("/api/projects/{project_id}/debug/ws", get(debug_ws))
-        .route("/api/projects/{project_id}/debug/release", post(release_debug))
+        .route(
+            "/api/projects/{project_id}/debug/release",
+            post(release_debug),
+        )
         .route("/api/repos", get(list_repos))
         .route(
             "/api/workspaces/roots",
@@ -1634,14 +1637,15 @@ async fn terminal_ws(
     ws.on_upgrade(move |socket| terminal_socket(socket, session))
 }
 
-
 async fn get_debug_config(
     State(state): State<Arc<AppState>>,
     Path(project_id): Path<String>,
 ) -> AppResult<Json<Value>> {
     let key = format!("debug:{project_id}");
     match state.store.setting(&key).await {
-        Ok(raw) => Ok(Json(serde_json::from_str(&raw).unwrap_or_else(|_| json!({})))),
+        Ok(raw) => Ok(Json(
+            serde_json::from_str(&raw).unwrap_or_else(|_| json!({})),
+        )),
         Err(_) => Ok(Json(json!({}))),
     }
 }
@@ -1711,14 +1715,18 @@ async fn debug_ws(
     let Some(session) = state.debug.get(&project_id) else {
         return AppError::NotFound.into_response();
     };
-    session.clients.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    session
+        .clients
+        .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
     ws.on_upgrade(move |socket| async move {
         if session.language == "node" {
             crate::debug::proxy_node(session.clone(), socket).await;
         } else {
             crate::debug::proxy_python(session.clone(), socket).await;
         }
-        session.clients.fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
+        session
+            .clients
+            .fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
         session.client_disconnected();
     })
 }
