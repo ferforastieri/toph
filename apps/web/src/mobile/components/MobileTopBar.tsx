@@ -1,5 +1,5 @@
 import type { ComponentType, ReactNode } from "react";
-import { Bell, FolderGit2, LayoutPanelLeft } from "@toph/icons";
+import { Bell, FolderGit2, LayoutPanelLeft, Menu } from "@toph/icons";
 import { Badge } from "@/boardui/base/badges/badge";
 import { cx } from "@/boardui/utils/cx";
 import { Button } from "@/boardui/base/buttons/button";
@@ -23,37 +23,44 @@ export default function MobileTopBar({ title, subtitle, projectName, unreadCount
   return (
     <header className={cx(
       floating
-        ? "fixed inset-x-2 top-[calc(var(--safe-top)+0.5rem)] z-50 overflow-hidden rounded-2xl border border-separator-border bg-background-primary-default/95 px-2 py-1 shadow-dropdown backdrop-blur-md"
+        ? "fixed inset-x-3 top-[calc(var(--safe-top)+0.5rem)] z-50 flex items-center justify-between gap-2"
         : "relative shrink-0 overflow-hidden px-3 pt-2",
       !floating && (extraActions ? "border-b-0 bg-transparent pb-1" : "border-b border-separator-border bg-background-secondary-default pb-2.5"),
     )}>
       {!extraActions ? <div className="pointer-events-none absolute -right-10 -top-16 size-36 rounded-full bg-accent-500/10 blur-2xl" /> : null}
-      <div className="relative flex min-w-0 items-center gap-2.5">
+      <div className="relative flex w-full min-w-0 items-center gap-2">
         <button
           type="button"
           aria-label="Abrir menu"
           title="Abrir menu"
           onClick={onMenu}
           className={cx(
-            "relative flex size-9 shrink-0 items-center justify-center rounded-2xl text-accent-500 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus-ring",
-            extraActions ? "border-0 bg-transparent shadow-none hover:bg-background-primary-hover" : "border border-accent-500/20 bg-accent-500/10 shadow-xs hover:bg-accent-500/15",
+            "relative flex shrink-0 items-center justify-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus-ring",
+            floating
+              ? "size-10 rounded-full bg-foreground-icon-primary/10 text-text-primary shadow-xs backdrop-blur-md hover:bg-foreground-icon-primary/15"
+              : "size-9 rounded-2xl border border-accent-500/20 bg-accent-500/10 text-accent-500 shadow-xs hover:bg-accent-500/15",
           )}
         >
-          <Icon className="size-4.5" />
-          <span className="absolute -bottom-1 -right-1 flex size-4 items-center justify-center rounded-full border border-border-button-default bg-background-primary-default text-foreground-icon-secondary shadow-xs">
-            <LayoutPanelLeft className="size-2.5" />
-          </span>
+          {floating ? <Menu className="size-5" /> : <Icon className="size-4.5" />}
+          {!floating ? (
+            <span className="absolute -bottom-1 -right-1 flex size-4 items-center justify-center rounded-full border border-border-button-default bg-background-primary-default text-foreground-icon-secondary shadow-xs">
+              <LayoutPanelLeft className="size-2.5" />
+            </span>
+          ) : null}
         </button>
-        {extraActions ? (
+        {!floating && extraActions ? (
           <div className="flex min-w-0 flex-1 items-center gap-0.5">{extraActions}</div>
-        ) : !hideTitle ? (
+        ) : !floating && !hideTitle ? (
           <div className="flex min-w-0 flex-1 flex-col gap-0.5">
             <h1 className="truncate text-title-2-medium text-text-primary">{title}</h1>
             <p className="truncate text-caption-2-regular text-text-secondary">{subtitle ?? projectName}</p>
           </div>
+        ) : floating ? (
+          <div className="min-w-0 flex-1" />
         ) : null}
-        <div className="flex shrink-0 items-center gap-0.5">
-          <div className="relative">
+        <div className={cx("flex min-w-0 items-center gap-0.5", floating && "max-w-[calc(100vw-4.5rem)] justify-end rounded-full bg-foreground-icon-primary/10 p-1 shadow-xs backdrop-blur-md")}>
+          {floating && extraActions ? <div className="flex min-w-0 items-center gap-0.5">{extraActions}</div> : null}
+          <div className="relative shrink-0">
             <Button
               variant="ghost"
               size="small"
@@ -62,7 +69,7 @@ export default function MobileTopBar({ title, subtitle, projectName, unreadCount
               aria-label={unreadCount > 0 ? `Notificações, ${unreadCount} não lidas` : "Notificações"}
               title="Notificações"
               onClick={onNotifications}
-              className="size-9"
+              className={cx("rounded-full", floating ? "size-8" : "size-9")}
             />
             {unreadCount > 0 ? (
               <Badge color="primary" className="pointer-events-none absolute -right-0.5 -top-0.5 min-w-4 px-1 text-[10px]">
@@ -77,9 +84,9 @@ export default function MobileTopBar({ title, subtitle, projectName, unreadCount
             aria-label={`Projeto ${projectName}. Selecionar projeto`}
             title="Selecionar projeto"
             onClick={onProjects}
-            className="h-9 gap-1 px-1"
+            className={cx("shrink-0 gap-1 rounded-full", floating ? "h-8 px-1" : "h-9 px-1")}
           >
-            <span className={cx("min-w-0 truncate text-caption-1-medium", extraActions ? "max-w-16" : "max-w-24")}>{projectName}</span>
+            <span className={cx("min-w-0 truncate text-caption-1-medium", extraActions ? "max-w-24 max-[360px]:hidden" : "max-w-24")}>{projectName}</span>
           </Button>
         </div>
       </div>
