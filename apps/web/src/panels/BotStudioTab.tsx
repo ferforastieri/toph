@@ -1209,7 +1209,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
           ) : null}
           <Button variant="ghost" size="small" iconOnly leadingIcon={History} aria-label="Sessões" title="Sessões" onClick={() => setSessionsOpen(true)} className="size-9" />
           <span className="min-w-2 flex-1" />
-          <div className="flex items-center rounded-xl border border-border-button-default p-0.5">
+          <div className="flex items-center gap-0.5">
             <Button variant={mode === "solo" ? "secondary" : "ghost"} size="xs" iconOnly leadingIcon={UserRound} aria-label="Modo solo" title="Modo solo" onClick={() => setMode(project.id, "solo")} className="size-8 rounded-lg" />
             <Button variant={mode === "team" ? "secondary" : "ghost"} size="xs" iconOnly leadingIcon={Bot} aria-label="Modo equipe" title="Modo equipe" onClick={() => setMode(project.id, "team")} className="size-8 rounded-lg" />
           </div>
@@ -1442,7 +1442,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
       </section>
 
 
-      <Modal isOpen={configOpen} onClose={() => setConfigOpen(false)} title={activeBot.name} description={mode === "solo" ? "Configure seu Toph." : "Configure o membro da equipe."} placement="bottom" size="lg" bodyClassName="p-0" swipeToClose={mobile}>
+      <Modal isOpen={configOpen} onClose={() => setConfigOpen(false)} title={activeBot.name} description={mode === "solo" ? "Configure seu Toph." : "Configure o membro da equipe."} placement={mobile ? "bottom" : "center"} size="lg" bodyClassName="p-0" swipeToClose={mobile}>
         {activeBot && <BotConfig projectId={project.id} projectRoot={project.root} bot={activeBot} mode={mode} />}
       </Modal>
 
