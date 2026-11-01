@@ -1,6 +1,7 @@
-import { useMemo, useState } from "react";
-import { Bot, ChevronDown } from "@toph/icons";
+import { useEffect, useMemo, useState } from "react";
+import { Bot, Check, ChevronDown } from "@toph/icons";
 import type { AIModel } from "../api";
+import { modelGroup, providerLabel } from "../ai";
 import { Dropdown, DropdownPopover, DropdownTrigger } from "@/boardui/base/dropdown/dropdown";
 import { cx } from "@/boardui/utils/cx";
 
@@ -11,6 +12,7 @@ interface Props {
   effort: string;
   efforts: string[];
   onEffortChange: (value: string) => void;
+  fullWidth?: boolean;
 }
 
 const EFFORT_LABEL: Record<string, string> = {
@@ -27,89 +29,139 @@ function effortLabel(value: string): string {
   return EFFORT_LABEL[value] ?? value;
 }
 
-export default function ModelPicker({ models, model, onModelChange, effort, efforts, onEffortChange }: Props) {
-  const [modelOpen, setModelOpen] = useState(false);
-  const [effortOpen, setEffortOpen] = useState(false);
+export default function ModelPicker({ models, model, onModelChange, effort, efforts, onEffortChange, fullWidth = false }: Props) {
+  const [open, setOpen] = useState(false);
+  const [openProviders, setOpenProviders] = useState<Set<string>>(new Set());
+  const [expandedModel, setExpandedModel] = useState("");
+
   const uniqueModels = useMemo(() => [...new Map(models.map((item) => [item.id, item])).values()], [models]);
   const selected = uniqueModels.find((item) => item.id === model);
+  const variants = selected?.variants ?? efforts;
+
+  const groups = useMemo(() => {
+    const grouped = new Map<string, AIModel[]>();
+    for (const item of uniqueModels) {
+      const provider = modelGroup(item);
+      grouped.set(provider, [...(grouped.get(provider) ?? []), item]);
+    }
+    return [...grouped.entries()]
+      .sort(([a], [b]) => (selected && modelGroup(selected) === a ? -1 : selected && modelGroup(selected) === b ? 1 : providerLabel(a).localeCompare(providerLabel(b))));
+  }, [uniqueModels, selected?.provider]);
+
+  useEffect(() => {
+    if (!open || !selected) return;
+    setOpenProviders((current) => new Set(current).add(modelGroup(selected)));
+  }, [open, selected]);
+
+  function toggleProvider(provider: string) {
+    setOpenProviders((current) => {
+      const next = new Set(current);
+      if (next.has(provider)) next.delete(provider);
+      else next.add(provider);
+      return next;
+    });
+  }
+
+  function pick(item: AIModel, nextEffort: string, close = true) {
+    onModelChange(item.id);
+    if (nextEffort !== effort) onEffortChange(nextEffort);
+    if (close) setOpen(false);
+  }
+
+  function chooseModel(item: AIModel) {
+    const itemVariants = item.variants ?? [];
+    if (itemVariants.length === 0) {
+      pick(item, "");
+      return;
+    }
+    const nextEffort = itemVariants.includes(effort) ? effort : "";
+    onModelChange(item.id);
+    if (nextEffort !== effort) onEffortChange(nextEffort);
+    setExpandedModel(item.id);
+  }
 
   return (
-    <div className="flex min-w-0 shrink-0 items-center gap-1">
-      <Dropdown isOpen={modelOpen} onOpenChange={setModelOpen}>
-        <DropdownTrigger
-          aria-label="Modelo"
-          className="flex h-7 max-w-[170px] min-w-0 items-center gap-1.5 rounded-md px-1.5 text-body-2-medium text-text-secondary outline-none transition-colors hover:bg-background-secondary-hover focus-visible:ring-2 focus-visible:ring-border-focus-ring"
-        >
-          <Bot size={13} className="shrink-0 text-foreground-icon-tertiary" />
-          <span className="truncate">{selected?.label ?? (model ? model.split("/").pop() : "Modelo")}</span>
-          <ChevronDown size={12} className="size-3 shrink-0 text-foreground-icon-tertiary" />
-        </DropdownTrigger>
-        <DropdownPopover aria-label="Modelos" placement="top start" className="w-[266px] p-0" dialogClassName="gap-0">
-          <div className="px-3 py-2">
-            <p className="px-1 pb-1 text-body-medium text-text-secondary">Modelos</p>
-            <div className="flex max-h-72 flex-col overflow-y-auto">
-              {uniqueModels.length === 0 && <p className="px-1 py-2 text-body-regular text-text-tertiary">Salve a configuração para carregar os modelos.</p>}
-              {uniqueModels.map((item) => {
-                const active = item.id === model;
-                return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => { onModelChange(item.id); setModelOpen(false); }}
-                    className={cx(
-                      "flex w-full cursor-pointer items-center justify-between gap-3 rounded-2lg px-2 py-2.5 text-start text-body-medium outline-none transition-colors",
-                      active ? "bg-background-secondary-hover text-text-primary" : "text-text-primary hover:bg-background-secondary-hover/60",
-                    )}
-                  >
-                    <span className="truncate">{item.label}</span>
-                    <span className={cx("flex size-4 shrink-0 items-center justify-center rounded-full border-2", active ? "border-accent-500" : "border-border-checkbox-default")}>
-                      {active && <span className="size-2 rounded-full bg-accent-500" />}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </DropdownPopover>
-      </Dropdown>
-
-      {efforts.length >= 2 && (
-        <Dropdown isOpen={effortOpen} onOpenChange={setEffortOpen}>
-          <DropdownTrigger
-            aria-label="Esforço"
-            className="flex h-7 items-center gap-1 rounded-md px-1.5 text-body-2-medium text-text-secondary outline-none transition-colors hover:bg-background-secondary-hover focus-visible:ring-2 focus-visible:ring-border-focus-ring"
-          >
-            <span>{effortLabel(effort)}</span>
-            <ChevronDown size={12} className="size-3 shrink-0 text-foreground-icon-tertiary" />
-          </DropdownTrigger>
-          <DropdownPopover aria-label="Esforço" placement="top start" className="w-44 p-0" dialogClassName="gap-0">
-            <div className="px-3 py-2">
-              <p className="px-1 pb-1 text-body-medium text-text-secondary">Esforço</p>
-              <div className="flex flex-col">
-                {efforts.map((level) => {
-                  const active = level === effort;
-                  return (
-                    <button
-                      key={level}
-                      type="button"
-                      onClick={() => { onEffortChange(level); setEffortOpen(false); }}
-                      className={cx(
-                        "flex w-full cursor-pointer items-center justify-between gap-3 rounded-2lg px-2 py-2 text-start text-body-medium outline-none transition-colors",
-                        active ? "bg-background-secondary-hover text-text-primary" : "text-text-primary hover:bg-background-secondary-hover/60",
-                      )}
-                    >
-                      <span>{effortLabel(level)}</span>
-                      <span className={cx("flex size-4 shrink-0 items-center justify-center rounded-full border-2", active ? "border-accent-500" : "border-border-checkbox-default")}>
-                        {active && <span className="size-2 rounded-full bg-accent-500" />}
-                      </span>
-                    </button>
-                  );
-                })}
+    <Dropdown isOpen={open} onOpenChange={setOpen}>
+      <DropdownTrigger
+        aria-label="Modelo e esforço"
+        className={cx(
+          "flex h-7 min-w-0 items-center gap-1.5 rounded-md px-1.5 text-body-2-medium text-text-secondary outline-none transition-colors hover:bg-background-secondary-hover focus-visible:ring-2 focus-visible:ring-border-focus-ring",
+          fullWidth ? "w-full max-w-none justify-start border border-border-button-default bg-background-primary-default" : "max-w-[190px]",
+        )}
+      >
+        <Bot size={13} className="shrink-0 text-foreground-icon-tertiary" />
+        <span className="truncate">{selected?.label ?? (model ? model.split("/").pop() : "Modelo")}</span>
+        {variants.length > 0 ? <span className="shrink-0 text-caption-2-regular text-text-tertiary">· {effortLabel(effort)}</span> : null}
+        <ChevronDown size={12} className="size-3 shrink-0 text-foreground-icon-tertiary" />
+      </DropdownTrigger>
+      <DropdownPopover aria-label="Modelos e esforço" placement="top start" className="w-[300px] max-w-[calc(100vw-24px)] p-0" dialogClassName="gap-0">
+        <div className="max-h-[min(56vh,420px)] overflow-y-auto p-1.5">
+          {groups.length === 0 ? <p className="px-2 py-3 text-caption-1-regular text-text-tertiary">Salve a configuração para carregar os modelos.</p> : null}
+          {groups.map(([provider, items]) => {
+            const expanded = openProviders.has(provider);
+            return (
+              <div key={provider} className="border-b border-separator-border last:border-b-0">
+                <button
+                  type="button"
+                  onClick={() => toggleProvider(provider)}
+                  className="flex w-full items-center gap-2 rounded-xl px-2 py-2 text-start text-caption-1-semibold text-text-secondary transition-colors hover:bg-background-primary-hover hover:text-text-primary"
+                >
+                  <span className="min-w-0 flex-1 truncate">{providerLabel(provider)}</span>
+                  <span className="rounded-full bg-background-tertiary-default px-1.5 text-caption-2-regular text-text-tertiary">{items.length}</span>
+                  <ChevronDown size={13} className={cx("shrink-0 transition-transform", expanded ? "rotate-180" : "")} />
+                </button>
+                {expanded ? (
+                  <div className="flex flex-col gap-0.5 pb-1">
+                    {items.map((item) => {
+                      const active = item.id === model;
+                      const itemVariants = item.variants ?? [];
+                      const effortOpen = expandedModel === item.id && itemVariants.length > 0;
+                      return (
+                        <div key={item.id}>
+                          <button
+                            type="button"
+                            onClick={() => chooseModel(item)}
+                            className={cx(
+                              "flex w-full items-center gap-2 rounded-lg px-2 py-2 text-start text-body-2-regular transition-colors",
+                              active ? "bg-background-secondary-hover text-text-primary" : "text-text-primary hover:bg-background-secondary-hover/60",
+                            )}
+                          >
+                            <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                            {item.provider === "opencode-go" ? <span className="shrink-0 rounded-full bg-background-tertiary-default px-1.5 text-[10px] text-text-tertiary">Go</span> : null}
+                            {active ? <Check size={14} className="shrink-0 text-accent-500" /> : null}
+                            {itemVariants.length > 0 ? <ChevronDown size={12} className={cx("shrink-0 text-foreground-icon-tertiary transition-transform", effortOpen ? "rotate-180" : "")} /> : null}
+                          </button>
+                          {effortOpen ? (
+                            <div className="flex flex-wrap gap-1 px-2 pb-2 pt-0.5">
+                              <button
+                                type="button"
+                                onClick={() => pick(item, "", false)}
+                                className={cx("rounded-full border px-2 py-1 text-caption-2-medium transition-colors", effort === "" ? "border-accent-500/40 bg-accent-500/10 text-accent-600" : "border-border-button-default text-text-secondary hover:bg-background-primary-hover")}
+                              >
+                                Padrão
+                              </button>
+                              {itemVariants.map((level) => (
+                                <button
+                                  key={level}
+                                  type="button"
+                                  onClick={() => pick(item, level)}
+                                  className={cx("rounded-full border px-2 py-1 text-caption-2-medium transition-colors", effort === level ? "border-accent-500/40 bg-accent-500/10 text-accent-600" : "border-border-button-default text-text-secondary hover:bg-background-primary-hover")}
+                                >
+                                  {effortLabel(level)}
+                                </button>
+                              ))}
+                            </div>
+                          ) : null}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : null}
               </div>
-            </div>
-          </DropdownPopover>
-        </Dropdown>
-      )}
-    </div>
+            );
+          })}
+        </div>
+      </DropdownPopover>
+    </Dropdown>
   );
 }

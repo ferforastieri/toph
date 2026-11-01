@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { OpenCode } from "@opencode/client";
 import { connectClientMcp, type ClientMcpTool } from "@opencode/client/mcp";
-import { Bot, MessageSquarePlus, Settings2, SlidersHorizontal, UserRound } from "@toph/icons";
+import { Bot, History, MessageSquarePlus, Settings2, SlidersHorizontal, UserRound } from "@toph/icons";
 import { api, openCodeBase, type AIMessage, type Project } from "../api";
 import { useAI } from "../ai";
 import { useBots, type BotMessage, type MiniBot } from "../bots";
@@ -12,8 +12,9 @@ import BotConfig from "../components/BotConfig";
 import AiSettingsModal from "../components/AiSettingsModal";
 import AgentTranscript from "../components/AgentTranscript";
 import OpenCodeFormCard, { type OpenCodeForm, type OpenCodeFormAnswer } from "../components/OpenCodeFormCard";
+import TophSessionsSheet from "../components/TophSessionsSheet";
+import type { OpenCodeSessionSummary } from "../opencodeSessions";
 import type { AiMessage } from "../store";
-import { Badge } from "@/boardui/base/badges/badge";
 import { Button } from "@/boardui/base/buttons/button";
 import { Modal } from "@/boardui/base/modal/modal";
 import { cx } from "@/boardui/utils/cx";
@@ -142,6 +143,39 @@ function groupBotMessages(messages: BotMessage[]): BotChatGroup[] {
   return groups;
 }
 
+function restoreBotMessages(context: unknown, botId: string, channel: string): BotMessage[] {
+  if (!Array.isArray(context)) return [];
+  const restored: BotMessage[] = [];
+  for (const raw of context as Array<Record<string, any>>) {
+    const createdAt = Number(raw.time?.created ?? Date.now());
+    if (raw.type === "user") {
+      restored.push({ id: `history-user-${raw.id}`, role: "user", content: String(raw.text ?? ""), channel, createdAt });
+      continue;
+    }
+    if (raw.type !== "assistant") continue;
+    const parts = (raw.content ?? []) as Array<Record<string, any>>;
+    const text = parts.filter((part) => part.type === "text" && part.text).map((part) => String(part.text)).join("");
+    if (text) restored.push({ id: `history-assistant-${raw.id}`, role: "assistant", botId, content: text, channel, status: "complete", createdAt });
+    const reasoning = parts.filter((part) => part.type === "reasoning" && part.text).map((part) => String(part.text)).join("");
+    if (reasoning) restored.push({ id: `history-reasoning-${raw.id}`, role: "reasoning", botId, content: reasoning, channel, status: "complete", createdAt });
+    for (const part of parts) {
+      if (part.type !== "tool") continue;
+      restored.push({
+        id: `history-tool-${raw.id}-${String(part.id ?? part.name)}`,
+        role: "tool",
+        botId,
+        title: `Tool · ${String(part.name ?? "call")}`,
+        content: toolContent(part.input),
+        detail: toolContent(part.content ?? part.output),
+        channel,
+        status: part.state === "error" ? "error" : "complete",
+        createdAt,
+      });
+    }
+  }
+  return restored;
+}
+
 function toAiMessage(message: BotMessage): AiMessage {
   return {
     id: message.id,
@@ -167,12 +201,14 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
   const addMessage = useBots((state) => state.addMessage);
   const updateMessage = useBots((state) => state.updateMessage);
   const updateBot = useBots((state) => state.updateBot);
+  const replaceChannelMessages = useBots((state) => state.replaceChannelMessages);
   const aiConfig = useAI((state) => state.config);
   const models = useAI((state) => state.models);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [configOpen, setConfigOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [sessionsOpen, setSessionsOpen] = useState(false);
   const [runningBots, setRunningBots] = useState<Set<string>>(new Set());
   const [forms, setForms] = useState<Array<{ form: OpenCodeForm; botId: string }>>([]);
   const [formBusy, setFormBusy] = useState<string | null>(null);
@@ -680,6 +716,31 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
     }
   }
 
+  function channelForBot(bot: MiniBot): string {
+    return mode === "solo" || bot.coordinator ? "team" : `worker:${bot.id}`;
+  }
+
+  async function restoreSession(session: OpenCodeSessionSummary) {
+    if (!activeBot) return;
+    const channel = channelForBot(activeBot);
+    updateBot(project.id, activeBot.id, { sessionId: session.id });
+    sessionBotMap.current.set(session.id, activeBot.id);
+    setSessionsOpen(false);
+    try {
+      const context = await client.session.context({ sessionID: session.id } as never);
+      replaceChannelMessages(project.id, channel, restoreBotMessages(context, activeBot.id, channel));
+    } catch (err) {
+      addMessage(project.id, { id: `session-error-${Date.now()}`, role: "error", content: err instanceof Error ? err.message : "Não foi possível recuperar a sessão.", channel, createdAt: Date.now() });
+    }
+  }
+
+  function newSession() {
+    if (!activeBot) return;
+    const channel = channelForBot(activeBot);
+    updateBot(project.id, activeBot.id, { sessionId: undefined });
+    replaceChannelMessages(project.id, channel, []);
+  }
+
   async function stop() {
     if (!activeBot?.sessionId) {
       setSending(false);
@@ -788,7 +849,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
 
           <Button variant="ghost" leadingIcon={SlidersHorizontal} onClick={() => setSettingsOpen(true)} className="w-full justify-start">Configurações de IA</Button>
         </div>
-        <AiSettingsModal open={settingsOpen} projectRoot={project.root} onClose={() => setSettingsOpen(false)} />
+      <AiSettingsModal open={settingsOpen} projectRoot={project.root} onClose={() => setSettingsOpen(false)} />
       </>
     );
   }
@@ -796,93 +857,61 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
   return (
     <div className="flex h-full min-h-0 w-full flex-1 gap-1" onPointerDown={unlockBotSound}>
       <section className="flex min-w-0 flex-1 flex-col overflow-hidden bg-background-primary-default max-[900px]:rounded-none max-[900px]:border-0 max-[900px]:shadow-none min-[901px]:rounded-3xl min-[901px]:border min-[901px]:border-border-button-white min-[901px]:shadow-sidebar">
-        <div className="flex shrink-0 items-center justify-between gap-2 border-b border-separator-border bg-background-secondary-default px-3 py-1.5">
-          <div className="flex min-w-0 items-center gap-2">
-            <Badge color={mode === "solo" ? "primary" : "neutral"}>{mode === "solo" ? "Solo" : "Equipe"}</Badge>
-            <span className="truncate text-caption-2-regular text-text-tertiary">{mode === "solo" ? "Agente único" : "Coordenador + membros"}</span>
+        <div className="flex shrink-0 items-center gap-1 border-b border-separator-border bg-background-secondary-default px-2 py-1.5">
+          <Button variant="ghost" size="small" iconOnly leadingIcon={Settings2} aria-label={mode === "solo" ? "Configurar Toph" : "Configurar Toph ativo"} title={mode === "solo" ? "Configurar Toph" : "Configurar Toph ativo"} onClick={() => setConfigOpen(true)} className="size-9" />
+          <Button variant="ghost" size="small" iconOnly leadingIcon={SlidersHorizontal} aria-label="Configurações de IA" title="Configurações de IA" onClick={() => setSettingsOpen(true)} className="size-9" />
+          {mode === "team" ? (
+            <Button variant="ghost" size="small" iconOnly leadingIcon={MessageSquarePlus} aria-label="Novo Toph" title="Novo Toph" onClick={newBot} className="size-9" />
+          ) : null}
+          <Button variant="ghost" size="small" iconOnly leadingIcon={History} aria-label="Sessões" title="Sessões" onClick={() => setSessionsOpen(true)} className="size-9" />
+          <span className="min-w-2 flex-1" />
+          <div className="flex items-center rounded-xl border border-border-button-default p-0.5">
+            <Button variant={mode === "solo" ? "secondary" : "ghost"} size="xs" iconOnly leadingIcon={UserRound} aria-label="Modo solo" title="Modo solo" onClick={() => setMode(project.id, "solo")} className="size-8 rounded-lg" />
+            <Button variant={mode === "team" ? "secondary" : "ghost"} size="xs" iconOnly leadingIcon={Bot} aria-label="Modo equipe" title="Modo equipe" onClick={() => setMode(project.id, "team")} className="size-8 rounded-lg" />
           </div>
-          <Button variant="ghost" size="xs" onClick={() => setMode(project.id, mode === "solo" ? "team" : "solo")}>
-            {mode === "solo" ? "Usar equipe" : "Usar solo"}
-          </Button>
         </div>
-        {mobile ? (
-          <>
-            <div className={cx("grid shrink-0 gap-2 border-b border-separator-border bg-background-secondary-default p-2", mode === "solo" ? "grid-cols-2" : "grid-cols-3")}>
-              <Button variant="secondary" size="small" leadingIcon={Settings2} onClick={() => setConfigOpen(true)} className="h-14 w-full flex-col justify-center gap-1 rounded-2xl px-1">
-                <span className="text-caption-2-medium">{mode === "solo" ? "Configurar Toph" : "Configurar"}</span>
-              </Button>
-              <Button variant="secondary" size="small" leadingIcon={SlidersHorizontal} onClick={() => setSettingsOpen(true)} className="h-14 w-full flex-col justify-center gap-1 rounded-2xl px-1">
-                <span className="text-caption-2-medium">IA</span>
-              </Button>
-              {mode === "team" ? (
-                <Button variant="secondary" size="small" leadingIcon={MessageSquarePlus} onClick={newBot} className="h-14 w-full flex-col justify-center gap-1 rounded-2xl px-1">
-                  <span className="text-caption-2-medium">Novo Toph</span>
-                </Button>
-              ) : null}
+
+        {mode === "team" && bots.length > 0 ? (
+          <div className="shrink-0 border-b border-separator-border px-3 py-2.5">
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <span className="text-caption-2-semibold uppercase tracking-[0.16em] text-text-tertiary">Equipe Toph</span>
+              <span className="text-caption-2-regular text-text-tertiary">{bots.length} {bots.length === 1 ? "agente" : "agentes"}</span>
             </div>
-            {mode === "team" && bots.length > 0 ? (
-              <div className="shrink-0 border-b border-separator-border px-3 py-2.5">
-                <div className="mb-2 flex items-center justify-between gap-2">
-                  <span className="text-caption-2-semibold uppercase tracking-[0.16em] text-text-tertiary">Equipe Toph</span>
-                  <span className="text-caption-2-regular text-text-tertiary">{bots.length} {bots.length === 1 ? "agente" : "agentes"}</span>
-                </div>
-                <div className="no-scrollbar flex gap-2 overflow-x-auto pb-1">
-                  {bots.map((bot) => {
-                    const active = bot.id === activeBot?.id;
-                    return (
-                      <button
-                        key={bot.id}
-                        type="button"
-                        onClick={() => setActiveBot(project.id, bot.id)}
-                        className={cx(
-                          "flex min-w-[124px] shrink-0 items-center gap-2 rounded-2xl border p-2 text-start transition-colors",
-                          active ? "border-accent-500/40 bg-accent-500/10" : "border-border-button-white bg-background-primary-default hover:bg-background-primary-hover",
-                        )}
-                      >
-                        <span className="relative shrink-0">
-                          <BotAvatar bot={bot} size={34} />
-                          <span className={cx("absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full border-2 border-background-primary-default", runningBots.has(bot.id) ? "bg-emerald-400" : active ? "bg-accent-500" : "bg-text-tertiary/40")} />
-                        </span>
-                        <span className="flex min-w-0 flex-col">
-                          <strong className="truncate text-caption-1-semibold text-text-primary">{bot.name}</strong>
-                          <span className="truncate text-caption-2-regular text-text-tertiary">{bot.role || "Toph"}</span>
-                        </span>
-                      </button>
-                    );
-                  })}
+            <div className="no-scrollbar flex gap-2 overflow-x-auto pb-1">
+              {bots.map((bot) => {
+                const active = bot.id === activeBot?.id;
+                return (
                   <button
+                    key={bot.id}
                     type="button"
-                    onClick={newBot}
-                    className="flex min-w-[82px] shrink-0 flex-col items-center justify-center gap-1 rounded-2xl border border-dashed border-border-button-default p-2 text-text-tertiary transition-colors hover:bg-background-primary-hover hover:text-text-primary"
+                    onClick={() => setActiveBot(project.id, bot.id)}
+                    className={cx(
+                      "flex min-w-[124px] shrink-0 items-center gap-2 rounded-2xl border p-2 text-start transition-colors",
+                      active ? "border-accent-500/40 bg-accent-500/10" : "border-border-button-white bg-background-primary-default hover:bg-background-primary-hover",
+                    )}
                   >
-                    <span className="flex size-8 items-center justify-center rounded-full bg-background-secondary-default"><MessageSquarePlus className="size-4" /></span>
-                    <span className="text-caption-2-medium">Novo</span>
+                    <span className="relative shrink-0">
+                      <BotAvatar bot={bot} size={34} />
+                      <span className={cx("absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full border-2 border-background-primary-default", runningBots.has(bot.id) ? "bg-emerald-400" : active ? "bg-accent-500" : "bg-text-tertiary/40")} />
+                    </span>
+                    <span className="flex min-w-0 flex-col">
+                      <strong className="truncate text-caption-1-semibold text-text-primary">{bot.name}</strong>
+                      <span className="truncate text-caption-2-regular text-text-tertiary">{bot.role || "Toph"}</span>
+                    </span>
                   </button>
-                </div>
-              </div>
-            ) : null}
-          </>
-        ) : (
-        <header className="flex shrink-0 flex-col items-stretch gap-2 border-b p-3 min-[901px]:h-11 min-[901px]:flex-row min-[901px]:items-center min-[901px]:gap-2 min-[901px]:px-3 min-[901px]:py-0">
-          <div className="flex min-w-0 flex-1 items-center gap-2">
-            <Bot size={15} className="text-accent-500" />
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-body-medium text-text-primary">{mode === "solo" ? "Toph Solo" : "Equipe do projeto"}</p>
-              <p className="truncate text-caption-2-regular text-text-secondary">{mode === "solo" ? `${activeBot.name} · ${activeBot.role || "agente solo"}` : `${bots.length} ${bots.length === 1 ? "bot" : "bots"} · ${bots.filter((bot) => bot.coordinator).map((bot) => bot.name).join(", ") || "sem coordenador"}`}</p>
+                );
+              })}
+              <button
+                type="button"
+                onClick={newBot}
+                className="flex min-w-[82px] shrink-0 flex-col items-center justify-center gap-1 rounded-2xl border border-dashed border-border-button-default p-2 text-text-tertiary transition-colors hover:bg-background-primary-hover hover:text-text-primary"
+              >
+                <span className="flex size-8 items-center justify-center rounded-full bg-background-secondary-default"><MessageSquarePlus className="size-4" /></span>
+                <span className="text-caption-2-medium">Novo</span>
+              </button>
             </div>
           </div>
-          <div className="flex w-full flex-col gap-1 min-[901px]:hidden">
-            <Button variant="ghost" className="w-full justify-start" leadingIcon={Settings2} onClick={() => setConfigOpen(true)}>Configurar bot</Button>
-            <Button variant="ghost" className="w-full justify-start" leadingIcon={SlidersHorizontal} onClick={() => setSettingsOpen(true)}>Configurações de IA</Button>
-            <Button variant="ghost" className="w-full justify-start" leadingIcon={MessageSquarePlus} onClick={newBot}>Novo bot</Button>
-          </div>
-          <div className="hidden items-center gap-2 min-[901px]:flex">
-            <Button variant="ghost" size="xs" iconOnly leadingIcon={Settings2} aria-label="Configurar bot" title="Configurar bot" onClick={() => setConfigOpen(true)} className="lg:hidden" />
-            <Button variant="ghost" size="xs" iconOnly leadingIcon={SlidersHorizontal} aria-label="Configurações de IA" title="Configurações de IA" onClick={() => setSettingsOpen(true)} />
-            {mode === "team" ? <Button variant="ghost" size="xs" iconOnly leadingIcon={MessageSquarePlus} aria-label="Novo bot" title="Novo bot" onClick={newBot} /> : null}
-          </div>
-        </header>
-        )}
+        ) : null}
 
         <div
           ref={scrollRef}
@@ -1009,14 +1038,13 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
                 </Select>
                 <Select
                   selectedKey={activeBot.permissionMode ?? "yolo"}
-                  onSelectionChange={(key) => updateBot(project.id, activeBot.id, { permissionMode: String(key) as "yolo" | "ask" | "deny" })}
+                  onSelectionChange={(key) => updateBot(project.id, activeBot.id, { permissionMode: String(key) as "yolo" | "ask" })}
                   aria-label="Permissões"
                   className="w-auto [&_button]:text-text-secondary"
                   triggerClassName="h-7 gap-1 border-0 bg-transparent px-1.5 text-body-2-medium text-text-secondary shadow-none"
                 >
                   <SelectItem id="yolo">YOLO</SelectItem>
                   <SelectItem id="ask">Perguntar</SelectItem>
-                  <SelectItem id="deny">Negar</SelectItem>
                 </Select>
               </>
             }
@@ -1031,6 +1059,28 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
       <Modal isOpen={configOpen} onClose={() => setConfigOpen(false)} title={activeBot.name} description={mode === "solo" ? "Configure seu Toph." : "Configure o membro da equipe."} placement="bottom" size="lg" bodyClassName="p-0" swipeToClose={mobile}>
         {activeBot && <BotConfig projectId={project.id} projectRoot={project.root} bot={activeBot} mode={mode} />}
       </Modal>
+
+      <TophSessionsSheet
+        open={sessionsOpen}
+        project={project}
+        mode={mode}
+        bot={activeBot}
+        activeSessionId={activeBot?.sessionId}
+        onClose={() => setSessionsOpen(false)}
+        onSelect={(session) => void restoreSession(session)}
+        onNew={newSession}
+      />
+
+      <TophSessionsSheet
+        open={sessionsOpen}
+        project={project}
+        mode={mode}
+        bot={activeBot}
+        activeSessionId={activeBot.sessionId}
+        onClose={() => setSessionsOpen(false)}
+        onSelect={(session) => void restoreSession(session)}
+        onNew={newSession}
+      />
 
       <AiSettingsModal open={settingsOpen} projectRoot={project.root} onClose={() => setSettingsOpen(false)} />
     </div>

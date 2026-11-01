@@ -73,6 +73,7 @@ interface BotStore {
   appendMessage: (projectId: string, messageId: string, text: string) => void;
   updateMessage: (projectId: string, messageId: string, patch: Partial<BotMessage>) => void;
   removeMessage: (projectId: string, messageId: string) => void;
+  replaceChannelMessages: (projectId: string, channel: string, messages: BotMessage[]) => void;
 }
 
 export const BOT_COLORS = [
@@ -126,7 +127,7 @@ function sanitizeBots(input: MiniBot[] | undefined): MiniBot[] {
       model: bot.model ?? "",
       effort: bot.effort ?? "",
       agentMode: bot.agentMode === "plan" ? "plan" : "build",
-      permissionMode: ["yolo", "ask", "deny"].includes(bot.permissionMode ?? "") ? bot.permissionMode! : "yolo",
+      permissionMode: bot.permissionMode === "deny" ? "ask" : (["yolo", "ask"].includes(bot.permissionMode ?? "") ? bot.permissionMode! : "yolo"),
       mcpServers: Array.isArray(bot.mcpServers) ? bot.mcpServers.filter((item) => typeof item === "string") : [],
       emailAccountIds: Array.isArray(bot.emailAccountIds) ? bot.emailAccountIds.filter((item) => typeof item === "string") : [],
       language: (["auto", "pt", "en", "es"].includes(bot.language) ? bot.language : "auto") as BotLanguage,
@@ -416,6 +417,24 @@ export const useBots = create<BotStore>((set, get) => ({
           [projectId]: {
             ...workspace,
             messages: workspace.messages.filter((message) => message.id !== messageId),
+          },
+        },
+      };
+    }),
+
+  replaceChannelMessages: (projectId, channel, messages) =>
+    set((state) => {
+      const workspace = state.byProject[projectId];
+      if (!workspace) return state;
+      return {
+        byProject: {
+          ...state.byProject,
+          [projectId]: {
+            ...workspace,
+            messages: [
+              ...workspace.messages.filter((message) => (message.channel ?? "team") !== channel),
+              ...messages,
+            ].slice(-200),
           },
         },
       };
