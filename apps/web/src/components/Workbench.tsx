@@ -863,7 +863,7 @@ export default function Workbench() {
                       onClick={() => switchProject(item.id)}
                       className="group flex min-w-0 items-center gap-3 rounded-xl border border-border-button-default bg-background-secondary-default/40 p-2.5 text-start transition-colors hover:border-accent-500/35 hover:bg-accent-500/[0.06]"
                     >
-                      <Avatar size="sm" initials={item.name.slice(0, 1).toUpperCase()} className="bg-background-tertiary-default text-caption-2-semibold" style={{ color: item.color }} />
+                      <Avatar size="sm" initials={item.name.slice(0, 1).toUpperCase()} className="bg-accent-500/15 text-caption-2-semibold text-accent-500" />
                       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                         <span className="truncate text-body-2-medium text-text-primary">{item.name}</span>
                         <span className="truncate text-caption-1-regular text-text-tertiary">{item.root}</span>
@@ -954,7 +954,7 @@ export default function Workbench() {
           onOpenChange={(next) => { setProjectsMenuOpen(next); setBranchMenuOpen(false); }}
           title={
             <span className="header-accordion-label flex min-w-0 items-center gap-1.5">
-              <Avatar size="xs" initials={project.name.slice(0, 1).toUpperCase()} className="bg-background-tertiary-default text-caption-2-semibold" style={{ color: project.color }} />
+              <Avatar size="xs" initials={project.name.slice(0, 1).toUpperCase()} className="bg-accent-500/15 text-caption-2-semibold text-accent-500" />
               <span className="max-w-[110px] truncate text-caption-2-regular leading-none">{project.name}</span>
             </span>
           }

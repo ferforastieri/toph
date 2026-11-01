@@ -37,7 +37,7 @@ export default function ProjectSwitcher({ onSelect, onCloseProject, onOpenRepo }
               onClick={() => onSelect(item.id)}
               className="flex min-w-0 flex-1 items-center gap-2 rounded-lg p-2 text-start text-text-primary transition-colors hover:bg-dropdown-item-hover-background focus-visible:bg-dropdown-item-hover-background"
             >
-              <Avatar size="sm" initials={item.name.slice(0, 1).toUpperCase()} className="bg-background-tertiary-default text-caption-2-semibold" style={{ color: item.color }} />
+              <Avatar size="sm" initials={item.name.slice(0, 1).toUpperCase()} className="bg-accent-500/15 text-caption-2-semibold text-accent-500" />
               <span className="flex min-w-0 flex-1 flex-col">
                 <span className="truncate text-body-2-medium text-text-primary">{item.name}</span>
                 <span className="truncate text-caption-1-regular text-text-secondary">{item.root}</span>
