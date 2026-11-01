@@ -271,6 +271,38 @@ export interface LoginResponse {
   user: User;
 }
 
+export interface DebugSessionInfo {
+  id: string;
+  projectId: string;
+  language: "node" | "python";
+  mode: "launch" | "attach";
+  status: "running" | "paused" | "stopped";
+  wsUrl: string;
+  address: string;
+}
+
+export interface DebugBreakpoint {
+  id: string;
+  path: string;
+  line: number;
+  condition?: string;
+  logMessage?: string;
+  enabled?: boolean;
+}
+
+export interface DebugProjectConfig {
+  language: "node" | "python";
+  mode: "launch" | "attach";
+  command: string;
+  address: string;
+  cwd: string;
+  bug: string;
+  reproduction: string;
+  breakpoints: DebugBreakpoint[];
+  watches: string[];
+  pauseOnExceptions: "none" | "uncaught" | "all";
+}
+
 export interface WorkspaceLayout {
   tabs: unknown[];
   activeTabId: string | null;
@@ -650,6 +682,42 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ code }),
     });
+  },
+
+  async debugStart(projectId: string, input: { language: "node" | "python"; mode: "launch" | "attach"; command?: string; address?: string; cwd?: string }): Promise<DebugSessionInfo> {
+    return request(`/projects/${encodeURIComponent(projectId)}/debug/session`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  },
+
+  async debugSession(projectId: string): Promise<DebugSessionInfo | null> {
+    const result = await request<{ session: DebugSessionInfo | null }>(`/projects/${encodeURIComponent(projectId)}/debug/session`);
+    return result.session;
+  },
+
+  async debugStop(projectId: string): Promise<void> {
+    await request(`/projects/${encodeURIComponent(projectId)}/debug/session`, { method: "DELETE" });
+  },
+
+  async debugRelease(projectId: string): Promise<void> {
+    await request(`/projects/${encodeURIComponent(projectId)}/debug/release`, { method: "POST", body: "{}" });
+  },
+
+  async debugConfig(projectId: string): Promise<Partial<DebugProjectConfig>> {
+    return request(`/projects/${encodeURIComponent(projectId)}/debug/config`);
+  },
+
+  async saveDebugConfig(projectId: string, config: Partial<DebugProjectConfig>): Promise<void> {
+    await request(`/projects/${encodeURIComponent(projectId)}/debug/config`, {
+      method: "PUT",
+      body: JSON.stringify(config),
+    });
+  },
+
+  debugSocketUrl(projectId: string): string {
+    const base = (apiBase || window.location.origin).replace(/\/+$/, "");
+    return `${base.replace(/^http:/i, "ws:").replace(/^https:/i, "wss:")}/api/projects/${encodeURIComponent(projectId)}/debug/ws`;
   },
 
   async dbProfiles(projectRoot?: string): Promise<DBProfile[]> {

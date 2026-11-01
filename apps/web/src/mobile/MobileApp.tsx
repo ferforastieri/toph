@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Bot, Database, FileCode2, Files, FolderPlus, GitBranch, Globe2, TerminalSquare } from "@toph/icons";
+import { Bot, Bug, Database, FileCode2, Files, FolderPlus, GitBranch, Globe2, TerminalSquare } from "@toph/icons";
 import { api, type Repository, type SchemaTable, type WebTarget } from "../api";
 import { useApp, type AppNotification } from "../store";
 import { useIsMobile } from "../ui/useIsMobile";
@@ -12,6 +12,7 @@ import BotStudioTab from "../panels/BotStudioTab";
 import DbPanelTab from "../panels/DbPanelTab";
 import DiffPanelTab from "../panels/DiffPanelTab";
 import EditorPanel from "../panels/EditorPanel";
+import DebugPanel from "../panels/DebugPanel";
 import WebPanelTab from "../panels/WebPanelTab";
 import Tabs from "../components/Tabs";
 import MobileMenu, { type MobileScreen } from "./MobileMenu";
@@ -52,8 +53,8 @@ export default function MobileApp() {
   const unreadCount = notifications.filter((notification) => !notification.read && notification.projectId === project?.id).length;
 
   const [screen, setScreen] = useState<MobileScreen>("bots");
-  const pageTitle = screen === "bots" ? "Tophs" : screen === "files" ? "Arquivos" : screen === "scm" ? "Git" : screen === "db" ? "Bancos" : screen === "web" ? "Web apps" : (activeTab?.title ?? "Editor");
-  const pageIcon = screen === "bots" ? Bot : screen === "files" ? Files : screen === "scm" ? GitBranch : screen === "db" ? Database : screen === "web" ? Globe2 : FileCode2;
+  const pageTitle = screen === "bots" ? "Tophs" : screen === "files" ? "Arquivos" : screen === "scm" ? "Git" : screen === "db" ? "Bancos" : screen === "web" ? "Web apps" : screen === "debug" ? "Debug" : (activeTab?.title ?? "Editor");
+  const pageIcon = screen === "bots" ? Bot : screen === "files" ? Files : screen === "scm" ? GitBranch : screen === "db" ? Database : screen === "web" ? Globe2 : screen === "debug" ? Bug : FileCode2;
   const [menuOpen, setMenuOpen] = useState(false);
   const [terminalOpen, setTerminalOpen] = useState(false);
   const [projectsOpen, setProjectsOpen] = useState(false);
@@ -266,7 +267,10 @@ export default function MobileApp() {
     });
     if (!ok) return;
     try {
-      await api.closeProjectTerminals(id);
+      await Promise.all([
+        api.closeProjectTerminals(id),
+        api.debugStop(id).catch(() => undefined),
+      ]);
     } catch (error) {
       notify("error", error instanceof Error ? error.message : "Could not stop project terminals.");
     }
@@ -358,6 +362,8 @@ export default function MobileApp() {
           <DatabasesScreen project={project} onOpenQuery={openQuery} onOpenTable={openTable} />
         ) : screen === "web" ? (
           <WebAppsScreen onOpenWeb={openWeb} />
+        ) : screen === "debug" ? (
+          <DebugPanel project={project} mobile />
         ) : (
           <>
             {tabs.length > 1 ? <Tabs /> : null}

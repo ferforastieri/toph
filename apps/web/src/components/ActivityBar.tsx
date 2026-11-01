@@ -1,4 +1,4 @@
-import { Bot, Database, Files, GitBranch, Globe2, Moon, Sun, TerminalSquare } from "@toph/icons";
+import { Bot, Bug, Database, Files, GitBranch, Globe2, Moon, Sun, TerminalSquare } from "@toph/icons";
 import { useApp, type Sidebar } from "../store";
 import { useSettings } from "../settings";
 import { Button } from "@/boardui/base/buttons/button";
@@ -12,6 +12,7 @@ const items: Array<{ id: Sidebar; label: string; icon: typeof Files }> = [
   { id: "scm", label: "Source Control", icon: GitBranch },
   { id: "db", label: "Databases", icon: Database },
   { id: "bots", label: "Tophs", icon: Bot },
+  { id: "debug", label: "Debug", icon: Bug },
   { id: "web", label: "Web apps", icon: Globe2 },
 ];
 

@@ -530,3 +530,48 @@
     animation: none;
   }
 }
+
+/* Debugger gutter */
+.toph-breakpoint {
+  position: relative;
+}
+.toph-breakpoint::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 9px;
+  height: 9px;
+  transform: translate(-50%, -50%);
+  border-radius: 9999px;
+  background: #ef4444;
+  box-shadow: 0 0 0 2px color-mix(in srgb, #ef4444 22%, transparent);
+}
+.toph-breakpoint-logpoint::before {
+  background: #f59e0b;
+  box-shadow: 0 0 0 2px color-mix(in srgb, #f59e0b 22%, transparent);
+}
+.toph-breakpoint-conditional::before {
+  background: #3b82f6;
+  box-shadow: 0 0 0 2px color-mix(in srgb, #3b82f6 22%, transparent);
+}
+.toph-breakpoint-disabled::before {
+  background: #94a3b8;
+  box-shadow: none;
+  opacity: 0.65;
+}
+.toph-debug-active-line {
+  background: color-mix(in srgb, #f59e0b 16%, transparent);
+}
+.toph-debug-active-glyph::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 0;
+  height: 0;
+  transform: translate(-35%, -50%);
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+  border-left: 8px solid #f59e0b;
+}

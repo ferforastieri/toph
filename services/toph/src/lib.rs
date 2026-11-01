@@ -3,6 +3,7 @@ pub mod auth;
 pub mod config;
 pub mod crypto;
 pub mod database;
+pub mod debug;
 pub mod email;
 pub mod errors;
 pub mod events;
