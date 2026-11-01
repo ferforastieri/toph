@@ -1125,7 +1125,8 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
               <span className="text-caption-2-semibold uppercase tracking-[0.16em] text-text-tertiary">Equipe</span>
               <h2 className="mt-1 text-title-3-medium text-text-primary">Monte seu time de Tophs</h2>
               <p className="mt-1 max-w-xl text-caption-1-regular text-text-secondary">A equipe começa vazia. Escolha os Tophs que vão trabalhar com você. Cada um tem papel, cor, avatar e ferramentas próprias.</p>
-              <div className="mt-3 flex gap-2">
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Button variant="secondary" size="small" leadingIcon={UserRound} onClick={() => createSolo(project.id)}>Ir para modo Solo</Button>
                 <Button variant="ghost" size="small" leadingIcon={SlidersHorizontal} onClick={() => setSettingsOpen(true)}>Configurar IA</Button>
               </div>
             </div>
