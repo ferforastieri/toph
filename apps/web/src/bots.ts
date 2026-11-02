@@ -5,7 +5,7 @@ export const BOT_AVATARS = [
   "hexagon", "flower", "gear", "cloud", "leaf",
   "drop", "spark", "ring", "wave", "ghost",
   "egg", "square", "triangle", "moon", "cat",
-  "logo", "logo-outline", "logo-square", "logo-glow",
+  "logo-smile", "logo-wink", "logo-cool", "logo-star", "logo-blush",
 ] as const;
 export type BotAvatar = (typeof BOT_AVATARS)[number];
 
@@ -14,7 +14,7 @@ export const BOT_AVATAR_LABELS: Record<BotAvatar, string> = {
   hexagon: "Hexágono", flower: "Flor", gear: "Engrenagem", cloud: "Nuvem", leaf: "Folha",
   drop: "Gota", spark: "Faísca", ring: "Anel", wave: "Onda", ghost: "Fantasma",
   egg: "Ovo", square: "Quadrado", triangle: "Triângulo", moon: "Lua", cat: "Gato",
-  logo: "Logo Toph", "logo-outline": "Logo contorno", "logo-square": "Logo quadrada", "logo-glow": "Logo brilho",
+  "logo-smile": "Toph sorriso", "logo-wink": "Toph piscada", "logo-cool": "Toph óculos", "logo-star": "Toph estrela", "logo-blush": "Toph blush",
 };
 export type BotLanguage = "auto" | "pt" | "en" | "es";
 
@@ -96,13 +96,7 @@ interface BotStore {
   replaceChannelMessages: (projectId: string, channel: string, messages: BotMessage[]) => void;
 }
 
-export const BOT_COLORS = [
-  "#B9DE7A", "#A8DDE8", "#D6C4F2", "#FFB547", "#F3A6A0",
-  "#7CC7B0", "#8FB5F5", "#E7C96F", "#F08C72", "#8CD3B4",
-  "#C7A3FF", "#FF9EC4", "#7FD4E8", "#F7B267", "#B8E986",
-  "#9BB7FF", "#F28BA8", "#84E0C2", "#D8B4FE", "#FFD166",
-  "#6EE7B7", "#93C5FD", "#FDA4AF", "#FCD34D",
-];
+export const DEFAULT_BOT_COLOR = "#FFB547";
 
 export interface TophPreset {
   name: string;
@@ -115,11 +109,12 @@ export interface TophPreset {
 }
 
 export const TOPH_PRESETS: TophPreset[] = [
-  { name: "Toph", role: "Assistente", description: "Seu agente pessoal para conversar, programar e executar tarefas.", personality: "Direto, curioso e focado em resolver o problema.", color: "#B9DE7A", avatar: "logo", coordinator: true },
-  { name: "Toph Logo", role: "Identidade", description: "Cuida da marca, da apresentação visual e da consistência do produto.", personality: "Atento à identidade, direto e obcecado por consistência.", color: "#FFB547", avatar: "logo" },
-  { name: "Selo", role: "Marca", description: "Trabalha com selos, assinaturas visuais e materiais de marca.", personality: "Visual, preciso e econômico nas escolhas.", color: "#7FD4E8", avatar: "logo-outline" },
-  { name: "Grid", role: "Design system", description: "Organiza componentes, variações e padrões visuais.", personality: "Sistemático, detalhista e avesso a exceções sem motivo.", color: "#B9DE7A", avatar: "logo-square" },
-  { name: "Glow", role: "Criativo", description: "Explora novas variações de identidade e apresentação.", personality: "Curioso, experimental e atento ao impacto visual.", color: "#C7A3FF", avatar: "logo-glow" },
+  { name: "Toph", role: "Assistente", description: "Seu agente pessoal para conversar, programar e executar tarefas.", personality: "Direto, curioso e focado em resolver o problema.", color: "#B9DE7A", avatar: "logo-smile", coordinator: true },
+  { name: "Toph Smile", role: "Identidade", description: "Cuida da marca, da apresentação visual e da consistência do produto.", personality: "Atento à identidade, direto e obcecado por consistência.", color: "#FFB547", avatar: "logo-smile" },
+  { name: "Toph Wink", role: "Criativo", description: "Explora novas variações de identidade e apresentação.", personality: "Curioso, experimental e atento ao impacto visual.", color: "#7FD4E8", avatar: "logo-wink" },
+  { name: "Toph Cool", role: "Growth", description: "Testa hipóteses, funis e experimentos com personalidade.", personality: "Orientado a métrica, confiante e direto.", color: "#C7A3FF", avatar: "logo-cool" },
+  { name: "Toph Star", role: "Design system", description: "Organiza componentes, variações e padrões visuais.", personality: "Sistemático, detalhista e avesso a exceções sem motivo.", color: "#B9DE7A", avatar: "logo-star" },
+  { name: "Toph Blush", role: "Conteúdo", description: "Escreve, revisa e adapta textos com identidade própria.", personality: "Criativa, calorosa e atenta ao tom da marca.", color: "#FF9EC4", avatar: "logo-blush" },
   { name: "Atlas", role: "Coordenador", description: "Organiza o time, distribui tarefas e cobra o fechamento.", personality: "Estratégico, calmo e obcecado por clareza.", color: "#7FD4E8", avatar: "hexagon", coordinator: true },
   { name: "Nova", role: "Produto", description: "Transforma pedidos vagos em escopo e critérios de aceite.", personality: "Curiosa, objetiva e implacável com ambiguidade.", color: "#FF9EC4", avatar: "flower" },
   { name: "Leo", role: "Dev", description: "Implementa, refatora e resolve bugs no código.", personality: "Pragmático, direto e cuidadoso com regressões.", color: "#8FB5F5", avatar: "gear" },
@@ -196,8 +191,8 @@ function sanitizeBots(input: MiniBot[] | undefined): MiniBot[] {
       mcpServers: Array.isArray(bot.mcpServers) ? bot.mcpServers.filter((item) => typeof item === "string") : [],
       emailAccountIds: Array.isArray(bot.emailAccountIds) ? bot.emailAccountIds.filter((item) => typeof item === "string") : [],
       language: (["auto", "pt", "en", "es"].includes(bot.language) ? bot.language : "auto") as BotLanguage,
-      color: bot.color || BOT_COLORS[0],
-      avatar: (bot.name === "Toph" && (bot.role === "Assistente" || bot.role === "Agente solo") && bot.avatar === "shield" ? "logo" : (BOT_AVATARS.includes(bot.avatar as BotAvatar) ? bot.avatar : "logo")) as BotAvatar,
+      color: bot.color || DEFAULT_BOT_COLOR,
+      avatar: (bot.name === "Toph" && (bot.role === "Assistente" || bot.role === "Agente solo") && bot.avatar === "shield" ? "logo-smile" : (BOT_AVATARS.includes(bot.avatar as BotAvatar) ? bot.avatar : "logo-smile")) as BotAvatar,
       notifications: bot.notifications !== false,
       sessionPrimed: bot.sessionPrimed === true,
       coordinator: bot.coordinator === true,
@@ -374,7 +369,7 @@ export const useBots = create<BotStore>((set, get) => ({
       role: "Assistente",
       description: "Seu agente pessoal para conversar, programar e executar tarefas.",
       personality: "Direto, curioso e focado em resolver o problema.",
-      avatar: "logo",
+      avatar: "logo-smile",
       coordinator: false,
       ...patch,
     });
@@ -403,7 +398,7 @@ export const useBots = create<BotStore>((set, get) => ({
       mcpServers: patch.mcpServers ?? [],
       emailAccountIds: patch.emailAccountIds ?? [],
       language: patch.language ?? "auto",
-      color: patch.color ?? BOT_COLORS[workspace.bots.length % BOT_COLORS.length],
+      color: patch.color ?? DEFAULT_BOT_COLOR,
       avatar: patch.avatar ?? "blob",
       notifications: patch.notifications !== false,
       coordinator: patch.coordinator === true,
