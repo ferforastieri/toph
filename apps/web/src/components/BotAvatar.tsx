@@ -31,54 +31,52 @@ const SHAPES: Partial<Record<BotAvatarShape, string>> = {
   cat: "M8 14 14 4l8 7h4l8-7 6 10v22a8 8 0 0 1-8 8H16a8 8 0 0 1-8-8z",
 };
 
-const LOGO_AVATARS = new Set<BotAvatarShape>(["logo-smile", "logo-wink", "logo-cool", "logo-star", "logo-blush"]);
+const MARK_AVATARS = new Set<BotAvatarShape>(["mark-smile", "mark-wink", "mark-cool", "mark-star", "mark-blush"]);
 
 export default function BotAvatar({ bot, size = 36, className, style }: Props) {
-  if (LOGO_AVATARS.has(bot.avatar)) {
-    const logoColor = "#FFB547";
+  if (MARK_AVATARS.has(bot.avatar)) {
+    const mark = "#FFB547";
     const ink = "#20251d";
-    const blush = bot.avatar === "logo-blush";
-    const cool = bot.avatar === "logo-cool";
-    const wink = bot.avatar === "logo-wink";
-    const star = bot.avatar === "logo-star";
+    const wink = bot.avatar === "mark-wink";
+    const cool = bot.avatar === "mark-cool";
+    const star = bot.avatar === "mark-star";
+    const blush = bot.avatar === "mark-blush";
     return (
       <span
         className={className}
-        style={{ width: size, height: size, display: "inline-flex", flexShrink: 0, overflow: "hidden", borderRadius: "9999px", ...style }}
+        style={{ width: size, height: size, display: "inline-flex", flexShrink: 0, ...style }}
         aria-hidden
       >
         <svg viewBox="0 0 48 48" width={size} height={size} role="img">
-          <rect width="48" height="48" rx="24" fill={bot.color} opacity="0.22" />
-          {/* Toph mark as the character's body */}
-          <rect x="4" y="27" width="40" height="7" rx="3.5" fill={logoColor} />
-          <rect x="9" y="35" width="30" height="6" rx="3" fill={logoColor} opacity="0.9" />
-          <rect x="15" y="42" width="18" height="4" rx="2" fill={logoColor} opacity="0.8" />
-          {/* Face/head */}
-          <circle cx="24" cy="16" r="12" fill={bot.color} stroke="rgba(0,0,0,0.18)" strokeWidth="1.2" />
-          <path d="M15 9c3-4 8-5.5 13-4.5" fill="none" stroke="rgba(255,255,255,0.55)" strokeWidth="2" strokeLinecap="round" />
+          {/* Toph mark used as the character itself: the face lives inside the bars. */}
+          <rect x="4" y="3" width="40" height="10" rx="5" fill={bot.color} />
+          <rect x="8" y="16" width="32" height="12" rx="6" fill={mark} />
+          <rect x="14" y="31" width="20" height="8" rx="4" fill={mark} opacity="0.92" />
+          <rect x="20" y="42" width="8" height="3.5" rx="1.75" fill={mark} opacity="0.8" />
+          <path d="M12 8c4-4 10-5 16-4" fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="1.8" strokeLinecap="round" />
           {cool ? (
             <>
-              <rect x="13" y="14" width="9" height="4.5" rx="2" fill={ink} />
-              <rect x="26" y="14" width="9" height="4.5" rx="2" fill={ink} />
-              <path d="M22 16h4" stroke={ink} strokeWidth="1.5" />
-              <path d="M20 23c2.4 1.4 5.6 1.4 8 0" fill="none" stroke={ink} strokeWidth="1.6" strokeLinecap="round" />
+              <rect x="11" y="19.5" width="10" height="5" rx="2.5" fill={ink} />
+              <rect x="26" y="19.5" width="10" height="5" rx="2.5" fill={ink} />
+              <path d="M21 21.5h5" stroke={ink} strokeWidth="1.4" />
+              <path d="M20 34.5c2.4 1.2 5.6 1.2 8 0" fill="none" stroke={ink} strokeWidth="1.5" strokeLinecap="round" />
             </>
           ) : star ? (
             <>
-              <path d="M17 12.5 18.2 15l2.8.3-2.1 1.8.6 2.7-2.5-1.4-2.5 1.4.6-2.7-2.1-1.8 2.8-.3z" fill={ink} />
-              <path d="M31 12.5 32.2 15l2.8.3-2.1 1.8.6 2.7-2.5-1.4-2.5 1.4.6-2.7-2.1-1.8 2.8-.3z" fill={ink} />
-              <ellipse cx="24" cy="22" rx="3" ry="2.3" fill={ink} />
+              <path d="m17 18.2 1.1 2.2 2.4.3-1.8 1.6.5 2.4-2.2-1.2-2.2 1.2.5-2.4-1.8-1.6 2.4-.3z" fill={ink} />
+              <path d="m31 18.2 1.1 2.2 2.4.3-1.8 1.6.5 2.4-2.2-1.2-2.2 1.2.5-2.4-1.8-1.6 2.4-.3z" fill={ink} />
+              <ellipse cx="24" cy="35" rx="2.8" ry="2.1" fill={ink} />
             </>
           ) : (
             <>
-              <ellipse cx="19" cy="15" rx="2.2" ry="2.8" fill={ink} />
-              {wink ? <path d="M27 15h5" stroke={ink} strokeWidth="2.2" strokeLinecap="round" /> : <ellipse cx="29" cy="15" rx="2.2" ry="2.8" fill={ink} />}
-              <circle cx="19.7" cy="14.2" r="0.7" fill="#fff" opacity="0.9" />
-              {!wink && <circle cx="29.7" cy="14.2" r="0.7" fill="#fff" opacity="0.9" />}
-              <path d="M20 21c2.3 2 5.7 2 8 0" fill="none" stroke={ink} strokeWidth="1.7" strokeLinecap="round" />
+              <ellipse cx="18" cy="22" rx="2.1" ry="2.6" fill={ink} />
+              {wink ? <path d="M27 22h5" stroke={ink} strokeWidth="2.1" strokeLinecap="round" /> : <ellipse cx="30" cy="22" rx="2.1" ry="2.6" fill={ink} />}
+              <circle cx="18.7" cy="21.2" r="0.65" fill="#fff" opacity="0.9" />
+              {!wink && <circle cx="30.7" cy="21.2" r="0.65" fill="#fff" opacity="0.9" />}
+              <path d="M20 34.5c2.3 1.8 5.7 1.8 8 0" fill="none" stroke={ink} strokeWidth="1.6" strokeLinecap="round" />
             </>
           )}
-          {blush && <><circle cx="14" cy="20" r="2" fill="rgba(255,120,120,0.35)" /><circle cx="34" cy="20" r="2" fill="rgba(255,120,120,0.35)" /></>}
+          {blush && <><circle cx="12" cy="26" r="2" fill="rgba(255,120,120,0.4)" /><circle cx="36" cy="26" r="2" fill="rgba(255,120,120,0.4)" /></>}
         </svg>
       </span>
     );
