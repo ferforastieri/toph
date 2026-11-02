@@ -2,7 +2,7 @@ import type { CSSProperties } from "react";
 import type { BotAvatar as BotAvatarShape, MiniBot } from "../bots";
 
 interface Props {
-  bot: Pick<MiniBot, "name" | "color" | "avatar">;
+  bot: Pick<MiniBot, "name" | "color" | "avatar"> & { photo?: string };
   size?: number;
   className?: string;
   style?: CSSProperties;
@@ -36,9 +36,12 @@ export default function BotAvatar({ bot, size = 36, className, style }: Props) {
   return (
     <span
       className={className}
-      style={{ width: size, height: size, display: "inline-flex", flexShrink: 0, ...style }}
+      style={{ width: size, height: size, display: "inline-flex", flexShrink: 0, ...(bot.photo ? { overflow: "hidden", borderRadius: "9999px" } : {}), ...style }}
       aria-hidden
     >
+      {bot.photo ? (
+        <img src={bot.photo} alt="" className="size-full object-cover" />
+      ) : (
       <svg viewBox="0 0 48 48" width={size} height={size} role="img">
         <path d={shape} fill={bot.color} stroke="rgba(0,0,0,0.18)" strokeWidth="1.2" />
         <path d="M12 14c4-5 10-7 16-6" fill="none" stroke="rgba(255,255,255,0.55)" strokeWidth="2" strokeLinecap="round" />
@@ -50,6 +53,7 @@ export default function BotAvatar({ bot, size = 36, className, style }: Props) {
         <circle cx="13" cy="29" r="2" fill="rgba(255,120,120,0.28)" />
         <circle cx="35" cy="29" r="2" fill="rgba(255,120,120,0.28)" />
       </svg>
+      )}
     </span>
   );
 }

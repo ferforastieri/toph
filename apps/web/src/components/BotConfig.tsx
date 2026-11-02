@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Bot, Check, ChevronDown, Trash2 } from "@toph/icons";
 import { OpenCode } from "@opencode/client";
 import { openCodeBase, api, type EmailAccount } from "../api";
@@ -34,12 +34,45 @@ const LANGUAGES = [
   { id: "es", label: "Español" },
 ] as const;
 
+function readPhoto(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const image = new Image();
+    image.onload = () => {
+      const size = 256;
+      const scale = Math.min(1, size / Math.max(image.width, image.height));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(image.width * scale));
+      canvas.height = Math.max(1, Math.round(image.height * scale));
+      const context = canvas.getContext("2d");
+      URL.revokeObjectURL(url);
+      if (!context) {
+        reject(new Error("Não foi possível processar a imagem."));
+        return;
+      }
+      context.fillStyle = "#202020";
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+      resolve(canvas.toDataURL("image/jpeg", 0.82));
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Não foi possível ler a imagem."));
+    };
+    image.src = url;
+  });
+}
+
 export default function BotConfig({ projectId, projectRoot, bot, mode }: Props) {
   const updateBot = useBots((state) => state.updateBot);
   const removeBot = useBots((state) => state.removeBot);
   const models = useAI((state) => state.models);
   const selectedModel = models.find((model) => model.id === bot.model);
+  const solo = mode === "solo";
   const confirm = useConfirm();
+  const photoRef = useRef<HTMLInputElement>(null);
+  const [photoError, setPhotoError] = useState("");
+  const [photoBusy, setPhotoBusy] = useState(false);
   const [mcpServers, setMcpServers] = useState<string[]>([]);
   const [mcpLoading, setMcpLoading] = useState(false);
   const [emailAccounts, setEmailAccounts] = useState<EmailAccount[]>([]);
@@ -50,15 +83,16 @@ export default function BotConfig({ projectId, projectRoot, bot, mode }: Props) 
   }, []);
 
   useEffect(() => {
+    if (solo) return;
     let cancelled = false;
     api.emailAccounts()
       .then((items) => { if (!cancelled) setEmailAccounts(items); })
       .catch(() => { if (!cancelled) setEmailAccounts([]); });
     return () => { cancelled = true; };
-  }, []);
+  }, [solo]);
 
   useEffect(() => {
-    if (!projectRoot) return;
+    if (solo || !projectRoot) return;
     let cancelled = false;
     setMcpLoading(true);
     client.mcp.list({ location: { directory: projectRoot } } as never)
@@ -66,7 +100,7 @@ export default function BotConfig({ projectId, projectRoot, bot, mode }: Props) 
       .catch(() => { if (!cancelled) setMcpServers([]); })
       .finally(() => { if (!cancelled) setMcpLoading(false); });
     return () => { cancelled = true; };
-  }, [client, projectRoot]);
+  }, [client, projectRoot, solo]);
 
   function toggleMcp(name: string) {
     const current = bot.mcpServers ?? [];
@@ -90,6 +124,106 @@ export default function BotConfig({ projectId, projectRoot, bot, mode }: Props) 
       danger: true,
     });
     if (ok) removeBot(projectId, bot.id);
+  }
+
+  if (solo) {
+    return (
+      <div className="flex min-h-0 flex-col gap-5 overflow-y-auto p-3">
+        <div className="flex items-center gap-3">
+          <BotAvatar bot={bot} size={50} />
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <p className="truncate text-body-medium text-text-primary">{bot.name}</p>
+              <span className="shrink-0 rounded-full bg-accent-500/15 px-2 py-0.5 text-caption-2-semibold text-accent-600">Toph Solo</span>
+            </div>
+            <p className="truncate text-caption-1-regular text-text-secondary">Sua tela de IA padrão.</p>
+          </div>
+        </div>
+
+        <label className="flex flex-col gap-1">
+          <span className="text-caption-1-medium text-text-secondary">Nome</span>
+          <Input value={bot.name} onChange={(value) => update({ name: value })} aria-label="Nome do Toph Solo" />
+        </label>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Button type="button" variant="secondary" size="small" onClick={() => photoRef.current?.click()} disabled={photoBusy}>
+            {photoBusy ? "Processando..." : "Escolher foto"}
+          </Button>
+          {bot.photo ? <Button type="button" variant="ghost" size="small" onClick={() => update({ photo: undefined })}>Remover foto</Button> : null}
+          <input
+            ref={photoRef}
+            type="file"
+            accept="image/*"
+            hidden
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              if (!file) return;
+              if (file.size > 4 * 1024 * 1024) {
+                setPhotoError("A foto deve ter no máximo 4 MB.");
+                return;
+              }
+              setPhotoError("");
+              setPhotoBusy(true);
+              void readPhoto(file)
+                .then((photo) => update({ photo }))
+                .catch((error: unknown) => setPhotoError(error instanceof Error ? error.message : "Não foi possível ler a foto."))
+                .finally(() => setPhotoBusy(false));
+              event.target.value = "";
+            }}
+          />
+        </div>
+        {photoError ? <p className="text-caption-2-regular text-text-error-primary">{photoError}</p> : null}
+
+        <div className="flex flex-col gap-1.5">
+          <span className="text-caption-1-medium text-text-secondary">Ou escolha um avatar</span>
+          <div className="flex flex-wrap gap-1.5">
+            {AVATARS.map((avatar) => (
+              <button
+                key={avatar.id}
+                type="button"
+                aria-label={avatar.label}
+                aria-pressed={bot.avatar === avatar.id}
+                onClick={() => update({ avatar: avatar.id })}
+                className="rounded-xl border border-border-button-default p-1 hover:bg-background-primary-hover"
+              >
+                <BotAvatar bot={{ ...bot, avatar: avatar.id }} size={30} />
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <span className="text-caption-1-medium text-text-secondary">Cor</span>
+          <div className="flex flex-wrap gap-1.5">
+            {BOT_COLORS.map((color) => (
+              <button
+                key={color}
+                type="button"
+                aria-label={`Usar cor ${color}`}
+                aria-pressed={bot.color === color}
+                onClick={() => update({ color })}
+                className="flex size-6 items-center justify-center rounded-full border border-black/10"
+                style={{ backgroundColor: color }}
+              >
+                {bot.color === color && <Check size={12} className="text-black/70" />}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between gap-2 rounded-xl border border-border-button-default px-2.5 py-2">
+          <span className="flex flex-col">
+            <span className="text-caption-1-medium text-text-primary">Notificações</span>
+            <span className="text-caption-2-regular text-text-secondary">Avisar quando o Toph Solo terminar.</span>
+          </span>
+          <Switch isSelected={bot.notifications} onChange={(checked) => update({ notifications: checked })} size="sm" />
+        </div>
+
+        <p className="text-caption-2-regular leading-relaxed text-text-tertiary">
+          O Toph Solo usa apenas sua identidade visual. Contexto, personalidade e ferramentas são compartilhados pela IA padrão.
+        </p>
+      </div>
+    );
   }
 
   return (
@@ -259,15 +393,13 @@ export default function BotConfig({ projectId, projectRoot, bot, mode }: Props) 
         </div>
       </div>
 
-      {mode !== "solo" ? (
-        <div className="flex items-center justify-between gap-2 rounded-xl border border-border-button-default px-2.5 py-2">
-          <span className="flex flex-col">
-            <span className="text-caption-1-medium text-text-primary">Coordenador</span>
-            <span className="text-caption-2-regular text-text-secondary">Distribui o trabalho e menciona especialistas.</span>
-          </span>
-          <Switch isSelected={bot.coordinator} onChange={(checked) => update({ coordinator: checked })} size="sm" />
-        </div>
-      ) : null}
+      <div className="flex items-center justify-between gap-2 rounded-xl border border-border-button-default px-2.5 py-2">
+        <span className="flex flex-col">
+          <span className="text-caption-1-medium text-text-primary">Coordenador</span>
+          <span className="text-caption-2-regular text-text-secondary">Distribui o trabalho e menciona especialistas.</span>
+        </span>
+        <Switch isSelected={bot.coordinator} onChange={(checked) => update({ coordinator: checked })} size="sm" />
+      </div>
 
       <div className="flex items-center justify-between gap-2 rounded-xl border border-border-button-default px-2.5 py-2">
         <span className="flex flex-col">

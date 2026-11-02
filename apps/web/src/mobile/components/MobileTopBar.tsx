@@ -20,6 +20,7 @@ interface Props {
 
 /** Compact version of the mobile hero header, with the app controls on the right. */
 export default function MobileTopBar({ title, subtitle, projectName, unreadCount, icon: Icon, onMenu, onNotifications, onProjects, extraActions, hideTitle = false, floating = false }: Props) {
+  const secondary = subtitle === undefined ? projectName : subtitle;
   return (
     <header className={cx(
       floating
@@ -50,7 +51,7 @@ export default function MobileTopBar({ title, subtitle, projectName, unreadCount
         {!floating && !hideTitle ? (
           <div className="flex min-w-0 flex-1 flex-col gap-0">
             <h1 className="truncate text-[20px] leading-6 font-medium text-text-primary">{title}</h1>
-            <p className="truncate text-caption-2-regular text-text-secondary">{subtitle ?? projectName}</p>
+            {secondary ? <p className="truncate text-caption-2-regular text-text-secondary">{secondary}</p> : null}
           </div>
         ) : floating ? (
           <div className="min-w-0 flex-1" />

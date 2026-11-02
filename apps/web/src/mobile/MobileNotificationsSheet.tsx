@@ -7,8 +7,6 @@ import { Badge } from "@/boardui/base/badges/badge";
 
 interface Props {
   open: boolean;
-  projectId: string;
-  projectName: string;
   onClose: () => void;
   onOpenNotification: (notification: AppNotification) => void;
 }
@@ -26,26 +24,26 @@ function timeAgo(timestamp: number): string {
   return new Date(value).toLocaleDateString("pt-BR");
 }
 
-export default function MobileNotificationsSheet({ open, projectId, projectName, onClose, onOpenNotification }: Props) {
+export default function MobileNotificationsSheet({ open, onClose, onOpenNotification }: Props) {
   const notifications = useApp((state) => state.notifications);
-  const markProjectNotificationsRead = useApp((state) => state.markProjectNotificationsRead);
+  const projects = useApp((state) => state.projects);
+  const markAllNotificationsRead = useApp((state) => state.markAllNotificationsRead);
   const items = useMemo(
-    () => notifications
-      .filter((notification) => notification.projectId === projectId)
-      .sort((a, b) => b.createdAt - a.createdAt),
-    [notifications, projectId],
+    () => [...notifications].sort((a, b) => b.createdAt - a.createdAt),
+    [notifications],
   );
   const unread = items.filter((notification) => !notification.read).length;
+  const projectName = (projectId?: string) => projects.find((project) => project.id === projectId)?.name ?? "";
 
   useEffect(() => {
-    if (open) markProjectNotificationsRead(projectId);
-  }, [markProjectNotificationsRead, open, projectId]);
+    if (open) markAllNotificationsRead();
+  }, [markAllNotificationsRead, open]);
 
   return (
-    <Modal isOpen={open} onClose={onClose} title="Notificações" description={projectName} placement="bottom" size="sm" bodyClassName="p-2" swipeToClose>
+    <Modal isOpen={open} onClose={onClose} title="Notificações" description="Todas as notificações da sua conta" placement="bottom" size="sm" bodyClassName="p-2" swipeToClose>
       <div className="mb-2 flex items-center justify-between rounded-2xl border border-border-button-default bg-background-secondary-default px-3 py-2">
         <span className="flex items-center gap-2 text-body-2-medium text-text-primary">
-          <Bell className="size-4 text-accent-500" /> Notificações do projeto
+          <Bell className="size-4 text-accent-500" /> Todas as notificações
         </span>
         <Badge color={unread > 0 ? "primary" : "neutral"}>{items.length}</Badge>
       </div>
@@ -56,9 +54,9 @@ export default function MobileNotificationsSheet({ open, projectId, projectName,
               <Bell className="size-5" />
             </span>
             <strong className="text-body-2-medium text-text-primary">Tudo em dia</strong>
-            <p className="text-caption-1-regular text-text-secondary">Nenhuma notificação neste projeto.</p>
+            <p className="text-caption-1-regular text-text-secondary">Nenhuma notificação.</p>
           </div>
-        ) : items.slice(0, 40).map((notification) => (
+        ) : items.map((notification) => (
           <Button
             key={notification.id}
             variant="ghost"
@@ -75,6 +73,7 @@ export default function MobileNotificationsSheet({ open, projectId, projectName,
               </span>
               {notification.botRole ? <span className="text-caption-2-regular text-accent-500">{notification.botRole}</span> : null}
               <span className="line-clamp-2 text-caption-1-regular text-text-secondary">{notification.body}</span>
+              {projectName(notification.projectId) ? <span className="truncate text-caption-2-regular text-text-tertiary">{projectName(notification.projectId)}</span> : null}
             </span>
           </Button>
         ))}

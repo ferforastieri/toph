@@ -4,8 +4,6 @@ import { useApp, type AppNotification } from "../store";
 import HeaderAccordion from "./HeaderAccordion";
 
 interface Props {
-  projectId: string;
-  projectName: string;
   onOpen: (notification: AppNotification) => void;
   align?: "left" | "right";
 }
@@ -23,24 +21,24 @@ function timeAgo(timestamp: number): string {
   return new Date(value).toLocaleDateString("pt-BR");
 }
 
-export default function NotificationBell({ projectId, projectName, onOpen, align = "left" }: Props) {
+export default function NotificationBell({ onOpen, align = "left" }: Props) {
   const notifications = useApp((state) => state.notifications);
-  const markProjectNotificationsRead = useApp((state) => state.markProjectNotificationsRead);
+  const projects = useApp((state) => state.projects);
+  const markAllNotificationsRead = useApp((state) => state.markAllNotificationsRead);
   const [open, setOpen] = useState(false);
   const items = useMemo(
-    () => notifications
-      .filter((notification) => notification.projectId === projectId)
-      .sort((a, b) => b.createdAt - a.createdAt),
-    [notifications, projectId],
+    () => [...notifications].sort((a, b) => b.createdAt - a.createdAt),
+    [notifications],
   );
+  const projectName = (projectId?: string) => projects.find((project) => project.id === projectId)?.name ?? "";
   const unread = items.filter((notification) => !notification.read).length;
 
   return (
     <HeaderAccordion
-      id={`notifications-${projectId}`}
+      id="notifications"
       isOpen={open}
       onOpenChange={(next) => {
-        if (next) markProjectNotificationsRead(projectId);
+        if (next) markAllNotificationsRead();
         setOpen(next);
       }}
       title={
@@ -59,7 +57,7 @@ export default function NotificationBell({ projectId, projectName, onOpen, align
           </span>
           <div className="min-w-0 flex-1">
             <strong className="text-body-2-medium text-text-primary">Notificações</strong>
-            <p className="truncate text-caption-2-regular text-text-tertiary">{projectName}</p>
+            <p className="truncate text-caption-2-regular text-text-tertiary">Todas as notificações da sua conta</p>
           </div>
           <span className="shrink-0 rounded-full bg-background-secondary-default px-2 py-0.5 text-caption-2-regular text-text-tertiary">{items.length}</span>
         </div>
@@ -69,9 +67,9 @@ export default function NotificationBell({ projectId, projectName, onOpen, align
               <span className="flex size-10 items-center justify-center rounded-full bg-background-secondary-default text-text-tertiary">
                 <Bell size={18} />
               </span>
-              <p className="text-caption-1-regular text-text-secondary">Nenhuma notificação neste projeto.</p>
+              <p className="text-caption-1-regular text-text-secondary">Nenhuma notificação.</p>
             </div>
-          ) : items.slice(0, 20).map((notification) => (
+          ) : items.map((notification) => (
             <button
               key={notification.id}
               type="button"
@@ -91,6 +89,7 @@ export default function NotificationBell({ projectId, projectName, onOpen, align
                 </span>
                 {notification.botRole && <span className="text-caption-2-regular text-accent-500">{notification.botRole}</span>}
                 <span className="line-clamp-2 text-caption-1-regular leading-relaxed text-text-secondary">{notification.body}</span>
+                {projectName(notification.projectId) ? <span className="truncate text-caption-2-regular text-text-tertiary">{projectName(notification.projectId)}</span> : null}
               </span>
             </button>
           ))}
