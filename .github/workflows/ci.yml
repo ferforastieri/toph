@@ -15,6 +15,7 @@ jobs:
     outputs:
       web: ${{ steps.filter.outputs.web }}
       server: ${{ steps.filter.outputs.server }}
+      backend: ${{ steps.filter.outputs.backend }}
       android: ${{ steps.filter.outputs.android }}
       landing: ${{ steps.filter.outputs.landing }}
     steps:
@@ -38,6 +39,8 @@ jobs:
               - 'scripts/**'
               - 'package.json'
               - 'package-lock.json'
+            backend:
+              - 'services/toph/**'
             android:
               - 'apps/client/**'
               - 'packages/**'
@@ -48,7 +51,7 @@ jobs:
 
   rust:
     needs: changes
-    if: needs.changes.outputs.server == 'true'
+    if: needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
