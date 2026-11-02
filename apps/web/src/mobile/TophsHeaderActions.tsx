@@ -1,4 +1,4 @@
-import { Bot, History, MessageSquarePlus, Settings2, SlidersHorizontal, UserRound } from "@toph/icons";
+import { Bot, History, MessageSquarePlus, Settings2, UserRound } from "@toph/icons";
 import { useBots } from "../bots";
 import { Button } from "@/boardui/base/buttons/button";
 
@@ -6,7 +6,7 @@ interface Props {
   projectId: string;
 }
 
-function fire(action: "config" | "settings" | "sessions" | "new") {
+function fire(action: "config" | "sessions" | "new") {
   window.dispatchEvent(new CustomEvent("toph:tophs-action", { detail: { action } }));
 }
 
@@ -36,7 +36,6 @@ export default function TophsHeaderActions({ projectId }: Props) {
   return (
     <>
       <Button variant="ghost" size="small" iconOnly leadingIcon={Settings2} aria-label="Configurar Toph" title="Configurar Toph" onClick={() => fire("config")} className="size-7 shrink-0 [&_svg]:size-4" />
-      <Button variant="ghost" size="small" iconOnly leadingIcon={SlidersHorizontal} aria-label="Configurações de IA" title="Configurações de IA" onClick={() => fire("settings")} className="size-7 shrink-0 [&_svg]:size-4" />
       <Button variant="ghost" size="small" iconOnly leadingIcon={History} aria-label="Sessões" title="Sessões" onClick={() => fire("sessions")} className="size-7 shrink-0 [&_svg]:size-4" />
       {mode === "team" ? (
         <Button variant="ghost" size="small" iconOnly leadingIcon={MessageSquarePlus} aria-label="Novo Toph" title="Novo Toph" onClick={() => fire("new")} className="size-7 shrink-0 [&_svg]:size-4" />

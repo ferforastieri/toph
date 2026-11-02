@@ -2,13 +2,13 @@ import type { CSSProperties } from "react";
 import type { BotAvatar as BotAvatarShape, MiniBot } from "../bots";
 
 interface Props {
-  bot: Pick<MiniBot, "name" | "color" | "avatar"> & { photo?: string };
+  bot: Pick<MiniBot, "name" | "color" | "avatar">;
   size?: number;
   className?: string;
   style?: CSSProperties;
 }
 
-const SHAPES: Record<BotAvatarShape, string> = {
+const SHAPES: Partial<Record<BotAvatarShape, string>> = {
   shield: "M24 3 43 10v12c0 10-8 17-19 22C13 39 5 32 5 22V10z",
   star: "M24 3l6.5 13.5L45 18l-10.5 10.2L37 43l-13-7.2L11 43l2.5-14.8L3 18l14.5-1.5z",
   diamond: "M24 3 44 20 24 45 4 20z",
@@ -31,17 +31,53 @@ const SHAPES: Record<BotAvatarShape, string> = {
   cat: "M8 14 14 4l8 7h4l8-7 6 10v22a8 8 0 0 1-8 8H16a8 8 0 0 1-8-8z",
 };
 
+const LOGO_AVATARS = new Set<BotAvatarShape>(["logo", "logo-outline", "logo-square", "logo-glow"]);
+
 export default function BotAvatar({ bot, size = 36, className, style }: Props) {
-  const shape = SHAPES[bot.avatar] ?? SHAPES.shield;
+  if (LOGO_AVATARS.has(bot.avatar)) {
+    const logo = `${import.meta.env.BASE_URL}brand/toph-mark.png`;
+    const outline = bot.avatar === "logo-outline";
+    const square = bot.avatar === "logo-square";
+    const glow = bot.avatar === "logo-glow";
+    return (
+      <span
+        className={className}
+        style={{
+          width: size,
+          height: size,
+          display: "inline-flex",
+          flexShrink: 0,
+          alignItems: "center",
+          justifyContent: "center",
+          padding: size * 0.16,
+          backgroundColor: outline ? "transparent" : glow ? "#161616" : bot.color,
+          border: outline ? `${Math.max(1, size * 0.045)}px solid ${bot.color}` : undefined,
+          borderRadius: square ? size * 0.24 : "9999px",
+          boxShadow: glow ? `0 0 ${size * 0.35}px ${bot.color}` : undefined,
+          ...style,
+        }}
+        aria-hidden
+      >
+        <img
+          src={logo}
+          alt=""
+          style={{
+            width: "100%",
+            height: "100%",
+            objectFit: "contain",
+            filter: outline || glow ? undefined : "brightness(0) saturate(0) invert(0.12)",
+          }}
+        />
+      </span>
+    );
+  }
+  const shape = SHAPES[bot.avatar] ?? SHAPES.shield!;
   return (
     <span
       className={className}
-      style={{ width: size, height: size, display: "inline-flex", flexShrink: 0, ...(bot.photo ? { overflow: "hidden", borderRadius: "9999px" } : {}), ...style }}
+      style={{ width: size, height: size, display: "inline-flex", flexShrink: 0, ...style }}
       aria-hidden
     >
-      {bot.photo ? (
-        <img src={bot.photo} alt="" className="size-full object-cover" />
-      ) : (
       <svg viewBox="0 0 48 48" width={size} height={size} role="img">
         <path d={shape} fill={bot.color} stroke="rgba(0,0,0,0.18)" strokeWidth="1.2" />
         <path d="M12 14c4-5 10-7 16-6" fill="none" stroke="rgba(255,255,255,0.55)" strokeWidth="2" strokeLinecap="round" />
@@ -53,7 +89,6 @@ export default function BotAvatar({ bot, size = 36, className, style }: Props) {
         <circle cx="13" cy="29" r="2" fill="rgba(255,120,120,0.28)" />
         <circle cx="35" cy="29" r="2" fill="rgba(255,120,120,0.28)" />
       </svg>
-      )}
     </span>
   );
 }

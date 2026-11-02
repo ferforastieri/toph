@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { OpenCode } from "@opencode/client";
 import { connectClientMcp, type ClientMcpTool } from "@opencode/client/mcp";
-import { Bot, ChevronDown, Copy, History, LoaderCircle, MessageSquarePlus, Settings2, SlidersHorizontal, UserRound } from "@toph/icons";
+import { Bot, ChevronDown, Copy, History, LoaderCircle, MessageSquarePlus, Settings2, UserRound } from "@toph/icons";
 import { api, openCodeBase, type AIMessage, type Project } from "../api";
 import { useAI } from "../ai";
 import { TOPH_PRESETS, useBots, type BotMessage, type MiniBot } from "../bots";
@@ -9,7 +9,6 @@ import { notifyAiResponse } from "../aiNotifications";
 import { playBotResponseSound, unlockBotSound } from "../botSound";
 import BotAvatar from "../components/BotAvatar";
 import BotConfig from "../components/BotConfig";
-import AiSettingsModal from "../components/AiSettingsModal";
 import AgentTranscript from "../components/AgentTranscript";
 import OpenCodeFormCard, { type OpenCodeForm, type OpenCodeFormAnswer } from "../components/OpenCodeFormCard";
 import TophSessionsSheet from "../components/TophSessionsSheet";
@@ -291,7 +290,6 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [configOpen, setConfigOpen] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [sessionsOpen, setSessionsOpen] = useState(false);
   const [connectionEpoch, setConnectionEpoch] = useState(0);
   const sendingRef = useRef(false);
@@ -424,7 +422,6 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
     const handler = (event: Event) => {
       const action = (event as CustomEvent<{ action?: string }>).detail?.action;
       if (action === "config") setConfigOpen(true);
-      else if (action === "settings") setSettingsOpen(true);
       else if (action === "sessions") setSessionsOpen(true);
       else if (action === "new") newBot();
     };
@@ -1130,7 +1127,6 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
               <p className="mt-1 max-w-xl text-caption-1-regular text-text-secondary">A equipe começa vazia. Escolha os Tophs que vão trabalhar com você. Cada um tem papel, cor, avatar e ferramentas próprias.</p>
               <div className="mt-3 flex flex-wrap gap-2">
                 <Button variant="secondary" size="small" leadingIcon={UserRound} onClick={() => createSolo(project.id)}>Mudar para modo Solo</Button>
-                <Button variant="ghost" size="small" leadingIcon={SlidersHorizontal} onClick={() => setSettingsOpen(true)}>Configurar IA</Button>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
@@ -1152,7 +1148,6 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
             </div>
           </div>
         </div>
-        <AiSettingsModal open={settingsOpen} projectRoot={project.root} onClose={() => setSettingsOpen(false)} />
       </div>
     );
   }
@@ -1172,7 +1167,6 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
         {!mobile ? (
         <div className="flex shrink-0 items-center gap-1 border-b border-separator-border bg-background-secondary-default px-2 py-1.5">
           <Button variant="ghost" size="small" iconOnly leadingIcon={Settings2} aria-label={mode === "solo" ? "Configurar Toph Solo" : "Configurar Toph ativo"} title={mode === "solo" ? "Configurar Toph Solo" : "Configurar Toph ativo"} onClick={() => setConfigOpen(true)} className="size-9" />
-          <Button variant="ghost" size="small" iconOnly leadingIcon={SlidersHorizontal} aria-label="Configurações de IA" title="Configurações de IA" onClick={() => setSettingsOpen(true)} className="size-9" />
           {mode === "team" ? (
             <Button variant="ghost" size="small" iconOnly leadingIcon={MessageSquarePlus} aria-label="Novo Toph" title="Novo Toph" onClick={newBot} className="size-9" />
           ) : null}
@@ -1411,7 +1405,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
       </section>
 
 
-      <Modal isOpen={configOpen} onClose={() => setConfigOpen(false)} title={activeBot.name} description={mode === "solo" ? "Toph Solo: foto, nome e identidade." : "Configure o membro da equipe."} placement={mobile ? "bottom" : "center"} size="lg" bodyClassName="p-0" swipeToClose={mobile}>
+      <Modal isOpen={configOpen} onClose={() => setConfigOpen(false)} title={activeBot.name} description={mode === "solo" ? "Toph Solo: configuração completa." : "Configure o membro da equipe."} placement={mobile ? "bottom" : "center"} size="lg" bodyClassName="p-0" swipeToClose={mobile}>
         {activeBot && <BotConfig projectId={project.id} projectRoot={project.root} bot={activeBot} mode={mode} />}
       </Modal>
 
@@ -1426,7 +1420,6 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
         onNew={newSession}
       />
 
-      <AiSettingsModal open={settingsOpen} projectRoot={project.root} onClose={() => setSettingsOpen(false)} />
     </div>
   );
 }

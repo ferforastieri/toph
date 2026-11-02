@@ -5,6 +5,7 @@ export const BOT_AVATARS = [
   "hexagon", "flower", "gear", "cloud", "leaf",
   "drop", "spark", "ring", "wave", "ghost",
   "egg", "square", "triangle", "moon", "cat",
+  "logo", "logo-outline", "logo-square", "logo-glow",
 ] as const;
 export type BotAvatar = (typeof BOT_AVATARS)[number];
 
@@ -13,6 +14,7 @@ export const BOT_AVATAR_LABELS: Record<BotAvatar, string> = {
   hexagon: "Hexágono", flower: "Flor", gear: "Engrenagem", cloud: "Nuvem", leaf: "Folha",
   drop: "Gota", spark: "Faísca", ring: "Anel", wave: "Onda", ghost: "Fantasma",
   egg: "Ovo", square: "Quadrado", triangle: "Triângulo", moon: "Lua", cat: "Gato",
+  logo: "Logo Toph", "logo-outline": "Logo contorno", "logo-square": "Logo quadrada", "logo-glow": "Logo brilho",
 };
 export type BotLanguage = "auto" | "pt" | "en" | "es";
 
@@ -32,7 +34,6 @@ export interface MiniBot {
   language: BotLanguage;
   color: string;
   avatar: BotAvatar;
-  photo?: string;
   notifications: boolean;
   coordinator: boolean;
   sessionId?: string;
@@ -114,7 +115,11 @@ export interface TophPreset {
 }
 
 export const TOPH_PRESETS: TophPreset[] = [
-  { name: "Toph", role: "Assistente", description: "Seu agente pessoal para conversar, programar e executar tarefas.", personality: "Direto, curioso e focado em resolver o problema.", color: "#B9DE7A", avatar: "shield", coordinator: true },
+  { name: "Toph", role: "Assistente", description: "Seu agente pessoal para conversar, programar e executar tarefas.", personality: "Direto, curioso e focado em resolver o problema.", color: "#B9DE7A", avatar: "logo", coordinator: true },
+  { name: "Toph Logo", role: "Identidade", description: "Cuida da marca, da apresentação visual e da consistência do produto.", personality: "Atento à identidade, direto e obcecado por consistência.", color: "#FFB547", avatar: "logo" },
+  { name: "Selo", role: "Marca", description: "Trabalha com selos, assinaturas visuais e materiais de marca.", personality: "Visual, preciso e econômico nas escolhas.", color: "#7FD4E8", avatar: "logo-outline" },
+  { name: "Grid", role: "Design system", description: "Organiza componentes, variações e padrões visuais.", personality: "Sistemático, detalhista e avesso a exceções sem motivo.", color: "#B9DE7A", avatar: "logo-square" },
+  { name: "Glow", role: "Criativo", description: "Explora novas variações de identidade e apresentação.", personality: "Curioso, experimental e atento ao impacto visual.", color: "#C7A3FF", avatar: "logo-glow" },
   { name: "Atlas", role: "Coordenador", description: "Organiza o time, distribui tarefas e cobra o fechamento.", personality: "Estratégico, calmo e obcecado por clareza.", color: "#7FD4E8", avatar: "hexagon", coordinator: true },
   { name: "Nova", role: "Produto", description: "Transforma pedidos vagos em escopo e critérios de aceite.", personality: "Curiosa, objetiva e implacável com ambiguidade.", color: "#FF9EC4", avatar: "flower" },
   { name: "Leo", role: "Dev", description: "Implementa, refatora e resolve bugs no código.", personality: "Pragmático, direto e cuidadoso com regressões.", color: "#8FB5F5", avatar: "gear" },
@@ -192,8 +197,7 @@ function sanitizeBots(input: MiniBot[] | undefined): MiniBot[] {
       emailAccountIds: Array.isArray(bot.emailAccountIds) ? bot.emailAccountIds.filter((item) => typeof item === "string") : [],
       language: (["auto", "pt", "en", "es"].includes(bot.language) ? bot.language : "auto") as BotLanguage,
       color: bot.color || BOT_COLORS[0],
-      avatar: (BOT_AVATARS.includes(bot.avatar as BotAvatar) ? bot.avatar : "shield") as BotAvatar,
-      photo: typeof bot.photo === "string" && bot.photo.startsWith("data:image/") ? bot.photo : undefined,
+      avatar: (bot.name === "Toph" && (bot.role === "Assistente" || bot.role === "Agente solo") && bot.avatar === "shield" ? "logo" : (BOT_AVATARS.includes(bot.avatar as BotAvatar) ? bot.avatar : "logo")) as BotAvatar,
       notifications: bot.notifications !== false,
       sessionPrimed: bot.sessionPrimed === true,
       coordinator: bot.coordinator === true,
@@ -370,7 +374,7 @@ export const useBots = create<BotStore>((set, get) => ({
       role: "Assistente",
       description: "Seu agente pessoal para conversar, programar e executar tarefas.",
       personality: "Direto, curioso e focado em resolver o problema.",
-      avatar: "shield",
+      avatar: "logo",
       coordinator: false,
       ...patch,
     });
