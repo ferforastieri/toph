@@ -5,7 +5,7 @@ export const BOT_AVATARS = [
   "hexagon", "flower", "gear", "cloud", "leaf",
   "drop", "spark", "ring", "wave", "ghost",
   "egg", "square", "triangle", "moon", "cat",
-  "logo-smile", "logo-wink", "logo-cool", "logo-star", "logo-blush",
+  "mark-smile", "mark-wink", "mark-cool", "mark-star", "mark-blush",
 ] as const;
 export type BotAvatar = (typeof BOT_AVATARS)[number];
 
@@ -14,7 +14,7 @@ export const BOT_AVATAR_LABELS: Record<BotAvatar, string> = {
   hexagon: "Hexágono", flower: "Flor", gear: "Engrenagem", cloud: "Nuvem", leaf: "Folha",
   drop: "Gota", spark: "Faísca", ring: "Anel", wave: "Onda", ghost: "Fantasma",
   egg: "Ovo", square: "Quadrado", triangle: "Triângulo", moon: "Lua", cat: "Gato",
-  "logo-smile": "Toph sorriso", "logo-wink": "Toph piscada", "logo-cool": "Toph óculos", "logo-star": "Toph estrela", "logo-blush": "Toph blush",
+  "mark-smile": "Toph sorriso", "mark-wink": "Toph piscada", "mark-cool": "Toph óculos", "mark-star": "Toph estrela", "mark-blush": "Toph blush",
 };
 export type BotLanguage = "auto" | "pt" | "en" | "es";
 
@@ -109,12 +109,12 @@ export interface TophPreset {
 }
 
 export const TOPH_PRESETS: TophPreset[] = [
-  { name: "Toph", role: "Assistente", description: "Seu agente pessoal para conversar, programar e executar tarefas.", personality: "Direto, curioso e focado em resolver o problema.", color: "#B9DE7A", avatar: "logo-smile", coordinator: true },
-  { name: "Toph Smile", role: "Identidade", description: "Cuida da marca, da apresentação visual e da consistência do produto.", personality: "Atento à identidade, direto e obcecado por consistência.", color: "#FFB547", avatar: "logo-smile" },
-  { name: "Toph Wink", role: "Criativo", description: "Explora novas variações de identidade e apresentação.", personality: "Curioso, experimental e atento ao impacto visual.", color: "#7FD4E8", avatar: "logo-wink" },
-  { name: "Toph Cool", role: "Growth", description: "Testa hipóteses, funis e experimentos com personalidade.", personality: "Orientado a métrica, confiante e direto.", color: "#C7A3FF", avatar: "logo-cool" },
-  { name: "Toph Star", role: "Design system", description: "Organiza componentes, variações e padrões visuais.", personality: "Sistemático, detalhista e avesso a exceções sem motivo.", color: "#B9DE7A", avatar: "logo-star" },
-  { name: "Toph Blush", role: "Conteúdo", description: "Escreve, revisa e adapta textos com identidade própria.", personality: "Criativa, calorosa e atenta ao tom da marca.", color: "#FF9EC4", avatar: "logo-blush" },
+  { name: "Toph", role: "Assistente", description: "Seu agente pessoal para conversar, programar e executar tarefas.", personality: "Direto, curioso e focado em resolver o problema.", color: "#B9DE7A", avatar: "mark-smile", coordinator: true },
+  { name: "Toph Sorriso", role: "Identidade", description: "Cuida da marca, da apresentação visual e da consistência do produto.", personality: "Atento à identidade, direto e obcecado por consistência.", color: "#FFB547", avatar: "mark-smile" },
+  { name: "Toph Piscada", role: "Criativo", description: "Explora novas variações de identidade e apresentação.", personality: "Curioso, experimental e atento ao impacto visual.", color: "#7FD4E8", avatar: "mark-wink" },
+  { name: "Toph Óculos", role: "Growth", description: "Testa hipóteses, funis e experimentos com personalidade.", personality: "Orientado a métrica, confiante e direto.", color: "#C7A3FF", avatar: "mark-cool" },
+  { name: "Toph Estrela", role: "Design system", description: "Organiza componentes, variações e padrões visuais.", personality: "Sistemático, detalhista e avesso a exceções sem motivo.", color: "#B9DE7A", avatar: "mark-star" },
+  { name: "Toph Blush", role: "Conteúdo", description: "Escreve, revisa e adapta textos com identidade própria.", personality: "Criativa, calorosa e atenta ao tom da marca.", color: "#FF9EC4", avatar: "mark-blush" },
   { name: "Atlas", role: "Coordenador", description: "Organiza o time, distribui tarefas e cobra o fechamento.", personality: "Estratégico, calmo e obcecado por clareza.", color: "#7FD4E8", avatar: "hexagon", coordinator: true },
   { name: "Nova", role: "Produto", description: "Transforma pedidos vagos em escopo e critérios de aceite.", personality: "Curiosa, objetiva e implacável com ambiguidade.", color: "#FF9EC4", avatar: "flower" },
   { name: "Leo", role: "Dev", description: "Implementa, refatora e resolve bugs no código.", personality: "Pragmático, direto e cuidadoso com regressões.", color: "#8FB5F5", avatar: "gear" },
@@ -369,7 +369,7 @@ export const useBots = create<BotStore>((set, get) => ({
       role: "Assistente",
       description: "Seu agente pessoal para conversar, programar e executar tarefas.",
       personality: "Direto, curioso e focado em resolver o problema.",
-      avatar: "logo-smile",
+      avatar: "mark-smile",
       coordinator: false,
       ...patch,
     });
