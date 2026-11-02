@@ -31,46 +31,59 @@ const SHAPES: Partial<Record<BotAvatarShape, string>> = {
   cat: "M8 14 14 4l8 7h4l8-7 6 10v22a8 8 0 0 1-8 8H16a8 8 0 0 1-8-8z",
 };
 
-const LOGO_AVATARS = new Set<BotAvatarShape>(["logo", "logo-outline", "logo-square", "logo-glow"]);
+const LOGO_AVATARS = new Set<BotAvatarShape>(["logo-smile", "logo-wink", "logo-cool", "logo-star", "logo-blush"]);
 
 export default function BotAvatar({ bot, size = 36, className, style }: Props) {
   if (LOGO_AVATARS.has(bot.avatar)) {
-    const logo = `${import.meta.env.BASE_URL}brand/toph-mark.png`;
-    const outline = bot.avatar === "logo-outline";
-    const square = bot.avatar === "logo-square";
-    const glow = bot.avatar === "logo-glow";
+    const logoColor = "#FFB547";
+    const ink = "#20251d";
+    const blush = bot.avatar === "logo-blush";
+    const cool = bot.avatar === "logo-cool";
+    const wink = bot.avatar === "logo-wink";
+    const star = bot.avatar === "logo-star";
     return (
       <span
         className={className}
-        style={{
-          width: size,
-          height: size,
-          display: "inline-flex",
-          flexShrink: 0,
-          alignItems: "center",
-          justifyContent: "center",
-          padding: size * 0.16,
-          backgroundColor: outline ? "transparent" : glow ? "#161616" : bot.color,
-          border: outline ? `${Math.max(1, size * 0.045)}px solid ${bot.color}` : undefined,
-          borderRadius: square ? size * 0.24 : "9999px",
-          boxShadow: glow ? `0 0 ${size * 0.35}px ${bot.color}` : undefined,
-          ...style,
-        }}
+        style={{ width: size, height: size, display: "inline-flex", flexShrink: 0, overflow: "hidden", borderRadius: "9999px", ...style }}
         aria-hidden
       >
-        <img
-          src={logo}
-          alt=""
-          style={{
-            width: "100%",
-            height: "100%",
-            objectFit: "contain",
-            filter: outline || glow ? undefined : "brightness(0) saturate(0) invert(0.12)",
-          }}
-        />
+        <svg viewBox="0 0 48 48" width={size} height={size} role="img">
+          <rect width="48" height="48" rx="24" fill={bot.color} opacity="0.22" />
+          {/* Toph mark as the character's body */}
+          <rect x="4" y="27" width="40" height="7" rx="3.5" fill={logoColor} />
+          <rect x="9" y="35" width="30" height="6" rx="3" fill={logoColor} opacity="0.9" />
+          <rect x="15" y="42" width="18" height="4" rx="2" fill={logoColor} opacity="0.8" />
+          {/* Face/head */}
+          <circle cx="24" cy="16" r="12" fill={bot.color} stroke="rgba(0,0,0,0.18)" strokeWidth="1.2" />
+          <path d="M15 9c3-4 8-5.5 13-4.5" fill="none" stroke="rgba(255,255,255,0.55)" strokeWidth="2" strokeLinecap="round" />
+          {cool ? (
+            <>
+              <rect x="13" y="14" width="9" height="4.5" rx="2" fill={ink} />
+              <rect x="26" y="14" width="9" height="4.5" rx="2" fill={ink} />
+              <path d="M22 16h4" stroke={ink} strokeWidth="1.5" />
+              <path d="M20 23c2.4 1.4 5.6 1.4 8 0" fill="none" stroke={ink} strokeWidth="1.6" strokeLinecap="round" />
+            </>
+          ) : star ? (
+            <>
+              <path d="M17 12.5 18.2 15l2.8.3-2.1 1.8.6 2.7-2.5-1.4-2.5 1.4.6-2.7-2.1-1.8 2.8-.3z" fill={ink} />
+              <path d="M31 12.5 32.2 15l2.8.3-2.1 1.8.6 2.7-2.5-1.4-2.5 1.4.6-2.7-2.1-1.8 2.8-.3z" fill={ink} />
+              <ellipse cx="24" cy="22" rx="3" ry="2.3" fill={ink} />
+            </>
+          ) : (
+            <>
+              <ellipse cx="19" cy="15" rx="2.2" ry="2.8" fill={ink} />
+              {wink ? <path d="M27 15h5" stroke={ink} strokeWidth="2.2" strokeLinecap="round" /> : <ellipse cx="29" cy="15" rx="2.2" ry="2.8" fill={ink} />}
+              <circle cx="19.7" cy="14.2" r="0.7" fill="#fff" opacity="0.9" />
+              {!wink && <circle cx="29.7" cy="14.2" r="0.7" fill="#fff" opacity="0.9" />}
+              <path d="M20 21c2.3 2 5.7 2 8 0" fill="none" stroke={ink} strokeWidth="1.7" strokeLinecap="round" />
+            </>
+          )}
+          {blush && <><circle cx="14" cy="20" r="2" fill="rgba(255,120,120,0.35)" /><circle cx="34" cy="20" r="2" fill="rgba(255,120,120,0.35)" /></>}
+        </svg>
       </span>
     );
   }
+
   const shape = SHAPES[bot.avatar] ?? SHAPES.shield!;
   return (
     <span

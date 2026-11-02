@@ -3,7 +3,7 @@ import { Bot, Check, ChevronDown, Trash2 } from "@toph/icons";
 import { OpenCode } from "@opencode/client";
 import { openCodeBase, api, type EmailAccount } from "../api";
 import type { BotAvatar as BotAvatarShape, MiniBot, TophMode } from "../bots";
-import { BOT_AVATAR_LABELS, BOT_AVATARS, BOT_COLORS, useBots } from "../bots";
+import { BOT_AVATAR_LABELS, BOT_AVATARS, useBots } from "../bots";
 import { useAI } from "../ai";
 import BotAvatar from "./BotAvatar";
 import { Button } from "@/boardui/base/buttons/button";
@@ -13,6 +13,7 @@ import { Switch } from "@/boardui/base/switch/switch";
 import { Select, SelectItem } from "@/boardui/base/select/select";
 import ModelPicker from "../ui/ModelPicker";
 import ComposerMenu from "../ui/ComposerMenu";
+import ColorPicker from "../ui/ColorPicker";
 import { useConfirm } from "../ui/confirm";
 
 interface Props {
@@ -227,21 +228,7 @@ export default function BotConfig({ projectId, projectRoot, bot, mode }: Props) 
 
       <div className="flex flex-col gap-1.5">
         <span className="text-caption-1-medium text-text-secondary">Cor</span>
-        <div className="flex flex-wrap gap-1.5">
-          {BOT_COLORS.map((color) => (
-            <button
-              key={color}
-              type="button"
-              aria-label={`Usar cor ${color}`}
-              aria-pressed={bot.color === color}
-              onClick={() => update({ color })}
-              className="flex size-6 items-center justify-center rounded-full border border-black/10"
-              style={{ backgroundColor: color }}
-            >
-              {bot.color === color && <Check size={12} className="text-black/70" />}
-            </button>
-          ))}
-        </div>
+        <ColorPicker value={bot.color} onChange={(color) => update({ color })} />
       </div>
 
       <div className="flex flex-col gap-1.5">
