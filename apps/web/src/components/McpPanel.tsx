@@ -70,6 +70,7 @@ interface OAuthStatus {
 
 interface Props {
   projectRoot?: string;
+  onChanged?: () => void;
 }
 
 function cookie(name: string): string {
@@ -114,7 +115,7 @@ function statusInfo(status: McpStatus): { label: string; color: "lime" | "yellow
   }
 }
 
-export default function McpPanel({ projectRoot }: Props) {
+export default function McpPanel({ projectRoot, onChanged }: Props) {
   const notify = useApp((state) => state.notify);
   const confirm = useConfirm();
   const client = useMemo(
@@ -156,12 +157,13 @@ export default function McpPanel({ projectRoot }: Props) {
       ];
       setServers(mcpResult.data ?? []);
       setIntegrations(integrationResult.data ?? []);
+      onChanged?.();
     } catch (err) {
       setError(errorMessage(err));
     } finally {
       setLoading(false);
     }
-  }, [client, location]);
+  }, [client, location, onChanged]);
 
   useEffect(() => {
     void load();

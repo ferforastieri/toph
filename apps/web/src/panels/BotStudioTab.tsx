@@ -3,7 +3,7 @@ import { OpenCode } from "@opencode/client";
 import { connectClientMcp, type ClientMcpTool } from "@opencode/client/mcp";
 import { Bot, ChevronDown, Copy, History, LoaderCircle, MessageSquarePlus, Settings2, UserRound } from "@toph/icons";
 import { api, openCodeBase, type AIMessage, type Project } from "../api";
-import { useAI } from "../ai";
+import { modelDisplay, useAI } from "../ai";
 import { TOPH_PRESETS, useBots, type BotMessage, type MiniBot } from "../bots";
 import { notifyAiResponse } from "../aiNotifications";
 import { playBotResponseSound, unlockBotSound } from "../botSound";
@@ -21,6 +21,7 @@ import { useTophDrafts } from "../tophDrafts";
 import { AgentComposer, type AgentAttachment } from "../ui/AgentComposer";
 import { DropdownItem } from "@/boardui/base/dropdown/dropdown";
 import ComposerMenu from "../ui/ComposerMenu";
+import AiUsageMeter from "../ui/AiUsageMeter";
 
 interface Props {
   project: Project;
@@ -33,22 +34,28 @@ function splitModel(model: string): { providerID: string; id: string } | null {
   return { providerID: model.slice(0, index), id: model.slice(index + 1) };
 }
 
-function prettyModel(value?: string): string {
-  if (!value) return "Agent";
-  const raw = value.split("/").pop() ?? value;
-  return raw
-    .replace(/^deepseek/i, "DeepSeek")
-    .replace(/^gpt/i, "GPT")
-    .replace(/^claude/i, "Claude")
-    .replace(/^gemini/i, "Gemini")
-    .replace(/^qwen/i, "Qwen")
-    .replace(/^glm/i, "GLM")
-    .replace(/[-_]+/g, " ")
-    .replace(/\b([a-z])/g, (match) => match.toUpperCase());
-}
-
 function formatMessageTime(createdAt: number): string {
   return new Date(createdAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+}
+
+function MessageInfo({ agentMode, model, createdAt, content, copyLabel, align = "start" }: {
+  agentMode?: "build" | "plan";
+  model: string;
+  createdAt: number;
+  content: string;
+  copyLabel: string;
+  align?: "start" | "end";
+}) {
+  return (
+    <div className={cx("flex items-center gap-1.5 px-1 text-[11px] text-text-tertiary", align === "end" && "justify-end")}>
+      <span>{agentMode === "plan" ? "Plan" : "Build"}</span>
+      <span>·</span>
+      <span className="truncate">{model}</span>
+      <span>·</span>
+      <span className="shrink-0">{formatMessageTime(createdAt)}</span>
+      <Button variant="ghost" size="xs" iconOnly leadingIcon={Copy} aria-label={copyLabel} title={copyLabel} className="size-5 text-text-tertiary" onClick={() => void navigator.clipboard.writeText(content).catch(() => undefined)} />
+    </div>
+  );
 }
 
 function toolContent(value: unknown): string {
@@ -283,8 +290,10 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
   const createSolo = useBots((state) => state.createSolo);
   const addMessage = useBots((state) => state.addMessage);
   const updateMessage = useBots((state) => state.updateMessage);
+  const removeMessage = useBots((state) => state.removeMessage);
   const updateBot = useBots((state) => state.updateBot);
   const replaceChannelMessages = useBots((state) => state.replaceChannelMessages);
+  const setBotSession = useBots((state) => state.setBotSession);
   const aiConfig = useAI((state) => state.config);
   const models = useAI((state) => state.models);
   const [input, setInput] = useState("");
@@ -295,6 +304,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
   const sendingRef = useRef(false);
   const runToken = useRef(0);
   const syncInFlight = useRef(false);
+  const restoreToken = useRef(0);
   const [runningBots, setRunningBots] = useState<Set<string>>(new Set());
   const [forms, setForms] = useState<Array<{ form: OpenCodeForm; botId: string }>>([]);
   const [formBusy, setFormBusy] = useState<string | null>(null);
@@ -397,7 +407,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
   const activeWorker = mode === "team" && activeBot && activeBot.id !== coordinator?.id ? activeBot : null;
   const modeMessages = messages.filter((message) => message.mode === mode);
   const displayMessages = mode === "solo"
-    ? modeMessages
+    ? modeMessages.filter((message) => !message.channel || message.channel === "solo")
     : activeWorker
       ? modeMessages.filter((message) => message.channel === `worker:${activeWorker.id}` || (!message.channel && message.botId === activeWorker.id))
       : modeMessages;
@@ -408,6 +418,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
   });
   const activeModel = activeBot?.model || aiConfig?.model || models[0]?.id || "";
   const activeEfforts = models.find((model) => model.id === activeModel)?.variants ?? [];
+  const completedReplies = displayMessages.filter((message) => message.role === "assistant" && !message.pending && message.status !== "running").length;
   const draftKey = `${project.id}:${mode}:${activeBot?.id ?? "none"}:${activeBot?.sessionId ?? "new"}`;
   const savedDraft = useTophDrafts((state) => state.drafts[draftKey] ?? "");
   const setDraft = useTophDrafts((state) => state.setDraft);
@@ -802,6 +813,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
       if (aiConfig?.provider === "opencode") {
         const current = storedBot(bot);
         const reply = await openCodeReply(current, userText, options.attachments, options.token);
+        if (options.token !== undefined && options.token !== runToken.current) return null;
         if (!current.sessionPrimed) updateBot(project.id, current.id, { sessionPrimed: true });
         const currentMessages = useBots.getState().byProject[project.id]?.messages ?? [];
         const eventReplies = currentMessages
@@ -862,6 +874,10 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
         createdAt: Date.now(),
       });
       const reply = await directReply(bot, bots, history, userText);
+      if (options.token !== undefined && options.token !== runToken.current) {
+        removeMessage(project.id, pendingId);
+        return null;
+      }
       if (!reply.trim()) throw new Error("O bot retornou uma resposta vazia.");
       updateMessage(project.id, pendingId, { content: reply.trim(), pending: false, status: "complete" });
       if (bot.notifications) {
@@ -879,6 +895,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
       return reply.trim();
     } catch (error) {
       if (error instanceof Error && error.message === "__stopped__") return null;
+      if (options.token !== undefined && options.token !== runToken.current) return null;
       const text = error instanceof Error ? error.message : "Não foi possível falar com este bot.";
       addMessage(project.id, {
         id: `bot-error-${bot.id}-${Date.now()}`,
@@ -939,25 +956,52 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
     return mode === "solo" ? "solo" : bot.coordinator ? "team" : `worker:${bot.id}`;
   }
 
+  function cancelActiveTurn() {
+    runToken.current += 1;
+    sendingRef.current = false;
+    setSending(false);
+    setRunningBots(new Set());
+    setForms([]);
+  }
+
   async function restoreSession(session: OpenCodeSessionSummary) {
     if (!activeBot) return;
+    const botId = activeBot.id;
     const channel = channelForBot(activeBot);
-    updateBot(project.id, activeBot.id, { sessionId: session.id, sessionPrimed: true });
-    sessionBotMap.current.set(session.id, activeBot.id);
+    const restoreMode = threadMode;
+    const token = ++restoreToken.current;
+    cancelActiveTurn();
     setSessionsOpen(false);
+    // Switch the thread and clear it atomically before hydrating it. This
+    // prevents a slow context request from leaving the previous session's
+    // messages visible (or persisting them under the new session id).
+    if (activeBot.sessionId) sessionBotMap.current.delete(activeBot.sessionId);
+    setBotSession(project.id, botId, session.id, { sessionPrimed: true, channel, messages: [] });
+    sessionBotMap.current.set(session.id, botId);
     try {
       const context = await client.session.context({ sessionID: session.id } as never);
-      replaceChannelMessages(project.id, channel, restoreBotMessages(context, activeBot.id, channel, threadMode));
+      if (token !== restoreToken.current) return;
+      const workspaceNow = useBots.getState().byProject[project.id];
+      const currentMode = workspaceNow?.mode === "solo" ? "solo" : "team";
+      if (!workspaceNow || workspaceNow.activeBotId !== botId || currentMode !== restoreMode) return;
+      setBotSession(project.id, botId, session.id, {
+        sessionPrimed: true,
+        channel,
+        messages: restoreBotMessages(context, botId, channel, restoreMode),
+      });
     } catch (err) {
-      addMessage(project.id, { id: `session-error-${Date.now()}`, role: "error", content: err instanceof Error ? err.message : "Não foi possível recuperar a sessão.", channel, mode: threadMode, createdAt: Date.now() });
+      if (token !== restoreToken.current) return;
+      addMessage(project.id, { id: `session-error-${Date.now()}`, role: "error", content: err instanceof Error ? err.message : "Não foi possível recuperar a sessão.", channel, mode: restoreMode, createdAt: Date.now() });
     }
   }
 
   function newSession() {
     if (!activeBot) return;
+    restoreToken.current += 1;
+    cancelActiveTurn();
+    if (activeBot.sessionId) sessionBotMap.current.delete(activeBot.sessionId);
     const channel = channelForBot(activeBot);
-    updateBot(project.id, activeBot.id, { sessionId: undefined, sessionPrimed: false });
-    replaceChannelMessages(project.id, channel, []);
+    setBotSession(project.id, activeBot.id, undefined, { sessionPrimed: false, channel, messages: [] });
   }
 
   async function syncFromOpenCode() {
@@ -1008,10 +1052,19 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
       for (const bot of currentBots) {
         if (!bot.sessionId) continue;
         const context = await client.session.context({ sessionID: bot.sessionId } as never).catch(() => null);
-        if (!Array.isArray(context) || context.length === 0) continue;
-        const channel = channelForBot(bot);
-        const restored = restoreBotMessages(context, bot.id, channel, threadMode);
-        if (restored.length) replaceChannelMessages(project.id, channel, restored);
+        // A failed context request must not erase the local transcript. An
+        // empty array, however, is a valid empty session and must replace the
+        // previous session's messages.
+        if (!Array.isArray(context)) continue;
+        const workspaceNow = useBots.getState().byProject[project.id];
+        const currentBot = workspaceNow?.bots.find((item) => item.id === bot.id);
+        // The user may have selected another session while this request was
+        // in flight. Never let the old response overwrite the new thread.
+        if (!currentBot || currentBot.sessionId !== bot.sessionId) continue;
+        const currentMode = workspaceNow?.mode === "solo" ? "solo" : "team";
+        const channel = currentMode === "solo" ? "solo" : bot.coordinator ? "team" : `worker:${bot.id}`;
+        const restored = restoreBotMessages(context, bot.id, channel, currentMode);
+        replaceChannelMessages(project.id, channel, restored);
       }
     } finally {
       syncInFlight.current = false;
@@ -1258,12 +1311,25 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
 
             {groupedMessages.map((group, index) => {
               if (group.kind === "user") {
+                const messageBot = group.message.channel?.startsWith("worker:")
+                  ? bots.find((item) => `worker:${item.id}` === group.message.channel)
+                  : mode === "team"
+                    ? coordinator
+                    : activeBot;
+                const messageModel = messageBot?.model || activeModel;
                 return (
                   <div key={`user-${group.message.id}`} className="ms-auto flex min-w-0 max-w-[88%] flex-col items-end gap-1">
                     <p className="min-w-0 max-w-full overflow-hidden rounded-2xl bg-accent-500 px-3.5 py-2 text-[14px] leading-[1.55] whitespace-pre-wrap break-words text-text-on-accent">
                       {group.message.content}
                     </p>
-                    <Button variant="ghost" size="xs" iconOnly leadingIcon={Copy} aria-label="Copiar mensagem" title="Copiar mensagem" onClick={() => void navigator.clipboard.writeText(group.message.content).catch(() => undefined)} className="size-6 text-text-tertiary" />
+                    <MessageInfo
+                      agentMode={messageBot?.agentMode}
+                       model={modelDisplay(models.find((item) => item.id === messageModel) ?? (messageModel ? { id: messageModel, label: messageModel.split("/").pop() ?? messageModel } : undefined))}
+                      createdAt={group.message.createdAt}
+                      content={group.message.content}
+                      copyLabel="Copiar mensagem"
+                      align="end"
+                    />
                   </div>
                 );
               }
@@ -1292,14 +1358,13 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
                     onPermission={(messageId, permissionId, decision) => void replyPermission(bot, messageId, permissionId, decision)}
                   />
                   {mode === "solo" && !footerBusy && footerAssistant ? (
-                    <div className="flex items-center gap-1.5 px-1 text-[11px] text-text-tertiary">
-                      <span>{bot.agentMode === "plan" ? "Plan" : "Build"}</span>
-                      <span>·</span>
-                      <span className="truncate">{models.find((item) => item.id === (bot.model || activeModel))?.label ?? prettyModel(bot.model || activeModel)}</span>
-                      <span>·</span>
-                      <span className="shrink-0">{formatMessageTime(footerAssistant.createdAt)}</span>
-                      <Button variant="ghost" size="xs" iconOnly leadingIcon={Copy} aria-label="Copiar resposta" title="Copiar resposta" className="size-5 text-text-tertiary" onClick={() => void navigator.clipboard.writeText(footerAssistant.content).catch(() => undefined)} />
-                    </div>
+                    <MessageInfo
+                      agentMode={bot.agentMode}
+                       model={modelDisplay(models.find((item) => item.id === (bot.model || activeModel)) ?? ((bot.model || activeModel) ? { id: bot.model || activeModel, label: (bot.model || activeModel).split("/").pop() ?? (bot.model || activeModel) } : undefined))}
+                      createdAt={footerAssistant.createdAt}
+                      content={footerAssistant.content}
+                      copyLabel="Copiar resposta"
+                    />
                   ) : null}
                 </section>
               );
@@ -1380,24 +1445,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
                     </>
                   )}
                 </ComposerMenu>
-                <ComposerMenu
-                  label="Permissões"
-                  trigger={
-                    <>
-                      <span>{(activeBot.permissionMode ?? "yolo") === "yolo" ? "YOLO" : "Perguntar"}</span>
-                      <ChevronDown size={12} className="size-3 text-foreground-icon-tertiary" />
-                    </>
-                  }
-                  popoverClassName="w-[300px] p-0"
-                  contentClassName="flex flex-col gap-1 p-1.5"
-                >
-                  {(close) => (
-                    <>
-                      <DropdownItem selected={(activeBot.permissionMode ?? "yolo") === "yolo"} onSelect={() => { updateBot(project.id, activeBot.id, { permissionMode: "yolo" }); close(); }}>YOLO</DropdownItem>
-                      <DropdownItem selected={activeBot.permissionMode === "ask"} onSelect={() => { updateBot(project.id, activeBot.id, { permissionMode: "ask" }); close(); }}>Perguntar</DropdownItem>
-                    </>
-                  )}
-                </ComposerMenu>
+                <AiUsageMeter client={client} refreshKey={`${sessionKey}:${completedReplies}`} />
               </>
             }
           />
@@ -1405,7 +1453,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
       </section>
 
 
-      <Modal isOpen={configOpen} onClose={() => setConfigOpen(false)} title={activeBot.name} description={mode === "solo" ? "Toph Solo: configuração completa." : "Configure o membro da equipe."} placement={mobile ? "bottom" : "center"} size="lg" bodyClassName="p-0" swipeToClose={mobile}>
+      <Modal isOpen={configOpen} onClose={() => setConfigOpen(false)} title={activeBot.name} description={mode === "solo" ? "Toph Solo: modelo, provedores, ferramentas e identidade." : "Configure o membro da equipe."} placement={mobile ? "bottom" : "center"} size="xl" bodyClassName="p-0" swipeToClose={mobile}>
         {activeBot && <BotConfig projectId={project.id} projectRoot={project.root} bot={activeBot} mode={mode} />}
       </Modal>
 
