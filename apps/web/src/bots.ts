@@ -94,6 +94,12 @@ interface BotStore {
   updateMessage: (projectId: string, messageId: string, patch: Partial<BotMessage>) => void;
   removeMessage: (projectId: string, messageId: string) => void;
   replaceChannelMessages: (projectId: string, channel: string, messages: BotMessage[]) => void;
+  setBotSession: (
+    projectId: string,
+    botId: string,
+    sessionId: string | undefined,
+    options?: { sessionPrimed?: boolean; channel?: string; messages?: BotMessage[] },
+  ) => void;
 }
 
 export const DEFAULT_BOT_COLOR = "#FFB547";
@@ -192,12 +198,16 @@ function sanitizeBots(input: MiniBot[] | undefined): MiniBot[] {
       emailAccountIds: Array.isArray(bot.emailAccountIds) ? bot.emailAccountIds.filter((item) => typeof item === "string") : [],
       language: (["auto", "pt", "en", "es"].includes(bot.language) ? bot.language : "auto") as BotLanguage,
       color: bot.color || DEFAULT_BOT_COLOR,
-      avatar: (bot.name === "Toph" && (bot.role === "Assistente" || bot.role === "Agente solo") && bot.avatar === "shield" ? "logo-smile" : (BOT_AVATARS.includes(bot.avatar as BotAvatar) ? bot.avatar : "logo-smile")) as BotAvatar,
+      avatar: (bot.name === "Toph" && (bot.role === "Assistente" || bot.role === "Agente solo") && bot.avatar === "shield" ? "mark-smile" : (BOT_AVATARS.includes(bot.avatar as BotAvatar) ? bot.avatar : "mark-smile")) as BotAvatar,
       notifications: bot.notifications !== false,
       sessionPrimed: bot.sessionPrimed === true,
       coordinator: bot.coordinator === true,
       createdAt: bot.createdAt ?? Date.now(),
     }));
+}
+
+function messageChannel(message: BotMessage): string {
+  return message.channel ?? (message.mode === "solo" ? "solo" : "team");
 }
 
 function sanitizeMessages(input: BotMessage[] | undefined): BotMessage[] {
@@ -528,9 +538,33 @@ export const useBots = create<BotStore>((set, get) => ({
           [projectId]: {
             ...workspace,
             messages: [
-              ...workspace.messages.filter((message) => (message.channel ?? "team") !== channel),
+              ...workspace.messages.filter((message) => messageChannel(message) !== channel),
               ...messages,
             ].sort((a, b) => a.createdAt - b.createdAt).slice(-200),
+          },
+        },
+      };
+    }),
+
+  setBotSession: (projectId, botId, sessionId, options = {}) =>
+    set((state) => {
+      const workspace = state.byProject[projectId];
+      if (!workspace) return state;
+      const messages = options.channel === undefined
+        ? workspace.messages
+        : [
+            ...workspace.messages.filter((message) => messageChannel(message) !== options.channel),
+            ...(options.messages ?? []),
+          ].sort((a, b) => a.createdAt - b.createdAt).slice(-200);
+      return {
+        byProject: {
+          ...state.byProject,
+          [projectId]: {
+            ...workspace,
+            bots: workspace.bots.map((bot) => bot.id === botId
+              ? { ...bot, sessionId, sessionPrimed: options.sessionPrimed ?? bot.sessionPrimed }
+              : bot),
+            messages,
           },
         },
       };

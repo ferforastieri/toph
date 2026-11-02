@@ -6,7 +6,6 @@ import { useApp, type AiMessage, type Tab } from "../store";
 import type { Project } from "../api";
 import OpenCodePanelTab from "./OpenCodePanelTab";
 import { Button } from "@/boardui/base/buttons/button";
-import { Switch } from "@/boardui/base/switch/switch";
 import { AgentComposer } from "../ui/AgentComposer";
 import { notifyAiResponse } from "../aiNotifications";
 import AiSettingsModal from "../components/AiSettingsModal";
@@ -31,7 +30,6 @@ function GenericAiPanel({ tab, project, config, onClose }: Props & { config: AIC
   const [input, setInput] = useState("");
   const [model, setModel] = useState(config.model);
   const [effort, setEffort] = useState("");
-  const [yolo, setYolo] = useState(true);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   useEffect(() => {
@@ -71,7 +69,7 @@ function GenericAiPanel({ tab, project, config, onClose }: Props & { config: AIC
       const context = config.systemPrompt
         ? [{ role: "system" as const, content: config.systemPrompt }, ...history]
         : history;
-      const result = await api.aiChat(context, { model, effort, yolo });
+      const result = await api.aiChat(context, { model, effort });
       addMessage(tab.id, {
         id: `assistant-${Date.now()}`,
         role: "assistant",
@@ -103,7 +101,6 @@ function GenericAiPanel({ tab, project, config, onClose }: Props & { config: AIC
         </div>
         <div className="flex items-center gap-2">
           <span className="text-caption-1-regular text-text-secondary">{project.name}</span>
-          <span className="flex items-center gap-1.5 rounded-lg border border-border-button-default px-2 py-1 text-caption-1-regular text-text-secondary">YOLO <Switch isSelected={yolo} onChange={setYolo} size="sm" /></span>
         </div>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto">

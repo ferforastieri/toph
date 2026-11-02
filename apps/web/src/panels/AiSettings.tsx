@@ -30,6 +30,7 @@ const empty: AIConfigInput = {
   model: "",
   autocompleteModel: "",
   maxTokens: 1024,
+  weeklyTokenLimit: 10_000_000,
   temperature: 0.2,
   autocomplete: true,
   systemPrompt: "",
@@ -59,6 +60,7 @@ export default function AiSettings() {
           model: next.model,
           autocompleteModel: next.autocompleteModel,
           maxTokens: next.maxTokens,
+          weeklyTokenLimit: next.weeklyTokenLimit ?? 10_000_000,
           temperature: next.temperature,
           autocomplete: next.autocomplete,
           systemPrompt: next.systemPrompt,
@@ -184,6 +186,10 @@ export default function AiSettings() {
         <div className="bg-background-secondary-default grid gap-4 rounded-lg border p-4 sm:grid-cols-2">
           <Input label="Max tokens" type="number" value={String(form.maxTokens)} onChange={(value) => patch({ maxTokens: Number(value) || 1 })} />
           <Input label="Temperature" type="number" value={String(form.temperature)} onChange={(value) => patch({ temperature: Number(value) || 0 })} />
+          <div className="flex flex-col gap-1">
+            <Input label="Limite semanal de tokens" type="number" value={String(form.weeklyTokenLimit)} onChange={(value) => patch({ weeklyTokenLimit: Math.max(0, Number(value) || 0) })} />
+            <p className="text-caption-2-regular text-text-tertiary">Use 0 para não exibir um limite no medidor de uso.</p>
+          </div>
           <div className="sm:col-span-2"><Textarea label="System prompt" rows={3} value={form.systemPrompt} onChange={(value) => patch({ systemPrompt: value })} /></div>
         </div>
 

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Check, ChevronDown } from "@toph/icons";
 import type { AIModel } from "../api";
-import { modelGroup, providerLabel } from "../ai";
+import { modelDisplay, modelGroup, modelTitle, providerLabel } from "../ai";
 import { Dropdown, DropdownPopover, DropdownTrigger } from "@/boardui/base/dropdown/dropdown";
 import { cx } from "@/boardui/utils/cx";
 
@@ -19,6 +19,7 @@ export default function ProviderModelPicker({ models, model, onChange, placehold
   const [openProviders, setOpenProviders] = useState<Set<string>>(new Set());
   const uniqueModels = useMemo(() => [...new Map(models.map((item) => [item.id, item])).values()], [models]);
   const selected = uniqueModels.find((item) => item.id === model);
+  const selectedInfo = selected ?? (model ? { id: model, label: model.split("/").pop() ?? model } : undefined);
 
   const groups = useMemo(() => {
     const grouped = new Map<string, AIModel[]>();
@@ -53,8 +54,7 @@ export default function ProviderModelPicker({ models, model, onChange, placehold
           className,
         )}
       >
-        <span className="min-w-0 flex-1 truncate">{selected?.label ?? (model ? model.split("/").pop() : placeholder)}</span>
-        {selected?.provider ? <span className="shrink-0 text-caption-2-regular text-text-tertiary">{providerLabel(modelGroup(selected))}</span> : null}
+        <span className="min-w-0 flex-1 truncate" title={selectedInfo ? modelTitle(selectedInfo) : placeholder}>{selectedInfo ? modelDisplay(selectedInfo) : placeholder}</span>
         <ChevronDown size={13} className="size-3.5 shrink-0 text-foreground-icon-tertiary" />
       </DropdownTrigger>
       <DropdownPopover aria-label="Modelos por provedor" placement="bottom start" className="w-[320px] max-w-[calc(100vw-24px)] p-0" dialogClassName="gap-0">
@@ -83,7 +83,10 @@ export default function ProviderModelPicker({ models, model, onChange, placehold
                             active ? "bg-background-secondary-hover text-text-primary" : "text-text-primary hover:bg-background-secondary-hover/60",
                           )}
                         >
-                          <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                           <span className="flex min-w-0 flex-1 flex-col truncate">
+                             <span className="truncate">{item.label}</span>
+                             {item.label !== item.id ? <span className="truncate text-caption-2-regular text-text-tertiary">{item.id}</span> : null}
+                           </span>
                           {item.provider === "opencode-go" ? <span className="shrink-0 rounded-full bg-background-tertiary-default px-1.5 text-[10px] text-text-tertiary">Go</span> : null}
                           {active ? <Check size={14} className="shrink-0 text-accent-500" /> : null}
                         </button>

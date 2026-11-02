@@ -143,11 +143,11 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
     return () => window.removeEventListener("toph:ai-context", handleContext);
   }, []);
   const [usage, setUsage] = useState<{ cost?: number; tokens?: unknown } | null>(null);
-  const [permissionMode, setPermissionMode] = useState<"yolo" | "ask" | "deny">("yolo");
-  const permissionModeRef = useRef(permissionMode);
+  // Permission policy belongs to the Toph configuration, not the composer.
+  // The legacy OpenCode panel keeps its historical automatic approval default.
+  const permissionModeRef = useRef<"yolo" | "ask" | "deny">("yolo");
   const [agents, setAgents] = useState<Array<{ id: string; name: string; mode: string }>>([]);
   const [agent, setAgent] = useState("build");
-  useEffect(() => { permissionModeRef.current = permissionMode; }, [permissionMode]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const stickToBottom = useRef(true);
   const pendingDeltas = useRef(new Map<string, string>());
@@ -960,10 +960,6 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
                   {!agents.some((item) => item.id === "plan") && <SelectItem id="plan">Plano</SelectItem>}
                 </>
               )}
-            </Select>
-            <Select selectedKey={permissionMode} onSelectionChange={(key) => setPermissionMode(String(key) as "yolo" | "ask" | "deny")} aria-label="Permissões" className="w-auto [&_button]:text-text-secondary" triggerClassName="h-7 gap-1 border-0 bg-transparent px-1.5 text-body-2-medium text-text-secondary shadow-none">
-              <SelectItem id="yolo">YOLO</SelectItem>
-              <SelectItem id="ask">Perguntar</SelectItem>
             </Select>
           </>
         }

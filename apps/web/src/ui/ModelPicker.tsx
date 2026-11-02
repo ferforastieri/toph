@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Bot, Check, ChevronDown } from "@toph/icons";
 import type { AIModel } from "../api";
-import { modelGroup, providerLabel } from "../ai";
+import { modelDisplay, modelGroup, modelTitle, providerLabel } from "../ai";
 import { cx } from "@/boardui/utils/cx";
 import { Slider } from "@/boardui/base/slider/slider";
 import ComposerMenu from "./ComposerMenu";
@@ -38,6 +38,7 @@ export default function ModelPicker({ models, model, onModelChange, effort, effo
 
   const uniqueModels = useMemo(() => [...new Map(models.map((item) => [item.id, item])).values()], [models]);
   const selected = uniqueModels.find((item) => item.id === model);
+  const selectedInfo = selected ?? (model ? { id: model, label: model.split("/").pop() ?? model } : undefined);
   const variants = selected?.variants ?? efforts;
 
   const groups = useMemo(() => {
@@ -90,7 +91,7 @@ export default function ModelPicker({ models, model, onModelChange, effort, effo
       trigger={
         <>
           {fullWidth ? <Bot size={13} className="shrink-0 text-foreground-icon-tertiary" /> : null}
-          <span className="truncate">{selected?.label ?? (model ? model.split("/").pop() : "Modelo")}</span>
+          <span className="truncate" title={modelTitle(selectedInfo)}>{modelDisplay(selectedInfo)}</span>
           {fullWidth && variants.length > 0 ? <span className="shrink-0 text-caption-2-regular text-text-tertiary">· {effortLabel(effort)}</span> : null}
           <ChevronDown size={12} className="size-3 shrink-0 text-foreground-icon-tertiary" />
         </>
@@ -131,7 +132,10 @@ export default function ModelPicker({ models, model, onModelChange, effort, effo
                               active ? "bg-background-secondary-hover text-text-primary" : "text-text-primary hover:bg-background-secondary-hover/60",
                             )}
                           >
-                            <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                             <span className="flex min-w-0 flex-1 flex-col truncate">
+                               <span className="truncate">{item.label}</span>
+                               {item.label !== item.id ? <span className="truncate text-caption-2-regular text-text-tertiary">{item.id}</span> : null}
+                             </span>
                             {item.provider === "opencode-go" ? <span className="shrink-0 rounded-full bg-background-tertiary-default px-1.5 text-[10px] text-text-tertiary">Go</span> : null}
                             {active ? <Check size={14} className="shrink-0 text-accent-500" /> : null}
                             {itemVariants.length > 0 ? <ChevronDown size={12} className={cx("shrink-0 text-foreground-icon-tertiary transition-transform", effortOpen ? "rotate-180" : "")} /> : null}

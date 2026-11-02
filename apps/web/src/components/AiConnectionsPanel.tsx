@@ -367,8 +367,8 @@ export default function AiConnectionsPanel({ projectRoot, onConnectionsChanged }
           </div>
           <p className="mt-1 text-caption-1-regular text-text-secondary">
             {connectedCount > 0
-              ? `${connectedCount} ${connectedCount === 1 ? "provedor conectado" : "provedores conectados"}. Para usar, feche as configurações e escolha o modelo no seletor do agente.`
-              : "Conecte um provedor abaixo. Depois feche as configurações e escolha o modelo no seletor do agente."}
+              ? `${connectedCount} ${connectedCount === 1 ? "provedor conectado" : "provedores conectados"}. Os modelos ficam disponíveis no seletor desta configuração.`
+              : "Conecte um provedor abaixo por API key ou navegador. Depois escolha o modelo no seletor desta configuração."}
           </p>
         </div>
 

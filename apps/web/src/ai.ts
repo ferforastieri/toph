@@ -27,6 +27,7 @@ export const useAI = create<AIState>((set) => ({
           model: config.model,
           autocompleteModel: config.autocompleteModel,
           maxTokens: config.maxTokens,
+          weeklyTokenLimit: config.weeklyTokenLimit,
           temperature: config.temperature,
           autocomplete: true,
           systemPrompt: config.systemPrompt,
@@ -57,7 +58,29 @@ export const useAI = create<AIState>((set) => ({
   setConfig: (config) => set({ config }),
 }));
 
+function canonicalProvider(provider: string): string {
+  const value = provider.trim().toLowerCase();
+  if (value === "anthropic") return "claude";
+  if (value === "openai-codex" || value === "codex-openai") return "codex";
+  if (value === "openai-compatible") return "openai";
+  if (value === "google" || value === "google-ai") return "google";
+  if (value === "x-ai" || value === "grok") return "xai";
+  if (value === "meta-ai") return "meta";
+  if (value === "moonshot-ai") return "moonshot";
+  return value;
+}
+
 export function modelGroup(model: { id: string; label: string; provider?: string }): string {
+  const explicitProvider = model.provider?.trim();
+  if (explicitProvider) {
+    const provider = canonicalProvider(explicitProvider);
+    if (provider === "openai" && /(^|[\/_-])codex([\/_-]|$)/i.test(model.id)) return "codex";
+    return provider;
+  }
+
+  const providerFromId = model.id.split("/", 1)[0]?.trim();
+  if (providerFromId && providerFromId !== model.id) return canonicalProvider(providerFromId);
+
   const text = `${model.id} ${model.label}`.toLowerCase();
   if (/claude|anthropic/.test(text)) return "claude";
   if (/gemini|gemma|google/.test(text)) return "google";
@@ -73,7 +96,7 @@ export function modelGroup(model: { id: string; label: string; provider?: string
 }
 
 export function providerLabel(provider?: string): string {
-  switch (provider) {
+  switch (canonicalProvider(provider ?? "")) {
     case "openai": return "OpenAI";
     case "codex": return "Codex";
     case "claude":
@@ -88,8 +111,26 @@ export function providerLabel(provider?: string): string {
     case "moonshot": return "Kimi / Moonshot";
     case "ollama": return "Ollama";
     case "custom": return "Custom AI";
+    case "openrouter": return "OpenRouter";
+    case "groq": return "Groq";
+    case "cerebras": return "Cerebras";
+    case "github-copilot": return "GitHub Copilot";
+    case "azure": return "Azure OpenAI";
+    case "amazon-bedrock": return "Amazon Bedrock";
     case "opencode": return "OpenCode";
     case "opencode-go": return "OpenCode Go";
     default: return "Agent";
   }
+}
+
+export function modelDisplay(model?: { id: string; label?: string; provider?: string }): string {
+  if (!model?.id) return "Modelo";
+  const label = model.label?.trim() || model.id.split("/").pop() || model.id;
+  return `${providerLabel(modelGroup({ id: model.id, label, provider: model.provider }))} · ${label}`;
+}
+
+export function modelTitle(model?: { id: string; label?: string; provider?: string }): string {
+  if (!model?.id) return "Modelo";
+  const display = modelDisplay(model);
+  return model.label && model.label !== model.id ? `${display} · ${model.id}` : display;
 }
