@@ -754,7 +754,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
     const deadline = Date.now() + 90_000;
     let latest = "";
     while (Date.now() < deadline) {
-      await new Promise((resolve) => window.setTimeout(resolve, 900));
+      await new Promise((resolve) => window.setTimeout(resolve, 400));
       if (token !== runToken.current) throw new Error("__stopped__");
       const active = await client.session.active().catch(() => null);
       // While OpenCode is working, the event stream updates the transcript.
@@ -836,7 +836,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
             createdAt: Date.now(),
           });
         }
-        if (bot.notifications && options.audience !== "coordinator") {
+        if (bot.notifications) {
           playBotResponseSound();
           notifyAiResponse({
             projectId: project.id,
@@ -867,7 +867,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
       const reply = await directReply(bot, bots, history, userText);
       if (!reply.trim()) throw new Error("O bot retornou uma resposta vazia.");
       updateMessage(project.id, pendingId, { content: reply.trim(), pending: false, status: "complete" });
-      if (bot.notifications && options.audience !== "coordinator") {
+      if (bot.notifications) {
         playBotResponseSound();
         notifyAiResponse({
           projectId: project.id,
@@ -1171,7 +1171,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
       <section className="flex min-w-0 flex-1 flex-col overflow-hidden bg-background-full max-[900px]:rounded-none max-[900px]:border-0 max-[900px]:shadow-none min-[901px]:rounded-3xl min-[901px]:border min-[901px]:border-border-button-white min-[901px]:shadow-sidebar">
         {!mobile ? (
         <div className="flex shrink-0 items-center gap-1 border-b border-separator-border bg-background-secondary-default px-2 py-1.5">
-          <Button variant="ghost" size="small" iconOnly leadingIcon={Settings2} aria-label={mode === "solo" ? "Configurar Toph" : "Configurar Toph ativo"} title={mode === "solo" ? "Configurar Toph" : "Configurar Toph ativo"} onClick={() => setConfigOpen(true)} className="size-9" />
+          <Button variant="ghost" size="small" iconOnly leadingIcon={Settings2} aria-label={mode === "solo" ? "Configurar Toph Solo" : "Configurar Toph ativo"} title={mode === "solo" ? "Configurar Toph Solo" : "Configurar Toph ativo"} onClick={() => setConfigOpen(true)} className="size-9" />
           <Button variant="ghost" size="small" iconOnly leadingIcon={SlidersHorizontal} aria-label="Configurações de IA" title="Configurações de IA" onClick={() => setSettingsOpen(true)} className="size-9" />
           {mode === "team" ? (
             <Button variant="ghost" size="small" iconOnly leadingIcon={MessageSquarePlus} aria-label="Novo Toph" title="Novo Toph" onClick={newBot} className="size-9" />
@@ -1251,7 +1251,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
                 <div className="flex -space-x-2">
                   {(activeWorker ? [activeWorker] : mode === "solo" && activeBot ? [activeBot] : bots.slice(0, 4)).map((bot) => <BotAvatar key={bot.id} bot={bot} size={38} className="rounded-full bg-background-primary-default ring-2 ring-background-primary-default" />)}
                 </div>
-                <strong className="text-title-3-medium text-text-primary">{mode === "solo" ? "Seu Toph está pronto." : activeWorker ? `Converse com ${activeWorker.name}.` : "Algumas mentes, uma conversa."}</strong>
+                <strong className="text-title-3-medium text-text-primary">{mode === "solo" ? "Toph Solo está pronto." : activeWorker ? `Converse com ${activeWorker.name}.` : "Algumas mentes, uma conversa."}</strong>
                 <p className="max-w-md text-caption-1-regular leading-relaxed text-text-secondary">
                   {mode === "solo"
                     ? "Pergunte, programe, anexe arquivos ou peça para executar uma tarefa."
@@ -1365,7 +1365,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
             effort={activeBot.effort ?? ""}
             efforts={activeEfforts}
             onEffortChange={(value) => updateBot(project.id, activeBot.id, { effort: value })}
-            placeholder={mode === "solo" ? "Pergunte ao seu Toph... / comandos, @ contexto" : activeBot.id === coordinator?.id ? "Fale com o coordenador ou @mencione um membro..." : `Pergunte para ${activeBot.name}...`}
+            placeholder={mode === "solo" ? "Pergunte ao seu Toph Solo... / comandos, @ contexto" : activeBot.id === coordinator?.id ? "Fale com o coordenador ou @mencione um membro..." : `Pergunte para ${activeBot.name}...`}
             modeControls={
               <>
                 <ComposerMenu
@@ -1411,7 +1411,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
       </section>
 
 
-      <Modal isOpen={configOpen} onClose={() => setConfigOpen(false)} title={activeBot.name} description={mode === "solo" ? "Configure seu Toph." : "Configure o membro da equipe."} placement={mobile ? "bottom" : "center"} size="lg" bodyClassName="p-0" swipeToClose={mobile}>
+      <Modal isOpen={configOpen} onClose={() => setConfigOpen(false)} title={activeBot.name} description={mode === "solo" ? "Toph Solo: foto, nome e identidade." : "Configure o membro da equipe."} placement={mobile ? "bottom" : "center"} size="lg" bodyClassName="p-0" swipeToClose={mobile}>
         {activeBot && <BotConfig projectId={project.id} projectRoot={project.root} bot={activeBot} mode={mode} />}
       </Modal>
 

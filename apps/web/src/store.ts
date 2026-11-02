@@ -67,6 +67,7 @@ export type NewNotification = Omit<AppNotification, "id" | "createdAt" | "read">
 
 const PROJECT_STATE_KEY = "toph_workbench_projects";
 const NOTIFICATIONS_KEY = "toph_notifications";
+const MAX_NOTIFICATIONS = 100;
 const LAYOUT_VISIBILITY_KEY = "toph_layout_visibility";
 
 interface PersistedProjectState {
@@ -130,7 +131,7 @@ function readNotifications(): AppNotification[] {
       if (!item || typeof item !== "object") return false;
       const candidate = item as Partial<AppNotification>;
       return typeof candidate.id === "string" && typeof candidate.title === "string" && typeof candidate.body === "string";
-    }).slice(0, 30);
+    }).slice(0, MAX_NOTIFICATIONS);
   } catch {
     return [];
   }
@@ -138,7 +139,7 @@ function readNotifications(): AppNotification[] {
 
 function persistNotifications(items: AppNotification[]): void {
   try {
-    localStorage.setItem(NOTIFICATIONS_KEY, JSON.stringify(items.slice(0, 30)));
+    localStorage.setItem(NOTIFICATIONS_KEY, JSON.stringify(items.slice(0, MAX_NOTIFICATIONS)));
   } catch {
     // Notifications are best effort.
   }
@@ -394,7 +395,7 @@ export const useApp = create<AppState>((set, get) => ({
           read: false,
         },
         ...state.notifications,
-      ].slice(0, 30);
+      ].slice(0, MAX_NOTIFICATIONS);
       persistNotifications(next);
       return { notifications: next };
     }),

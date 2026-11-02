@@ -22,14 +22,6 @@ export function notifyAiResponse(input: {
   text?: string;
 }): void {
   const state = useApp.getState();
-  const visible =
-    typeof document !== "undefined" &&
-    document.visibilityState === "visible" &&
-    document.hasFocus() &&
-    state.sidebar === "bots" &&
-    state.activeProjectId === input.projectId;
-  if (visible) return;
-
   const notificationId = typeof crypto !== "undefined" && "randomUUID" in crypto
     ? crypto.randomUUID()
     : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;

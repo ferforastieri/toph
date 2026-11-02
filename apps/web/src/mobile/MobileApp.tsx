@@ -49,7 +49,7 @@ export default function MobileApp() {
   const mobile = useIsMobile();
   const project = projects.find((item) => item.id === activeProjectId) ?? null;
   const activeTab = tabs.find((tab) => tab.id === activeTabId) ?? null;
-  const unreadCount = notifications.filter((notification) => !notification.read && notification.projectId === project?.id).length;
+  const unreadCount = notifications.filter((notification) => !notification.read).length;
 
   const [screen, setScreen] = useState<MobileScreen>("bots");
   const pageTitle = screen === "bots" ? "Tophs" : screen === "files" ? "Arquivos" : screen === "scm" ? "Git" : screen === "db" ? "Bancos" : screen === "web" ? "Web apps" : screen === "debug" ? "Debug" : (activeTab?.title ?? "Editor");
@@ -66,7 +66,7 @@ export default function MobileApp() {
   const [accountOpen, setAccountOpen] = useState(false);
   const swipeStart = useRef<{ x: number; y: number } | null>(null);
   const [currentBranch, setCurrentBranch] = useState("");
-  const pageSubtitle = screen === "scm" && currentBranch ? currentBranch : (project?.name ?? "");
+  const pageSubtitle = screen === "bots" ? "" : screen === "scm" && currentBranch ? currentBranch : (project?.name ?? "");
 
   useEffect(() => {
     setScreen("bots");
@@ -460,8 +460,6 @@ export default function MobileApp() {
       />
       <MobileNotificationsSheet
         open={notificationsOpen}
-        projectId={project.id}
-        projectName={project.name}
         onClose={() => setNotificationsOpen(false)}
         onOpenNotification={openNotification}
       />

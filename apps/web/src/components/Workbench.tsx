@@ -1047,7 +1047,7 @@ export default function Workbench() {
               onOpenRepo={() => { setProjectsMenuOpen(false); setShowRepoPicker(true); }}
             />
         </HeaderAccordion>
-        <NotificationBell projectId={project.id} projectName={project.name} onOpen={openNotification} />
+        <NotificationBell onOpen={openNotification} />
       </div>
   ) : null;
 

@@ -32,6 +32,7 @@ export interface MiniBot {
   language: BotLanguage;
   color: string;
   avatar: BotAvatar;
+  photo?: string;
   notifications: boolean;
   coordinator: boolean;
   sessionId?: string;
@@ -192,6 +193,7 @@ function sanitizeBots(input: MiniBot[] | undefined): MiniBot[] {
       language: (["auto", "pt", "en", "es"].includes(bot.language) ? bot.language : "auto") as BotLanguage,
       color: bot.color || BOT_COLORS[0],
       avatar: (BOT_AVATARS.includes(bot.avatar as BotAvatar) ? bot.avatar : "shield") as BotAvatar,
+      photo: typeof bot.photo === "string" && bot.photo.startsWith("data:image/") ? bot.photo : undefined,
       notifications: bot.notifications !== false,
       sessionPrimed: bot.sessionPrimed === true,
       coordinator: bot.coordinator === true,
