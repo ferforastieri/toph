@@ -80,7 +80,7 @@ export default function BotsSidebar({ project }: Props) {
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-background-primary-default">
-      <div className="flex h-11 shrink-0 items-center gap-2 border-b px-3">
+      <div className="flex h-11 shrink-0 items-center gap-2 border-b px-3 pe-12">
         <Bot size={15} className="text-accent-500" />
         <strong className="text-body-medium text-text-primary">Tophs</strong>
         <span className="rounded-full bg-background-tertiary-default px-1.5 text-caption-2-regular text-text-tertiary">{totalBots}</span>

@@ -1170,7 +1170,7 @@ export default function Workbench() {
           size="small"
           iconOnly
           leadingIcon={activityVisible ? PanelLeftClose : PanelLeftOpen}
-          className="absolute -right-10 top-1 z-50 shadow-md"
+          className="absolute right-2 top-1 z-50 shadow-md"
           aria-label={activityVisible ? "Ocultar barra vertical" : "Mostrar barra vertical"}
           title={activityVisible ? "Ocultar barra vertical" : "Mostrar barra vertical"}
           onClick={() => setWorkspaceFeature("activityBar", !activityVisible)}
