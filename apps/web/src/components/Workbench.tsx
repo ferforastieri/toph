@@ -1160,21 +1160,18 @@ export default function Workbench() {
           />
         </div> : null}
         {effectiveSidebarVisible ? (
-          <aside className={cx("flex min-h-0 shrink-0 flex-col overflow-hidden bg-background-primary-default", activityVisible ? "rounded-e-[22px]" : "rounded-[22px]", botsView ? "w-[clamp(220px,22vw,var(--sidebar-width))]" : "w-[var(--sidebar-width)]")}>
+          <aside className={cx("relative flex min-h-0 shrink-0 flex-col overflow-hidden bg-background-primary-default", activityVisible ? "rounded-e-[22px]" : "rounded-[22px]", botsView ? "w-[clamp(220px,22vw,var(--sidebar-width))]" : "w-[var(--sidebar-width)]")}>
+            <IconButton
+              icon={activityVisible ? PanelLeftClose : PanelLeftOpen}
+              size="small"
+              className="absolute left-2 top-1 z-50 shadow-md"
+              aria-label={activityVisible ? "Ocultar barra vertical" : "Mostrar barra vertical"}
+              title={activityVisible ? "Ocultar barra vertical" : "Mostrar barra vertical"}
+              onClick={() => setWorkspaceFeature("activityBar", !activityVisible)}
+            />
             <SidebarContent />
           </aside>
         ) : null}
-        <Button
-          type="button"
-          variant="secondary"
-          size="small"
-          iconOnly
-          leadingIcon={activityVisible ? PanelLeftClose : PanelLeftOpen}
-          className="absolute right-2 top-1 z-50 shadow-md"
-          aria-label={activityVisible ? "Ocultar barra vertical" : "Mostrar barra vertical"}
-          title={activityVisible ? "Ocultar barra vertical" : "Mostrar barra vertical"}
-          onClick={() => setWorkspaceFeature("activityBar", !activityVisible)}
-        />
       </div>
     </Suspense>
   );
