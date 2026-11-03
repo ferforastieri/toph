@@ -36,6 +36,7 @@ struct ProcEntry {
 /// Terminates processes owned by the Toph user whose working directory is
 /// inside the project. This complements the tracked terminal/debug sessions:
 /// a dev server opened manually from a shell is still inside the project.
+#[cfg(not(windows))]
 pub fn terminate_project_processes(root: &Path) -> ProcessCloseResult {
     let Ok(root) = fs::canonicalize(root) else {
         return ProcessCloseResult::default();
@@ -173,6 +174,14 @@ pub fn terminate_project_processes(root: &Path) -> ProcessCloseResult {
     terminated.sort_by_key(|process| process.pid);
     failed.sort_by_key(|process| process.pid);
     ProcessCloseResult { terminated, failed }
+}
+
+#[cfg(windows)]
+pub fn terminate_project_processes(_root: &Path) -> ProcessCloseResult {
+    // The process discovery above relies on Linux's /proc filesystem and POSIX
+    // process groups. Tracked terminal/debug sessions still clean up their own
+    // children on Windows; leave unrelated project processes untouched here.
+    ProcessCloseResult::default()
 }
 
 fn protected_pids(own_pid: u32) -> HashSet<u32> {
