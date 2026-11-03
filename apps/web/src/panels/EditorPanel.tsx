@@ -14,9 +14,10 @@ interface Props {
   project: Project;
   onOpenChanges?: (path: string) => void;
   mobile?: boolean;
+  debugEnabled?: boolean;
 }
 
-export default function EditorPanel({ tab, project, onOpenChanges, mobile = false }: Props) {
+export default function EditorPanel({ tab, project, onOpenChanges, mobile = false, debugEnabled = true }: Props) {
   const updateTab = useApp((state) => state.updateTab);
   const notify = useApp((state) => state.notify);
   const [blame, setBlame] = useState<GitBlameLine[]>([]);
@@ -29,9 +30,10 @@ export default function EditorPanel({ tab, project, onOpenChanges, mobile = fals
   tabRef.current = tab;
 
   useEffect(() => {
+    if (!debugEnabled) return;
     setStale(false);
     void loadDebug(project.id);
-  }, [tab.id, tab.path, tab.hash, project.id, loadDebug]);
+  }, [debugEnabled, tab.id, tab.path, tab.hash, project.id, loadDebug]);
 
   useProjectEvents(project.id, ["files", "git"], (event) => {
     if (!tab.path) return;

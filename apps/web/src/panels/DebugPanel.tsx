@@ -221,6 +221,7 @@ export default function DebugPanel({ project, mobile = false }: Props) {
   const dirtyRef = useRef(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const sessionRef = useRef<DebugSessionInfo | null>(null);
+  const mountedRef = useRef(true);
 
   const bug = config?.bug ?? "";
   const reproduction = config?.reproduction ?? "";
@@ -443,10 +444,15 @@ export default function DebugPanel({ project, mobile = false }: Props) {
   }, [session?.language, pythonBreakpoints]);
 
   const connectNode = useCallback(async (active: DebugSessionInfo) => {
+    sessionRef.current = active;
     cdpRef.current?.close();
     const cdp = new CdpClient(api.debugSocketUrl(project.id));
     cdpRef.current = cdp;
     await cdp.open();
+    if (!mountedRef.current) {
+      cdp.close();
+      return;
+    }
     cdp.bind();
     const unbind = cdp.on((message) => {
       const method = message.method;
@@ -487,6 +493,8 @@ export default function DebugPanel({ project, mobile = false }: Props) {
   }, [appendConsole, config?.pauseOnExceptions, handlePaused, project.id, setLocation, syncNodeBreakpoints]);
 
   const connectPython = useCallback((active: DebugSessionInfo) => {
+    if (!mountedRef.current) return;
+    sessionRef.current = active;
     breakpointsSentRef.current.clear();
     const socket = new WebSocket(api.debugSocketUrl(project.id));
     pySocketRef.current = socket;
@@ -557,6 +565,11 @@ export default function DebugPanel({ project, mobile = false }: Props) {
         address: config?.address ?? "",
         cwd: config?.cwd ?? "",
       });
+      if (!mountedRef.current) {
+        await api.debugStop(project.id).catch(() => undefined);
+        return;
+      }
+      sessionRef.current = next;
       setSession(next);
       if (next.language === "node") await connectNode(next);
       else connectPython(next);
@@ -581,6 +594,7 @@ export default function DebugPanel({ project, mobile = false }: Props) {
     setWatchResults([]);
     setLocation(project.id, null);
     await api.debugStop(project.id).catch(() => undefined);
+    sessionRef.current = null;
     setSession(null);
     setConsoleLines((current) => [...current, { id: id("log"), kind: "muted", text: "Sessão encerrada." }]);
   }, [project.id, setLocation]);
@@ -651,7 +665,7 @@ export default function DebugPanel({ project, mobile = false }: Props) {
     const restore = async () => {
       try {
         const active = await api.debugSession(project.id);
-        if (cancelled || !active) return;
+        if (cancelled || !mountedRef.current || !active) return;
         setSession(active);
         if (active.language === "node") await connectNode(active);
         else connectPython(active);
@@ -666,6 +680,7 @@ export default function DebugPanel({ project, mobile = false }: Props) {
   }, [project.id]);
 
   useEffect(() => {
+    mountedRef.current = true;
     const release = () => {
       if (!sessionRef.current) return;
       try {
@@ -684,11 +699,13 @@ export default function DebugPanel({ project, mobile = false }: Props) {
     };
     window.addEventListener("pagehide", release);
     return () => {
+      mountedRef.current = false;
       window.removeEventListener("pagehide", release);
       release();
       cdpHandlerRef.current?.();
       cdpRef.current?.close();
       pySocketRef.current?.close();
+      if (sessionRef.current) void api.debugStop(project.id).catch(() => undefined);
     };
   }, [project.id]);
 

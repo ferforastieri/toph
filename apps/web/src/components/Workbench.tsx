@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Bot, ChevronRight, FolderPlus, GitBranch } from "@toph/icons";
 import { api, getApiBase, type Project, type Repository, type SchemaTable, type WebTarget } from "../api";
 import { basename, expandGitPattern, languageFor, quoteIdentifier, sanitizeBranchName } from "../lib";
@@ -7,29 +7,18 @@ import { useBots, type BotWorkspace, botSessionIds } from "../bots";
 import { useAI } from "../ai";
 import { PROJECT_EVENT, type ProjectEvent } from "../projectEvents";
 import ActivityBar from "./ActivityBar";
-import MobileApp from "../mobile/MobileApp";
+import BotStudioTab from "../panels/BotStudioTab";
+import { featureEnabled, isDesktopClient, isTophOnly, sidebarFeature, useSettings, type WorkspaceFeature } from "../settings";
 import Tabs from "./Tabs";
 import TopBar from "./TopBar";
 import Toasts from "./Toasts";
 import RepoPicker from "./RepoPicker";
 import CloseProjectModal from "./CloseProjectModal";
-import ExplorerPanel from "../panels/ExplorerPanel";
-import DatabasesPanel from "../panels/DatabasesPanel";
-import WebSidebar from "../panels/WebSidebar";
-import EditorPanel from "../panels/EditorPanel";
-import DbPanelTab from "../panels/DbPanelTab";
-import BotStudioTab from "../panels/BotStudioTab";
-import DebugPanel from "../panels/DebugPanel";
-import BotsSidebar from "./BotsSidebar";
 import NotificationBell from "./NotificationBell";
 import HeaderAccordion from "./HeaderAccordion";
 import BranchPicker from "./BranchPicker";
 import ProjectSwitcher from "./ProjectSwitcher";
 import { IconButton } from "@/boardui/base/buttons/icon-button";
-import WebPanelTab from "../panels/WebPanelTab";
-import DiffPanelTab from "../panels/DiffPanelTab";
-import TerminalPanel from "../panels/TerminalPanel";
-import SourceControlPanel from "../panels/SourceControlPanel";
 import BrandMark from "@toph/brand";
 import { Button } from "@/boardui/base/buttons/button";
 import { Input } from "@/boardui/base/input/input";
@@ -40,12 +29,53 @@ import { Kbd } from "@/boardui/base/kbd/kbd";
 import { Modal } from "@/boardui/base/modal/modal";
 import ResizeHandle from "../ui/resize";
 import { useIsMobile } from "../ui/useIsMobile";
-import { useSettings } from "../settings";
 import { useConfirm } from "../ui/confirm";
 import { useTophDrafts } from "../tophDrafts";
 import { cx } from "@/boardui/utils/cx";
 import { suggestGitChanges } from "../gitAi";
 import { parseGitStatus } from "../gitStatus";
+
+const MobileApp = lazy(() => import("../mobile/MobileApp"));
+const ExplorerPanel = lazy(() => import("../panels/ExplorerPanel"));
+const DatabasesPanel = lazy(() => import("../panels/DatabasesPanel"));
+const WebSidebar = lazy(() => import("../panels/WebSidebar"));
+const EditorPanel = lazy(() => import("../panels/EditorPanel"));
+const DbPanelTab = lazy(() => import("../panels/DbPanelTab"));
+const DebugPanel = lazy(() => import("../panels/DebugPanel"));
+const BotsSidebar = lazy(() => import("./BotsSidebar"));
+const WebPanelTab = lazy(() => import("../panels/WebPanelTab"));
+const DiffPanelTab = lazy(() => import("../panels/DiffPanelTab"));
+const TerminalPanel = lazy(() => import("../panels/TerminalPanel"));
+const SourceControlPanel = lazy(() => import("../panels/SourceControlPanel"));
+
+function tabFeature(tab: Tab): WorkspaceFeature | null {
+  switch (tab.kind) {
+    case "editor":
+    case "diff": return "files";
+    case "db": return "databases";
+    case "web": return "webApps";
+    case "ai": return "bots";
+    default: return null;
+  }
+}
+
+function restoredSidebar(value: unknown): Sidebar {
+  switch (value) {
+    case "files":
+    case "scm":
+    case "db":
+    case "web":
+    case "bots":
+    case "debug":
+      return value;
+    case "search":
+    case "settings":
+      return "files";
+    case "ai":
+    default:
+      return "bots";
+  }
+}
 
 export default function Workbench() {
   const projects = useApp((state) => state.projects);
@@ -77,6 +107,7 @@ export default function Workbench() {
   const aiConfig = useAI((state) => state.config);
   const sidebarWidth = useSettings((state) => state.sidebarWidth);
   const updateSettings = useSettings((state) => state.update);
+  const workspaceFeatures = useSettings((state) => state.workspaceFeatures);
   const confirm = useConfirm();
 
   const [showRepoPicker, setShowRepoPicker] = useState(false);
@@ -91,10 +122,12 @@ export default function Workbench() {
   const [layoutOpen, setLayoutOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
-  const menuVisible = useSettings((state) => state.menuVisible);
-  const activityVisible = useSettings((state) => state.activityVisible);
-  const sidebarVisible = useSettings((state) => state.sidebarVisible);
-  const statusVisible = useSettings((state) => state.statusVisible);
+  const topBarVisible = workspaceFeatures.topBar;
+  const menuVisible = workspaceFeatures.menuBar;
+  const activityVisible = workspaceFeatures.activityBar;
+  const sidebarVisible = workspaceFeatures.primarySidebar;
+  const tabsVisible = workspaceFeatures.tabs;
+  const statusVisible = workspaceFeatures.statusBar;
   const primarySideBarPosition = useSettings((state) => state.primarySideBarPosition);
   const panelAlignment = useSettings((state) => state.panelAlignment);
   const tabHistory = useRef<string[]>([]);
@@ -116,6 +149,13 @@ export default function Workbench() {
   const branch = gitStatus.split("\n")[0]?.replace(/^##\s*/, "").split("...")[0] ?? "";
   const activeTab = tabs.find((tab) => tab.id === activeTabId) ?? null;
   const botsSolo = sidebar === "bots" && botMode === "solo";
+  const desktopClient = isDesktopClient();
+  const filesEnabled = featureEnabled(workspaceFeatures, "files");
+  const sourceControlEnabled = featureEnabled(workspaceFeatures, "sourceControl");
+  const databasesEnabled = featureEnabled(workspaceFeatures, "databases");
+  const terminalEnabled = featureEnabled(workspaceFeatures, "terminal");
+  const debugEnabled = featureEnabled(workspaceFeatures, "debug");
+  const projectEventsEnabled = filesEnabled || sourceControlEnabled || databasesEnabled;
   const sortedBranches = branchInfo
     ? [...branchInfo.branches].sort((a, b) => {
         if (a === branchInfo.current) return -1;
@@ -127,17 +167,80 @@ export default function Workbench() {
     name.toLowerCase().includes(branchFilter.trim().toLowerCase()),
   );
 
+  function featureIsEnabled(feature: WorkspaceFeature): boolean {
+    return featureEnabled(workspaceFeatures, feature);
+  }
+
+  function selectSidebar(next: Sidebar): void {
+    const feature = sidebarFeature(next);
+    if (feature && !featureIsEnabled(feature)) return;
+    setSidebar(next);
+  }
+
+  function setWorkspaceFeature(feature: WorkspaceFeature, enabled: boolean): void {
+    if (feature === "bots") return;
+    updateSettings({ workspaceFeatures: { [feature]: enabled } });
+    const activeTabFeature = activeTab ? tabFeature(activeTab) : null;
+    if (!enabled && (feature === "tabs" || activeTabFeature === feature)) {
+      setActiveTab(null);
+      setSidebar("bots");
+    }
+    if (!enabled && feature === "terminal") {
+      setTerminalOpen(false);
+    }
+    if (!enabled && feature === "sourceControl") {
+      setBranchMenuOpen(false);
+      setBranchInfo(null);
+      setBranchError("");
+    }
+    if (!enabled && sidebarFeature(sidebar) === feature) {
+      setSidebar("bots");
+    }
+    if (!enabled && (feature === "primarySidebar" || feature === "activityBar")) {
+      const nextSidebarVisible = feature === "primarySidebar" ? false : workspaceFeatures.primarySidebar;
+      const nextActivityVisible = feature === "activityBar" ? false : workspaceFeatures.activityBar;
+      if (!nextSidebarVisible && !nextActivityVisible) setSidebar("bots");
+    }
+  }
+
+  function openLayoutSettings(): void {
+    setLayoutOpen(true);
+  }
+
   useEffect(() => {
+    const selectedFeature = sidebarFeature(sidebar);
+    if ((!selectedFeature && sidebar !== "bots") || (selectedFeature && !featureIsEnabled(selectedFeature))) {
+      setSidebar("bots");
+    }
+    if (!terminalEnabled && terminalOpen) {
+      setTerminalOpen(false);
+    }
+  }, [workspaceFeatures, sidebar, terminalOpen, terminalEnabled, setSidebar, setTerminalOpen]);
+
+  useEffect(() => {
+    if (!activeProjectId) return;
+    if (!terminalEnabled) void api.closeProjectTerminals(activeProjectId).catch(() => undefined);
+    if (!debugEnabled) void api.debugStop(activeProjectId).catch(() => undefined);
+  }, [activeProjectId, terminalEnabled, debugEnabled]);
+
+  useEffect(() => {
+    const openLayout = () => openLayoutSettings();
+    window.addEventListener("toph:layout-settings", openLayout);
+    return () => window.removeEventListener("toph:layout-settings", openLayout);
+  }, []);
+
+  useEffect(() => {
+    if (!activeProjectId) return;
     void loadAI().then(() => loadModels());
-  }, [loadAI, loadModels]);
+  }, [activeProjectId, loadAI, loadModels]);
 
   // Warm the branch list for the active project so opening the selector is instant.
   useEffect(() => {
-    if (!activeProjectId) return;
+    if (!activeProjectId || !sourceControlEnabled) return;
     setBranchInfo(null);
     setBranchError("");
     void loadBranches();
-  }, [activeProjectId]);
+  }, [activeProjectId, sourceControlEnabled]);
 
   useEffect(() => {
     if (!activeTabId) return;
@@ -165,10 +268,13 @@ export default function Workbench() {
   }, []);
 
   useEffect(() => {
-    const openTerminal = () => setTerminalOpen(!useApp.getState().terminalOpen);
+    const openTerminal = () => {
+      if (!terminalEnabled) return;
+      setTerminalOpen(!useApp.getState().terminalOpen);
+    };
     window.addEventListener("toph:open-terminal", openTerminal);
     return () => window.removeEventListener("toph:open-terminal", openTerminal);
-  }, [setTerminalOpen]);
+  }, [setTerminalOpen, terminalEnabled]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -184,11 +290,12 @@ export default function Workbench() {
       }
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "b" && !event.altKey) {
         event.preventDefault();
-        updateSettings({ sidebarVisible: !useSettings.getState().sidebarVisible });
+        setWorkspaceFeature("primarySidebar", !useSettings.getState().workspaceFeatures.primarySidebar);
         return;
       }
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "j") {
         event.preventDefault();
+        if (!terminalEnabled) return;
         setTerminalOpen(!useApp.getState().terminalOpen);
         return;
       }
@@ -200,9 +307,10 @@ export default function Workbench() {
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, [setSidebar, setTerminalOpen]);
+  }, [setSidebar, setTerminalOpen, terminalEnabled]);
 
   useEffect(() => {
+    if (!projectEventsEnabled) return;
     let socket: WebSocket | null = null;
     let retryTimer: number | undefined;
     let stopped = false;
@@ -282,9 +390,10 @@ export default function Workbench() {
       window.removeEventListener("online", onOnline);
       socket?.close();
     };
-  }, []);
+  }, [activeProjectId, projectEventsEnabled]);
 
   useEffect(() => {
+    if (!projectEventsEnabled) return;
     const sync = () => {
       const projectId = useApp.getState().activeProjectId;
       if (!projectId) return;
@@ -305,10 +414,10 @@ export default function Workbench() {
       window.removeEventListener("pageshow", sync);
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, []);
+  }, [projectEventsEnabled]);
 
   useEffect(() => {
-    if (!activeProjectId) {
+    if (!activeProjectId || !filesEnabled && !sourceControlEnabled) {
       setGitStatus("");
       return;
     }
@@ -320,7 +429,7 @@ export default function Workbench() {
     };
     window.addEventListener(PROJECT_EVENT, onProjectEvent);
     return () => window.removeEventListener(PROJECT_EVENT, onProjectEvent);
-  }, [activeProjectId]);
+  }, [activeProjectId, filesEnabled, sourceControlEnabled]);
 
   useEffect(() => {
     const onCursor = (event: Event) => {
@@ -460,34 +569,51 @@ export default function Workbench() {
     loadedProject.current = null;
     savedMode.current = null;
     setTabs([]);
-    setTerminalOpen(true);
-    setSidebar("files");
+    const initialFeatures = useSettings.getState().workspaceFeatures;
+    const initialEnabled = (feature: WorkspaceFeature) => featureEnabled(initialFeatures, feature);
+    const initialTopOnly = isTophOnly(initialFeatures);
+    setTerminalOpen(initialEnabled("terminal") && !initialTopOnly && !desktopClient);
+    setSidebar(desktopClient || initialTopOnly || !initialEnabled("files") ? "bots" : "files");
     api
       .layout(activeProjectId)
       .then((layout) => {
         if (cancelled) return;
+        const features = useSettings.getState().workspaceFeatures;
+        const enabled = (feature: WorkspaceFeature) => featureEnabled(features, feature);
+        const currentTopOnly = isTophOnly(features);
         const restored = (Array.isArray(layout.tabs) ? (layout.tabs as Tab[]) : []).filter(
           (tab) =>
             tab &&
             typeof tab.id === "string" &&
-            ["editor", "db", "web", "diff"].includes(tab.kind),
+            enabled("tabs") &&
+            ["editor", "db", "web", "diff"].includes(tab.kind) &&
+            (!tabFeature(tab) || enabled(tabFeature(tab)!)),
         );
         setTabs(
           restored.map((tab) => ({ ...tab, projectId: activeProjectId })),
-          typeof layout.activeTabId === "string" ? layout.activeTabId : null,
+          enabled("tabs") && typeof layout.activeTabId === "string" ? layout.activeTabId : null,
         );
         loadBots(activeProjectId, layout.bots as BotWorkspace | null | undefined);
-        if (forceTophsOnLoad.current) {
+        if (desktopClient && currentTopOnly) {
+          useBots.getState().createSolo(activeProjectId);
+        }
+        if (currentTopOnly || forceTophsOnLoad.current) {
           forceTophsOnLoad.current = false;
           setSidebar("bots");
         } else if (layout.sidebar) {
-          const savedSidebar =
-            layout.sidebar === "search" || layout.sidebar === "scm" || layout.sidebar === "settings"
-              ? "files"
-              : layout.sidebar;
-          setSidebar(savedSidebar as Sidebar);
+          const savedSidebar = restoredSidebar(layout.sidebar);
+          const savedFeature = sidebarFeature(savedSidebar);
+          setSidebar(
+            savedFeature && !enabled(savedFeature)
+              ? "bots"
+              : savedSidebar,
+          );
         }
-        setTerminalOpen(typeof layout.terminalOpen === "boolean" ? layout.terminalOpen : true);
+        setTerminalOpen(
+          enabled("terminal") && !currentTopOnly && (
+            typeof layout.terminalOpen === "boolean" ? layout.terminalOpen : !desktopClient
+          ),
+        );
         loadedProject.current = activeProjectId;
         setProjectEpoch((value) => value + 1);
       })
@@ -503,10 +629,10 @@ export default function Workbench() {
     return () => {
       cancelled = true;
     };
-  }, [activeProjectId, loadBots, notify, setSidebar, setTabs, setTerminalOpen]);
+  }, [activeProjectId, desktopClient, loadBots, notify, setSidebar, setTabs, setTerminalOpen]);
 
   useEffect(() => {
-    if (!activeProjectId) {
+    if (!activeProjectId || (!filesEnabled && !sourceControlEnabled)) {
       setGitStatus("");
       return;
     }
@@ -514,7 +640,7 @@ export default function Workbench() {
       .gitStatus(activeProjectId)
       .then(setGitStatus)
       .catch(() => setGitStatus(""));
-  }, [activeProjectId, tabs.length]);
+  }, [activeProjectId, tabs.length, filesEnabled, sourceControlEnabled]);
 
 
   const layoutTabs = useMemo(
@@ -607,7 +733,7 @@ export default function Workbench() {
 
 
   async function loadBranches() {
-    if (!project) return;
+    if (!project || !featureIsEnabled("sourceControl")) return;
     setBranchError("");
     try {
       setBranchInfo(await api.gitBranches(project.id));
@@ -621,7 +747,7 @@ export default function Workbench() {
   }
 
   function openBranchMenu() {
-    if (!project) return;
+    if (!project || !featureIsEnabled("sourceControl")) return;
     setBranchMenuOpen(true);
     setNewBranchName("");
     setBranchFilter("");
@@ -733,7 +859,7 @@ export default function Workbench() {
   }
 
   function openFile(path: string, line?: number) {
-    if (!project) return;
+    if (!project || !featureIsEnabled("files")) return;
     openTab({
       id: `editor:${project.id}:${path}`,
       kind: "editor",
@@ -745,7 +871,7 @@ export default function Workbench() {
   }
 
   function openQuery(profileId: string, sql: string) {
-    if (!project) return;
+    if (!project || !featureIsEnabled("databases")) return;
     openTab({
       id: `db:${project.id}:${crypto.randomUUID()}`,
       kind: "db",
@@ -757,7 +883,7 @@ export default function Workbench() {
   }
 
   function openDiff(path: string, staged: boolean) {
-    if (!project) return;
+    if (!project || !featureIsEnabled("files")) return;
     openTab({
       id: `diff:${project.id}:${staged ? "staged" : "worktree"}:${path}`,
       kind: "diff",
@@ -769,7 +895,7 @@ export default function Workbench() {
   }
 
   function openTable(profileId: string, table: SchemaTable, driver: string) {
-    if (!project) return;
+    if (!project || !featureIsEnabled("databases")) return;
     const schema = table.schema;
     let sql = "";
     if (driver === "mongodb") {
@@ -836,7 +962,7 @@ export default function Workbench() {
 
 
   function openWeb(target: WebTarget) {
-    if (!project) return;
+    if (!project || !featureIsEnabled("webApps")) return;
     openTab({
       id: `web:${project.id}:${target.id}`,
       kind: "web",
@@ -971,24 +1097,28 @@ export default function Workbench() {
 
   const SidebarContent = () => (
     <>
-      {project && sidebar === "files" && <ExplorerPanel project={project} onOpenFile={openFile} onStatusChange={setGitStatus} />}
-      {project && sidebar === "db" && <DatabasesPanel project={project} onOpenQuery={openQuery} onOpenTable={openTable} />}
-      {project && sidebar === "scm" && <SourceControlPanel project={project} view="scm" onOpenDiff={openDiff} onStatusChange={setGitStatus} />}
-      {project && sidebar === "web" && <WebSidebar onOpenWeb={openWeb} />}
+      {project && sidebar === "files" && featureIsEnabled("files") && <ExplorerPanel project={project} onOpenFile={openFile} onStatusChange={setGitStatus} />}
+      {project && sidebar === "db" && featureIsEnabled("databases") && <DatabasesPanel project={project} onOpenQuery={openQuery} onOpenTable={openTable} />}
+      {project && sidebar === "scm" && featureIsEnabled("sourceControl") && <SourceControlPanel project={project} view="scm" onOpenDiff={openDiff} onStatusChange={setGitStatus} />}
+      {project && sidebar === "web" && featureIsEnabled("webApps") && <WebSidebar onOpenWeb={openWeb} />}
       {project && sidebar === "bots" && <BotsSidebar project={project} />}
     </>
   );
 
   const primaryOnLeft = primarySideBarPosition === "left";
-  const primarySidebar = sidebarVisible && activityVisible ? (
-    <div className="flex min-h-0 shrink-0 overflow-hidden rounded-3xl border border-border-button-white bg-background-primary-default shadow-sidebar">
-      <ActivityBar />
-      <aside className={cx("flex min-h-0 shrink-0 flex-col overflow-hidden bg-background-primary-default", sidebar === "debug" || botsSolo ? "w-0" : "w-[var(--sidebar-width)]")}>
-        {!botsSolo ? <SidebarContent /> : null}
-      </aside>
-    </div>
+  const primarySidebar = sidebarVisible || activityVisible ? (
+    <Suspense fallback={null}>
+      <div className="flex min-h-0 shrink-0 overflow-hidden rounded-3xl border border-border-button-white bg-background-primary-default shadow-sidebar">
+        {activityVisible && <ActivityBar />}
+        {sidebarVisible && (
+          <aside className={cx("flex min-h-0 shrink-0 flex-col overflow-hidden bg-background-primary-default", sidebar === "debug" || botsSolo ? "w-0" : "w-[var(--sidebar-width)]")}>
+            {!botsSolo ? <SidebarContent /> : null}
+          </aside>
+        )}
+      </div>
+    </Suspense>
   ) : null;
-  const primaryResize = sidebarVisible && activityVisible && sidebar !== "debug" && !botsSolo ? (
+  const primaryResize = sidebarVisible && sidebar !== "debug" && !botsSolo ? (
     <ResizeHandle className="sidebar-resize" orientation="vertical" value={sidebarWidth} min={220} max={320} invert={!primaryOnLeft} label="Resize sidebar" onChange={(width) => document.documentElement.style.setProperty("--sidebar-width", `${width}px`)} onCommit={(width) => updateSettings({ sidebarWidth: width })} />
   ) : null;
   function branchPickerBody() {
@@ -1010,7 +1140,7 @@ export default function Workbench() {
       />
     );
   }
-  const headerBranch = statusVisible ? (
+  const headerBranch = statusVisible && sourceControlEnabled ? (
       <HeaderAccordion
         id="branch"
         isOpen={branchMenuOpen}
@@ -1059,34 +1189,37 @@ export default function Workbench() {
     </>
   ) : null;
 
-  if (mobile) return <MobileApp />;
+  if (mobile) return <Suspense fallback={null}><MobileApp /></Suspense>;
 
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-background-full">
-      <TopBar
-        project={project}
-        quickOpenToken={quickOpenToken}
-        onOpenFile={openFile}
-        onOpenRepo={() => setShowRepoPicker(true)}
-        onCloseTab={() => { if (activeTabId) closeTab(activeTabId); }}
-        onBack={() => navigateHistory(-1)}
-        onForward={() => navigateHistory(1)}
-        onSidebar={setSidebar}
-        onToggleTerminal={() => setTerminalOpen(!useApp.getState().terminalOpen)}
-        onShowTerminal={() => setTerminalOpen(true)}
-        onCustomizeLayout={() => setLayoutOpen(true)}
-        onToggleActivity={() => updateSettings({ activityVisible: !useSettings.getState().activityVisible })}
-        onToggleSidebar={() => updateSettings({ sidebarVisible: !useSettings.getState().sidebarVisible })}
-        sidebarVisible={sidebarVisible}
-        onToggleStatus={() => updateSettings({ statusVisible: !useSettings.getState().statusVisible })}
-        statusVisible={statusVisible}
-        onAbout={() => setAboutOpen(true)}
-        onShortcuts={() => setShortcutsOpen(true)}
-        menuVisible={menuVisible}
-        headerLeft={headerBranch}
-        headerTrailing={headerTrailing}
-        headerRight={headerStatus}
-      />
+      {topBarVisible ? (
+        <TopBar
+          project={project}
+          quickOpenToken={quickOpenToken}
+          onOpenFile={openFile}
+          onOpenRepo={() => setShowRepoPicker(true)}
+          onCloseTab={() => { if (activeTabId) closeTab(activeTabId); }}
+          onBack={() => navigateHistory(-1)}
+          onForward={() => navigateHistory(1)}
+          onSidebar={selectSidebar}
+          onToggleTerminal={() => { if (terminalEnabled) setTerminalOpen(!useApp.getState().terminalOpen); }}
+          onShowTerminal={() => { if (terminalEnabled) setTerminalOpen(true); }}
+          onCustomizeLayout={openLayoutSettings}
+          onToggleActivity={() => setWorkspaceFeature("activityBar", !workspaceFeatures.activityBar)}
+          onToggleSidebar={() => setWorkspaceFeature("primarySidebar", !workspaceFeatures.primarySidebar)}
+          sidebarVisible={sidebarVisible}
+          onToggleStatus={() => setWorkspaceFeature("statusBar", !workspaceFeatures.statusBar)}
+          statusVisible={statusVisible}
+          onAbout={() => setAboutOpen(true)}
+          onShortcuts={() => setShortcutsOpen(true)}
+          menuVisible={menuVisible}
+          workspaceFeatures={workspaceFeatures}
+          headerLeft={headerBranch}
+          headerTrailing={headerTrailing}
+          headerRight={headerStatus}
+        />
+      ) : null}
 
       <div className={cx("flex min-h-0 flex-1 p-1", sidebar === "bots" ? "gap-1" : "gap-0")}>
         {primaryOnLeft && primarySidebar}
@@ -1099,38 +1232,42 @@ export default function Workbench() {
           )}>
             {sidebar === "bots" && project ? (
               <BotStudioTab project={project} />
-            ) : sidebar === "debug" && project ? (
+            ) : sidebar === "debug" && project && featureIsEnabled("debug") ? (
               <DebugPanel project={project} />
             ) : (
               <>
-                <Tabs />
+                {tabsVisible ? <Tabs /> : null}
                 <div className="relative flex min-h-0 flex-1 overflow-hidden">
                   {!activeTab && project && (
                     <div className="flex h-full w-full flex-col items-center justify-center gap-4 p-8 text-center">
                       <BrandMark size="large" />
                       <h2 className="text-title-2-medium text-text-primary">{project.name}</h2>
                       <p className="max-w-lg text-body-regular text-text-secondary">{project.root}</p>
-                      <div className="flex flex-wrap items-center justify-center gap-2">
-                        <Button variant="secondary" size="small" onClick={() => setSidebar("files")}>Explorer</Button>
-                        <Button variant="secondary" size="small" onClick={() => setSidebar("db")}>Database</Button>
-                        <Button variant="secondary" size="small" onClick={() => setSidebar("bots")}>Tophs</Button>
-                      </div>
+                       <div className="flex flex-wrap items-center justify-center gap-2">
+                         {featureIsEnabled("files") && <Button variant="secondary" size="small" onClick={() => selectSidebar("files")}>Explorer</Button>}
+                         {featureIsEnabled("databases") && <Button variant="secondary" size="small" onClick={() => selectSidebar("db")}>Database</Button>}
+                         <Button variant="secondary" size="small" onClick={() => setSidebar("bots")}>Tophs</Button>
+                       </div>
                     </div>
                   )}
-                  {activeTab?.kind === "editor" && project && <EditorPanel tab={activeTab} project={project} onOpenChanges={(path) => openDiff(path, false)} />}
-                  {activeTab?.kind === "db" && <DbPanelTab tab={activeTab} />}
-                  {activeTab?.kind === "web" && <WebPanelTab tab={activeTab} />}
-                  {activeTab?.kind === "diff" && project && <DiffPanelTab tab={activeTab} project={project} />}
+                  <Suspense fallback={null}>
+                    {tabsVisible && activeTab?.kind === "editor" && project && featureIsEnabled("files") && <EditorPanel debugEnabled={debugEnabled} tab={activeTab} project={project} onOpenChanges={(path) => openDiff(path, false)} />}
+                    {tabsVisible && activeTab?.kind === "db" && featureIsEnabled("databases") && <DbPanelTab tab={activeTab} />}
+                    {tabsVisible && activeTab?.kind === "web" && featureIsEnabled("webApps") && <WebPanelTab tab={activeTab} />}
+                    {tabsVisible && activeTab?.kind === "diff" && project && featureIsEnabled("files") && <DiffPanelTab tab={activeTab} project={project} />}
+                  </Suspense>
                 </div>
               </>
             )}
           </main>
 
-          {project && sidebar !== "bots" && (
-            <div className={terminalOpen ? "flex w-full min-w-0 shrink-0 overflow-hidden" : "hidden"}>
-              <TerminalPanel key={project.id} project={project} onOpenFile={openFile} />
-            </div>
-          )}
+          {project && sidebar !== "bots" && featureIsEnabled("terminal") && terminalOpen ? (
+            <Suspense fallback={null}>
+              <div className="flex w-full min-w-0 shrink-0 overflow-hidden">
+                <TerminalPanel key={project.id} project={project} onOpenFile={openFile} />
+              </div>
+            </Suspense>
+          ) : null}
         </div>
 
         {!primaryOnLeft && primaryResize}
@@ -1171,19 +1308,39 @@ export default function Workbench() {
       <Modal
         isOpen={layoutOpen}
         onClose={() => setLayoutOpen(false)}
-        title="Customize Layout"
-        description="Visibilidade, posições e alinhamento."
-        size="sm"
+        title="Recursos do workspace"
+        description="O Toph fica sempre ativo. Os demais recursos só são inicializados quando você os ativa."
+        size="md"
         footer={<Button variant="secondary" onClick={() => setLayoutOpen(false)}>Concluir</Button>}
       >
         <div className="flex flex-col gap-0.5">
-          <div className="mb-1 px-2 text-right text-caption-1-regular text-text-tertiary">Visibility</div>
-          <LayoutRow label="Menu Bar" checked={menuVisible} onChange={(value) => updateSettings({ menuVisible: value })} />
-          <LayoutRow label="Activity Bar" checked={activityVisible} onChange={(value) => updateSettings({ activityVisible: value })} />
-          <LayoutRow label="Primary Side Bar" shortcut="Ctrl+B" checked={sidebarVisible} onChange={(value) => updateSettings({ sidebarVisible: value })} />
-          <LayoutRow label="Panel" shortcut="Ctrl+J" checked={terminalOpen} onChange={setTerminalOpen} />
-          <LayoutRow label="Status Bar" checked={statusVisible} onChange={(value) => updateSettings({ statusVisible: value })} />
+          <div className="mb-1 px-2 text-caption-1-regular text-text-tertiary">Interface</div>
+          <LayoutRow label="Barra superior" checked={workspaceFeatures.topBar} onChange={(value) => setWorkspaceFeature("topBar", value)} />
+          <LayoutRow label="Barra de menus" checked={workspaceFeatures.menuBar} onChange={(value) => setWorkspaceFeature("menuBar", value)} />
+          <LayoutRow label="Barra de atividades" checked={workspaceFeatures.activityBar} onChange={(value) => setWorkspaceFeature("activityBar", value)} />
+          <LayoutRow label="Barra lateral" shortcut="Ctrl+B" checked={workspaceFeatures.primarySidebar} onChange={(value) => setWorkspaceFeature("primarySidebar", value)} />
+          <LayoutRow label="Abas e conteúdo" checked={workspaceFeatures.tabs} onChange={(value) => setWorkspaceFeature("tabs", value)} />
+          <LayoutRow
+            label="Terminal e painel"
+            shortcut="Ctrl+J"
+            checked={workspaceFeatures.terminal}
+            onChange={(value) => {
+              setWorkspaceFeature("terminal", value);
+              if (value) setTerminalOpen(true);
+            }}
+          />
+          <LayoutRow label="Barra de status" checked={workspaceFeatures.statusBar} onChange={(value) => setWorkspaceFeature("statusBar", value)} />
         </div>
+
+        <LayoutSection label="Ferramentas">
+          <LayoutRow label="Explorer e editor" checked={workspaceFeatures.files} onChange={(value) => setWorkspaceFeature("files", value)} />
+          <LayoutRow label="Controle de código-fonte" checked={workspaceFeatures.sourceControl} onChange={(value) => setWorkspaceFeature("sourceControl", value)} />
+          <LayoutRow label="Bancos de dados" checked={workspaceFeatures.databases} onChange={(value) => setWorkspaceFeature("databases", value)} />
+          <LayoutRow label="Aplicativos web" checked={workspaceFeatures.webApps} onChange={(value) => setWorkspaceFeature("webApps", value)} />
+          <LayoutRow label="Debug" checked={workspaceFeatures.debug} onChange={(value) => setWorkspaceFeature("debug", value)} />
+          <LayoutRow label="Tophs" checked disabled onChange={() => undefined} />
+          <p className="px-2 pt-1 text-caption-2-regular text-text-tertiary">O Toph é o único recurso obrigatório e sempre começa ativo.</p>
+        </LayoutSection>
 
         <LayoutSection label="Primary Side Bar Position">
           <RadioGroup className="flex flex-col gap-0.5" value={primarySideBarPosition} onChange={(value) => updateSettings({ primarySideBarPosition: value as "left" | "right" })}>
@@ -1244,10 +1401,10 @@ export default function Workbench() {
   );
 }
 
-function LayoutRow({ label, shortcut, checked, onChange }: { label: string; shortcut?: string; checked: boolean; onChange: (value: boolean) => void }) {
+function LayoutRow({ label, shortcut, checked, disabled = false, onChange }: { label: string; shortcut?: string; checked: boolean; disabled?: boolean; onChange: (value: boolean) => void }) {
   return (
-    <div className="flex h-9 items-center justify-between rounded-lg px-2 hover:bg-background-primary-hover">
-      <Checkbox isSelected={checked} onChange={onChange}>{label}</Checkbox>
+    <div className={cx("flex h-9 items-center justify-between rounded-lg px-2", disabled ? "opacity-70" : "hover:bg-background-primary-hover")}>
+      <Checkbox isSelected={checked} isDisabled={disabled} onChange={onChange}>{label}</Checkbox>
       {shortcut && <Shortcut value={shortcut} />}
     </div>
   );

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { DiffEditor } from "@monaco-editor/react";
+import "../monaco";
 import { api, type Project } from "../api";
 import { languageFor } from "../lib";
 import { useSettings } from "../settings";

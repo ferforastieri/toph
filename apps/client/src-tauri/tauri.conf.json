@@ -13,13 +13,15 @@
     "windows": [
       {
         "label": "main",
-        "title": "Toph",
+        "title": "Toph · Seu workbench",
         "width": 1120,
         "height": 760,
         "minWidth": 900,
         "minHeight": 620,
         "resizable": true,
-        "center": true
+        "center": true,
+        "theme": "Dark",
+        "backgroundColor": "#000000"
       }
     ],
     "security": {
@@ -33,10 +35,11 @@
       "icons/32x32.png",
       "icons/128x128.png",
       "icons/128x128@2x.png",
+      "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "shortDescription": "Toph self-hosted workbench",
-    "longDescription": "Toph desktop client for self-hosted Toph servers and local workspaces.",
+    "shortDescription": "Seu workbench local e self-hosted",
+    "longDescription": "Toph é seu workbench para servidores self-hosted e workspaces locais, com identidade própria em cada projeto.",
     "publisher": "Toph",
     "copyright": "Copyright © 2026 Toph",
     "homepage": "https://github.com/ferforastieri/toph",
@@ -50,7 +53,11 @@
         "uninstallerHeaderImage": "installer/nsis-uninstaller-header.bmp",
         "sidebarImage": "installer/nsis-sidebar.bmp",
         "installMode": "currentUser",
-        "startMenuFolder": "Toph"
+        "startMenuFolder": "Toph",
+        "languages": ["PortugueseBR", "English"],
+        "customLanguageFiles": {
+          "PortugueseBR": "installer/PortugueseBR.nsh"
+        }
       },
       "wix": {
         "bannerPath": "installer/wix-banner.bmp",

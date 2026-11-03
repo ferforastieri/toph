@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { Project, User } from "./api";
+import { isDesktopClient } from "./settings";
 
 export type TabKind = "editor" | "db" | "ai" | "web" | "diff";
 export type Sidebar = "files" | "scm" | "db" | "ai" | "web" | "bots" | "debug" | "settings";
@@ -101,6 +102,7 @@ function persistProjectState(activeProjectId: string | null, openProjectIds: str
 
 function readLayoutVisibility(): { terminalOpen: boolean; aiPanelOpen: boolean } {
   try {
+    if (isDesktopClient()) return { terminalOpen: false, aiPanelOpen: false };
     const raw = localStorage.getItem(LAYOUT_VISIBILITY_KEY);
     if (!raw) return { terminalOpen: true, aiPanelOpen: false };
     const value = JSON.parse(raw) as Partial<{ terminalOpen: boolean; aiPanelOpen: boolean }>;
@@ -109,7 +111,7 @@ function readLayoutVisibility(): { terminalOpen: boolean; aiPanelOpen: boolean }
       aiPanelOpen: value.aiPanelOpen === true,
     };
   } catch {
-    return { terminalOpen: true, aiPanelOpen: false };
+    return { terminalOpen: !isDesktopClient(), aiPanelOpen: false };
   }
 }
 
@@ -172,7 +174,7 @@ interface AppState {
   closeProjectTab: (id: string) => void;
   openTab: (tab: Tab) => void;
   closeTab: (id: string) => void;
-  setActiveTab: (id: string) => void;
+  setActiveTab: (id: string | null) => void;
   updateTab: (id: string, patch: Partial<Tab>) => void;
   setTabs: (tabs: Tab[], activeTabId?: string | null) => void;
   setSidebar: (sidebar: Sidebar) => void;
@@ -204,7 +206,7 @@ export const useApp = create<AppState>((set, get) => ({
   openProjectIds: initialProjectState.openProjectIds,
   tabs: [],
   activeTabId: null,
-  sidebar: "files",
+  sidebar: isDesktopClient() ? "bots" : "files",
   terminalOpen: initialLayoutVisibility.terminalOpen,
   aiPanelOpen: initialLayoutVisibility.aiPanelOpen,
   aiDockTab: null,
