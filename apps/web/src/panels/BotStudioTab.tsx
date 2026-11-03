@@ -27,6 +27,7 @@ import { useSettings } from "../settings";
 import { extractAgentFilePaths } from "../agentArtifacts";
 import { answerOpenCodeQuestion } from "../opencodeQuestion";
 import { recoverBotReply } from "../botReply";
+import { restoredUserText } from "../botHistory";
 
 interface Props {
   project: Project;
@@ -229,8 +230,8 @@ function restoreBotMessages(context: unknown, botId: string, channel: string, mo
   for (const raw of context as Array<Record<string, any>>) {
     const messageCreated = Number(raw.time?.created ?? Date.now());
     if (raw.type === "user") {
-      const text = String(raw.text ?? "");
-      if (/Sua função:|Sua personalidade:|MCPs habilitados para você:|Mensagem atual:/.test(text)) continue;
+      const text = restoredUserText(String(raw.text ?? ""));
+      if (!text) continue;
       restored.push({ id: `history-user-${raw.id}`, role: "user", content: text, channel, mode, createdAt: messageCreated });
       continue;
     }
@@ -1342,25 +1343,31 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
   }
 
   async function send(text: string, attachments: AgentAttachment[] = []) {
-    if ((!text.trim() && attachments.length === 0) || sending || bots.length === 0) return;
+    if ((!text.trim() && attachments.length === 0) || sendingRef.current || sending || bots.length === 0) return;
     sendingRef.current = true;
     unlockBotSound();
-    setInput("");
-    clearDraft(draftKey);
     stickToBottom.current = true;
     const token = ++runToken.current;
     const direct = mentionedBots(bots, text);
     const activeWorker = mode === "team" && activeBot && activeBot.id !== coordinator?.id ? activeBot : null;
     const targetWorker = activeWorker;
     const channel = targetWorker ? `worker:${targetWorker.id}` : mode === "solo" ? "solo" : "team";
+    const userMessageId = `bot-user-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
     addMessage(project.id, {
-      id: `bot-user-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      id: userMessageId,
       role: "user",
       content: text || attachments.map((file) => file.name).join(", "),
       channel,
       mode: threadMode,
       createdAt: Date.now(),
     });
+    const accepted = useBots.getState().byProject[project.id]?.messages.some((message) => message.id === userMessageId);
+    if (!accepted) {
+      sendingRef.current = false;
+      return;
+    }
+    setInput("");
+    clearDraft(draftKey);
     setSending(true);
     try {
       const firstWave = targetWorker
@@ -1609,6 +1616,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
                 <AiUsageMeter client={client} refreshKey={`${sessionKey}:${completedReplies}`} />
               </>
             }
+            history={conversationMessages.filter((message) => message.role === "user").map((message) => message.content)}
           />
         </div> : null}
       </section>

@@ -27,14 +27,18 @@ interface Props {
   placeholder: string;
   allowAttachments?: boolean;
   modeControls?: ReactNode;
+  history?: string[];
 }
 
-export function AgentComposer({ value, onChange, onSend, onStop, busy, models, model, onModelChange, effort, efforts, onEffortChange, placeholder, allowAttachments = true, modeControls }: Props) {
+export function AgentComposer({ value, onChange, onSend, onStop, busy, models, model, onModelChange, effort, efforts, onEffortChange, placeholder, allowAttachments = true, modeControls, history = [] }: Props) {
   const [attachments, setAttachments] = useState<AgentAttachment[]>([]);
   const [error, setError] = useState("");
   const [addMenuOpen, setAddMenuOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const areaRef = useRef<HTMLTextAreaElement>(null);
+  const localHistory = useRef<string[]>([]);
+  const historyIndex = useRef(-1);
+  const historyDraft = useRef("");
   const audio = useAudioRecorder({
     onComplete: (attachment, transcript) => {
       if (allowAttachments) setAttachments((current) => [...current, attachment].slice(0, 6));
@@ -81,9 +85,39 @@ export function AgentComposer({ value, onChange, onSend, onStop, busy, models, m
 
   function submit() {
     if (busy || audio.recording || audio.processing || (!value.trim() && attachments.length === 0)) return;
-    onSend(value.trim(), attachments);
+    const text = value.trim();
+    if (text && localHistory.current[localHistory.current.length - 1] !== text) localHistory.current.push(text);
+    historyIndex.current = -1;
+    historyDraft.current = "";
+    onSend(text, attachments);
     setAttachments([]);
     setError("");
+  }
+
+  function messageHistory(): string[] {
+    const items: string[] = [];
+    for (const item of [...history, ...localHistory.current]) {
+      const text = item.trim();
+      if (text && items[items.length - 1] !== text) items.push(text);
+    }
+    return items.slice(-100);
+  }
+
+  function navigateMessageHistory(direction: -1 | 1) {
+    const items = messageHistory();
+    if (items.length === 0) return;
+    if (historyIndex.current < 0) {
+      if (direction > 0) return;
+      historyDraft.current = value;
+      historyIndex.current = items.length - 1;
+    } else if (direction > 0 && historyIndex.current === items.length - 1) {
+      historyIndex.current = -1;
+    } else {
+      historyIndex.current = Math.max(0, Math.min(items.length - 1, historyIndex.current + direction));
+    }
+    const next = historyIndex.current < 0 ? historyDraft.current : items[historyIndex.current] ?? "";
+    onChange(next);
+    window.setTimeout(() => areaRef.current?.setSelectionRange(next.length, next.length), 0);
   }
 
   return (
@@ -92,7 +126,14 @@ export function AgentComposer({ value, onChange, onSend, onStop, busy, models, m
         <form
           onSubmit={(event) => { event.preventDefault(); event.stopPropagation(); if (!busy) submit(); }}
           className="flex flex-col gap-2 rounded-[14px] border border-border-button-default bg-background-primary-default p-3 pb-2 shadow-xs"
-          onKeyDownCapture={(event) => { if (event.key === "Enter" && !event.shiftKey && event.target === areaRef.current) { event.preventDefault(); submit(); } }}
+          onKeyDownCapture={(event) => {
+            if (event.target !== areaRef.current) return;
+            if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); submit(); return; }
+            if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+            const area = areaRef.current;
+            if (event.key === "ArrowUp" && (value.length === 0 || (area?.selectionStart === 0 && area?.selectionEnd === 0))) { event.preventDefault(); navigateMessageHistory(-1); }
+            if (event.key === "ArrowDown" && historyIndex.current >= 0 && area?.selectionStart === value.length && area?.selectionEnd === value.length) { event.preventDefault(); navigateMessageHistory(1); }
+          }}
           onPaste={(event) => {
             if (!allowAttachments) return;
             const clipboard = event.clipboardData;
@@ -129,7 +170,7 @@ export function AgentComposer({ value, onChange, onSend, onStop, busy, models, m
           <Textarea
             ref={areaRef}
             value={value}
-            onChange={onChange}
+            onChange={(next) => { historyIndex.current = -1; historyDraft.current = next; onChange(next); }}
             placeholder={placeholder}
             aria-label="Mensagem para o agente"
             rows={1}

@@ -92,4 +92,50 @@ describe("AgentComposer actions", () => {
     expect(onStop).toHaveBeenCalledOnce();
     expect(onSend).not.toHaveBeenCalled();
   });
+
+  it("submits the message on the first click", () => {
+    const onSend = vi.fn();
+    render(
+      <AgentComposer
+        value="enviar agora"
+        onChange={vi.fn()}
+        onSend={onSend}
+        busy={false}
+        models={[]}
+        model=""
+        onModelChange={vi.fn()}
+        effort=""
+        efforts={[]}
+        onEffortChange={vi.fn()}
+        placeholder="Mensagem"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Enviar" }));
+    expect(onSend).toHaveBeenCalledOnce();
+    expect(onSend).toHaveBeenCalledWith("enviar agora", []);
+  });
+
+  it("recovers the latest sent message with ArrowUp", () => {
+    const onChange = vi.fn();
+    render(
+      <AgentComposer
+        value=""
+        onChange={onChange}
+        onSend={vi.fn()}
+        busy={false}
+        models={[]}
+        model=""
+        onModelChange={vi.fn()}
+        effort=""
+        efforts={[]}
+        onEffortChange={vi.fn()}
+        placeholder="Mensagem"
+        history={["mensagem anterior"]}
+      />,
+    );
+
+    fireEvent.keyDown(screen.getByRole("textbox", { name: "Mensagem para o agente" }), { key: "ArrowUp" });
+    expect(onChange).toHaveBeenCalledWith("mensagem anterior");
+  });
 });
