@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { Bot, History, MessageSquare, Plus, Settings2, Sparkles, UserRound } from "@toph/icons";
+import { Bot, ChevronDown, ChevronRight, History, MessageSquare, Plus, Settings2, Sparkles, UserRound } from "@toph/icons";
 import type { Project } from "../api";
 import { useAI } from "../ai";
 import { botThread, TOPH_PRESETS, useBots, type TophMode } from "../bots";
@@ -7,6 +7,7 @@ import BotAvatar from "./BotAvatar";
 import { Button } from "@/boardui/base/buttons/button";
 import { Modal } from "@/boardui/base/modal/modal";
 import { cx } from "@/boardui/utils/cx";
+import SidebarHeader from "./SidebarHeader";
 
 interface Props {
   project: Project;
@@ -27,6 +28,7 @@ export default function BotsSidebar({ project, headerControl }: Props) {
   const config = useAI((state) => state.config);
   const models = useAI((state) => state.models);
   const [galleryOpen, setGalleryOpen] = useState(false);
+  const [individualOpen, setIndividualOpen] = useState(true);
 
   useEffect(() => {
     ensure(project.id);
@@ -55,6 +57,11 @@ export default function BotsSidebar({ project, headerControl }: Props) {
     window.dispatchEvent(new CustomEvent("toph:close-mobile-panel"));
   }
 
+  function openBotAction(nextMode: TophMode, botId: string, action: "config" | "sessions") {
+    openConversation(nextMode, botId);
+    window.setTimeout(() => fire(action), 0);
+  }
+
   function addPreset(preset: (typeof TOPH_PRESETS)[number]) {
     if (workspace?.mode !== "team") setMode(project.id, "team");
     const teamBots = botThread(useBots.getState().byProject[project.id], "team").bots;
@@ -81,21 +88,12 @@ export default function BotsSidebar({ project, headerControl }: Props) {
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-background-primary-default">
-      <div className="flex h-11 shrink-0 items-center gap-2 border-b px-2">
-        {headerControl}
-        <Bot size={15} className="text-accent-500" />
-        <strong className="text-body-medium text-text-primary">Tophs</strong>
-        <span className="rounded-full bg-background-tertiary-default px-1.5 text-caption-2-regular text-text-tertiary">{totalBots}</span>
-        <span className="min-w-0 flex-1" />
-        {workspace?.activeBotId ? <Button variant="ghost" size="xs" iconOnly leadingIcon={Settings2} aria-label="Configurar Toph" title="Configurar Toph" onClick={() => fire("config")} /> : null}
-        {workspace?.activeBotId ? <Button variant="ghost" size="xs" iconOnly leadingIcon={History} aria-label="Sessões do Toph" title="Sessões do Toph" onClick={() => fire("sessions")} /> : null}
-        {mode === "team" ? <Button variant="ghost" size="xs" iconOnly leadingIcon={Plus} aria-label="Adicionar Toph" title="Adicionar Toph" onClick={() => setGalleryOpen(true)} /> : null}
-      </div>
+      <SidebarHeader control={headerControl} icon={<Bot size={15} className="text-accent-500" />} title="Tophs" count={<span className="rounded-full bg-background-tertiary-default px-1.5 text-caption-2-regular text-text-tertiary">{totalBots}</span>} actions={<Button variant="ghost" size="xs" iconOnly leadingIcon={Plus} aria-label="Adicionar Toph à equipe" title="Adicionar Toph à equipe" onClick={() => setGalleryOpen(true)} />} />
       <div className="min-h-0 flex-1 overflow-y-auto p-2.5">
-        <div className="mb-1.5 flex items-center gap-2 px-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-tertiary">
-          <UserRound size={12} /> Individuais
-        </div>
-        <div className="mb-3 flex flex-col gap-0.5">
+        <button type="button" onClick={() => setIndividualOpen((value) => !value)} className="mb-1.5 flex w-full items-center gap-2 rounded-lg px-1 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-tertiary hover:bg-background-primary-hover">
+          {individualOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}<UserRound size={12} /> <span className="flex-1 text-start">Individuais</span><span>{soloThread.bots.length}</span>
+        </button>
+        {individualOpen ? <div className="mb-3 flex flex-col gap-0.5">
           {soloThread.bots.length === 0 ? (
             <button
               type="button"
@@ -106,26 +104,30 @@ export default function BotsSidebar({ project, headerControl }: Props) {
               Criar conversa individual
             </button>
           ) : soloThread.bots.map((bot) => (
-            <button
+            <div
               key={bot.id}
-              type="button"
-              onClick={() => openBot("solo", bot.id)}
               className={cx(
-                "flex w-full items-center gap-2.5 rounded-xl px-2 py-2 text-start transition-colors",
+                "flex w-full items-center rounded-xl pe-1 transition-colors",
                 mode === "solo" && bot.id === workspace?.activeBotId ? "bg-background-tertiary-default" : "hover:bg-background-primary-hover",
               )}
             >
-              <BotAvatar bot={bot} size={32} />
-              <span className="flex min-w-0 flex-1 flex-col">
-                <span className="truncate text-caption-1-medium text-text-primary">{bot.name}</span>
-                <span className="truncate text-caption-2-regular text-text-secondary">{bot.role || "Assistente"}</span>
+              <button type="button" onClick={() => openBot("solo", bot.id)} className="flex min-w-0 flex-1 items-center gap-2.5 px-2 py-2 text-start">
+                <BotAvatar bot={bot} size={32} />
+                <span className="flex min-w-0 flex-1 flex-col">
+                  <span className="truncate text-caption-1-medium text-text-primary">{bot.name}</span>
+                  <span className="truncate text-caption-2-regular text-text-secondary">{bot.role || "Assistente"}</span>
+                </span>
+              </button>
+              <span className="flex shrink-0 items-center gap-0.5">
+                <Button variant="ghost" size="xs" iconOnly leadingIcon={Settings2} aria-label={`Configurar ${bot.name}`} title="Configurar Toph" onClick={() => openBotAction("solo", bot.id, "config")} />
+                <Button variant="ghost" size="xs" iconOnly leadingIcon={History} aria-label={`Sessões de ${bot.name}`} title="Sessões do Toph" onClick={() => openBotAction("solo", bot.id, "sessions")} />
               </span>
-            </button>
+            </div>
           ))}
-        </div>
+        </div> : null}
 
         <div className="mb-1.5 flex items-center gap-2 px-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-tertiary">
-          <Sparkles size={12} /> Em equipe
+          <Sparkles size={12} /> Equipe
         </div>
         <button
           type="button"
@@ -149,31 +151,30 @@ export default function BotsSidebar({ project, headerControl }: Props) {
         </button>
         <div className="flex flex-col gap-0.5 ps-2">
           {teamThread.bots.map((bot) => (
-            <button
+            <div
               key={bot.id}
-              type="button"
-              onClick={() => openBot("team", bot.id)}
               className={cx(
-                "flex w-full items-center gap-2.5 rounded-xl px-2 py-2 text-start transition-colors",
+                "flex w-full items-center rounded-xl pe-1 transition-colors",
                 mode === "team" && bot.id === workspace?.activeBotId && bot.id !== teamLeadId ? "bg-background-tertiary-default" : "hover:bg-background-primary-hover",
               )}
             >
-              <BotAvatar bot={bot} size={30} />
-              <span className="flex min-w-0 flex-1 flex-col">
-                <span className="flex items-center gap-1.5">
-                  <span className="truncate text-caption-1-medium text-text-primary">{bot.name}</span>
-                  {bot.coordinator && <span className="shrink-0 rounded-full bg-accent-500/15 px-1 text-[9px] font-medium text-accent-600">coord.</span>}
+              <button type="button" onClick={() => openBot("team", bot.id)} className="flex min-w-0 flex-1 items-center gap-2.5 px-2 py-2 text-start">
+                <BotAvatar bot={bot} size={30} />
+                <span className="flex min-w-0 flex-1 flex-col">
+                  <span className="flex items-center gap-1.5">
+                    <span className="truncate text-caption-1-medium text-text-primary">{bot.name}</span>
+                    {bot.coordinator && <span className="shrink-0 rounded-full bg-accent-500/15 px-1 text-[9px] font-medium text-accent-600">coord.</span>}
+                  </span>
+                  <span className="truncate text-caption-2-regular text-text-secondary">{bot.role || "Especialista"}</span>
                 </span>
-                <span className="truncate text-caption-2-regular text-text-secondary">{bot.role || "Especialista"}</span>
+              </button>
+              <span className="flex shrink-0 items-center gap-0.5">
+                <Button variant="ghost" size="xs" iconOnly leadingIcon={Settings2} aria-label={`Configurar ${bot.name}`} title="Configurar Toph" onClick={() => openBotAction("team", bot.id, "config")} />
+                <Button variant="ghost" size="xs" iconOnly leadingIcon={History} aria-label={`Sessões de ${bot.name}`} title="Sessões do Toph" onClick={() => openBotAction("team", bot.id, "sessions")} />
               </span>
-            </button>
+            </div>
           ))}
         </div>
-      </div>
-      <div className="shrink-0 border-t p-2">
-        <Button type="button" variant="secondary" size="small" className="w-full justify-start" leadingIcon={Plus} onClick={() => setGalleryOpen(true)}>
-          Adicionar à equipe
-        </Button>
       </div>
       <Modal isOpen={galleryOpen} onClose={() => setGalleryOpen(false)} title="Adicionar Toph" description="20 identidades com visuais e cores únicas." placement="bottom" size="lg" bodyClassName="p-3" swipeToClose>
         <div className="grid grid-cols-2 gap-2 md:grid-cols-3">

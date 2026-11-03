@@ -6,6 +6,7 @@ import { useConfirm } from "../ui/confirm";
 import { Button } from "@/boardui/base/buttons/button";
 import { IconLinkButton } from "@/boardui/base/buttons/icon-button";
 import { Input } from "@/boardui/base/input/input";
+import SidebarHeader from "../components/SidebarHeader";
 
 interface Props { onOpenWeb: (target: WebTarget) => void; embedded?: boolean; headerControl?: ReactNode; }
 
@@ -28,10 +29,7 @@ export default function WebSidebar({ onOpenWeb, embedded = false, headerControl 
           <Button variant="secondary" size="small" leadingIcon={Plus} className="w-full justify-start" onClick={() => setShowForm((value) => !value)}>Adicionar web app</Button>
         </div>
       ) : (
-        <div className="flex shrink-0 flex-col items-stretch gap-2 border-b px-2 py-2 min-[901px]:h-9 min-[901px]:flex-row min-[901px]:items-center min-[901px]:justify-between min-[901px]:gap-0 min-[901px]:py-0">
-          <span className="flex items-center gap-2 text-caption-1-medium text-text-secondary">{headerControl}<span>Web apps</span></span>
-          <Button variant="ghost" size="xs" iconOnly leadingIcon={Plus} aria-label="Adicionar web app" className="max-[900px]:h-8 max-[900px]:w-full" onClick={() => setShowForm((value) => !value)} />
-        </div>
+        <SidebarHeader control={headerControl} icon={<Globe2 size={15} className="text-accent-500" />} title="Web apps" actions={<Button variant="ghost" size="xs" iconOnly leadingIcon={Plus} aria-label="Adicionar web app" onClick={() => setShowForm((value) => !value)} />} />
       )}
       {showForm && <WebTargetForm onCreated={() => { setShowForm(false); void load(); }} />}
       <div className="min-h-0 flex-1 overflow-y-auto p-1">

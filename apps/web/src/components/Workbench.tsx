@@ -18,6 +18,7 @@ import ProjectSwitcher from "./ProjectSwitcher";
 import QuickOpen from "./QuickOpen";
 import ActivityPopover from "./ActivityPopover";
 import TophSettings from "./TophSettings";
+import SidebarHeader from "./SidebarHeader";
 import { IconButton } from "@/boardui/base/buttons/icon-button";
 import BrandMark from "@toph/brand";
 import { Button } from "@/boardui/base/buttons/button";
@@ -1100,7 +1101,7 @@ export default function Workbench() {
       {project && sidebar === "bots" && <BotsSidebar project={project} headerControl={activityHeaderControl} />}
       {project && sidebar === "debug" && featureIsEnabled("debug") && (
         <div className="flex h-full min-h-0 flex-col">
-          <div className="flex h-9 shrink-0 items-center gap-2 border-b border-separator-border px-2 text-caption-1-semibold uppercase tracking-wide text-text-secondary">{activityHeaderControl}<span>Debug</span></div>
+          <SidebarHeader control={activityHeaderControl} title="Debug" />
           <p className="p-3 text-caption-1-regular leading-relaxed text-text-tertiary">A execução e as ferramentas de depuração aparecem no painel principal.</p>
         </div>
       )}
