@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { OpenCode } from "@opencode/client";
 import { connectClientMcp, type ClientMcpTool } from "@opencode/client/mcp";
-import { Bot, ChevronDown, Copy, History, LoaderCircle, MessageSquarePlus, Settings2, SlidersHorizontal, UserRound } from "@toph/icons";
+import { Bot, ChevronDown, Copy, History, ListTree, LoaderCircle, MessageSquarePlus, Monitor, Settings2, SlidersHorizontal, UserRound } from "@toph/icons";
 import { api, openCodeBase, type AIMessage, type Project } from "../api";
 import { modelDisplay, useAI } from "../ai";
 import { TOPH_PRESETS, useBots, type BotMessage, type MiniBot } from "../bots";
@@ -22,6 +22,8 @@ import { AgentComposer, type AgentAttachment } from "../ui/AgentComposer";
 import { DropdownItem } from "@/boardui/base/dropdown/dropdown";
 import ComposerMenu from "../ui/ComposerMenu";
 import AiUsageMeter from "../ui/AiUsageMeter";
+import ResizeHandle from "../ui/resize";
+import { useSettings } from "../settings";
 
 interface Props {
   project: Project;
@@ -296,6 +298,8 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
   const setBotSession = useBots((state) => state.setBotSession);
   const aiConfig = useAI((state) => state.config);
   const models = useAI((state) => state.models);
+  const activityWidth = useSettings((state) => state.aiPanelWidth);
+  const updateSettings = useSettings((state) => state.update);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [configOpen, setConfigOpen] = useState(false);
@@ -310,7 +314,9 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
   const [formBusy, setFormBusy] = useState<string | null>(null);
   const sessionBotMap = useRef(new Map<string, string>());
   const scrollRef = useRef<HTMLDivElement>(null);
+  const activityScrollRef = useRef<HTMLDivElement>(null);
   const stickToBottom = useRef(true);
+  const stickActivityToBottom = useRef(true);
   const client = useMemo(() => {
     const csrf = document.cookie.match(/(?:^|;\s*)toph_csrf=([^;]+)/)?.[1] ?? "";
     return OpenCode.make({
@@ -411,14 +417,30 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
     : activeWorker
       ? modeMessages.filter((message) => message.channel === `worker:${activeWorker.id}` || (!message.channel && message.botId === activeWorker.id))
       : modeMessages;
-  const groupedMessages = groupBotMessages(displayMessages);
+  const conversationMessages = mobile
+    ? displayMessages
+    : displayMessages.filter((message) => message.role !== "tool" && message.role !== "reasoning");
+  const activityMessages = displayMessages.filter((message) => message.role === "tool" || message.role === "reasoning");
+  const groupedMessages = groupBotMessages(conversationMessages);
+  const activityGroups = groupBotMessages(activityMessages);
   const lastBotGroupIndex = new Map<string, number>();
   groupedMessages.forEach((group, index) => {
     if (group.kind === "bot") lastBotGroupIndex.set(group.botId, index);
   });
+  const lastActivityGroupIndex = new Map<string, number>();
+  activityGroups.forEach((group, index) => {
+    if (group.kind === "bot") lastActivityGroupIndex.set(group.botId, index);
+  });
   const activeModel = activeBot?.model || aiConfig?.model || models[0]?.id || "";
   const activeEfforts = models.find((model) => model.id === activeModel)?.variants ?? [];
   const completedReplies = displayMessages.filter((message) => message.role === "assistant" && !message.pending && message.status !== "running").length;
+  const visibleBotIds = new Set(
+    mode === "solo"
+      ? activeBot ? [activeBot.id] : []
+      : activeWorker ? [activeWorker.id] : bots.map((bot) => bot.id),
+  );
+  const visibleRunningBots = [...runningBots].filter((botId) => visibleBotIds.has(botId));
+  const visibleForms = forms.filter(({ botId }) => visibleBotIds.has(botId));
   const draftKey = `${project.id}:${mode}:${activeBot?.id ?? "none"}:${activeBot?.sessionId ?? "new"}`;
   const savedDraft = useTophDrafts((state) => state.drafts[draftKey] ?? "");
   const setDraft = useTophDrafts((state) => state.setDraft);
@@ -480,6 +502,15 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
     });
     return () => window.cancelAnimationFrame(frame);
   }, [messages, sending, forms.length]);
+
+  useEffect(() => {
+    if (!stickActivityToBottom.current) return;
+    const frame = window.requestAnimationFrame(() => {
+      const element = activityScrollRef.current;
+      if (element) element.scrollTop = element.scrollHeight;
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [messages, runningBots.size, forms.length]);
 
   const sessionKey = bots.map((bot) => bot.sessionId ?? "").join("|");
 
@@ -673,6 +704,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
       color: preset.color,
       avatar: preset.avatar,
       model: aiConfig?.model || models[0]?.id || "",
+      coordinator: bots.length === 0 || preset.coordinator === true,
     });
     setActiveBot(project.id, bot.id);
     setConfigOpen(true);
@@ -1148,90 +1180,47 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
     }
   }
 
-  function addPresetBot(preset: (typeof TOPH_PRESETS)[number]) {
-    const used = new Set(bots.map((bot) => bot.name));
-    let name = preset.name;
-    let suffix = 2;
-    while (used.has(name)) {
-      name = `${preset.name} ${suffix}`;
-      suffix += 1;
-    }
-    const bot = addBot(project.id, {
-      name,
-      role: preset.role,
-      description: preset.description,
-      personality: preset.personality,
-      color: preset.color,
-      avatar: preset.avatar,
-      model: aiConfig?.model || models[0]?.id || "",
-      coordinator: preset.coordinator === true,
-    });
-    setActiveBot(project.id, bot.id);
+  function selectConversation(next: "solo" | "team") {
+    if (mode !== next) setMode(project.id, next);
+    if (next === "solo") createSolo(project.id);
   }
 
-  if (!activeBot && mode === "team") {
-    return (
-      <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background-full">
-        <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto p-4">
-          <div className="mx-auto flex w-full max-w-[960px] flex-col gap-4">
-            <div className="rounded-3xl border border-border-button-white bg-background-secondary-default p-4">
-              <span className="text-caption-2-semibold uppercase tracking-[0.16em] text-text-tertiary">Equipe</span>
-              <h2 className="mt-1 text-title-3-medium text-text-primary">Monte seu time de Tophs</h2>
-              <p className="mt-1 max-w-xl text-caption-1-regular text-text-secondary">A equipe começa vazia. Escolha os Tophs que vão trabalhar com você. Cada um tem papel, cor, avatar e ferramentas próprias.</p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                <Button variant="secondary" size="small" leadingIcon={UserRound} onClick={() => createSolo(project.id)}>Mudar para modo Solo</Button>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
-              {TOPH_PRESETS.filter((preset) => preset.name !== "Toph").map((preset) => (
-                <button
-                  key={preset.name}
-                  type="button"
-                  onClick={() => addPresetBot(preset)}
-                  className="flex min-w-0 items-start gap-2 rounded-2xl border border-border-button-white bg-background-primary-default p-3 text-start transition-colors hover:border-accent-500/40 hover:bg-accent-500/5"
-                >
-                  <BotAvatar bot={{ name: preset.name, color: preset.color, avatar: preset.avatar }} size={38} />
-                  <span className="flex min-w-0 flex-1 flex-col">
-                    <strong className="truncate text-caption-1-semibold text-text-primary">{preset.name}</strong>
-                    <span className="truncate text-caption-2-regular text-accent-500">{preset.role}</span>
-                    <span className="mt-0.5 line-clamp-2 text-caption-2-regular text-text-tertiary">{preset.description}</span>
-                  </span>
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (!activeBot) {
-    return (
-      <div className="flex h-full min-h-0 flex-col items-center justify-center gap-2 bg-background-full text-caption-1-regular text-text-tertiary">
-        <LoaderCircle className="size-4 animate-spin" />
-        Preparando seu Toph...
-      </div>
-    );
-  }
+  const conversationTitle = mode === "solo"
+    ? "Conversa individual"
+    : activeWorker
+      ? activeWorker.name
+      : "Conversa da equipe";
+  const conversationSubtitle = activeBot
+    ? mode === "team" && !activeWorker
+      ? `${bots.length} ${bots.length === 1 ? "Toph colaborando" : "Tophs colaborando"}`
+      : activeBot.role || "Assistente"
+    : mode === "team"
+      ? "Adicione o primeiro Toph à equipe"
+      : "Preparando seu Toph";
 
   return (
-    <div className="flex h-full min-h-0 w-full flex-1 gap-1" onPointerDown={unlockBotSound}>
+    <div className="flex h-full min-h-0 w-full flex-1 gap-1 overflow-hidden" onPointerDown={unlockBotSound}>
       <section className="flex min-w-0 flex-1 flex-col overflow-hidden bg-background-full max-[900px]:rounded-none max-[900px]:border-0 max-[900px]:shadow-none min-[901px]:rounded-3xl min-[901px]:border min-[901px]:border-border-button-white min-[901px]:shadow-sidebar">
-        {!mobile ? (
-        <div className="flex shrink-0 items-center gap-1 border-b border-separator-border bg-background-secondary-default px-2 py-1.5">
-          <Button variant="ghost" size="small" iconOnly leadingIcon={Settings2} aria-label={mode === "solo" ? "Configurar Toph Solo" : "Configurar Toph ativo"} title={mode === "solo" ? "Configurar Toph Solo" : "Configurar Toph ativo"} onClick={() => setConfigOpen(true)} className="size-9" />
-          <Button variant="ghost" size="small" iconOnly leadingIcon={SlidersHorizontal} aria-label="Configurar recursos do workspace" title="Configurar recursos do workspace" onClick={() => window.dispatchEvent(new CustomEvent("toph:layout-settings"))} className="size-9" />
-          {mode === "team" ? (
-            <Button variant="ghost" size="small" iconOnly leadingIcon={MessageSquarePlus} aria-label="Novo Toph" title="Novo Toph" onClick={newBot} className="size-9" />
-          ) : null}
-          <Button variant="ghost" size="small" iconOnly leadingIcon={History} aria-label="Sessões" title="Sessões" onClick={() => setSessionsOpen(true)} className="size-9" />
-          <span className="min-w-2 flex-1" />
-          <div className="flex items-center gap-0.5">
-            <Button variant={mode === "solo" ? "secondary" : "ghost"} size="xs" iconOnly leadingIcon={UserRound} aria-label="Modo solo" title="Modo solo" onClick={() => setMode(project.id, "solo")} className="size-8 rounded-lg" />
-            <Button variant={mode === "team" ? "secondary" : "ghost"} size="xs" iconOnly leadingIcon={Bot} aria-label="Modo equipe" title="Modo equipe" onClick={() => setMode(project.id, "team")} className="size-8 rounded-lg" />
+        {mobile ? (
+          <div className="grid shrink-0 grid-cols-2 gap-1 border-b border-separator-border bg-background-secondary-default p-1.5">
+            <Button variant={mode === "solo" ? "secondary" : "ghost"} size="small" leadingIcon={UserRound} onClick={() => selectConversation("solo")}>Individual</Button>
+            <Button variant={mode === "team" ? "secondary" : "ghost"} size="small" leadingIcon={Bot} onClick={() => selectConversation("team")}>Equipe</Button>
           </div>
-        </div>
-
+        ) : null}
+        {!mobile ? (
+          <header className="flex h-12 shrink-0 items-center gap-2 border-b border-separator-border bg-background-secondary-default px-3">
+            {activeBot ? <BotAvatar bot={activeBot} size={30} /> : <span className="flex size-8 items-center justify-center rounded-full bg-background-tertiary-default text-text-tertiary"><Bot size={15} /></span>}
+            <div className="flex min-w-0 flex-1 flex-col">
+              <strong className="truncate text-caption-1-semibold text-text-primary">{conversationTitle}</strong>
+              <span className="truncate text-caption-2-regular text-text-tertiary">{conversationSubtitle}</span>
+            </div>
+            <div className="flex shrink-0 items-center gap-0.5">
+              {activeBot ? <Button variant="ghost" size="small" iconOnly leadingIcon={Settings2} aria-label="Configurar Toph" title="Configurar Toph" onClick={() => setConfigOpen(true)} className="size-8" /> : null}
+              <Button variant="ghost" size="small" iconOnly leadingIcon={SlidersHorizontal} aria-label="Configurar recursos do workspace" title="Configurar recursos do workspace" onClick={() => window.dispatchEvent(new CustomEvent("toph:layout-settings"))} className="size-8" />
+              {mode === "team" ? <Button variant="ghost" size="small" iconOnly leadingIcon={MessageSquarePlus} aria-label="Adicionar Toph à equipe" title="Adicionar Toph à equipe" onClick={newBot} className="size-8" /> : null}
+              {activeBot ? <Button variant="ghost" size="small" iconOnly leadingIcon={History} aria-label="Sessões" title="Sessões" onClick={() => setSessionsOpen(true)} className="size-8" /> : null}
+            </div>
+          </header>
         ) : null}
 
         <div
@@ -1242,90 +1231,51 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
             stickToBottom.current = element.scrollHeight - element.scrollTop - element.clientHeight < 80;
           }}
         >
-          <div className="mx-auto flex min-h-full w-full min-w-0 max-w-[960px] flex-col gap-4 overflow-x-hidden p-4 [&_img]:max-w-full [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_table]:block [&_table]:max-w-full [&_table]:overflow-x-auto">
-            {mode === "team" && bots.length > 0 ? (
-              <div className="shrink-0 border-b border-separator-border pb-2.5">
-                <div className="mb-2 flex items-center justify-between gap-2">
-                  <span className="text-caption-2-semibold uppercase tracking-[0.16em] text-text-tertiary"># geral <span className="normal-case tracking-normal text-text-tertiary">· canal compartilhado</span></span>
-                  <span className="text-caption-2-regular text-text-tertiary">{bots.length} {bots.length === 1 ? "agente" : "agentes"}</span>
-                </div>
-                <div className="no-scrollbar flex gap-2 overflow-x-auto pb-1">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const lead = bots.find((bot) => bot.coordinator) ?? bots[0];
-                      if (lead) setActiveBot(project.id, lead.id);
-                    }}
-                    className={cx(
-                      "flex min-w-[98px] shrink-0 flex-col items-start justify-center gap-1 rounded-2xl border p-2 text-start transition-colors",
-                      activeBot?.coordinator ? "border-accent-500/40 bg-accent-500/10" : "border-border-button-white bg-background-primary-default hover:bg-background-primary-hover",
-                    )}
-                  >
-                    <span className="text-caption-2-semibold uppercase tracking-[0.12em] text-accent-500"># geral</span>
-                    <span className="truncate text-caption-2-regular text-text-tertiary">canal do time</span>
-                  </button>
-                  {bots.map((bot) => {
-                    const active = bot.id === activeBot?.id;
-                    return (
-                      <button
-                        key={bot.id}
-                        type="button"
-                        onClick={() => setActiveBot(project.id, bot.id)}
-                        className={cx(
-                          "flex min-w-[124px] shrink-0 items-center gap-2 rounded-2xl border p-2 text-start transition-colors",
-                          active ? "border-accent-500/40 bg-accent-500/10" : "border-border-button-white bg-background-primary-default hover:bg-background-primary-hover",
-                        )}
-                      >
-                        <span className="relative shrink-0">
-                          <BotAvatar bot={bot} size={34} />
-                          <span className={cx("absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full border-2 border-background-primary-default", runningBots.has(bot.id) ? "bg-emerald-400" : active ? "bg-accent-500" : "bg-text-tertiary/40")} />
-                        </span>
-                        <span className="flex min-w-0 flex-col">
-                          <strong className="truncate text-caption-1-semibold text-text-primary">{bot.name}</strong>
-                          <span className="truncate text-caption-2-regular text-text-tertiary">{bot.role || "Toph"}</span>
-                        </span>
-                      </button>
-                    );
-                  })}
-                  <button type="button" onClick={newBot} className="flex min-w-[82px] shrink-0 flex-col items-center justify-center gap-1 rounded-2xl border border-dashed border-border-button-default p-2 text-text-tertiary transition-colors hover:bg-background-primary-hover hover:text-text-primary">
-                    <span className="flex size-8 items-center justify-center rounded-full bg-background-secondary-default"><MessageSquarePlus className="size-4" /></span>
-                    <span className="text-caption-2-medium">Novo</span>
-                  </button>
-                </div>
+          <div className="mx-auto flex min-h-full w-full min-w-0 max-w-[760px] flex-col gap-4 overflow-x-hidden p-4 [&_img]:max-w-full [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_table]:block [&_table]:max-w-full [&_table]:overflow-x-auto">
+            {!activeBot ? (
+              <div className="my-auto flex flex-col items-center gap-3 px-6 py-10 text-center">
+                {mode === "team" ? (
+                  <>
+                    <span className="flex size-12 items-center justify-center rounded-2xl bg-accent-500/10 text-accent-500"><Bot size={22} /></span>
+                    <strong className="text-title-3-medium text-text-primary">Sua equipe começa aqui.</strong>
+                    <p className="max-w-sm text-caption-1-regular leading-relaxed text-text-secondary">Adicione um Toph pela coluna da esquerda. A conversa e o acompanhamento continuarão sempre nesta mesma tela.</p>
+                    <Button variant="secondary" size="small" leadingIcon={MessageSquarePlus} onClick={newBot}>Adicionar primeiro Toph</Button>
+                  </>
+                ) : (
+                  <>
+                    <LoaderCircle className="size-4 animate-spin text-accent-500" />
+                    <span className="text-caption-1-regular text-text-tertiary">Preparando seu Toph...</span>
+                  </>
+                )}
               </div>
-            ) : null}
-            {displayMessages.length === 0 && (
+            ) : conversationMessages.length === 0 ? (
               <div className="my-auto flex flex-col items-center gap-3 px-6 py-10 text-center">
                 <div className="flex -space-x-2">
-                  {(activeWorker ? [activeWorker] : mode === "solo" && activeBot ? [activeBot] : bots.slice(0, 4)).map((bot) => <BotAvatar key={bot.id} bot={bot} size={38} className="rounded-full bg-background-primary-default ring-2 ring-background-primary-default" />)}
+                  {(activeWorker ? [activeWorker] : mode === "solo" ? [activeBot] : bots.slice(0, 4)).map((bot) => <BotAvatar key={bot.id} bot={bot} size={38} className="rounded-full bg-background-primary-default ring-2 ring-background-primary-default" />)}
                 </div>
-                <strong className="text-title-3-medium text-text-primary">{mode === "solo" ? "Toph Solo está pronto." : activeWorker ? `Converse com ${activeWorker.name}.` : "Algumas mentes, uma conversa."}</strong>
+                <strong className="text-title-3-medium text-text-primary">{mode === "solo" ? `${activeBot.name} está pronto.` : activeWorker ? `Converse com ${activeWorker.name}.` : "A equipe está pronta."}</strong>
                 <p className="max-w-md text-caption-1-regular leading-relaxed text-text-secondary">
                   {mode === "solo"
                     ? "Pergunte, programe, anexe arquivos ou peça para executar uma tarefa."
                     : activeWorker
-                      ? "Esta é uma conversa direta. O coordenador não participa desta thread."
-                      : `${bots.map((bot) => bot.name).join(", ")} estão no canal #geral. Fale com o time ou abra a conversa de um membro.`}
+                      ? "Esta conversa é direta com este membro da equipe."
+                      : "Fale com a equipe; o coordenador distribui o trabalho e consolida a resposta."}
                 </p>
               </div>
-            )}
+            ) : null}
 
             {groupedMessages.map((group, index) => {
               if (group.kind === "user") {
                 const messageBot = group.message.channel?.startsWith("worker:")
                   ? bots.find((item) => `worker:${item.id}` === group.message.channel)
-                  : mode === "team"
-                    ? coordinator
-                    : activeBot;
+                  : mode === "team" ? coordinator : activeBot;
                 const messageModel = messageBot?.model || activeModel;
                 return (
                   <div key={`user-${group.message.id}`} className="ms-auto flex min-w-0 max-w-[88%] flex-col items-end gap-1">
-                    <p className="min-w-0 max-w-full overflow-hidden rounded-2xl bg-accent-500 px-3.5 py-2 text-[14px] leading-[1.55] whitespace-pre-wrap break-words text-text-on-accent">
-                      {group.message.content}
-                    </p>
+                    <p className="min-w-0 max-w-full overflow-hidden rounded-2xl bg-accent-500 px-3.5 py-2 text-[14px] leading-[1.55] whitespace-pre-wrap break-words text-text-on-accent">{group.message.content}</p>
                     <MessageInfo
                       agentMode={messageBot?.agentMode}
-                       model={modelDisplay(models.find((item) => item.id === messageModel) ?? (messageModel ? { id: messageModel, label: messageModel.split("/").pop() ?? messageModel } : undefined))}
+                      model={modelDisplay(models.find((item) => item.id === messageModel) ?? (messageModel ? { id: messageModel, label: messageModel.split("/").pop() ?? messageModel } : undefined))}
                       createdAt={group.message.createdAt}
                       content={group.message.content}
                       copyLabel="Copiar mensagem"
@@ -1334,9 +1284,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
                   </div>
                 );
               }
-              if (group.kind === "system") {
-                return <AgentTranscript key={`system-${index}`} messages={group.messages.map(toAiMessage)} streaming={false} />;
-              }
+              if (group.kind === "system") return <AgentTranscript key={`system-${index}`} messages={group.messages.map(toAiMessage)} streaming={false} />;
               const bot = bots.find((item) => item.id === group.botId);
               if (!bot) return null;
               const footerAssistant = [...group.messages].reverse().find((message) => message.role === "assistant" && !message.pending);
@@ -1361,7 +1309,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
                   {mode === "solo" && !footerBusy && footerAssistant ? (
                     <MessageInfo
                       agentMode={bot.agentMode}
-                       model={modelDisplay(models.find((item) => item.id === (bot.model || activeModel)) ?? ((bot.model || activeModel) ? { id: bot.model || activeModel, label: (bot.model || activeModel).split("/").pop() ?? (bot.model || activeModel) } : undefined))}
+                      model={modelDisplay(models.find((item) => item.id === (bot.model || activeModel)) ?? ((bot.model || activeModel) ? { id: bot.model || activeModel, label: (bot.model || activeModel).split("/").pop() ?? (bot.model || activeModel) } : undefined))}
                       createdAt={footerAssistant.createdAt}
                       content={footerAssistant.content}
                       copyLabel="Copiar resposta"
@@ -1371,48 +1319,33 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
               );
             })}
 
-            {[...runningBots]
-              .filter((botId) => (!activeWorker || botId === activeWorker.id) && (activeWorker || botId === coordinator?.id))
+            {mobile ? visibleRunningBots
               .filter((botId) => !groupedMessages.some((group) => group.kind === "bot" && group.botId === botId))
               .map((botId) => {
                 const bot = bots.find((item) => item.id === botId);
                 if (!bot) return null;
                 return (
                   <section key={`pending-${botId}`} className="flex flex-col gap-2">
-                    <header className="flex items-center gap-2">
-                      <BotAvatar bot={bot} size={28} />
-                      <div className="flex min-w-0 items-baseline gap-2">
-                        <strong className="truncate text-caption-1-semibold text-text-primary">{bot.name}</strong>
-                        <span className="truncate text-caption-2-regular text-text-tertiary">{bot.role}</span>
-                      </div>
-                    </header>
-                    <AgentTranscript messages={[]} streaming onPermission={() => undefined} />
+                    <header className="flex items-center gap-2"><BotAvatar bot={bot} size={28} /><strong className="truncate text-caption-1-semibold text-text-primary">{bot.name}</strong></header>
+                    <AgentTranscript messages={[]} streaming />
                   </section>
                 );
-              })}
+              }) : null}
 
-            {forms.map(({ form, botId }) => {
+            {mobile ? visibleForms.map(({ form, botId }) => {
               const bot = bots.find((item) => item.id === botId);
               if (!bot) return null;
               return (
                 <section key={`form-${form.id}`} className="flex flex-col gap-2">
-                  <header className="flex items-center gap-2">
-                    <BotAvatar bot={bot} size={28} />
-                    <strong className="truncate text-caption-1-semibold text-text-primary">{bot.name}</strong>
-                  </header>
-                  <OpenCodeFormCard
-                    form={form}
-                    busy={formBusy === form.id}
-                    onSubmit={(answer) => void answerForm(form, bot, answer)}
-                    onCancel={() => void cancelForm(form, bot)}
-                  />
+                  <header className="flex items-center gap-2"><BotAvatar bot={bot} size={28} /><strong className="truncate text-caption-1-semibold text-text-primary">{bot.name}</strong></header>
+                  <OpenCodeFormCard form={form} busy={formBusy === form.id} onSubmit={(answer) => void answerForm(form, bot, answer)} onCancel={() => void cancelForm(form, bot)} />
                 </section>
               );
-            })}
+            }) : null}
           </div>
         </div>
 
-        <div className="shrink-0">
+        {activeBot ? <div className="shrink-0">
           <AgentComposer
             value={input}
             onChange={updateInput}
@@ -1425,7 +1358,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
             effort={activeBot.effort ?? ""}
             efforts={activeEfforts}
             onEffortChange={(value) => updateBot(project.id, activeBot.id, { effort: value })}
-            placeholder={mode === "solo" ? "Pergunte ao seu Toph Solo... / comandos, @ contexto" : activeBot.id === coordinator?.id ? "Fale com o coordenador ou @mencione um membro..." : `Pergunte para ${activeBot.name}...`}
+            placeholder={mode === "solo" ? `Pergunte para ${activeBot.name}...` : activeBot.id === coordinator?.id ? "Fale com o coordenador ou @mencione um membro..." : `Pergunte para ${activeBot.name}...`}
             modeControls={
               <>
                 <ComposerMenu
@@ -1450,11 +1383,113 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
               </>
             }
           />
-        </div>
+        </div> : null}
       </section>
 
+      {!mobile ? (
+        <>
+          <ResizeHandle
+            orientation="vertical"
+            value={activityWidth}
+            min={300}
+            max={620}
+            invert
+            label="Redimensionar acompanhamento"
+            onChange={(width) => document.documentElement.style.setProperty("--ai-panel-width", `${width}px`)}
+            onCommit={(width) => updateSettings({ aiPanelWidth: width })}
+          />
+          <aside className="flex min-h-0 w-[clamp(300px,34vw,var(--ai-panel-width))] shrink-0 flex-col overflow-hidden rounded-3xl border border-border-button-white bg-background-primary-default shadow-sidebar">
+            <header className="flex h-12 shrink-0 items-center gap-2 border-b border-separator-border bg-background-secondary-default px-3">
+              <span className="flex size-8 items-center justify-center rounded-xl bg-accent-500/10 text-accent-500"><Monitor size={15} /></span>
+              <div className="flex min-w-0 flex-1 flex-col">
+                <strong className="truncate text-caption-1-semibold text-text-primary">Acompanhamento</strong>
+                <span className="truncate text-caption-2-regular text-text-tertiary">Arquivos, navegador, terminal e ferramentas</span>
+              </div>
+              {visibleRunningBots.length > 0 ? (
+                <span className="flex items-center gap-1.5 rounded-full bg-accent-500/10 px-2 py-1 text-[10px] font-medium text-accent-600"><LoaderCircle className="size-3 animate-spin" /> Ao vivo</span>
+              ) : activityMessages.length > 0 ? (
+                <span className="rounded-full bg-background-tertiary-default px-2 py-1 text-[10px] text-text-tertiary">{activityMessages.length}</span>
+              ) : null}
+            </header>
+            <div
+              ref={activityScrollRef}
+              className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto p-3"
+              onScroll={(event) => {
+                const element = event.currentTarget;
+                stickActivityToBottom.current = element.scrollHeight - element.scrollTop - element.clientHeight < 80;
+              }}
+            >
+              {!activeBot ? (
+                <div className="flex h-full min-h-[220px] flex-col items-center justify-center gap-3 px-5 text-center">
+                  <ListTree className="size-6 text-text-tertiary" />
+                  <strong className="text-caption-1-semibold text-text-primary">Nenhuma atividade ainda</strong>
+                  <p className="max-w-xs text-caption-2-regular leading-relaxed text-text-tertiary">Quando um Toph começar a trabalhar, cada ação aparecerá aqui.</p>
+                </div>
+              ) : activityGroups.length === 0 && visibleRunningBots.length === 0 && visibleForms.length === 0 ? (
+                <div className="flex h-full min-h-[220px] flex-col items-center justify-center gap-3 px-5 text-center">
+                  <ListTree className="size-6 text-text-tertiary" />
+                  <strong className="text-caption-1-semibold text-text-primary">Pronto para acompanhar</strong>
+                  <p className="max-w-xs text-caption-2-regular leading-relaxed text-text-tertiary">As leituras, edições, comandos e visualizações do navegador serão mostradas em tempo real.</p>
+                </div>
+              ) : (
+                <div className="flex min-w-0 flex-col gap-3">
+                  {activityGroups.map((group, index) => {
+                    if (group.kind !== "bot") return null;
+                    const bot = bots.find((item) => item.id === group.botId);
+                    if (!bot) return null;
+                    const latest = lastActivityGroupIndex.get(bot.id) === index;
+                    return (
+                      <section key={`activity-${bot.id}-${index}`} className="min-w-0 rounded-2xl border border-border-button-default bg-background-secondary-default/35 p-2.5">
+                        <header className="mb-1.5 flex items-center gap-2">
+                          <BotAvatar bot={bot} size={26} />
+                          <div className="flex min-w-0 flex-1 flex-col">
+                            <strong className="truncate text-caption-1-semibold text-text-primary">{bot.name}</strong>
+                            <span className="truncate text-[10px] text-text-tertiary">{bot.role || "Toph"}</span>
+                          </div>
+                          {latest && runningBots.has(bot.id) ? <LoaderCircle className="size-3.5 animate-spin text-accent-500" /> : null}
+                        </header>
+                        <AgentTranscript
+                          messages={group.messages.map(toAiMessage)}
+                          streaming={latest && runningBots.has(bot.id)}
+                          toolsExpanded
+                          className="flex min-w-0 flex-col gap-1"
+                          onPermission={(messageId, permissionId, decision) => void replyPermission(bot, messageId, permissionId, decision)}
+                        />
+                      </section>
+                    );
+                  })}
 
-      <Modal isOpen={configOpen} onClose={() => setConfigOpen(false)} title={activeBot.name} description={mode === "solo" ? "Toph Solo: modelo, provedores, ferramentas e identidade." : "Configure o membro da equipe."} placement={mobile ? "bottom" : "center"} size="xl" bodyClassName="p-0" swipeToClose={mobile}>
+                  {visibleRunningBots
+                    .filter((botId) => !activityGroups.some((group) => group.kind === "bot" && group.botId === botId))
+                    .map((botId) => {
+                      const bot = bots.find((item) => item.id === botId);
+                      if (!bot) return null;
+                      return (
+                        <section key={`activity-pending-${bot.id}`} className="rounded-2xl border border-accent-500/25 bg-accent-500/5 p-3">
+                          <header className="mb-2 flex items-center gap-2"><BotAvatar bot={bot} size={26} /><strong className="truncate text-caption-1-semibold text-text-primary">{bot.name}</strong></header>
+                          <AgentTranscript messages={[]} streaming className="flex flex-col gap-1" />
+                        </section>
+                      );
+                    })}
+
+                  {visibleForms.map(({ form, botId }) => {
+                    const bot = bots.find((item) => item.id === botId);
+                    if (!bot) return null;
+                    return (
+                      <section key={`activity-form-${form.id}`} className="flex flex-col gap-2 rounded-2xl border border-accent-500/25 bg-background-secondary-default/40 p-2.5">
+                        <header className="flex items-center gap-2"><BotAvatar bot={bot} size={26} /><strong className="truncate text-caption-1-semibold text-text-primary">{bot.name}</strong></header>
+                        <OpenCodeFormCard form={form} busy={formBusy === form.id} onSubmit={(answer) => void answerForm(form, bot, answer)} onCancel={() => void cancelForm(form, bot)} />
+                      </section>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </aside>
+        </>
+      ) : null}
+
+      <Modal isOpen={configOpen && Boolean(activeBot)} onClose={() => setConfigOpen(false)} title={activeBot?.name ?? "Toph"} description={mode === "solo" ? "Configure identidade, modelo, provedor e ferramentas." : "Configure este membro da equipe."} placement={mobile ? "bottom" : "center"} size="xl" bodyClassName="p-0" swipeToClose={mobile}>
         {activeBot && <BotConfig projectId={project.id} projectRoot={project.root} bot={activeBot} mode={mode} />}
       </Modal>
 

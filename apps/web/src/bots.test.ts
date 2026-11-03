@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { useBots, type BotMessage, type BotWorkspace, type MiniBot } from "./bots";
+import { botThread, useBots, type BotMessage, type BotWorkspace, type MiniBot } from "./bots";
 
 function bot(id: string, overrides: Partial<MiniBot> = {}): MiniBot {
   return {
@@ -78,5 +78,20 @@ describe("Toph workspace sessions", () => {
       bots: [bot("bot-1", { avatar: "logo-smile" as MiniBot["avatar"] })],
     });
     expect(useBots.getState().byProject.p.bots[0].avatar).toBe("mark-smile");
+  });
+
+  it("keeps individual and team conversations available at the same time", () => {
+    useBots.getState().load("p", workspace([]));
+    useBots.getState().setMode("p", "team");
+    useBots.getState().addBot("p", { name: "Atlas", coordinator: true });
+
+    let state = useBots.getState().byProject.p;
+    expect(botThread(state, "solo").bots.map((item) => item.name)).toEqual(["Toph"]);
+    expect(botThread(state, "team").bots.map((item) => item.name)).toEqual(["Atlas"]);
+
+    useBots.getState().setMode("p", "solo");
+    state = useBots.getState().byProject.p;
+    expect(botThread(state, "solo").bots.map((item) => item.name)).toEqual(["Toph"]);
+    expect(botThread(state, "team").bots.map((item) => item.name)).toEqual(["Atlas"]);
   });
 });

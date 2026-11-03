@@ -142,7 +142,7 @@ export default function BotConfig({ projectId, projectRoot, bot, mode }: Props) 
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap justify-end gap-1">
-          {mode === "solo" ? <span className="rounded-full bg-accent-500/15 px-2 py-0.5 text-caption-2-semibold text-accent-600">Toph Solo</span> : null}
+          {mode === "solo" ? <span className="rounded-full bg-accent-500/15 px-2 py-0.5 text-caption-2-semibold text-accent-600">Individual</span> : null}
           {bot.coordinator && <span className="rounded-full bg-accent-500/15 px-2 py-0.5 text-caption-2-semibold text-accent-600">Coordena</span>}
         </div>
       </div>
@@ -227,13 +227,13 @@ export default function BotConfig({ projectId, projectRoot, bot, mode }: Props) 
             </div>
           </div>
           <div className="grid gap-2 sm:grid-cols-2">
-            <div className="flex items-center justify-between gap-2 rounded-xl border border-border-button-default px-2.5 py-2">
+            {mode !== "solo" ? <div className="flex items-center justify-between gap-2 rounded-xl border border-border-button-default px-2.5 py-2">
               <span className="flex flex-col">
                 <span className="text-caption-1-medium text-text-primary">Coordenador</span>
                 <span className="text-caption-2-regular text-text-secondary">Distribui o trabalho.</span>
               </span>
               <Switch isSelected={bot.coordinator} onChange={(checked) => update({ coordinator: checked })} size="sm" />
-            </div>
+            </div> : null}
             <div className="flex items-center justify-between gap-2 rounded-xl border border-border-button-default px-2.5 py-2">
               <span className="flex flex-col">
                 <span className="text-caption-1-medium text-text-primary">Notificações</span>

@@ -68,6 +68,8 @@ export interface TophThread {
   activeBotId: string | null;
 }
 
+const EMPTY_THREAD: TophThread = { bots: [], messages: [], activeBotId: null };
+
 export interface BotWorkspace extends TophThread {
   version?: number;
   mode?: TophMode | "unset";
@@ -151,6 +153,20 @@ export function botSessionIds(workspace: BotWorkspace | undefined): string[] {
     }
   }
   return [...ids];
+}
+
+/** Returns either conversation without changing which one is currently open. */
+export function botThread(workspace: BotWorkspace | undefined, mode: TophMode): TophThread {
+  if (!workspace) return EMPTY_THREAD;
+  const activeMode: TophMode = workspace.mode === "team" ? "team" : "solo";
+  if (activeMode === mode) {
+    return {
+      bots: workspace.bots,
+      messages: workspace.messages,
+      activeBotId: workspace.activeBotId,
+    };
+  }
+  return (mode === "solo" ? workspace.savedSolo : workspace.savedTeam) ?? EMPTY_THREAD;
 }
 
 export function slugifyBot(value: string): string {
