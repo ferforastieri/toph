@@ -1,7 +1,7 @@
 import { useEffect, useState, type ComponentType, type FormEvent } from "react";
-import { Bot, HardDrive, Info, LogOut, Mail, Moon, PlugZap, Settings2, Sun, Wrench } from "@toph/icons";
+import { Bell, Bot, HardDrive, Info, LogOut, Mail, Moon, PlugZap, Settings2, Sun, Wrench } from "@toph/icons";
 import { api, getApiBase, probeServer, setApiBase, type User } from "../api";
-import { useApp } from "../store";
+import { useApp, type AppNotification } from "../store";
 import { useSettings } from "../settings";
 import { PET_OPTIONS, petLevel, petLevelProgress, usePet } from "../pet";
 import PetSprite from "../ui/PetSprite";
@@ -15,12 +15,13 @@ import { Input } from "@/boardui/base/input/input";
 import { Modal } from "@/boardui/base/modal/modal";
 import { cx } from "@/boardui/utils/cx";
 
-type Section = "general" | "companion" | "appearance" | "ai" | "connections" | "mcp" | "email" | "workspace" | "about";
+type Section = "notifications" | "general" | "companion" | "appearance" | "ai" | "connections" | "mcp" | "email" | "workspace" | "about";
 
 interface Props {
   user: User | null;
   projectRoot?: string;
   onCustomizeLayout: () => void;
+  onOpenNotification: (notification: AppNotification) => void;
 }
 
 interface SectionItem {
@@ -31,6 +32,7 @@ interface SectionItem {
 
 const sections: Array<{ label?: string; items: SectionItem[] }> = [
   { items: [
+    { id: "notifications", label: "Notificações", icon: Bell },
     { id: "general", label: "Geral", icon: Settings2 },
     { id: "companion", label: "Toph pet", icon: Bot },
     { id: "appearance", label: "Aparência", icon: Sun },
@@ -47,9 +49,21 @@ const sections: Array<{ label?: string; items: SectionItem[] }> = [
   ] },
 ];
 
-export default function TophSettings({ user, projectRoot, onCustomizeLayout }: Props) {
+function timeAgo(timestamp: number): string {
+  const minutes = Math.max(0, Math.round((Date.now() - timestamp) / 60_000));
+  if (minutes < 1) return "agora";
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours} h`;
+  return `${Math.round(hours / 24)} d`;
+}
+
+export default function TophSettings({ user, projectRoot, onCustomizeLayout, onOpenNotification }: Props) {
   const setUser = useApp((state) => state.setUser);
   const notify = useApp((state) => state.notify);
+  const notifications = useApp((state) => state.notifications);
+  const projects = useApp((state) => state.projects);
+  const markAllNotificationsRead = useApp((state) => state.markAllNotificationsRead);
   const theme = useSettings((state) => state.theme);
   const setTheme = useSettings((state) => state.setTheme);
   const pet = usePet();
@@ -62,6 +76,18 @@ export default function TophSettings({ user, projectRoot, onCustomizeLayout }: P
   const [buildId, setBuildId] = useState("");
   const level = petLevel(pet.commits);
   const petName = PET_OPTIONS.find((option) => option.kind === pet.kind)?.name ?? "Toph pet";
+  const sortedNotifications = [...notifications].sort((a, b) => b.createdAt - a.createdAt);
+  const unread = sortedNotifications.filter((notification) => !notification.read).length;
+
+  function openFromAvatar() {
+    if (unread > 0) {
+      setSection("notifications");
+      markAllNotificationsRead();
+    } else {
+      setSection("general");
+    }
+    setOpen(true);
+  }
 
   useEffect(() => {
     if (!open) return;
@@ -112,13 +138,14 @@ export default function TophSettings({ user, projectRoot, onCustomizeLayout }: P
     <>
       <button
         type="button"
-        aria-label="Abrir configurações"
+        aria-label={unread > 0 ? `Abrir ${unread} notificações novas` : "Abrir configurações"}
         title={`${petName} · nível ${level}`}
-        onClick={() => setOpen(true)}
-        className="relative flex size-10 items-center justify-center rounded-2xl outline-none transition-colors hover:bg-background-primary-hover focus-visible:ring-2 focus-visible:ring-border-focus-ring"
+        onClick={openFromAvatar}
+        className={cx("relative flex size-10 items-center justify-center rounded-2xl outline-none transition-colors hover:bg-background-primary-hover focus-visible:ring-2 focus-visible:ring-border-focus-ring", unread > 0 && "pet-notification")}
       >
         <PetSprite kind={pet.kind} size={38} commits={pet.commits} />
-        <span className="absolute -end-0.5 -top-0.5 min-w-4 rounded-full border border-background-primary-default bg-accent-500 px-1 text-center text-[8px] font-bold leading-4 text-text-on-accent">{level}</span>
+        <span className="absolute -bottom-0.5 -start-0.5 min-w-4 rounded-full border border-background-primary-default bg-background-tertiary-default px-1 text-center text-[8px] font-bold leading-4 text-text-secondary">{level}</span>
+        {unread > 0 ? <span className="absolute -end-0.5 -top-0.5 min-w-4 rounded-full border border-background-primary-default bg-accent-500 px-1 text-center text-[8px] font-bold leading-4 text-text-on-accent">{unread > 9 ? "9+" : unread}</span> : null}
       </button>
 
       <Modal
@@ -141,7 +168,7 @@ export default function TophSettings({ user, projectRoot, onCustomizeLayout }: P
                     <button
                       key={item.id}
                       type="button"
-                      onClick={() => setSection(item.id)}
+                      onClick={() => { setSection(item.id); if (item.id === "notifications") markAllNotificationsRead(); }}
                       className={cx(
                         "flex items-center gap-2 rounded-xl px-2.5 py-2 text-start text-caption-1-medium transition-colors max-sm:shrink-0",
                         section === item.id ? "bg-background-primary-default text-text-primary shadow-xs" : "text-text-secondary hover:bg-background-primary-hover hover:text-text-primary",
@@ -149,6 +176,7 @@ export default function TophSettings({ user, projectRoot, onCustomizeLayout }: P
                     >
                       <Icon size={15} className="shrink-0" />
                       <span>{item.label}</span>
+                      {item.id === "notifications" && notifications.length > 0 ? <span className="ms-auto rounded-full bg-background-tertiary-default px-1.5 text-[9px] text-text-tertiary">{notifications.length}</span> : null}
                     </button>
                   );
                 })}
@@ -157,7 +185,26 @@ export default function TophSettings({ user, projectRoot, onCustomizeLayout }: P
           </aside>
 
           <section className="min-h-0 overflow-y-auto p-5 sm:p-6">
-            {section === "general" ? (
+            {section === "notifications" ? (
+              <div className="flex flex-col gap-5">
+                <SettingsHeading title="Notificações" description="Atualizações dos seus Tophs e do sistema." />
+                {sortedNotifications.length === 0 ? (
+                  <div className="flex flex-col items-center gap-2 rounded-2xl border border-border-button-default py-10 text-center"><Bell size={22} className="text-text-tertiary" /><p className="text-caption-1-regular text-text-secondary">Nenhuma notificação.</p></div>
+                ) : (
+                  <div className="flex flex-col gap-1">
+                    {sortedNotifications.map((notification) => {
+                      const projectName = projects.find((project) => project.id === notification.projectId)?.name;
+                      return (
+                        <button key={notification.id} type="button" onClick={() => { setOpen(false); onOpenNotification(notification); }} className="flex items-start gap-3 rounded-2xl border border-transparent p-3 text-start transition-colors hover:border-accent-500/20 hover:bg-accent-500/[0.05]">
+                          <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-accent-500/10 text-accent-500"><Bell size={15} /></span>
+                          <span className="flex min-w-0 flex-1 flex-col gap-1"><span className="flex items-baseline justify-between gap-2"><strong className="truncate text-caption-1-semibold text-text-primary">{notification.title}</strong><span className="shrink-0 text-caption-2-regular text-text-tertiary">{timeAgo(notification.createdAt)}</span></span>{notification.botRole ? <span className="text-caption-2-regular text-accent-500">{notification.botRole}</span> : null}<span className="text-caption-1-regular leading-relaxed text-text-secondary">{notification.body}</span>{projectName ? <span className="text-caption-2-regular text-text-tertiary">{projectName}</span> : null}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            ) : section === "general" ? (
               <div className="flex flex-col gap-5">
                 <SettingsHeading title="Geral" description="Conta e servidor usados neste dispositivo." />
                 <div className="flex items-center gap-3 rounded-2xl border border-border-button-default bg-background-secondary-default/45 p-3">

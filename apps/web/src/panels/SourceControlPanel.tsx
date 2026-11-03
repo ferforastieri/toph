@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   Check,
   ChevronDown,
@@ -44,6 +44,7 @@ interface Props {
   embedded?: boolean;
   onStatusChange?: (status: string) => void;
   view?: "full" | "changes" | "commit" | "scm";
+  branchControl?: ReactNode;
 }
 
 export default function SourceControlPanel({
@@ -52,6 +53,7 @@ export default function SourceControlPanel({
   embedded = false,
   onStatusChange,
   view = "full",
+  branchControl,
 }: Props) {
   const notify = useApp((state) => state.notify);
   const user = useApp((state) => state.user);
@@ -63,7 +65,7 @@ export default function SourceControlPanel({
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [changesOpen, setChangesOpen] = useState(true);
-  const showBranch = view === "full";
+  const showBranch = view === "full" || view === "scm";
   const showCommit = view !== "changes";
   const showChanges = view !== "commit";
 
@@ -265,14 +267,11 @@ export default function SourceControlPanel({
       )}
       {showBranch && (
         <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-b px-2 py-1.5">
-          <GitBranch size={13} className="shrink-0 text-muted-foreground" />
-          <span className="min-w-0 flex-1 truncate text-xs">{parsed.branch || "detached"}</span>
+          {branchControl ? <div className="min-w-0 flex-1">{branchControl}</div> : <><GitBranch size={13} className="shrink-0 text-muted-foreground" /><span className="min-w-0 flex-1 truncate text-xs">{parsed.branch || "detached"}</span></>}
           <Badge color="neutral">{parsed.changes.length}</Badge>
-          <Button variant="ghost" size="xs" aria-label={changesOpen ? "Recolher alterações" : "Expandir alterações"} onClick={() => setChangesOpen((current) => !current)}>
-            {changesOpen ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
-          </Button>
+          <Button variant="ghost" size="xs" aria-label={changesOpen ? "Recolher alterações" : "Expandir alterações"} onClick={() => setChangesOpen((current) => !current)}>{changesOpen ? <ChevronDown size={13} /> : <ChevronRight size={13} />}</Button>
           <Button variant="ghost" size="xs" aria-label="Discard all changes" disabled={Boolean(busy) || parsed.changes.length === 0} onClick={() => void discardAll()}><Undo2 size={13} /></Button>
-          <Button variant="ghost" size="xs" aria-label="Create branch from pattern" disabled={Boolean(busy)} onClick={() => void createBranch()}><GitBranch size={13} /></Button>
+          {!branchControl ? <Button variant="ghost" size="xs" aria-label="Create branch from pattern" disabled={Boolean(busy)} onClick={() => void createBranch()}><GitBranch size={13} /></Button> : null}
         </div>
       )}
       {error && <div className="mx-2 mt-2 rounded-md bg-destructive/10 px-2 py-1 text-[11px] text-destructive">{error}</div>}

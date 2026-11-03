@@ -13,7 +13,6 @@ import Tabs from "./Tabs";
 import Toasts from "./Toasts";
 import RepoPicker from "./RepoPicker";
 import CloseProjectModal from "./CloseProjectModal";
-import NotificationBell from "./NotificationBell";
 import BranchPicker from "./BranchPicker";
 import ProjectSwitcher from "./ProjectSwitcher";
 import QuickOpen from "./QuickOpen";
@@ -1086,7 +1085,7 @@ export default function Workbench() {
     <>
       {project && sidebar === "files" && featureIsEnabled("files") && <ExplorerPanel project={project} onOpenFile={openFile} onStatusChange={setGitStatus} />}
       {project && sidebar === "db" && featureIsEnabled("databases") && <DatabasesPanel project={project} onOpenQuery={openQuery} onOpenTable={openTable} />}
-      {project && sidebar === "scm" && featureIsEnabled("sourceControl") && <SourceControlPanel project={project} view="scm" onOpenDiff={openDiff} onStatusChange={setGitStatus} />}
+      {project && sidebar === "scm" && featureIsEnabled("sourceControl") && <SourceControlPanel project={project} view="scm" branchControl={activityBranchControl} onOpenDiff={openDiff} onStatusChange={setGitStatus} />}
       {project && sidebar === "web" && featureIsEnabled("webApps") && <WebSidebar onOpenWeb={openWeb} />}
       {project && sidebar === "bots" && <BotsSidebar project={project} />}
       {project && sidebar === "debug" && featureIsEnabled("debug") && (
@@ -1141,7 +1140,12 @@ export default function Workbench() {
       open={branchMenuOpen}
       onOpenChange={(next) => { setBranchMenuOpen(next); setProjectsMenuOpen(false); if (next) openBranchMenu(); }}
       panelClassName="w-[min(460px,calc(100vw-64px))]"
-      trigger={<Button variant={branchMenuOpen ? "secondary" : "ghost"} size="medium" iconOnly leadingIcon={GitBranch} className="size-9" aria-label={`Branch ${branch || "detached"}`} title={branch || "detached"} onClick={() => { const next = !branchMenuOpen; setBranchMenuOpen(next); setProjectsMenuOpen(false); if (next) openBranchMenu(); }} />}
+      trigger={
+        <Button variant={branchMenuOpen ? "secondary" : "ghost"} size="small" leadingIcon={GitBranch} className="w-full justify-start" aria-label={`Branch ${branch || "detached"}`} title={branch || "detached"} onClick={() => { const next = !branchMenuOpen; setBranchMenuOpen(next); setProjectsMenuOpen(false); if (next) openBranchMenu(); }}>
+          <span className="min-w-0 flex-1 truncate text-start">{branch || "detached"}</span>
+          <ChevronDown size={12} className="shrink-0" />
+        </Button>
+      }
     >
       <div className="max-h-[min(600px,calc(100dvh-24px))] overflow-y-auto">{branchPickerBody()}</div>
     </ActivityPopover>
@@ -1153,9 +1157,7 @@ export default function Workbench() {
         {activityVisible ? <div className="overflow-visible rounded-s-3xl">
           <ActivityBar
             projectControl={activityProjectControl}
-            branchControl={activityBranchControl}
-            notificationControl={<NotificationBell variant="activity" onOpen={openNotification} />}
-            settingsControl={<TophSettings user={user} projectRoot={project.root} onCustomizeLayout={openLayoutSettings} />}
+            settingsControl={<TophSettings user={user} projectRoot={project.root} onCustomizeLayout={openLayoutSettings} onOpenNotification={openNotification} />}
             onQuickOpen={() => setQuickOpenToken((current) => current + 1)}
           />
         </div> : null}
