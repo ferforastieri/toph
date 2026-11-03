@@ -1,4 +1,5 @@
 import Editor, { type Monaco, type OnMount } from "@monaco-editor/react";
+import "../monaco";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { CancellationToken, IPosition, editor, languages } from "monaco-editor";

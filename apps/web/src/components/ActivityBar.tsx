@@ -1,19 +1,19 @@
 import { Bot, Bug, Database, Files, GitBranch, Globe2, Moon, Sun, TerminalSquare } from "@toph/icons";
 import { useApp, type Sidebar } from "../store";
-import { useSettings } from "../settings";
+import { featureEnabled, useSettings, type WorkspaceFeature } from "../settings";
 import { Button } from "@/boardui/base/buttons/button";
 import { Divider } from "@/boardui/base/divider/divider";
 import { Tooltip, TooltipTrigger } from "@/boardui/base/tooltip/tooltip";
 import AvatarMenu from "./AvatarMenu";
 import { cx } from "@/boardui/utils/cx";
 
-const items: Array<{ id: Sidebar; label: string; icon: typeof Files }> = [
-  { id: "files", label: "Explorer", icon: Files },
-  { id: "scm", label: "Source Control", icon: GitBranch },
-  { id: "db", label: "Databases", icon: Database },
-  { id: "bots", label: "Tophs", icon: Bot },
-  { id: "debug", label: "Debug", icon: Bug },
-  { id: "web", label: "Web apps", icon: Globe2 },
+const items: Array<{ id: Sidebar; feature: WorkspaceFeature; label: string; icon: typeof Files }> = [
+  { id: "files", feature: "files", label: "Explorer", icon: Files },
+  { id: "scm", feature: "sourceControl", label: "Source Control", icon: GitBranch },
+  { id: "db", feature: "databases", label: "Databases", icon: Database },
+  { id: "bots", feature: "bots", label: "Tophs", icon: Bot },
+  { id: "debug", feature: "debug", label: "Debug", icon: Bug },
+  { id: "web", feature: "webApps", label: "Web apps", icon: Globe2 },
 ];
 
 export default function ActivityBar() {
@@ -24,11 +24,12 @@ export default function ActivityBar() {
   const user = useApp((state) => state.user);
   const theme = useSettings((state) => state.theme);
   const setTheme = useSettings((state) => state.setTheme);
+  const workspaceFeatures = useSettings((state) => state.workspaceFeatures);
 
   return (
     <nav className="flex h-full w-12 shrink-0 flex-col items-center border-e bg-background-primary-default py-2" aria-label="Primary">
       <div className="flex flex-col items-center gap-1">
-        {items.map((item) => {
+        {items.filter((item) => featureEnabled(workspaceFeatures, item.feature)).map((item) => {
           const active = sidebar === item.id;
           return (
             <TooltipTrigger key={item.id} delay={400}>
@@ -46,19 +47,21 @@ export default function ActivityBar() {
             </TooltipTrigger>
           );
         })}
-        <TooltipTrigger delay={400}>
-          <Button
-            variant={terminalOpen ? "secondary" : "ghost"}
-            size="medium"
-            iconOnly
-            leadingIcon={TerminalSquare}
-            className={cx("size-9", terminalOpen && "text-accent-500")}
-            aria-label="Terminal"
-            aria-pressed={terminalOpen}
-            onClick={toggleTerminal}
-          />
-          <Tooltip>Terminal</Tooltip>
-        </TooltipTrigger>
+        {featureEnabled(workspaceFeatures, "terminal") && (
+          <TooltipTrigger delay={400}>
+            <Button
+              variant={terminalOpen ? "secondary" : "ghost"}
+              size="medium"
+              iconOnly
+              leadingIcon={TerminalSquare}
+              className={cx("size-9", terminalOpen && "text-accent-500")}
+              aria-label="Terminal"
+              aria-pressed={terminalOpen}
+              onClick={toggleTerminal}
+            />
+            <Tooltip>Terminal</Tooltip>
+          </TooltipTrigger>
+        )}
       </div>
       <div className="mt-auto flex flex-col items-center gap-2">
         <div className="flex flex-col items-center gap-0.5 rounded-full bg-background-secondary-default p-1">

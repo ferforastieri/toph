@@ -11,6 +11,7 @@ import { Dropdown, DropdownDivider, DropdownGroup, DropdownItem, DropdownPopover
 import BrandMark from "@toph/brand";
 import { cx } from "@/boardui/utils/cx";
 import type { Project } from "../api";
+import { featureEnabled, type WorkspaceFeatures } from "../settings";
 import QuickOpen from "./QuickOpen";
 
 type SidebarTarget = "files" | "scm" | "db" | "web";
@@ -35,6 +36,7 @@ interface Props {
   onAbout: () => void;
   onShortcuts: () => void;
   menuVisible: boolean;
+  workspaceFeatures: WorkspaceFeatures;
   headerLeft?: ReactNode;
   headerTrailing?: ReactNode;
   headerRight?: ReactNode;
@@ -101,7 +103,15 @@ export default function TopBar({
   headerLeft,
   headerTrailing,
   headerRight,
+  workspaceFeatures,
 }: Props) {
+  const filesEnabled = featureEnabled(workspaceFeatures, "files");
+  const tabsEnabled = featureEnabled(workspaceFeatures, "tabs");
+  const terminalEnabled = featureEnabled(workspaceFeatures, "terminal");
+  const sourceControlEnabled = featureEnabled(workspaceFeatures, "sourceControl");
+  const databasesEnabled = featureEnabled(workspaceFeatures, "databases");
+  const webAppsEnabled = featureEnabled(workspaceFeatures, "webApps");
+  const debugEnabled = featureEnabled(workspaceFeatures, "debug");
   return (
     <header
       className={cx(
@@ -120,17 +130,17 @@ export default function TopBar({
         <TopMenu label="File">
           {(close) => (
             <DropdownGroup>
-              <MenuAction close={close} label="New File..." shortcut="Ctrl+N" onSelect={() => { onSidebar("files"); window.setTimeout(() => window.dispatchEvent(new CustomEvent("toph:explorer-action", { detail: { action: "new-file" } })), 40); }} />
-              <MenuAction close={close} label="New Folder..." onSelect={() => { onSidebar("files"); window.setTimeout(() => window.dispatchEvent(new CustomEvent("toph:explorer-action", { detail: { action: "new-folder" } })), 40); }} />
+              {filesEnabled && <MenuAction close={close} label="New File..." shortcut="Ctrl+N" onSelect={() => { onSidebar("files"); window.setTimeout(() => window.dispatchEvent(new CustomEvent("toph:explorer-action", { detail: { action: "new-file" } })), 40); }} />}
+              {filesEnabled && <MenuAction close={close} label="New Folder..." onSelect={() => { onSidebar("files"); window.setTimeout(() => window.dispatchEvent(new CustomEvent("toph:explorer-action", { detail: { action: "new-folder" } })), 40); }} />}
               <DropdownDivider />
               <MenuAction close={close} label="Open Repository..." onSelect={onOpenRepo} />
-              <MenuAction close={close} label="Save" shortcut="Ctrl+S" onSelect={() => editorCommand("save")} />
-              <DropdownDivider />
-              <MenuAction close={close} label="Close Editor" shortcut="Ctrl+W" onSelect={onCloseTab} />
+              {tabsEnabled && filesEnabled && <MenuAction close={close} label="Save" shortcut="Ctrl+S" onSelect={() => editorCommand("save")} />}
+              {tabsEnabled && filesEnabled && <DropdownDivider />}
+              {tabsEnabled && <MenuAction close={close} label="Close Editor" shortcut="Ctrl+W" onSelect={onCloseTab} />}
             </DropdownGroup>
           )}
         </TopMenu>
-        <TopMenu label="Edit">
+        {filesEnabled && tabsEnabled && <TopMenu label="Edit">
           {(close) => (
             <DropdownGroup>
               <MenuAction close={close} label="Undo" shortcut="Ctrl+Z" onSelect={() => editorCommand("undo")} />
@@ -145,8 +155,8 @@ export default function TopBar({
               <MenuAction close={close} label="Select All" shortcut="Ctrl+A" onSelect={() => editorCommand("editor.action.selectAll")} />
             </DropdownGroup>
           )}
-        </TopMenu>
-        <TopMenu label="Selection">
+        </TopMenu>}
+        {filesEnabled && tabsEnabled && <TopMenu label="Selection">
           {(close) => (
             <DropdownGroup>
               <MenuAction close={close} label="Select All" shortcut="Ctrl+A" onSelect={() => editorCommand("editor.action.selectAll")} />
@@ -157,33 +167,33 @@ export default function TopBar({
               <MenuAction close={close} label="Move Line Down" shortcut="Alt+Down" onSelect={() => editorCommand("editor.action.moveLinesDownAction")} />
             </DropdownGroup>
           )}
-        </TopMenu>
+        </TopMenu>}
         <TopMenu label="View">
           {(close) => (
             <>
               <DropdownGroup>
                 <MenuAction close={close} label="Command Palette..." shortcut="Ctrl+Shift+P" onSelect={() => editorCommand("editor.action.quickCommand")} />
-                <MenuAction close={close} label="Open View..." onSelect={() => onSidebar("files")} />
+                {filesEnabled && <MenuAction close={close} label="Open View..." onSelect={() => onSidebar("files")} />}
               </DropdownGroup>
               <DropdownDivider />
               <DropdownGroup label="Views">
-                <MenuAction close={close} label="Explorer" onSelect={() => onSidebar("files")} />
-                <MenuAction close={close} label="Source Control" onSelect={() => onSidebar("scm")} />
-                <MenuAction close={close} label="Databases" onSelect={() => onSidebar("db")} />
-                <MenuAction close={close} label="Web Apps" onSelect={() => onSidebar("web")} />
+                {filesEnabled && <MenuAction close={close} label="Explorer" onSelect={() => onSidebar("files")} />}
+                {sourceControlEnabled && <MenuAction close={close} label="Source Control" onSelect={() => onSidebar("scm")} />}
+                {databasesEnabled && <MenuAction close={close} label="Databases" onSelect={() => onSidebar("db")} />}
+                {webAppsEnabled && <MenuAction close={close} label="Web Apps" onSelect={() => onSidebar("web")} />}
               </DropdownGroup>
               <DropdownDivider />
               <DropdownGroup label="Panels">
-                <MenuAction close={close} label="Problems" onSelect={() => { onShowTerminal(); terminalTab("problems"); }} />
-                <MenuAction close={close} label="Output" onSelect={() => { onShowTerminal(); terminalTab("output"); }} />
-                <MenuAction close={close} label="Debug Console" onSelect={() => { onShowTerminal(); terminalTab("debug"); }} />
-                <MenuAction close={close} label="Terminal" onSelect={() => { onShowTerminal(); terminalTab("terminal"); }} />
-                <MenuAction close={close} label="Ports" onSelect={() => { onShowTerminal(); terminalTab("ports"); }} />
+                {terminalEnabled && <MenuAction close={close} label="Problems" onSelect={() => { onShowTerminal(); terminalTab("problems"); }} />}
+                {terminalEnabled && <MenuAction close={close} label="Output" onSelect={() => { onShowTerminal(); terminalTab("output"); }} />}
+                {terminalEnabled && <MenuAction close={close} label="Debug Console" onSelect={() => { onShowTerminal(); terminalTab("debug"); }} />}
+                {terminalEnabled && <MenuAction close={close} label="Terminal" onSelect={() => { onShowTerminal(); terminalTab("terminal"); }} />}
+                {terminalEnabled && <MenuAction close={close} label="Ports" onSelect={() => { onShowTerminal(); terminalTab("ports"); }} />}
               </DropdownGroup>
               <DropdownDivider />
               <DropdownGroup label="Appearance">
                 <MenuAction close={close} label={`${sidebarVisible ? "Hide" : "Show"} Primary Side Bar`} shortcut="Ctrl+B" onSelect={onToggleSidebar} />
-                <MenuAction close={close} label="Toggle Panel" shortcut="Ctrl+J" onSelect={onToggleTerminal} />
+                {terminalEnabled && <MenuAction close={close} label="Toggle Panel" shortcut="Ctrl+J" onSelect={onToggleTerminal} />}
                 <MenuAction close={close} label={`${statusVisible ? "Hide" : "Show"} Status Bar`} onSelect={onToggleStatus} />
                 <MenuAction close={close} label="Toggle Activity Bar" onSelect={onToggleActivity} />
                 <MenuAction close={close} label="Customize Layout..." onSelect={onCustomizeLayout} />
@@ -191,7 +201,7 @@ export default function TopBar({
             </>
           )}
         </TopMenu>
-        <TopMenu label="Go">
+        {filesEnabled && tabsEnabled && <TopMenu label="Go">
           {(close) => (
             <DropdownGroup>
               <MenuAction close={close} label="Back" shortcut="Alt+Left" onSelect={onBack} />
@@ -207,16 +217,16 @@ export default function TopBar({
               <MenuAction close={close} label="Previous Problem" shortcut="Shift+F8" onSelect={() => editorCommand("editor.action.marker.prev")} />
             </DropdownGroup>
           )}
-        </TopMenu>
-        <TopMenu label="Run">
+        </TopMenu>}
+        {filesEnabled && debugEnabled && <TopMenu label="Run">
           {(close) => (
             <DropdownGroup>
               <MenuAction close={close} label="Run Without Debugging" shortcut="Ctrl+F5" onSelect={() => editorCommand("run")} />
               <MenuAction close={close} label="Start Debugging" shortcut="F5" onSelect={() => editorCommand("run")} />
             </DropdownGroup>
           )}
-        </TopMenu>
-        <TopMenu label="Terminal">
+        </TopMenu>}
+        {terminalEnabled && <TopMenu label="Terminal">
           {(close) => (
             <DropdownGroup>
               <MenuAction close={close} label="New Terminal" shortcut="Ctrl+Shift+`" onSelect={() => { onShowTerminal(); terminalCommand("new"); }} />
@@ -227,7 +237,7 @@ export default function TopBar({
               <MenuAction close={close} label="Toggle Terminal" shortcut="Ctrl+`" onSelect={onToggleTerminal} />
             </DropdownGroup>
           )}
-        </TopMenu>
+        </TopMenu>}
         <TopMenu label="Help">
           {(close) => (
             <DropdownGroup>
@@ -259,7 +269,7 @@ export default function TopBar({
           menuVisible ? "min-w-[140px] max-w-[600px] flex-1" : "w-full justify-self-center",
         )}
       >
-        <QuickOpen project={project} focusToken={quickOpenToken} onOpenFile={onOpenFile} showChevron />
+        {filesEnabled && tabsEnabled ? <QuickOpen project={project} focusToken={quickOpenToken} onOpenFile={onOpenFile} showChevron /> : null}
       </div>
 
       <div
@@ -271,7 +281,7 @@ export default function TopBar({
         <Button variant="ghost" size="xs" iconOnly leadingIcon={ArrowLeft} aria-label="Voltar" title="Voltar" onClick={onBack} />
         <Button variant="ghost" size="xs" iconOnly leadingIcon={ArrowRight} aria-label="Avançar" title="Avançar" onClick={onForward} />
         <Button variant={sidebarVisible ? "secondary" : "ghost"} size="xs" iconOnly leadingIcon={LayoutPanelLeft} aria-label="Barra lateral primária" title="Barra lateral primária" onClick={onToggleSidebar} />
-        <Button variant="ghost" size="xs" iconOnly leadingIcon={Rows3} aria-label="Painel" title="Painel" onClick={onToggleTerminal} />
+        {terminalEnabled && <Button variant="ghost" size="xs" iconOnly leadingIcon={Rows3} aria-label="Painel" title="Painel" onClick={onToggleTerminal} />}
         <Button variant="ghost" size="xs" iconOnly leadingIcon={Settings2} aria-label="Personalizar layout" title="Personalizar layout" onClick={onCustomizeLayout} />
         {headerRight && (
           <div className="hidden shrink-0 items-center gap-2 border-s border-separator-border ps-2 text-caption-2-regular text-text-secondary xl:flex">

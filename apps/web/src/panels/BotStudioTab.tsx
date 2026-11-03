@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { OpenCode } from "@opencode/client";
 import { connectClientMcp, type ClientMcpTool } from "@opencode/client/mcp";
-import { Bot, ChevronDown, Copy, History, LoaderCircle, MessageSquarePlus, Settings2, UserRound } from "@toph/icons";
+import { Bot, ChevronDown, Copy, History, LoaderCircle, MessageSquarePlus, Settings2, SlidersHorizontal, UserRound } from "@toph/icons";
 import { api, openCodeBase, type AIMessage, type Project } from "../api";
 import { modelDisplay, useAI } from "../ai";
 import { TOPH_PRESETS, useBots, type BotMessage, type MiniBot } from "../bots";
@@ -1220,6 +1220,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
         {!mobile ? (
         <div className="flex shrink-0 items-center gap-1 border-b border-separator-border bg-background-secondary-default px-2 py-1.5">
           <Button variant="ghost" size="small" iconOnly leadingIcon={Settings2} aria-label={mode === "solo" ? "Configurar Toph Solo" : "Configurar Toph ativo"} title={mode === "solo" ? "Configurar Toph Solo" : "Configurar Toph ativo"} onClick={() => setConfigOpen(true)} className="size-9" />
+          <Button variant="ghost" size="small" iconOnly leadingIcon={SlidersHorizontal} aria-label="Configurar recursos do workspace" title="Configurar recursos do workspace" onClick={() => window.dispatchEvent(new CustomEvent("toph:layout-settings"))} className="size-9" />
           {mode === "team" ? (
             <Button variant="ghost" size="small" iconOnly leadingIcon={MessageSquarePlus} aria-label="Novo Toph" title="Novo Toph" onClick={newBot} className="size-9" />
           ) : null}

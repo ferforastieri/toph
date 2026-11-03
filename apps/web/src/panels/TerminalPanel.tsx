@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Terminal, type ILink } from "@xterm/xterm";
+import "@xterm/xterm/css/xterm.css";
 import { FitAddon } from "@xterm/addon-fit";
 import {
   ChevronDown,
@@ -87,6 +88,19 @@ export default function TerminalPanel({ project, onOpenFile, sheet = false, onCl
   const setTerminalOpen = useApp((state) => state.setTerminalOpen);
   const initialized = useRef(false);
   const outputRef = useRef("");
+  const cleanupTimer = useRef<number | undefined>(undefined);
+
+  useEffect(() => {
+    window.clearTimeout(cleanupTimer.current);
+    cleanupTimer.current = undefined;
+    return () => {
+      window.clearTimeout(cleanupTimer.current);
+      cleanupTimer.current = window.setTimeout(() => {
+        cleanupTimer.current = undefined;
+        void api.closeProjectTerminals(project.id).catch(() => undefined);
+      }, 0);
+    };
+  }, [project.id]);
 
   const appendOutput = useCallback((chunk: string) => {
     if (!chunk) return;

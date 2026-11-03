@@ -158,7 +158,8 @@ fn open_server(
     let mut target = endpoint(&base, "app/")?;
     target
         .query_pairs_mut()
-        .append_pair("server", base.as_str());
+        .append_pair("server", base.as_str())
+        .append_pair("desktop", "1");
     navigate_main(&app, target.clone()).inspect_err(|err| {
         eprintln!("toph: could not navigate to server {target}: {err}");
     })
@@ -403,7 +404,8 @@ async fn start_local_server(
     let mut target = endpoint(&base, "app/")?;
     target
         .query_pairs_mut()
-        .append_pair("server", base.as_str());
+        .append_pair("server", base.as_str())
+        .append_pair("desktop", "1");
     if let Err(err) = navigate_main(&app, target) {
         if let Ok(mut slot) = state.server.lock() {
             if let Some(server) = slot.take() {
