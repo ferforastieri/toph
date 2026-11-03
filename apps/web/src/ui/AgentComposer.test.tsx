@@ -67,4 +67,29 @@ describe("AgentComposer actions", () => {
 
     expect(await screen.findByRole("img", { name: "colada.png" })).toHaveAttribute("src", expect.stringMatching(/^data:image\/png;base64,/));
   });
+
+  it("stops the running agent without submitting the draft", () => {
+    const onStop = vi.fn();
+    const onSend = vi.fn();
+    render(
+      <AgentComposer
+        value="rascunho que não deve ser enviado"
+        onChange={vi.fn()}
+        onSend={onSend}
+        onStop={onStop}
+        busy
+        models={[]}
+        model=""
+        onModelChange={vi.fn()}
+        effort=""
+        efforts={[]}
+        onEffortChange={vi.fn()}
+        placeholder="Mensagem"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Parar" }));
+    expect(onStop).toHaveBeenCalledOnce();
+    expect(onSend).not.toHaveBeenCalled();
+  });
 });

@@ -1,6 +1,8 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import AgentTranscript from "./AgentTranscript";
+
+afterEach(cleanup);
 
 describe("AgentTranscript artifacts", () => {
   it("shows an expanded real diff without an extra tool-group card", () => {
@@ -59,7 +61,7 @@ describe("AgentTranscript artifacts", () => {
           title: "Tool · question",
           text: JSON.stringify({ questions: [{ header: "Direção", question: "Qual caminho?", options: [{ label: "Primeiro", description: "Opção recomendada" }, { label: "Segundo" }], multiple: false }] }),
           detail: "{}",
-          status: "error",
+          status: "running",
           createdAt: 1,
         }]}
       />,
@@ -69,5 +71,25 @@ describe("AgentTranscript artifacts", () => {
     fireEvent.click(screen.getByRole("button", { name: "Responder" }));
     expect(answer).toHaveBeenCalledWith("question-1", expect.stringContaining("Direção: Primeiro"));
     expect(screen.queryByText("{}")).not.toBeInTheDocument();
+  });
+
+  it("does not offer an answer for an interrupted question", () => {
+    render(
+      <AgentTranscript
+        streaming={false}
+        toolsExpanded
+        messages={[{
+          id: "question-error",
+          role: "tool",
+          title: "Tool · question",
+          text: JSON.stringify({ questions: [{ header: "Direção", question: "Qual caminho?", options: [{ label: "Primeiro" }] }] }),
+          status: "error",
+          createdAt: 1,
+        }]}
+      />,
+    );
+
+    expect(screen.getByText("Esta pergunta foi encerrada antes de receber uma resposta.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Responder" })).not.toBeInTheDocument();
   });
 });

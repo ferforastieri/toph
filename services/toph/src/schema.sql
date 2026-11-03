@@ -44,6 +44,24 @@ CREATE TABLE IF NOT EXISTS workspaces (
     PRIMARY KEY (user_id, project_id)
 );
 
+CREATE TABLE IF NOT EXISTS bot_messages (
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    message_id TEXT NOT NULL,
+    mode TEXT NOT NULL,
+    channel TEXT NOT NULL DEFAULT '',
+    role TEXT NOT NULL,
+    bot_id TEXT,
+    created_at INTEGER NOT NULL,
+    payload TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY (user_id, project_id, mode, channel, message_id)
+);
+CREATE INDEX IF NOT EXISTS idx_bot_messages_page
+    ON bot_messages(user_id, project_id, mode, channel, role, created_at DESC, message_id DESC);
+CREATE INDEX IF NOT EXISTS idx_bot_messages_bot
+    ON bot_messages(user_id, project_id, bot_id);
+
 CREATE TABLE IF NOT EXISTS db_profiles (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,

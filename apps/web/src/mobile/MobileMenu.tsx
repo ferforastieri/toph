@@ -1,9 +1,10 @@
 import { Bot, Bug, Database, FileCode2, Files, GitBranch, Globe2, Moon, Sun, TerminalSquare } from "@toph/icons";
 import type { User } from "../api";
-import { Avatar } from "@/boardui/base/avatar/avatar";
 import { Button } from "@/boardui/base/buttons/button";
-import { Switch } from "@/boardui/base/switch/switch";
 import { useSettings } from "../settings";
+import { usePet } from "../pet";
+import PetSprite from "../ui/PetSprite";
+import { cx } from "@/boardui/utils/cx";
 import type { ComponentType } from "react";
 
 export type MobileScreen = "bots" | "files" | "scm" | "db" | "web" | "debug" | "workspace";
@@ -31,14 +32,6 @@ const screens: Array<{ id: MobileScreen; label: string; description: string; ico
   { id: "workspace", label: "Editor", description: "Aba ativa do workspace", icon: FileCode2 },
 ];
 
-function initials(username?: string): string {
-  const value = username?.trim();
-  if (!value) return "?";
-  const parts = value.split(/[\s._-]+/).filter(Boolean);
-  if (parts.length > 1) return `${parts[0][0] ?? ""}${parts[1][0] ?? ""}`.toUpperCase();
-  return value.slice(0, 2).toUpperCase();
-}
-
 export default function MobileMenu({
   screen,
   hasWorkspace,
@@ -53,6 +46,7 @@ export default function MobileMenu({
 }: Props) {
   const theme = useSettings((state) => state.theme);
   const setTheme = useSettings((state) => state.setTheme);
+  const pet = usePet();
   return (
     <div className="fixed inset-0 z-[130]">
       <button
@@ -67,7 +61,7 @@ export default function MobileMenu({
           className="flex w-full items-center gap-3 border-b border-separator-border p-3 text-start hover:bg-background-primary-hover"
           onClick={onAccount}
         >
-          <Avatar size="md" initials={initials(user?.username)} className="bg-accent-500/15 text-accent-500" />
+          <PetSprite kind={pet.kind} size={38} commits={pet.commits} />
           <span className="flex min-w-0 flex-1 flex-col">
             <span className="truncate text-body-medium text-text-primary">{user?.username ?? "Conta"}</span>
             <span className="truncate text-caption-1-regular text-text-secondary">{projectName}</span>
@@ -97,11 +91,13 @@ export default function MobileMenu({
         </div>
 
         <div className="flex shrink-0 flex-col gap-1 border-t border-separator-border p-2">
-          <div className="flex items-center gap-2 px-3 py-2">
-            {theme === "dark" ? <Moon className="size-4 text-foreground-icon-secondary" /> : <Sun className="size-4 text-foreground-icon-secondary" />}
-            <span className="flex-1 text-body-2-medium text-text-primary">{theme === "dark" ? "Modo escuro" : "Modo claro"}</span>
-            <Switch isSelected={theme === "dark"} onChange={(selected) => setTheme(selected ? "dark" : "light")} size="sm" aria-label="Alternar tema escuro e claro" />
-          </div>
+          <button type="button" className="flex items-center gap-2 rounded-xl px-3 py-2 hover:bg-background-primary-hover" onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
+            <span className="relative flex size-6 items-center justify-center">
+              <Sun className={cx("absolute size-4 transition-all duration-300", theme === "light" ? "rotate-0 scale-100 opacity-100" : "-rotate-90 scale-50 opacity-0")} />
+              <Moon className={cx("absolute size-4 transition-all duration-300", theme === "dark" ? "rotate-0 scale-100 opacity-100" : "rotate-90 scale-50 opacity-0")} />
+            </span>
+            <span className="flex-1 text-start text-body-2-medium text-text-primary">Tema {theme === "dark" ? "escuro" : "claro"}</span>
+          </button>
           <div className="px-2 pb-1 pt-1 text-caption-2-semibold uppercase tracking-[0.16em] text-text-tertiary">Projeto</div>
           <Button variant="ghost" leadingIcon={GitBranch} className="h-auto w-full justify-start gap-2 px-3 py-2.5" onClick={onBranch}>
             <span className="flex min-w-0 flex-1 flex-col text-start">

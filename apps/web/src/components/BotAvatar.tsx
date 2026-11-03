@@ -1,5 +1,6 @@
 import { useEffect, useState, type CSSProperties } from "react";
 import type { MiniBot } from "../bots";
+import { cx } from "@/boardui/utils/cx";
 
 interface Props {
   bot: Pick<MiniBot, "name" | "color" | "avatar">;
@@ -19,7 +20,7 @@ export default function BotAvatar({ bot, size = 36, className, style }: Props) {
 
   return (
     <span
-      className={className}
+      className={cx("relative isolate overflow-visible", className)}
       style={{ width: size, height: size, display: "inline-flex", flexShrink: 0, ...style }}
       title={bot.name}
       aria-hidden
@@ -31,7 +32,23 @@ export default function BotAvatar({ bot, size = 36, className, style }: Props) {
         height={size}
         draggable={false}
         onError={() => { if (image !== CORE_AVATAR) setImage(CORE_AVATAR); }}
-        className="size-full select-none object-contain drop-shadow-[0_1px_1px_rgba(0,0,0,0.18)]"
+        className="size-full select-none object-contain grayscale drop-shadow-[0_1px_1px_rgba(0,0,0,0.18)]"
+      />
+      <span
+        data-avatar-color={bot.color}
+        className="pointer-events-none absolute inset-0 size-full"
+        style={{
+          backgroundColor: bot.color,
+          WebkitMaskImage: `url("${image}")`,
+          maskImage: `url("${image}")`,
+          WebkitMaskPosition: "center",
+          maskPosition: "center",
+          WebkitMaskRepeat: "no-repeat",
+          maskRepeat: "no-repeat",
+          WebkitMaskSize: "contain",
+          maskSize: "contain",
+          mixBlendMode: "color",
+        }}
       />
     </span>
   );

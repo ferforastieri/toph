@@ -8,6 +8,7 @@ import { Button } from "@/boardui/base/buttons/button";
 import { Chip } from "@/boardui/base/badges/chip";
 import { Select, SelectItem } from "@/boardui/base/select/select";
 import { AgentComposer, type AgentAttachment } from "../ui/AgentComposer";
+import { answerOpenCodeQuestion } from "../opencodeQuestion";
 import AgentSessionsSheet from "../components/AgentSessionsSheet";
 import AiSettingsModal, { type AiSettingsTab } from "../components/AiSettingsModal";
 import AgentTranscript from "../components/AgentTranscript";
@@ -753,10 +754,10 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
     }
   }
 
-  async function send(text: string, attachments: AgentAttachment[], force = false) {
-    if ((!text && attachments.length === 0) || (!force && (streaming || sendInFlight.current))) return;
+  async function send(text: string, attachments: AgentAttachment[]) {
+    if ((!text && attachments.length === 0) || streaming || sendInFlight.current) return;
     sendInFlight.current = true;
-    if (tab.sessionId && !force) {
+    if (tab.sessionId) {
       const active = await client.session.active().catch(() => null);
       if (active?.[tab.sessionId]?.type === "running") {
         setStreaming(tab.id, true);
@@ -805,12 +806,15 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
   }
 
   async function answerToolQuestion(messageId: string, answer: string) {
-    if (!tab.sessionId) return;
-    await client.session.interrupt({ sessionID: tab.sessionId } as never).catch(() => undefined);
+    if (!tab.sessionId) throw new Error("A sessão desta pergunta não está mais ativa.");
+    await answerOpenCodeQuestion(client, tab.sessionId, answer);
     updateMessage(tab.id, messageId, { detail: answer, status: "complete" });
-    setStreaming(tab.id, false);
-    sendInFlight.current = false;
-    await send(answer, [], true);
+    addMessage(tab.id, {
+      id: `question-answer-${Date.now()}`,
+      role: "user",
+      text: answer,
+      createdAt: Date.now(),
+    });
   }
 
   async function replyPermission(messageId: string, requestId: string, decision: "once" | "always" | "reject") {

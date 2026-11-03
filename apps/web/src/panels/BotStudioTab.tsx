@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { OpenCode } from "@opencode/client";
 import { connectClientMcp, type ClientMcpTool } from "@opencode/client/mcp";
 import { Bot, ChevronDown, Copy, ListTree, LoaderCircle, MessageSquarePlus, Monitor, UserRound } from "@toph/icons";
-import { api, ApiError, openCodeBase, type AIMessage, type AIMessageContentPart, type Project } from "../api";
+import { api, ApiError, openCodeBase, type AIMessage, type AIMessageContentPart, type Project, type WorkspaceMessageCursor } from "../api";
 import { modelDisplay, useAI } from "../ai";
 import { TOPH_PRESETS, useBots, type BotMessage, type MiniBot } from "../bots";
 import { notifyAiResponse } from "../aiNotifications";
@@ -25,11 +25,34 @@ import AiUsageMeter from "../ui/AiUsageMeter";
 import ResizeHandle from "../ui/resize";
 import { useSettings } from "../settings";
 import { extractAgentFilePaths } from "../agentArtifacts";
+import { answerOpenCodeQuestion } from "../opencodeQuestion";
+import { recoverBotReply } from "../botReply";
 
 interface Props {
   project: Project;
   mobile?: boolean;
 }
+
+const CONVERSATION_PAGE_SIZE = 30;
+const ACTIVITY_PAGE_SIZE = 12;
+const ASSISTANT_IMAGE_SCAN_LIMIT = 12;
+const ASSISTANT_IMAGE_RENDER_LIMIT = 8;
+
+interface HistoryPageState {
+  cursor: WorkspaceMessageCursor | null;
+  hasMore: boolean;
+  loading: boolean;
+  ready: boolean;
+  error: string;
+}
+
+const EMPTY_HISTORY_PAGE: HistoryPageState = {
+  cursor: null,
+  hasMore: false,
+  loading: false,
+  ready: false,
+  error: "",
+};
 
 function splitModel(model: string): { providerID: string; id: string } | null {
   const index = model.indexOf("/");
@@ -276,6 +299,16 @@ function restoreBotMessages(context: unknown, botId: string, channel: string, mo
   return restored;
 }
 
+function visibleHistoryWindow(messages: BotMessage[]): BotMessage[] {
+  const conversation = messages
+    .filter((message) => message.role !== "tool" && message.role !== "reasoning")
+    .slice(-CONVERSATION_PAGE_SIZE);
+  const activity = messages
+    .filter((message) => message.role === "tool" || message.role === "reasoning")
+    .slice(-ACTIVITY_PAGE_SIZE);
+  return [...conversation, ...activity].sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id));
+}
+
 function toAiMessage(message: BotMessage): AiMessage {
   return {
     id: message.id,
@@ -304,6 +337,8 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
   const updateBot = useBots((state) => state.updateBot);
   const replaceChannelMessages = useBots((state) => state.replaceChannelMessages);
   const setBotSession = useBots((state) => state.setBotSession);
+  const mergeMessages = useBots((state) => state.mergeMessages);
+  const discardMessageWrites = useBots((state) => state.discardMessageWrites);
   const aiConfig = useAI((state) => state.config);
   const models = useAI((state) => state.models);
   const activityWidth = useSettings((state) => state.aiPanelWidth);
@@ -320,6 +355,9 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
   const [runningBots, setRunningBots] = useState<Set<string>>(new Set());
   const [forms, setForms] = useState<Array<{ form: OpenCodeForm; botId: string }>>([]);
   const [formBusy, setFormBusy] = useState<string | null>(null);
+  const [conversationPage, setConversationPage] = useState<HistoryPageState>(EMPTY_HISTORY_PAGE);
+  const [activityPage, setActivityPage] = useState<HistoryPageState>(EMPTY_HISTORY_PAGE);
+  const [historyReloadToken, setHistoryReloadToken] = useState(0);
   const sessionBotMap = useRef(new Map<string, string>());
   const toolFileSnapshots = useRef(new Map<string, ToolFileSnapshot[]>());
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -487,6 +525,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
   const activityMessages = displayMessages.filter((message) => message.role === "tool" || message.role === "reasoning");
   const groupedMessages = groupBotMessages(conversationMessages);
   const activityGroups = groupBotMessages(activityMessages);
+  const latestUserAt = [...conversationMessages].reverse().find((message) => message.role === "user")?.createdAt ?? 0;
   const lastBotGroupIndex = new Map<string, number>();
   groupedMessages.forEach((group, index) => {
     if (group.kind === "bot") lastBotGroupIndex.set(group.botId, index);
@@ -506,14 +545,67 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
   const visibleRunningBots = [...runningBots].filter((botId) => visibleBotIds.has(botId));
   const visibleForms = forms.filter(({ botId }) => visibleBotIds.has(botId));
   const assistantImages = agentImagesForMessages(
-    displayMessages.filter((message) => message.role === "assistant").map(toAiMessage),
+    displayMessages.filter((message) => message.role === "assistant").slice(-ASSISTANT_IMAGE_SCAN_LIMIT).map(toAiMessage),
     project.id,
     project.root,
-  );
+  ).slice(-ASSISTANT_IMAGE_RENDER_LIMIT);
+  const historyChannel = threadMode === "solo" ? "solo" : activeWorker ? `worker:${activeWorker.id}` : undefined;
+  const historyKey = `${project.id}:${threadMode}:${historyChannel ?? "all"}`;
   const draftKey = `${project.id}:${mode}:${activeBot?.id ?? "none"}:${activeBot?.sessionId ?? "new"}`;
   const savedDraft = useTophDrafts((state) => state.drafts[draftKey] ?? "");
   const setDraft = useTophDrafts((state) => state.setDraft);
   const clearDraft = useTophDrafts((state) => state.clearDraft);
+
+  useEffect(() => {
+    if (!workspace?.hydrated) return;
+    let cancelled = false;
+    setConversationPage({ ...EMPTY_HISTORY_PAGE, loading: true });
+    setActivityPage({ ...EMPTY_HISTORY_PAGE, loading: true });
+    const base = { mode: threadMode, channel: historyChannel };
+    void Promise.all([
+      api.workspaceMessages<BotMessage>(project.id, { ...base, scope: "conversation", limit: CONVERSATION_PAGE_SIZE }),
+      api.workspaceMessages<BotMessage>(project.id, { ...base, scope: "activity", limit: ACTIVITY_PAGE_SIZE }),
+    ]).then(([conversation, activity]) => {
+      if (cancelled) return;
+      mergeMessages(project.id, [...conversation.items, ...activity.items]);
+      setConversationPage({ cursor: conversation.nextCursor, hasMore: conversation.hasMore, loading: false, ready: true, error: "" });
+      setActivityPage({ cursor: activity.nextCursor, hasMore: activity.hasMore, loading: false, ready: true, error: "" });
+    }).catch((error) => {
+      if (cancelled) return;
+      const message = error instanceof Error ? error.message : "Não foi possível carregar o histórico.";
+      setConversationPage({ ...EMPTY_HISTORY_PAGE, ready: true, error: message });
+      setActivityPage({ ...EMPTY_HISTORY_PAGE, ready: true, error: message });
+    });
+    return () => { cancelled = true; };
+  }, [historyKey, workspace?.hydrated, mergeMessages, project.id, historyReloadToken]);
+
+  async function loadOlderHistory(scope: "conversation" | "activity") {
+    const state = scope === "conversation" ? conversationPage : activityPage;
+    const setState = scope === "conversation" ? setConversationPage : setActivityPage;
+    if (state.loading || !state.hasMore || !state.cursor) return;
+    const element = scope === "conversation" ? scrollRef.current : activityScrollRef.current;
+    const previousHeight = element?.scrollHeight ?? 0;
+    const previousTop = element?.scrollTop ?? 0;
+    if (scope === "conversation") stickToBottom.current = false;
+    else stickActivityToBottom.current = false;
+    setState((current) => ({ ...current, loading: true, error: "" }));
+    try {
+      const page = await api.workspaceMessages<BotMessage>(project.id, {
+        mode: threadMode,
+        channel: historyChannel,
+        scope,
+        before: state.cursor,
+        limit: scope === "conversation" ? CONVERSATION_PAGE_SIZE : ACTIVITY_PAGE_SIZE,
+      });
+      mergeMessages(project.id, page.items);
+      setState({ cursor: page.nextCursor, hasMore: page.hasMore, loading: false, ready: true, error: "" });
+      window.requestAnimationFrame(() => {
+        if (element) element.scrollTop = previousTop + Math.max(0, element.scrollHeight - previousHeight);
+      });
+    } catch (error) {
+      setState((current) => ({ ...current, loading: false, error: error instanceof Error ? error.message : "Não foi possível carregar o histórico." }));
+    }
+  }
 
   useEffect(() => {
     if (!workspace || mode === "team" || bots.length > 0) return;
@@ -586,7 +678,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
   useEffect(() => {
     if (!sessionKey || sendingRef.current) return;
     void syncFromOpenCode();
-  }, [project.id, sessionKey]);
+  }, [project.id, sessionKey, activeBot?.id]);
 
   useEffect(() => {
     const refresh = () => {
@@ -897,9 +989,9 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
       const context = await client.session.context({ sessionID: sessionId } as never).catch(() => null);
       const assistant = lastAssistant(context);
       if (!assistant || assistant.id === before) continue;
-      if (assistant.error) throw new Error(assistant.error);
       latest = assistant.text || latest;
       if (latest) return latest;
+      if (assistant.error) throw new Error(assistant.error);
     }
     if (latest) return latest;
     throw new Error("O bot não respondeu a tempo.");
@@ -1036,6 +1128,11 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
     } catch (error) {
       if (error instanceof Error && error.message === "__stopped__") return null;
       if (options.token !== undefined && options.token !== runToken.current) return null;
+      const recovered = recoverBotReply(useBots.getState().byProject[project.id]?.messages ?? [], bot.id, channel, startedAt);
+      if (recovered) {
+        updateMessage(project.id, recovered.id, { pending: false, status: "complete" });
+        return recovered.content.trim();
+      }
       const text = error instanceof Error ? error.message : "Não foi possível falar com este bot.";
       addMessage(project.id, {
         id: `bot-error-${bot.id}-${Date.now()}`,
@@ -1057,10 +1154,10 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
   }
 
   async function answerToolQuestion(bot: MiniBot, messageId: string, answer: string) {
+    if (!bot.sessionId) throw new Error("A sessão desta pergunta não está mais ativa.");
     const currentMessage = useBots.getState().byProject[project.id]?.messages.find((message) => message.id === messageId);
     const channel = currentMessage?.channel ?? channelForBot(bot);
-    if (bot.sessionId) await client.session.interrupt({ sessionID: bot.sessionId } as never).catch(() => undefined);
-    cancelActiveTurn();
+    await answerOpenCodeQuestion(client, bot.sessionId, answer);
     updateMessage(project.id, messageId, { detail: answer, status: "complete" });
     addMessage(project.id, {
       id: `bot-user-question-${Date.now()}`,
@@ -1070,15 +1167,6 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
       mode: threadMode,
       createdAt: Date.now(),
     });
-    const token = ++runToken.current;
-    sendingRef.current = true;
-    setSending(true);
-    try {
-      await respondAsBot(bot, answer, { channel, token });
-    } finally {
-      sendingRef.current = false;
-      setSending(false);
-    }
   }
 
   async function replyPermission(bot: MiniBot, messageId: string, requestId: string, decision: "once" | "always" | "reject") {
@@ -1141,6 +1229,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
     // prevents a slow context request from leaving the previous session's
     // messages visible (or persisting them under the new session id).
     if (activeBot.sessionId) sessionBotMap.current.delete(activeBot.sessionId);
+    discardMessageWrites(project.id, restoreMode, channel);
     setBotSession(project.id, botId, session.id, { sessionPrimed: true, channel, messages: [] });
     sessionBotMap.current.set(session.id, botId);
     try {
@@ -1149,23 +1238,28 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
       const workspaceNow = useBots.getState().byProject[project.id];
       const currentMode = workspaceNow?.mode === "solo" ? "solo" : "team";
       if (!workspaceNow || workspaceNow.activeBotId !== botId || currentMode !== restoreMode) return;
+      const restored = restoreBotMessages(context, botId, channel, restoreMode);
+      await api.replaceWorkspaceMessages(project.id, { mode: restoreMode, channel }, restored);
       setBotSession(project.id, botId, session.id, {
         sessionPrimed: true,
         channel,
-        messages: restoreBotMessages(context, botId, channel, restoreMode),
+        messages: visibleHistoryWindow(restored),
       });
+      discardMessageWrites(project.id, restoreMode, channel);
     } catch (err) {
       if (token !== restoreToken.current) return;
       addMessage(project.id, { id: `session-error-${Date.now()}`, role: "error", content: err instanceof Error ? err.message : "Não foi possível recuperar a sessão.", channel, mode: restoreMode, createdAt: Date.now() });
     }
   }
 
-  function newSession() {
+  async function newSession() {
     if (!activeBot) return;
     restoreToken.current += 1;
     cancelActiveTurn();
     if (activeBot.sessionId) sessionBotMap.current.delete(activeBot.sessionId);
     const channel = channelForBot(activeBot);
+    discardMessageWrites(project.id, threadMode, channel);
+    await api.deleteWorkspaceMessages(project.id, { mode: threadMode, channel }).catch(() => undefined);
     setBotSession(project.id, activeBot.id, undefined, { sessionPrimed: false, channel, messages: [] });
   }
 
@@ -1214,8 +1308,9 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
         setSending(false);
       }
 
+      const selectedBotId = useBots.getState().byProject[project.id]?.activeBotId;
       for (const bot of currentBots) {
-        if (!bot.sessionId) continue;
+        if (!bot.sessionId || (bot.id !== selectedBotId && !running.has(bot.id))) continue;
         const context = await client.session.context({ sessionID: bot.sessionId } as never).catch(() => null);
         // A failed context request must not erase the local transcript. An
         // empty array, however, is a valid empty session and must replace the
@@ -1228,7 +1323,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
         if (!currentBot || currentBot.sessionId !== bot.sessionId) continue;
         const currentMode = workspaceNow?.mode === "solo" ? "solo" : "team";
         const channel = currentMode === "solo" ? "solo" : bot.coordinator ? "team" : `worker:${bot.id}`;
-        const restored = restoreBotMessages(context, bot.id, channel, currentMode);
+        const restored = visibleHistoryWindow(restoreBotMessages(context, bot.id, channel, currentMode));
         replaceChannelMessages(project.id, channel, restored);
       }
     } finally {
@@ -1334,8 +1429,31 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
             const element = event.currentTarget;
             stickToBottom.current = element.scrollHeight - element.scrollTop - element.clientHeight < 80;
           }}
-        >
+          >
           <div className="mx-auto flex min-h-full w-full min-w-0 max-w-[760px] flex-col gap-4 overflow-x-hidden p-4 [&_img]:max-w-full [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_table]:block [&_table]:max-w-full [&_table]:overflow-x-auto">
+            {(conversationPage.hasMore || (mobile && activityPage.hasMore)) ? (
+              <Button
+                variant="ghost"
+                size="small"
+                className="self-center"
+                disabled={conversationPage.loading || (mobile && activityPage.loading)}
+                onClick={() => {
+                  void loadOlderHistory("conversation");
+                  if (mobile) void loadOlderHistory("activity");
+                }}
+              >
+                {conversationPage.loading || (mobile && activityPage.loading) ? "Carregando..." : "Carregar mensagens anteriores"}
+              </Button>
+            ) : null}
+            {!conversationPage.ready && conversationPage.loading ? (
+              <div className="my-auto flex items-center justify-center gap-2 py-8 text-caption-1-regular text-text-tertiary"><LoaderCircle className="size-4 animate-spin" /> Carregando conversa...</div>
+            ) : null}
+            {conversationPage.error ? (
+              <div className="flex flex-col items-center gap-2 text-center text-caption-2-regular text-status-rose-text">
+                <p>{conversationPage.error}</p>
+                <Button variant="secondary" size="small" onClick={() => setHistoryReloadToken((value) => value + 1)}>Tentar novamente</Button>
+              </div>
+            ) : null}
             {!activeBot ? (
               <div className="my-auto flex flex-col items-center gap-3 px-6 py-10 text-center">
                 {mode === "team" ? (
@@ -1352,7 +1470,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
                   </>
                 )}
               </div>
-            ) : conversationMessages.length === 0 ? (
+            ) : conversationPage.ready && conversationMessages.length === 0 ? (
               <div className="my-auto flex flex-col items-center gap-3 px-6 py-10 text-center">
                 <div className="flex -space-x-2">
                   {(activeWorker ? [activeWorker] : mode === "solo" ? [activeBot] : bots.slice(0, 4)).map((bot) => <BotAvatar key={bot.id} bot={bot} size={38} className="rounded-full bg-background-primary-default ring-2 ring-background-primary-default" />)}
@@ -1393,7 +1511,9 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
               if (!bot) return null;
               const footerAssistant = [...group.messages].reverse().find((message) => message.role === "assistant" && !message.pending);
               const isLatestBotGroup = lastBotGroupIndex.get(bot.id) === index;
-              const footerBusy = isLatestBotGroup && (runningBots.has(bot.id) || group.messages.some((message) => message.status === "running"));
+              const belongsToCurrentTurn = latestUserAt === 0 || group.messages.some((message) => message.createdAt >= latestUserAt);
+              const groupStreaming = belongsToCurrentTurn && isLatestBotGroup && runningBots.has(bot.id);
+              const footerBusy = belongsToCurrentTurn && isLatestBotGroup && (runningBots.has(bot.id) || group.messages.some((message) => message.status === "running"));
               return (
                 <section key={`bot-${group.botId}-${index}`} className="flex min-w-0 max-w-full flex-col gap-1.5 overflow-x-hidden">
                   {mode === "team" ? (
@@ -1407,7 +1527,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
                   ) : null}
                   <AgentTranscript
                     messages={group.messages.map(toAiMessage)}
-                    streaming={isLatestBotGroup && runningBots.has(bot.id)}
+                    streaming={groupStreaming}
                     onPermission={(messageId, permissionId, decision) => void replyPermission(bot, messageId, permissionId, decision)}
                     onQuestion={(messageId, answer) => void answerToolQuestion(bot, messageId, answer)}
                     projectId={project.id}
@@ -1426,8 +1546,8 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
               );
             })}
 
-            {mobile ? visibleRunningBots
-              .filter((botId) => !groupedMessages.some((group) => group.kind === "bot" && group.botId === botId))
+            {visibleRunningBots
+              .filter((botId) => !groupedMessages.some((group) => group.kind === "bot" && group.botId === botId && (latestUserAt === 0 || group.messages.some((message) => message.createdAt >= latestUserAt))))
               .map((botId) => {
                 const bot = bots.find((item) => item.id === botId);
                 if (!bot) return null;
@@ -1437,7 +1557,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
                     <AgentTranscript messages={[]} streaming projectId={project.id} projectRoot={project.root} />
                   </section>
                 );
-              }) : null}
+              })}
 
             {mobile ? visibleForms.map(({ form, botId }) => {
               const bot = bots.find((item) => item.id === botId);
@@ -1526,13 +1646,27 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
                 stickActivityToBottom.current = element.scrollHeight - element.scrollTop - element.clientHeight < 80;
               }}
             >
+              {activityPage.hasMore ? (
+                <Button variant="ghost" size="small" className="mb-3 w-full" disabled={activityPage.loading} onClick={() => void loadOlderHistory("activity")}>
+                  {activityPage.loading ? "Carregando..." : "Carregar atividades anteriores"}
+                </Button>
+              ) : null}
+              {!activityPage.ready && activityPage.loading ? (
+                <div className="flex items-center justify-center gap-2 py-8 text-caption-1-regular text-text-tertiary"><LoaderCircle className="size-4 animate-spin" /> Carregando atividades...</div>
+              ) : null}
+              {activityPage.error ? (
+                <div className="mb-3 flex flex-col items-center gap-2 text-center text-caption-2-regular text-status-rose-text">
+                  <p>{activityPage.error}</p>
+                  <Button variant="secondary" size="small" onClick={() => setHistoryReloadToken((value) => value + 1)}>Tentar novamente</Button>
+                </div>
+              ) : null}
               {!activeBot ? (
                 <div className="flex h-full min-h-[220px] flex-col items-center justify-center gap-3 px-5 text-center">
                   <ListTree className="size-6 text-text-tertiary" />
                   <strong className="text-caption-1-semibold text-text-primary">Nenhuma atividade ainda</strong>
                   <p className="max-w-xs text-caption-2-regular leading-relaxed text-text-tertiary">Quando um Toph começar a trabalhar, cada ação aparecerá aqui.</p>
                 </div>
-              ) : activityGroups.length === 0 && visibleRunningBots.length === 0 && visibleForms.length === 0 && assistantImages.length === 0 ? (
+              ) : activityPage.ready && activityGroups.length === 0 && visibleRunningBots.length === 0 && visibleForms.length === 0 && assistantImages.length === 0 ? (
                 <div className="flex h-full min-h-[220px] flex-col items-center justify-center gap-3 px-5 text-center">
                   <ListTree className="size-6 text-text-tertiary" />
                   <strong className="text-caption-1-semibold text-text-primary">Pronto para acompanhar</strong>
@@ -1559,7 +1693,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
                         <AgentTranscript
                           messages={group.messages.map(toAiMessage)}
                           streaming={latest && runningBots.has(bot.id)}
-                          toolsExpanded
+                          toolsExpanded={latest && runningBots.has(bot.id)}
                           className="flex min-w-0 flex-col gap-1"
                           onPermission={(messageId, permissionId, decision) => void replyPermission(bot, messageId, permissionId, decision)}
                           onQuestion={(messageId, answer) => void answerToolQuestion(bot, messageId, answer)}

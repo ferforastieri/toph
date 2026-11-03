@@ -37,7 +37,7 @@ function workspace(messages: BotMessage[]): BotWorkspace {
 
 describe("Toph workspace sessions", () => {
   beforeEach(() => {
-    useBots.setState({ byProject: {} });
+    useBots.setState({ byProject: {}, messageWrites: {} });
   });
 
   it("switches the session and channel messages in a single update", () => {
@@ -99,5 +99,27 @@ describe("Toph workspace sessions", () => {
     expect(BOT_AVATARS).toHaveLength(20);
     expect(new Set(BOT_AVATARS).size).toBe(20);
     expect(TOPH_PRESETS.every((preset) => BOT_AVATARS.includes(preset.avatar))).toBe(true);
+  });
+
+  it("keeps persisted history out of the workspace layout", () => {
+    useBots.getState().load("p", workspace([message("existing", "solo", "solo", 1)]));
+    useBots.getState().addMessage("p", message("new", "solo", "solo", 2));
+
+    expect(useBots.getState().snapshot("p")?.messages).toEqual([]);
+    expect(useBots.getState().pendingMessageWrites("p").map((item) => item.id)).toEqual(["new"]);
+    useBots.getState().unload("p");
+    expect(useBots.getState().byProject.p).toBeUndefined();
+    expect(useBots.getState().pendingMessageWrites("p").map((item) => item.id)).toEqual(["new"]);
+  });
+
+  it("merges backend pages without scheduling them to be written again", () => {
+    useBots.getState().load("p", workspace([]));
+    useBots.getState().mergeMessages("p", [
+      message("older", "solo", "solo", 1),
+      message("newer", "solo", "solo", 2),
+    ]);
+
+    expect(useBots.getState().byProject.p.messages.map((item) => item.id)).toEqual(["older", "newer"]);
+    expect(useBots.getState().pendingMessageWrites("p")).toEqual([]);
   });
 });

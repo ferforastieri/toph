@@ -18,7 +18,7 @@ interface Props {
   toolsExpanded?: boolean;
   projectId?: string;
   projectRoot?: string;
-  onQuestion?: (messageId: string, answer: string) => void;
+  onQuestion?: (messageId: string, answer: string) => void | Promise<void>;
 }
 
 const markdownComponents: Components = {
@@ -74,7 +74,7 @@ interface MessageProps {
   toolsExpanded?: boolean;
   projectId?: string;
   projectRoot?: string;
-  onQuestion?: (messageId: string, answer: string) => void;
+  onQuestion?: (messageId: string, answer: string) => void | Promise<void>;
 }
 
 export interface ResolvedAgentImage extends AgentImageArtifact {
@@ -274,6 +274,9 @@ function ToolRow({ message, onPermission, onQuestion, defaultOpen = false, proje
   if (questions.length > 0) {
     if (message.status === "complete" && message.detail && message.detail !== "{}") {
       return <div className="border-y border-separator-border bg-background-secondary-default/35 px-2 py-2 text-caption-1-regular whitespace-pre-wrap text-text-secondary">{message.detail}</div>;
+    }
+    if (message.status !== "running") {
+      return <Chip color="rose" variant="subtle" className="justify-start whitespace-normal px-2 py-1.5">Esta pergunta foi encerrada antes de receber uma resposta.</Chip>;
     }
     return <AgentQuestionCard questions={questions} onSubmit={onQuestion ? (answer) => onQuestion(message.id, answer) : undefined} />;
   }

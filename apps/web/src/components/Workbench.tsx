@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { Bot, ChevronRight, FolderPlus, GitBranch } from "@toph/icons";
+import { Bot, ChevronDown, ChevronRight, FolderPlus, GitBranch, PanelLeftClose, PanelLeftOpen } from "@toph/icons";
 import { api, getApiBase, type Project, type Repository, type SchemaTable, type WebTarget } from "../api";
 import { basename, expandGitPattern, quoteIdentifier, sanitizeBranchName } from "../lib";
 import { useApp, type AppNotification, type Sidebar, type Tab } from "../store";
@@ -18,6 +18,7 @@ import BranchPicker from "./BranchPicker";
 import ProjectSwitcher from "./ProjectSwitcher";
 import QuickOpen from "./QuickOpen";
 import ActivityPopover from "./ActivityPopover";
+import TophSettings from "./TophSettings";
 import { IconButton } from "@/boardui/base/buttons/icon-button";
 import BrandMark from "@toph/brand";
 import { Button } from "@/boardui/base/buttons/button";
@@ -113,20 +114,14 @@ export default function Workbench() {
   const [closeTarget, setCloseTarget] = useState<Project | null>(null);
   const [closeBusy, setCloseBusy] = useState(false);
   const [closeError, setCloseError] = useState("");
-  const [version, setVersion] = useState("0.1.0");
   const [gitStatus, setGitStatus] = useState("");
   const [branchMenuOpen, setBranchMenuOpen] = useState(false);
   const [branchCreateOpen, setBranchCreateOpen] = useState(false);
   const [quickOpenToken, setQuickOpenToken] = useState(0);
   const [layoutOpen, setLayoutOpen] = useState(false);
-  const [aboutOpen, setAboutOpen] = useState(false);
-  const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const sidebarVisible = workspaceFeatures.primarySidebar;
   const tabsVisible = workspaceFeatures.tabs;
   const panelAlignment = useSettings((state) => state.panelAlignment);
-  const tabHistory = useRef<string[]>([]);
-  const tabHistoryIndex = useRef(-1);
-  const navigatingHistory = useRef(false);
   const [projectsMenuOpen, setProjectsMenuOpen] = useState(false);
   const [branchInfo, setBranchInfo] = useState<{ current: string; branches: string[] } | null>(null);
   const [branchBusy, setBranchBusy] = useState("");
@@ -190,11 +185,6 @@ export default function Workbench() {
     if (!enabled && sidebarFeature(sidebar) === feature) {
       setSidebar("bots");
     }
-    if (!enabled && (feature === "primarySidebar" || feature === "activityBar")) {
-      const nextSidebarVisible = feature === "primarySidebar" ? false : workspaceFeatures.primarySidebar;
-      const nextActivityVisible = feature === "activityBar" ? false : workspaceFeatures.activityBar;
-      if (!nextSidebarVisible && !nextActivityVisible) setSidebar("bots");
-    }
   }
 
   function openLayoutSettings(): void {
@@ -235,25 +225,6 @@ export default function Workbench() {
     setBranchError("");
     void loadBranches();
   }, [activeProjectId, sourceControlEnabled]);
-
-  useEffect(() => {
-    if (!activeTabId) return;
-    if (navigatingHistory.current) { navigatingHistory.current = false; return; }
-    const history = tabHistory.current;
-    const existing = history.indexOf(activeTabId);
-    const next = existing >= 0 ? history.slice(0, existing + 1) : [...history, activeTabId];
-    tabHistory.current = next.slice(-50);
-    tabHistoryIndex.current = tabHistory.current.length - 1;
-  }, [activeTabId]);
-
-  function navigateHistory(direction: -1 | 1) {
-    const nextIndex = tabHistoryIndex.current + direction;
-    const next = tabHistory.current[nextIndex];
-    if (!next) return;
-    navigatingHistory.current = true;
-    tabHistoryIndex.current = nextIndex;
-    setActiveTab(next);
-  }
 
   useEffect(() => {
     const openQuick = () => setQuickOpenToken((current) => current + 1);
@@ -520,12 +491,6 @@ export default function Workbench() {
 
   useEffect(() => {
     api
-      .health()
-      .then((health) => {
-        setVersion(health.version);
-      })
-      .catch(() => undefined);
-    api
       .projects()
       .then((items) => {
         setProjects(items);
@@ -539,6 +504,7 @@ export default function Workbench() {
   useEffect(() => {
     if (!activeProjectId) return;
     let cancelled = false;
+    useBots.getState().unload(activeProjectId);
     loadedProject.current = null;
     savedMode.current = null;
     setTabs([]);
@@ -601,6 +567,7 @@ export default function Workbench() {
       });
     return () => {
       cancelled = true;
+      useBots.getState().unload(activeProjectId);
     };
   }, [activeProjectId, desktopClient, loadBots, notify, setSidebar, setTabs, setTerminalOpen]);
 
@@ -664,6 +631,52 @@ export default function Workbench() {
       if (timer) window.clearTimeout(timer);
     };
   }, [activeProjectId, layoutTabs, activeTabId, sidebar, terminalOpen, projectEpoch]);
+
+  // Message history is persisted independently from the lightweight workspace
+  // layout. Only new or changed messages are sent; pages loaded from the
+  // backend are never written back.
+  useEffect(() => {
+    const timers = new Map<string, number>();
+    const inFlight = new Set<string>();
+
+    const schedule = (projectId: string, delay = 350) => {
+      if (timers.has(projectId) || inFlight.has(projectId)) return;
+      timers.set(projectId, window.setTimeout(() => {
+        timers.delete(projectId);
+        void flush(projectId);
+      }, delay));
+    };
+
+    const flush = async (projectId: string) => {
+      const messages = useBots.getState().pendingMessageWrites(projectId);
+      if (messages.length === 0 || inFlight.has(projectId)) return;
+      inFlight.add(projectId);
+      let retry = false;
+      try {
+        await api.saveWorkspaceMessages(projectId, messages);
+        useBots.getState().acknowledgeMessageWrites(projectId, messages);
+      } catch {
+        retry = true;
+      } finally {
+        inFlight.delete(projectId);
+        if (useBots.getState().pendingMessageWrites(projectId).length > 0) schedule(projectId, retry ? 2_000 : 350);
+      }
+    };
+
+    const schedulePending = (writes: Record<string, Record<string, unknown>>) => {
+      for (const [projectId, messages] of Object.entries(writes)) {
+        if (Object.keys(messages).length > 0) schedule(projectId);
+      }
+    };
+    schedulePending(useBots.getState().messageWrites);
+    const unsubscribe = useBots.subscribe((state, previous) => {
+      if (state.messageWrites !== previous.messageWrites) schedulePending(state.messageWrites);
+    });
+    return () => {
+      unsubscribe();
+      for (const timer of timers.values()) window.clearTimeout(timer);
+    };
+  }, []);
 
   // Mode is a deliberate choice: persist it immediately so leaving and
   // returning to Tophs does not fall back to the other thread.
@@ -1109,8 +1122,9 @@ export default function Workbench() {
       onOpenChange={(next) => { setProjectsMenuOpen(next); setBranchMenuOpen(false); }}
       panelClassName="w-[min(320px,calc(100vw-64px))] p-2.5"
       trigger={
-        <button type="button" className="flex size-9 items-center justify-center rounded-lg hover:bg-background-primary-hover focus-visible:ring-2 focus-visible:ring-border-focus-ring" aria-label={`Projeto ${project.name}`} title={project.name} onClick={() => setProjectsMenuOpen((open) => !open)}>
-          <Avatar size="sm" initials={project.name.slice(0, 1).toUpperCase()} className="bg-accent-500/15 text-caption-2-semibold text-accent-500" />
+        <button type="button" className="relative flex size-10 items-center justify-center rounded-full hover:bg-background-primary-hover focus-visible:ring-2 focus-visible:ring-border-focus-ring" aria-label={`Trocar projeto. Projeto atual: ${project.name}`} title={`${project.name} · trocar projeto`} onClick={() => setProjectsMenuOpen((open) => !open)}>
+          <Avatar size="sm" initials={project.name.slice(0, 1).toUpperCase()} className="text-caption-2-semibold" style={{ backgroundColor: `${project.color}26`, color: project.color }} />
+          <span className="absolute -bottom-0.5 -end-0.5 flex size-3.5 items-center justify-center rounded-full border border-background-primary-default bg-background-tertiary-default text-text-secondary"><ChevronDown size={9} /></span>
         </button>
       }
     >
@@ -1132,7 +1146,7 @@ export default function Workbench() {
     </ActivityPopover>
   ) : null;
 
-  const primarySidebar = (
+  const primarySidebar = effectiveSidebarVisible ? (
     <Suspense fallback={null}>
       <div className="relative z-40 flex min-h-0 shrink-0 overflow-visible rounded-3xl border border-border-button-white bg-background-primary-default shadow-sidebar">
         <div className="overflow-visible rounded-s-3xl">
@@ -1140,25 +1154,16 @@ export default function Workbench() {
             projectControl={activityProjectControl}
             branchControl={activityBranchControl}
             notificationControl={<NotificationBell variant="activity" onOpen={openNotification} />}
-            onBack={() => navigateHistory(-1)}
-            onForward={() => navigateHistory(1)}
-            sidebarVisible={effectiveSidebarVisible}
-            onToggleSidebar={() => setWorkspaceFeature("primarySidebar", !effectiveSidebarVisible)}
-            onShowSidebar={() => setWorkspaceFeature("primarySidebar", true)}
+            settingsControl={<TophSettings user={user} projectRoot={project.root} onCustomizeLayout={openLayoutSettings} />}
             onQuickOpen={() => setQuickOpenToken((current) => current + 1)}
-            onCustomizeLayout={openLayoutSettings}
-            onShortcuts={() => setShortcutsOpen(true)}
-            onAbout={() => setAboutOpen(true)}
           />
         </div>
-        {effectiveSidebarVisible ? (
-          <aside className={cx("flex min-h-0 shrink-0 flex-col overflow-hidden bg-background-primary-default", botsView ? "w-[clamp(220px,22vw,var(--sidebar-width))]" : "w-[var(--sidebar-width)]")}>
-            <SidebarContent />
-          </aside>
-        ) : null}
+        <aside className={cx("flex min-h-0 shrink-0 flex-col overflow-hidden rounded-e-[22px] bg-background-primary-default", botsView ? "w-[clamp(220px,22vw,var(--sidebar-width))]" : "w-[var(--sidebar-width)]")}>
+          <SidebarContent />
+        </aside>
       </div>
     </Suspense>
-  );
+  ) : null;
   const primaryResize = effectiveSidebarVisible ? (
     <ResizeHandle className="sidebar-resize" orientation="vertical" value={sidebarWidth} min={220} max={320} label="Redimensionar barra lateral" onChange={(width) => document.documentElement.style.setProperty("--sidebar-width", `${width}px`)} onCommit={(width) => updateSettings({ sidebarWidth: width })} />
   ) : null;
@@ -1176,11 +1181,22 @@ export default function Workbench() {
 
         <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-1 overflow-hidden">
           <main className={cx(
-            "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden",
+            "relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden",
             sidebar === "bots" && project ? "bg-transparent" : "rounded-3xl border border-border-button-white bg-background-primary-default shadow-sidebar",
           )}>
+            <Button
+              type="button"
+              variant="secondary"
+              size="small"
+              iconOnly
+              leadingIcon={effectiveSidebarVisible ? PanelLeftClose : PanelLeftOpen}
+              className="absolute left-2 top-2 z-50 shadow-md"
+              aria-label={effectiveSidebarVisible ? "Ocultar navegação" : "Mostrar navegação"}
+              title={effectiveSidebarVisible ? "Ocultar navegação (Ctrl+B)" : "Mostrar navegação (Ctrl+B)"}
+              onClick={() => setWorkspaceFeature("primarySidebar", !effectiveSidebarVisible)}
+            />
             {sidebar === "bots" && project ? (
-              <BotStudioTab project={project} />
+              <BotStudioTab key={project.id} project={project} />
             ) : sidebar === "debug" && project && featureIsEnabled("debug") ? (
               <DebugPanel project={project} />
             ) : (
@@ -1292,33 +1308,6 @@ export default function Workbench() {
             <LayoutRadio value="justify" label="Justify" />
           </RadioGroup>
         </LayoutSection>
-      </Modal>
-
-      <Modal isOpen={aboutOpen} onClose={() => setAboutOpen(false)} title="Toph" description="Workbench self-hosted para código, dados e IA." size="sm">
-        <div className="flex flex-col items-center gap-3 py-4 text-center">
-          <BrandMark size="large" />
-          <p className="text-body-medium text-text-primary">Toph v{version}</p>
-          <p className="text-caption-1-regular text-text-secondary">Interface construída com BoardUI.</p>
-        </div>
-      </Modal>
-
-      <Modal isOpen={shortcutsOpen} onClose={() => setShortcutsOpen(false)} title="Keyboard Shortcuts" description="Atalhos principais do Toph." size="sm">
-        <div className="flex flex-col divide-y divide-separator-border">
-          {[
-            ["Busca rápida", "Ctrl+P"],
-            ["Toggle Primary Side Bar", "Ctrl+B"],
-            ["Toggle Panel", "Ctrl+J"],
-            ["Salvar arquivo", "Ctrl+S"],
-            ["Executar", "Ctrl+Enter"],
-            ["Command Palette", "Ctrl+Shift+P"],
-            ["Customize Layout", "Ctrl+Shift+L"],
-          ].map(([label, shortcut]) => (
-            <div key={label} className="flex items-center justify-between py-2 text-body-2-regular">
-              <span className="text-text-secondary">{label}</span>
-              <span className="text-caption-1-medium text-text-primary">{shortcut}</span>
-            </div>
-          ))}
-        </div>
       </Modal>
 
       {showRepoPicker && <RepoPicker onClose={() => setShowRepoPicker(false)} onOpen={openRepo} />}

@@ -37,7 +37,7 @@ use crate::events::{EventHub, ProjectWatcher};
 use crate::model::{DbProfile, PetConfig, Project, Session, User, WebTarget};
 use crate::opencode::OpenCodeProxy;
 use crate::push::{PushMessage, PushService};
-use crate::store::Store;
+use crate::store::{Store, WorkspaceMessageCursor};
 use crate::terminal::TerminalManager;
 use crate::update::{UpdateManager, UpdateStart, UpdateStatus, VERSION};
 use crate::workspace::WorkspaceService;
@@ -461,6 +461,13 @@ fn router(state: Arc<AppState>) -> Router {
             get(get_layout)
                 .put(save_layout)
                 .layer(DefaultBodyLimit::max(32 * 1024 * 1024)),
+        )
+        .route(
+            "/api/projects/{project_id}/workspace/messages",
+            get(get_workspace_messages)
+                .put(save_workspace_messages)
+                .delete(delete_workspace_messages)
+                .layer(DefaultBodyLimit::max(8 * 1024 * 1024)),
         )
         .route("/api/projects/{project_id}/close", post(close_project))
         .route(
@@ -1525,6 +1532,148 @@ async fn save_layout(
         .save_workspace_layout(context.user.id, &project_id, &layout.to_string())
         .await?;
     Ok(Json(json!({ "ok": true })))
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct WorkspaceMessagesQuery {
+    mode: Option<String>,
+    channel: Option<String>,
+    scope: Option<String>,
+    before_at: Option<i64>,
+    before_channel: Option<String>,
+    before_id: Option<String>,
+    bot_id: Option<String>,
+    limit: Option<usize>,
+}
+
+#[derive(Debug, Deserialize)]
+struct WorkspaceMessagesInput {
+    messages: Vec<Value>,
+    replace: Option<WorkspaceMessagesReplace>,
+}
+
+#[derive(Debug, Deserialize)]
+struct WorkspaceMessagesReplace {
+    mode: String,
+    channel: String,
+}
+
+async fn get_workspace_messages(
+    State(state): State<Arc<AppState>>,
+    Path(project_id): Path<String>,
+    Extension(context): Extension<AuthContext>,
+    Query(query): Query<WorkspaceMessagesQuery>,
+) -> AppResult<Json<Value>> {
+    let mode = query
+        .mode
+        .as_deref()
+        .filter(|mode| matches!(*mode, "solo" | "team"))
+        .ok_or_else(|| AppError::BadRequest("mode must be solo or team".into()))?;
+    let scope = query.scope.as_deref().unwrap_or("all");
+    if !matches!(scope, "all" | "conversation" | "activity") {
+        return Err(AppError::BadRequest(
+            "scope must be all, conversation or activity".into(),
+        ));
+    }
+    let before = match (query.before_at, query.before_channel, query.before_id) {
+        (Some(created_at), Some(channel), Some(id)) if !id.is_empty() => {
+            Some(WorkspaceMessageCursor {
+                created_at,
+                channel,
+                id,
+            })
+        }
+        (None, None, None) => None,
+        _ => {
+            return Err(AppError::BadRequest(
+                "beforeAt, beforeChannel and beforeId must be provided together".into(),
+            ))
+        }
+    };
+    let page = state
+        .store
+        .workspace_messages(
+            context.user.id,
+            &project_id,
+            mode,
+            query.channel.as_deref(),
+            scope,
+            before.as_ref(),
+            query.limit.unwrap_or(30),
+        )
+        .await?;
+    Ok(Json(json!({
+        "items": page.items,
+        "hasMore": page.has_more,
+        "nextCursor": page.next_cursor.map(|cursor| json!({
+            "createdAt": cursor.created_at,
+            "channel": cursor.channel,
+            "id": cursor.id,
+        })),
+    })))
+}
+
+async fn save_workspace_messages(
+    State(state): State<Arc<AppState>>,
+    Path(project_id): Path<String>,
+    Extension(context): Extension<AuthContext>,
+    Json(input): Json<WorkspaceMessagesInput>,
+) -> AppResult<Json<Value>> {
+    if let Some(replace) = input.replace {
+        if !matches!(replace.mode.as_str(), "solo" | "team") || replace.channel.is_empty() {
+            return Err(AppError::BadRequest(
+                "replace requires a valid mode and channel".into(),
+            ));
+        }
+        state
+            .store
+            .replace_workspace_messages(
+                context.user.id,
+                &project_id,
+                &replace.mode,
+                &replace.channel,
+                input.messages,
+            )
+            .await?;
+    } else {
+        state
+            .store
+            .save_workspace_messages(context.user.id, &project_id, input.messages)
+            .await?;
+    }
+    Ok(Json(json!({ "ok": true })))
+}
+
+async fn delete_workspace_messages(
+    State(state): State<Arc<AppState>>,
+    Path(project_id): Path<String>,
+    Extension(context): Extension<AuthContext>,
+    Query(query): Query<WorkspaceMessagesQuery>,
+) -> AppResult<Json<Value>> {
+    if query.mode.is_none() && query.channel.is_none() && query.bot_id.is_none() {
+        return Err(AppError::BadRequest(
+            "mode, channel or botId is required".into(),
+        ));
+    }
+    if query
+        .mode
+        .as_deref()
+        .is_some_and(|mode| !matches!(mode, "solo" | "team"))
+    {
+        return Err(AppError::BadRequest("mode must be solo or team".into()));
+    }
+    let deleted = state
+        .store
+        .delete_workspace_messages(
+            context.user.id,
+            &project_id,
+            query.mode.as_deref(),
+            query.channel.as_deref(),
+            query.bot_id.as_deref(),
+        )
+        .await?;
+    Ok(Json(json!({ "ok": true, "deleted": deleted })))
 }
 
 async fn list_repos(
