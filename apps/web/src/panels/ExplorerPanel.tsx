@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ArrowLeft, ChevronDown, FilePlus2, FolderOpen, FolderPlus, RefreshCw, Settings2 } from "@toph/icons";
 import { Button } from "@/boardui/base/buttons/button";
 import { createPortal } from "react-dom";
@@ -20,6 +20,7 @@ interface Props {
   project: Project;
   onOpenFile: (path: string, line?: number) => void;
   onStatusChange?: (status: string) => void;
+  headerControl?: ReactNode;
 }
 
 interface ContextTarget {
@@ -71,6 +72,7 @@ export default function ExplorerPanel({
   project,
   onOpenFile,
   onStatusChange,
+  headerControl,
 }: Props) {
   const notify = useApp((state) => state.notify);
   const setSidebar = useApp((state) => state.setSidebar);
@@ -316,7 +318,7 @@ export default function ExplorerPanel({
     >
       <input ref={uploadRef} type="file" multiple hidden onChange={(event) => { if (event.target.files) void uploadFiles(event.target.files); event.target.value = ""; }} />
       <div className="flex shrink-0 flex-col items-stretch gap-2 border-b px-2 py-2 min-[901px]:h-9 min-[901px]:flex-row min-[901px]:items-center min-[901px]:justify-between min-[901px]:gap-0 min-[901px]:py-0">
-        <span className="text-caption-2-semibold uppercase tracking-wide text-text-secondary">Explorer</span>
+        <span className="flex items-center gap-2 text-caption-2-semibold uppercase tracking-wide text-text-secondary">{headerControl}<span>Explorer</span></span>
         <div className="flex w-full items-center gap-1 min-[901px]:w-auto min-[901px]:gap-0.5">
           <Button variant={workspaceSettingsOpen ? "secondary" : "ghost"} size="xs" iconOnly className="max-[900px]:flex-1" leadingIcon={Settings2} aria-label="Configurações do workspace" title="Configurações do workspace" onClick={() => setWorkspaceSettingsOpen((value) => !value)} />
           <Button variant="ghost" size="xs" iconOnly className="max-[900px]:flex-1" leadingIcon={FilePlus2} aria-label="Novo arquivo" title="Novo arquivo" onClick={() => void newFile(rootEntry)} />

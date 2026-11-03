@@ -1081,16 +1081,26 @@ export default function Workbench() {
   }
 
 
+  const activityHeaderControl = (
+    <IconButton
+      icon={activityVisible ? PanelLeftClose : PanelLeftOpen}
+      size="xs"
+      aria-label={activityVisible ? "Ocultar barra vertical" : "Mostrar barra vertical"}
+      title={activityVisible ? "Ocultar barra vertical" : "Mostrar barra vertical"}
+      onClick={() => setWorkspaceFeature("activityBar", !activityVisible)}
+    />
+  );
+
   const SidebarContent = () => (
     <>
-      {project && sidebar === "files" && featureIsEnabled("files") && <ExplorerPanel project={project} onOpenFile={openFile} onStatusChange={setGitStatus} />}
-      {project && sidebar === "db" && featureIsEnabled("databases") && <DatabasesPanel project={project} onOpenQuery={openQuery} onOpenTable={openTable} />}
-      {project && sidebar === "scm" && featureIsEnabled("sourceControl") && <SourceControlPanel project={project} view="scm" branchControl={activityBranchControl} onOpenDiff={openDiff} onStatusChange={setGitStatus} />}
-      {project && sidebar === "web" && featureIsEnabled("webApps") && <WebSidebar onOpenWeb={openWeb} />}
-      {project && sidebar === "bots" && <BotsSidebar project={project} />}
+      {project && sidebar === "files" && featureIsEnabled("files") && <ExplorerPanel project={project} headerControl={activityHeaderControl} onOpenFile={openFile} onStatusChange={setGitStatus} />}
+      {project && sidebar === "db" && featureIsEnabled("databases") && <DatabasesPanel project={project} headerControl={activityHeaderControl} onOpenQuery={openQuery} onOpenTable={openTable} />}
+      {project && sidebar === "scm" && featureIsEnabled("sourceControl") && <SourceControlPanel project={project} view="scm" headerControl={activityHeaderControl} branchControl={activityBranchControl} onOpenDiff={openDiff} onStatusChange={setGitStatus} />}
+      {project && sidebar === "web" && featureIsEnabled("webApps") && <WebSidebar headerControl={activityHeaderControl} onOpenWeb={openWeb} />}
+      {project && sidebar === "bots" && <BotsSidebar project={project} headerControl={activityHeaderControl} />}
       {project && sidebar === "debug" && featureIsEnabled("debug") && (
         <div className="flex h-full min-h-0 flex-col">
-          <div className="flex h-9 shrink-0 items-center border-b border-separator-border px-3 text-caption-1-semibold uppercase tracking-wide text-text-secondary">Debug</div>
+          <div className="flex h-9 shrink-0 items-center gap-2 border-b border-separator-border px-2 text-caption-1-semibold uppercase tracking-wide text-text-secondary">{activityHeaderControl}<span>Debug</span></div>
           <p className="p-3 text-caption-1-regular leading-relaxed text-text-tertiary">A execução e as ferramentas de depuração aparecem no painel principal.</p>
         </div>
       )}
@@ -1163,14 +1173,6 @@ export default function Workbench() {
         </div> : null}
         {effectiveSidebarVisible ? (
           <aside className={cx("relative flex min-h-0 shrink-0 flex-col overflow-hidden bg-background-primary-default", activityVisible ? "rounded-e-[22px]" : "rounded-[22px]", botsView ? "w-[clamp(220px,22vw,var(--sidebar-width))]" : "w-[var(--sidebar-width)]")}>
-            <IconButton
-              icon={activityVisible ? PanelLeftClose : PanelLeftOpen}
-              size="small"
-              className="absolute left-2 top-1 z-50 shadow-md"
-              aria-label={activityVisible ? "Ocultar barra vertical" : "Mostrar barra vertical"}
-              title={activityVisible ? "Ocultar barra vertical" : "Mostrar barra vertical"}
-              onClick={() => setWorkspaceFeature("activityBar", !activityVisible)}
-            />
             <SidebarContent />
           </aside>
         ) : null}

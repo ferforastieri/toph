@@ -45,6 +45,7 @@ interface Props {
   onStatusChange?: (status: string) => void;
   view?: "full" | "changes" | "commit" | "scm";
   branchControl?: ReactNode;
+  headerControl?: ReactNode;
 }
 
 export default function SourceControlPanel({
@@ -54,6 +55,7 @@ export default function SourceControlPanel({
   onStatusChange,
   view = "full",
   branchControl,
+  headerControl,
 }: Props) {
   const notify = useApp((state) => state.notify);
   const user = useApp((state) => state.user);
@@ -261,8 +263,8 @@ export default function SourceControlPanel({
   return (
     <div className="flex min-h-0 flex-col">
       {!embedded && (
-        <div className="flex h-9 shrink-0 items-center border-b px-3 text-body-2-medium text-text-secondary">
-          Source Control
+        <div className="flex h-9 shrink-0 items-center gap-2 border-b px-2 text-body-2-medium text-text-secondary">
+          {headerControl}<span>Source Control</span>
         </div>
       )}
       {showBranch && (
