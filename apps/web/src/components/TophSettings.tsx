@@ -1,8 +1,8 @@
-import { useEffect, useState, type ComponentType, type FormEvent } from "react";
-import { Bell, Bot, HardDrive, Info, LogOut, Mail, Moon, PlugZap, Settings2, Sun, Wrench } from "@toph/icons";
+import { useEffect, useState, type ComponentType, type FormEvent, type ReactNode } from "react";
+import { Bell, Bot, HardDrive, Info, LogOut, Mail, PlugZap, Settings2, Wrench } from "@toph/icons";
 import { api, getApiBase, probeServer, setApiBase, type User } from "../api";
 import { useApp, type AppNotification } from "../store";
-import { useSettings } from "../settings";
+import { useSettings, type WorkspaceFeature } from "../settings";
 import { PET_OPTIONS, petLevel, petLevelProgress, usePet } from "../pet";
 import PetSprite from "../ui/PetSprite";
 import AiSettings from "../panels/AiSettings";
@@ -13,6 +13,7 @@ import EmailPanel from "./EmailPanel";
 import McpPanel from "./McpPanel";
 import { Badge } from "@/boardui/base/badges/badge";
 import { Button } from "@/boardui/base/buttons/button";
+import { Checkbox } from "@/boardui/base/checkbox/checkbox";
 import { Input } from "@/boardui/base/input/input";
 import { Modal } from "@/boardui/base/modal/modal";
 import { cx } from "@/boardui/utils/cx";
@@ -22,7 +23,6 @@ type Section = "general" | "companion" | "appearance" | "ai" | "connections" | "
 interface Props {
   user: User | null;
   projectRoot?: string;
-  onCustomizeLayout: () => void;
   onOpenNotification: (notification: AppNotification) => void;
 }
 
@@ -36,7 +36,7 @@ const sections: Array<{ label?: string; items: SectionItem[] }> = [
   { items: [
     { id: "general", label: "Geral", icon: Settings2 },
     { id: "companion", label: "Toph pet", icon: Bot },
-    { id: "appearance", label: "Aparência", icon: Sun },
+    { id: "appearance", label: "Layout e ferramentas", icon: Settings2 },
   ] },
   { label: "IA e ferramentas", items: [
     { id: "ai", label: "Inteligência artificial", icon: Bot },
@@ -59,14 +59,14 @@ function timeAgo(timestamp: number): string {
   return `${Math.round(hours / 24)} d`;
 }
 
-export default function TophSettings({ user, projectRoot, onCustomizeLayout, onOpenNotification }: Props) {
+export default function TophSettings({ user, projectRoot, onOpenNotification }: Props) {
   const setUser = useApp((state) => state.setUser);
   const notify = useApp((state) => state.notify);
   const notifications = useApp((state) => state.notifications);
   const projects = useApp((state) => state.projects);
   const markAllNotificationsRead = useApp((state) => state.markAllNotificationsRead);
-  const theme = useSettings((state) => state.theme);
-  const setTheme = useSettings((state) => state.setTheme);
+  const workspaceFeatures = useSettings((state) => state.workspaceFeatures);
+  const updateSettings = useSettings((state) => state.update);
   const pet = usePet();
   const [open, setOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
@@ -137,10 +137,7 @@ export default function TophSettings({ user, projectRoot, onCustomizeLayout, onO
     }
   }
 
-  function openLayout() {
-    setOpen(false);
-    window.setTimeout(onCustomizeLayout, 180);
-  }
+  const setFeature = (feature: WorkspaceFeature, enabled: boolean) => updateSettings({ workspaceFeatures: { [feature]: enabled } });
 
   return (
     <>
@@ -262,15 +259,21 @@ export default function TophSettings({ user, projectRoot, onCustomizeLayout, onO
               </div>
             ) : section === "appearance" ? (
               <div className="flex flex-col gap-5">
-                <SettingsHeading title="Aparência" description="Tema e organização do workspace." />
-                <button type="button" onClick={() => setTheme(theme === "light" ? "dark" : "light")} className="flex items-center gap-3 rounded-2xl border border-border-button-default p-3 text-start hover:bg-background-primary-hover">
-                  <span className="relative flex size-10 items-center justify-center rounded-full bg-background-secondary-default">
-                    <Sun className={cx("absolute size-5 transition-all duration-300", theme === "light" ? "rotate-0 scale-100 opacity-100" : "-rotate-90 scale-50 opacity-0")} />
-                    <Moon className={cx("absolute size-5 transition-all duration-300", theme === "dark" ? "rotate-0 scale-100 opacity-100" : "rotate-90 scale-50 opacity-0")} />
-                  </span>
-                  <span className="flex flex-1 flex-col"><strong className="text-body-medium text-text-primary">Tema {theme === "light" ? "claro" : "escuro"}</strong><span className="text-caption-1-regular text-text-secondary">Clique para alternar o tema.</span></span>
-                </button>
-                <Button variant="secondary" onClick={openLayout}>Personalizar layout e ferramentas</Button>
+                <SettingsHeading title="Layout e ferramentas" description="Escolha diretamente o que aparece e é inicializado no workspace." />
+                <SettingsGroup title="Layout">
+                  <FeatureToggle label="Barra vertical" checked={workspaceFeatures.activityBar} onChange={(value) => setFeature("activityBar", value)} />
+                  <FeatureToggle label="Painel lateral" checked={workspaceFeatures.primarySidebar} onChange={(value) => setFeature("primarySidebar", value)} />
+                  <FeatureToggle label="Abas e conteúdo" checked={workspaceFeatures.tabs} onChange={(value) => setFeature("tabs", value)} />
+                  <FeatureToggle label="Terminal e painel" checked={workspaceFeatures.terminal} onChange={(value) => setFeature("terminal", value)} />
+                </SettingsGroup>
+                <SettingsGroup title="Ferramentas">
+                  <FeatureToggle label="Explorer e editor" checked={workspaceFeatures.files} onChange={(value) => setFeature("files", value)} />
+                  <FeatureToggle label="Controle de código-fonte" checked={workspaceFeatures.sourceControl} onChange={(value) => setFeature("sourceControl", value)} />
+                  <FeatureToggle label="Bancos de dados" checked={workspaceFeatures.databases} onChange={(value) => setFeature("databases", value)} />
+                  <FeatureToggle label="Aplicativos web" checked={workspaceFeatures.webApps} onChange={(value) => setFeature("webApps", value)} />
+                  <FeatureToggle label="Debug" checked={workspaceFeatures.debug} onChange={(value) => setFeature("debug", value)} />
+                  <FeatureToggle label="Tophs" checked disabled onChange={() => undefined} />
+                </SettingsGroup>
               </div>
             ) : section === "ai" ? (
               <><SettingsHeading title="Inteligência artificial" description="Provider e modelos padrão." /><div className="mt-5"><AiSettings /></div></>
@@ -306,4 +309,12 @@ function SettingsHeading({ title, description }: { title: string; description: s
 
 function Fact({ label, value }: { label: string; value: string }) {
   return <div className="flex items-center justify-between gap-4 px-3 py-2.5"><span className="text-caption-1-regular text-text-secondary">{label}</span><span className="truncate text-caption-1-medium text-text-primary">{value}</span></div>;
+}
+
+function SettingsGroup({ title, children }: { title: string; children: ReactNode }) {
+  return <section className="overflow-hidden rounded-2xl border border-border-button-default"><div className="border-b border-separator-border bg-background-secondary-default/60 px-3 py-2 text-caption-1-semibold text-text-secondary">{title}</div><div className="flex flex-col divide-y divide-separator-border">{children}</div></section>;
+}
+
+function FeatureToggle({ label, checked, disabled = false, onChange }: { label: string; checked: boolean; disabled?: boolean; onChange: (value: boolean) => void }) {
+  return <div className="flex min-h-10 items-center px-3 py-2"><Checkbox size="sm" isSelected={checked} isDisabled={disabled} onChange={onChange}>{label}</Checkbox></div>;
 }

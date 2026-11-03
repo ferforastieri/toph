@@ -43,7 +43,7 @@ export function AgentComposer({ value, onChange, onSend, onStop, busy, models, m
     onComplete: (attachment, transcript) => {
       if (allowAttachments) setAttachments((current) => [...current, attachment].slice(0, 6));
       if (transcript) {
-        onChange(`${value}${value.trim() ? "\n\n" : ""}Transcrição do áudio:\n${transcript}`);
+        onChange(`${value}${value.trim() ? " " : ""}${transcript}`);
       } else if (!allowAttachments) {
         setError("Este navegador não conseguiu transcrever o áudio.");
       }

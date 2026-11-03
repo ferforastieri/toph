@@ -17,6 +17,7 @@ interface SpeechRecognitionLike {
   lang: string;
   onresult: ((event: SpeechRecognitionEventLike) => void) | null;
   onerror: ((event: Event & { error?: string }) => void) | null;
+  onend: (() => void) | null;
   start: () => void;
   stop: () => void;
   abort: () => void;
@@ -153,6 +154,7 @@ export function useAudioRecorder({ onComplete, onError, maxSeconds = 120 }: Opti
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const transcriptRef = useRef("");
+  const recognitionDoneRef = useRef<Promise<void>>(Promise.resolve());
   const mountedRef = useRef(true);
   const completeRef = useRef(onComplete);
   const errorRef = useRef(onError);
@@ -176,7 +178,10 @@ export function useAudioRecorder({ onComplete, onError, maxSeconds = 120 }: Opti
 
   async function finalize(mime: string) {
     if (mountedRef.current) setProcessing(true);
-    await new Promise((resolve) => window.setTimeout(resolve, 220));
+    await Promise.race([
+      recognitionDoneRef.current,
+      new Promise<void>((resolve) => window.setTimeout(resolve, 1_500)),
+    ]);
     const source = new Blob(chunksRef.current, { type: mime || "audio/webm" });
     chunksRef.current = [];
     const audio = await wavBlob(source);
@@ -212,7 +217,9 @@ export function useAudioRecorder({ onComplete, onError, maxSeconds = 120 }: Opti
       const recognition = new Recognition();
       recognition.continuous = true;
       recognition.interimResults = true;
-      recognition.lang = document.documentElement.lang || navigator.language || "pt-BR";
+      const requestedLanguage = document.documentElement.lang || navigator.language || "pt-BR";
+      recognition.lang = /^pt(?:-|$)/i.test(requestedLanguage) ? requestedLanguage : "pt-BR";
+      recognitionDoneRef.current = new Promise<void>((resolve) => { recognition.onend = resolve; });
       recognition.onresult = (event) => {
         let transcript = "";
         for (let index = 0; index < event.results.length; index += 1) transcript += `${event.results[index]?.[0]?.transcript ?? ""} `;
