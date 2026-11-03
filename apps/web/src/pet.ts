@@ -1,7 +1,8 @@
 import { create } from "zustand";
 import { api, type PetConfig as ApiPetConfig } from "./api";
+import { BOT_AVATARS, BOT_AVATAR_LABELS, type BotAvatar } from "./bots";
 
-export type PetKind = "momo" | "pip" | "byte" | "nori";
+export type PetKind = BotAvatar;
 export type PetMode = "corner" | "free";
 
 export interface PetConfig {
@@ -12,17 +13,16 @@ export interface PetConfig {
   commits: number;
 }
 
-export const PET_OPTIONS: Array<{ kind: PetKind; name: string; description: string }> = [
-  { kind: "momo", name: "Momo", description: "Um gato de âmbar que adora um terminal quentinho." },
-  { kind: "pip", name: "Pip", description: "Coelho curioso, sempre de olho nos seus commits." },
-  { kind: "byte", name: "Byte", description: "Robô compacto que processa carinho em alta velocidade." },
-  { kind: "nori", name: "Nori", description: "Fantasma tranquilo que flutua pelos cantos do workspace." },
-];
+export const PET_OPTIONS: Array<{ kind: PetKind; name: string; description: string }> = BOT_AVATARS.map((kind) => ({
+  kind,
+  name: BOT_AVATAR_LABELS[kind],
+  description: "Identidade Toph para o avatar do usuário; não altera os agentes.",
+}));
 
 const DEFAULT_CONFIG: PetConfig = {
   chosen: false,
   enabled: false,
-  kind: "momo",
+  kind: "toph-core",
   mode: "corner",
   commits: 0,
 };
@@ -42,10 +42,15 @@ function storageKey(username: string): string {
 }
 
 function normalizePet(value: Partial<ApiPetConfig>): PetConfig {
+  const migratedKind = value.kind === "momo" ? "toph-core"
+    : value.kind === "pip" ? "toph-bloom"
+      : value.kind === "byte" ? "toph-forge"
+        : value.kind === "nori" ? "toph-echo"
+          : value.kind;
   return {
     chosen: value.chosen === true,
     enabled: value.enabled === true,
-    kind: value.kind === "momo" || value.kind === "pip" || value.kind === "byte" || value.kind === "nori" ? value.kind : "momo",
+    kind: BOT_AVATARS.includes(migratedKind as BotAvatar) ? migratedKind as BotAvatar : "toph-core",
     mode: value.mode === "free" ? "free" : "corner",
     commits: typeof value.commits === "number" && Number.isFinite(value.commits) ? Math.max(0, Math.floor(value.commits)) : 0,
   };
@@ -110,7 +115,9 @@ export const usePet = create<PetState>((set, get) => ({
     set({ username, loaded: false });
     const local = readLocalPet(username);
     try {
-      let remote = normalizePet(await api.pet());
+      const raw = await api.pet();
+      let remote = normalizePet(raw);
+      if (raw.kind !== remote.kind) await api.savePet(remote).catch(() => undefined);
       // Preserve a choice made before pet settings moved to the database.
       if (!remote.chosen && local.chosen) {
         remote = local;

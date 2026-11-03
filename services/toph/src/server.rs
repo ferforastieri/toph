@@ -840,9 +840,17 @@ async fn save_pet(
     Extension(context): Extension<AuthContext>,
     Json(mut input): Json<PetConfig>,
 ) -> AppResult<Json<PetConfig>> {
-    if !matches!(input.kind.as_str(), "momo" | "pip" | "byte" | "nori") {
-        input.kind = "momo".into();
-    }
+    let kind = input.kind.clone();
+    input.kind = match kind.as_str() {
+        "toph-core" | "toph-orbit" | "toph-prism" | "toph-bloom" | "toph-forge" | "toph-nimbus"
+        | "toph-tide" | "toph-spark" | "toph-echo" | "toph-pebble" | "toph-nova" | "toph-luna"
+        | "toph-peak" | "toph-kite" | "toph-grove" | "toph-pulse" | "toph-cube" | "toph-comet"
+        | "toph-portal" | "toph-mochi" => kind,
+        "pip" => "toph-bloom".into(),
+        "byte" => "toph-forge".into(),
+        "nori" => "toph-echo".into(),
+        _ => "toph-core".into(),
+    };
     if input.mode != "free" {
         input.mode = "corner".into();
     }

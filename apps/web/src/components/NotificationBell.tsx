@@ -88,7 +88,7 @@ export default function NotificationBell({ onOpen, align = "left", variant = "he
       <ActivityPopover
         open={open}
         onOpenChange={setOpenState}
-        panelClassName="w-[min(340px,calc(100vw-64px))]"
+        panelClassName="bottom-0 top-auto max-h-[calc(100dvh-16px)] w-[min(340px,calc(100vw-64px))] overflow-hidden"
         trigger={
           <span className="relative flex">
             <Button variant={open ? "secondary" : "ghost"} size="medium" iconOnly leadingIcon={Bell} className="size-9" aria-label="Notificações" onClick={() => setOpenState(!open)} />
