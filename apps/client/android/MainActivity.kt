@@ -34,6 +34,7 @@ class MainActivity : TauriActivity() {
 
   @Volatile
   private var safeInsets = SafeInsets(0, 0, 0, 0, 0)
+  private var appWebView: WebView? = null
 
   override fun onCreate(savedInstanceState: Bundle?) {
     enableEdgeToEdge()
@@ -77,9 +78,11 @@ class MainActivity : TauriActivity() {
 
   override fun onWebViewCreate(webView: WebView) {
     super.onWebViewCreate(webView)
+    appWebView = webView
     webView.addJavascriptInterface(SafeAreaBridge(), "TophInsets")
     webView.addJavascriptInterface(ThemeBridge(), "TophTheme")
     webView.addJavascriptInterface(NotificationBridge(), "TophNotifications")
+    webView.addJavascriptInterface(AudioBridge(), "TophAudio")
     TophPush.attach(webView)
     trackSafeArea(webView)
     try {
@@ -128,6 +131,34 @@ class MainActivity : TauriActivity() {
       arrayOf(Manifest.permission.POST_NOTIFICATIONS),
       NOTIFICATION_PERMISSION_REQUEST,
     )
+  }
+
+  private fun requestAudioPermission() {
+    if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+      notifyAudioPermission(true)
+      return
+    }
+    ActivityCompat.requestPermissions(
+      this,
+      arrayOf(Manifest.permission.RECORD_AUDIO),
+      AUDIO_PERMISSION_REQUEST,
+    )
+  }
+
+  private fun notifyAudioPermission(granted: Boolean) {
+    appWebView?.post {
+      appWebView?.evaluateJavascript(
+        "window.dispatchEvent(new CustomEvent('toph:microphone-permission',{detail:{granted:$granted}}));",
+        null,
+      )
+    }
+  }
+
+  override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+    super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+    if (requestCode == AUDIO_PERMISSION_REQUEST) {
+      notifyAudioPermission(grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED)
+    }
   }
 
   private fun trackSafeArea(webView: WebView) {
@@ -204,6 +235,18 @@ class MainActivity : TauriActivity() {
     fun token(): String = TophPush.token
   }
 
+  @Keep
+  private inner class AudioBridge {
+    @JavascriptInterface
+    fun hasPermission(): Boolean =
+      ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+
+    @JavascriptInterface
+    fun requestPermission() {
+      runOnUiThread { requestAudioPermission() }
+    }
+  }
+
   private fun fileName(contentDisposition: String?, url: String): String {
     val fromHeader = contentDisposition
       ?.substringAfter("filename=", "")
@@ -220,5 +263,6 @@ class MainActivity : TauriActivity() {
 
   companion object {
     private const val NOTIFICATION_PERMISSION_REQUEST = 1001
+    private const val AUDIO_PERMISSION_REQUEST = 1002
   }
 }

@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { Bot, ChevronRight, FolderPlus, GitBranch } from "@toph/icons";
+import { ArrowLeft, ArrowRight, Bot, ChevronRight, FolderPlus, GitBranch, Info, Keyboard, PanelLeftClose, PanelLeftOpen, Rows3, Search, Settings2 } from "@toph/icons";
 import { api, getApiBase, type Project, type Repository, type SchemaTable, type WebTarget } from "../api";
-import { basename, expandGitPattern, languageFor, quoteIdentifier, sanitizeBranchName } from "../lib";
+import { basename, expandGitPattern, quoteIdentifier, sanitizeBranchName } from "../lib";
 import { useApp, type AppNotification, type Sidebar, type Tab } from "../store";
 import { useBots, type BotWorkspace, botSessionIds } from "../bots";
 import { useAI } from "../ai";
@@ -10,7 +10,6 @@ import ActivityBar from "./ActivityBar";
 import BotStudioTab from "../panels/BotStudioTab";
 import { featureEnabled, isDesktopClient, isTophOnly, sidebarFeature, useSettings, type WorkspaceFeature } from "../settings";
 import Tabs from "./Tabs";
-import TopBar from "./TopBar";
 import Toasts from "./Toasts";
 import RepoPicker from "./RepoPicker";
 import CloseProjectModal from "./CloseProjectModal";
@@ -18,6 +17,8 @@ import NotificationBell from "./NotificationBell";
 import HeaderAccordion from "./HeaderAccordion";
 import BranchPicker from "./BranchPicker";
 import ProjectSwitcher from "./ProjectSwitcher";
+import QuickOpen from "./QuickOpen";
+import AvatarMenu from "./AvatarMenu";
 import { IconButton } from "@/boardui/base/buttons/icon-button";
 import BrandMark from "@toph/brand";
 import { Button } from "@/boardui/base/buttons/button";
@@ -87,7 +88,6 @@ export default function Workbench() {
   const tabs = useApp((state) => state.tabs);
   const activeTabId = useApp((state) => state.activeTabId);
   const setTabs = useApp((state) => state.setTabs);
-  const closeTab = useApp((state) => state.closeTab);
   const setActiveTab = useApp((state) => state.setActiveTab);
   const openTab = useApp((state) => state.openTab);
   const sidebar = useApp((state) => state.sidebar);
@@ -122,12 +122,9 @@ export default function Workbench() {
   const [layoutOpen, setLayoutOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
-  const topBarVisible = workspaceFeatures.topBar;
-  const menuVisible = workspaceFeatures.menuBar;
   const activityVisible = workspaceFeatures.activityBar;
   const sidebarVisible = workspaceFeatures.primarySidebar;
   const tabsVisible = workspaceFeatures.tabs;
-  const statusVisible = workspaceFeatures.statusBar;
   const primarySideBarPosition = useSettings((state) => state.primarySideBarPosition);
   const panelAlignment = useSettings((state) => state.panelAlignment);
   const tabHistory = useRef<string[]>([]);
@@ -139,7 +136,6 @@ export default function Workbench() {
   const [newBranchName, setNewBranchName] = useState("");
   const [branchFilter, setBranchFilter] = useState("");
   const [branchError, setBranchError] = useState("");
-  const [cursor, setCursor] = useState({ line: 1, column: 1, language: "" });
   const loadedProject = useRef<string | null>(null);
   const [projectEpoch, setProjectEpoch] = useState(0);
   const forceTophsOnLoad = useRef(false);
@@ -149,7 +145,7 @@ export default function Workbench() {
   const branch = gitStatus.split("\n")[0]?.replace(/^##\s*/, "").split("...")[0] ?? "";
   const activeTab = tabs.find((tab) => tab.id === activeTabId) ?? null;
   const botsView = sidebar === "bots";
-  const effectiveSidebarVisible = sidebarVisible || botsView;
+  const effectiveSidebarVisible = sidebarVisible;
   const desktopClient = isDesktopClient();
   const filesEnabled = featureEnabled(workspaceFeatures, "files");
   const sourceControlEnabled = featureEnabled(workspaceFeatures, "sourceControl");
@@ -431,27 +427,6 @@ export default function Workbench() {
     window.addEventListener(PROJECT_EVENT, onProjectEvent);
     return () => window.removeEventListener(PROJECT_EVENT, onProjectEvent);
   }, [activeProjectId, filesEnabled, sourceControlEnabled]);
-
-  useEffect(() => {
-    const onCursor = (event: Event) => {
-      const detail = (event as CustomEvent<{ line: number; column: number; language: string }>).detail;
-      if (detail) setCursor(detail);
-    };
-    window.addEventListener("toph:cursor", onCursor);
-    return () => window.removeEventListener("toph:cursor", onCursor);
-  }, []);
-
-  useEffect(() => {
-    if (activeTab?.kind === "editor") {
-      setCursor({
-        line: activeTab.line ?? 1,
-        column: 1,
-        language: languageFor(activeTab.path ?? activeTab.title),
-      });
-    } else {
-      setCursor({ line: 1, column: 1, language: "" });
-    }
-  }, [activeTabId]);
 
   useEffect(() => {
     type PushPayload = {
@@ -1103,28 +1078,16 @@ export default function Workbench() {
       {project && sidebar === "scm" && featureIsEnabled("sourceControl") && <SourceControlPanel project={project} view="scm" onOpenDiff={openDiff} onStatusChange={setGitStatus} />}
       {project && sidebar === "web" && featureIsEnabled("webApps") && <WebSidebar onOpenWeb={openWeb} />}
       {project && sidebar === "bots" && <BotsSidebar project={project} />}
+      {project && sidebar === "debug" && featureIsEnabled("debug") && (
+        <div className="flex h-full min-h-0 flex-col">
+          <div className="flex h-9 shrink-0 items-center border-b border-separator-border px-3 text-caption-1-semibold uppercase tracking-wide text-text-secondary">Debug</div>
+          <p className="p-3 text-caption-1-regular leading-relaxed text-text-tertiary">A execução e as ferramentas de depuração aparecem no painel principal.</p>
+        </div>
+      )}
     </>
   );
 
   const primaryOnLeft = botsView || primarySideBarPosition === "left";
-  const primarySidebar = effectiveSidebarVisible || activityVisible ? (
-    <Suspense fallback={null}>
-      <div className="flex min-h-0 shrink-0 overflow-hidden rounded-3xl border border-border-button-white bg-background-primary-default shadow-sidebar">
-        {activityVisible && <ActivityBar />}
-        {effectiveSidebarVisible && (
-          <aside className={cx(
-            "flex min-h-0 shrink-0 flex-col overflow-hidden bg-background-primary-default",
-            sidebar === "debug" ? "w-0" : botsView ? "w-[clamp(220px,22vw,var(--sidebar-width))]" : "w-[var(--sidebar-width)]",
-          )}>
-            <SidebarContent />
-          </aside>
-        )}
-      </div>
-    </Suspense>
-  ) : null;
-  const primaryResize = effectiveSidebarVisible && sidebar !== "debug" ? (
-    <ResizeHandle className="sidebar-resize" orientation="vertical" value={sidebarWidth} min={220} max={320} invert={!primaryOnLeft} label="Resize sidebar" onChange={(width) => document.documentElement.style.setProperty("--sidebar-width", `${width}px`)} onCommit={(width) => updateSettings({ sidebarWidth: width })} />
-  ) : null;
   function branchPickerBody() {
     return (
       <BranchPicker
@@ -1144,14 +1107,14 @@ export default function Workbench() {
       />
     );
   }
-  const headerBranch = statusVisible && sourceControlEnabled ? (
+  const sidebarBranch = sourceControlEnabled ? (
       <HeaderAccordion
         id="branch"
         isOpen={branchMenuOpen}
         onOpenChange={(next) => { setBranchMenuOpen(next); setProjectsMenuOpen(false); if (next) openBranchMenu(); }}
         icon={GitBranch}
         title={<span className="header-accordion-label min-w-0 truncate text-caption-1-regular leading-none text-text-secondary">{branch || "detached"}</span>}
-        triggerClassName="h-6 min-w-0 max-w-[min(320px,32vw)] gap-1 overflow-hidden text-caption-1-regular text-text-secondary hover:bg-background-primary-hover"
+        triggerClassName="h-7 w-full min-w-0 justify-start gap-1 overflow-hidden text-caption-1-regular text-text-secondary hover:bg-background-primary-hover"
         panelClassName="left-0 max-h-[min(600px,calc(100dvh-80px))] w-[min(460px,calc(100vw-32px))] overflow-y-auto"
         contentClassName="p-0"
       >
@@ -1159,75 +1122,82 @@ export default function Workbench() {
       </HeaderAccordion>
   ) : null;
 
-  const headerTrailing = statusVisible ? (
-      <div className="flex h-7 items-center gap-0.5">
-        <HeaderAccordion
-          id="projects"
-          isOpen={projectsMenuOpen}
-          onOpenChange={(next) => { setProjectsMenuOpen(next); setBranchMenuOpen(false); }}
-          title={
-            <span className="header-accordion-label flex min-w-0 items-center gap-1.5">
-              <Avatar size="xs" initials={project.name.slice(0, 1).toUpperCase()} className="bg-accent-500/15 text-caption-2-semibold text-accent-500" />
-              <span className="max-w-[110px] truncate text-caption-2-regular leading-none">{project.name}</span>
-            </span>
-          }
-          triggerClassName="h-6 min-w-0 gap-1.5 hover:bg-background-primary-hover"
-          panelClassName="left-0 w-80"
-          contentClassName="p-2.5"
-        >
-            <ProjectSwitcher
-              onSelect={(id) => { setProjectsMenuOpen(false); switchProject(id); }}
-              onCloseProject={(id) => { setProjectsMenuOpen(false); requestCloseProject(id); }}
-              onOpenRepo={() => { setProjectsMenuOpen(false); setShowRepoPicker(true); }}
-            />
-        </HeaderAccordion>
-        <NotificationBell onOpen={openNotification} />
-      </div>
-  ) : null;
+  const sidebarProject = (
+    <HeaderAccordion
+      id="projects"
+      isOpen={projectsMenuOpen}
+      onOpenChange={(next) => { setProjectsMenuOpen(next); setBranchMenuOpen(false); }}
+      title={
+        <span className="header-accordion-label flex min-w-0 items-center gap-1.5">
+          <Avatar size="xs" initials={project.name.slice(0, 1).toUpperCase()} className="bg-accent-500/15 text-caption-2-semibold text-accent-500" />
+          <span className="min-w-0 flex-1 truncate text-caption-1-medium leading-none">{project.name}</span>
+        </span>
+      }
+      triggerClassName="h-8 w-full min-w-0 justify-start gap-1.5 hover:bg-background-primary-hover"
+      panelClassName="left-0 w-[min(320px,calc(100vw-24px))]"
+      contentClassName="p-2.5"
+    >
+      <ProjectSwitcher
+        onSelect={(id) => { setProjectsMenuOpen(false); switchProject(id); }}
+        onCloseProject={(id) => { setProjectsMenuOpen(false); requestCloseProject(id); }}
+        onOpenRepo={() => { setProjectsMenuOpen(false); setShowRepoPicker(true); }}
+      />
+    </HeaderAccordion>
+  );
 
-  const headerStatus = statusVisible ? (
-    <>
-      {activeTab?.kind === "editor" && <span>Ln {cursor.line}, Col {cursor.column}</span>}
-      {cursor.language && <span>{cursor.language}</span>}
-      <span>v{version}</span>
-    </>
+  const primarySidebar = effectiveSidebarVisible ? (
+    <Suspense fallback={null}>
+      <div className="relative z-40 flex min-h-0 shrink-0 overflow-visible rounded-3xl border border-border-button-white bg-background-primary-default shadow-sidebar">
+        {activityVisible && <div className="overflow-hidden rounded-s-3xl"><ActivityBar /></div>}
+        <aside className={cx(
+          "flex min-h-0 shrink-0 flex-col overflow-visible bg-background-primary-default",
+          botsView ? "w-[clamp(220px,22vw,var(--sidebar-width))]" : "w-[var(--sidebar-width)]",
+        )}>
+          <div className="relative z-50 shrink-0 border-b border-separator-border bg-background-primary-default px-2 pb-2 pt-1.5">
+            <div className="flex h-9 min-w-0 items-center gap-1">
+              <BrandMark size="small" className="mx-1 size-5 shrink-0" />
+              <div className="min-w-0 flex-1">{sidebarProject}</div>
+              <NotificationBell onOpen={openNotification} />
+              <AvatarMenu user={user} variant="titlebar" />
+              <Button variant="ghost" size="xs" iconOnly leadingIcon={PanelLeftClose} aria-label="Recolher barra lateral" title="Recolher barra lateral" onClick={() => setWorkspaceFeature("primarySidebar", false)} />
+            </div>
+            <div className="flex h-7 items-center gap-0.5">
+              <Button variant="ghost" size="xs" iconOnly leadingIcon={ArrowLeft} aria-label="Voltar" title="Voltar" onClick={() => navigateHistory(-1)} />
+              <Button variant="ghost" size="xs" iconOnly leadingIcon={ArrowRight} aria-label="Avançar" title="Avançar" onClick={() => navigateHistory(1)} />
+              {filesEnabled && tabsVisible ? <Button variant="ghost" size="xs" iconOnly leadingIcon={Search} aria-label="Busca rápida" title="Busca rápida (Ctrl+P)" onClick={() => setQuickOpenToken((current) => current + 1)} /> : null}
+              {terminalEnabled ? <Button variant={terminalOpen ? "secondary" : "ghost"} size="xs" iconOnly leadingIcon={Rows3} aria-label="Terminal" title="Terminal" onClick={() => setTerminalOpen(!terminalOpen)} /> : null}
+              <span className="min-w-0 flex-1" />
+              <Button variant="ghost" size="xs" iconOnly leadingIcon={Keyboard} aria-label="Atalhos" title="Atalhos" onClick={() => setShortcutsOpen(true)} />
+              <Button variant="ghost" size="xs" iconOnly leadingIcon={Info} aria-label="Sobre o Toph" title="Sobre o Toph" onClick={() => setAboutOpen(true)} />
+              <Button variant="ghost" size="xs" iconOnly leadingIcon={Settings2} aria-label="Configurar workspace" title="Configurar workspace" onClick={openLayoutSettings} />
+            </div>
+            {sidebarBranch ? <div className="pt-1">{sidebarBranch}</div> : null}
+          </div>
+          <div className="min-h-0 flex-1 overflow-hidden"><SidebarContent /></div>
+        </aside>
+      </div>
+    </Suspense>
+  ) : null;
+  const primaryResize = effectiveSidebarVisible ? (
+    <ResizeHandle className="sidebar-resize" orientation="vertical" value={sidebarWidth} min={220} max={320} invert={!primaryOnLeft} label="Redimensionar barra lateral" onChange={(width) => document.documentElement.style.setProperty("--sidebar-width", `${width}px`)} onCommit={(width) => updateSettings({ sidebarWidth: width })} />
+  ) : null;
+  const collapsedSidebarHandle = !effectiveSidebarVisible ? (
+    <div className="flex w-9 shrink-0 items-start justify-center pt-2">
+      <Button variant="secondary" size="xs" iconOnly leadingIcon={PanelLeftOpen} aria-label="Mostrar barra lateral" title="Mostrar barra lateral" onClick={() => setWorkspaceFeature("primarySidebar", true)} />
+    </div>
   ) : null;
 
   if (mobile) return <Suspense fallback={null}><MobileApp /></Suspense>;
 
   return (
-    <div className="flex h-dvh flex-col overflow-hidden bg-background-full">
-      {topBarVisible ? (
-        <TopBar
-          project={project}
-          quickOpenToken={quickOpenToken}
-          onOpenFile={openFile}
-          onOpenRepo={() => setShowRepoPicker(true)}
-          onCloseTab={() => { if (activeTabId) closeTab(activeTabId); }}
-          onBack={() => navigateHistory(-1)}
-          onForward={() => navigateHistory(1)}
-          onSidebar={selectSidebar}
-          onToggleTerminal={() => { if (terminalEnabled) setTerminalOpen(!useApp.getState().terminalOpen); }}
-          onShowTerminal={() => { if (terminalEnabled) setTerminalOpen(true); }}
-          onCustomizeLayout={openLayoutSettings}
-          onToggleActivity={() => setWorkspaceFeature("activityBar", !workspaceFeatures.activityBar)}
-          onToggleSidebar={() => setWorkspaceFeature("primarySidebar", !workspaceFeatures.primarySidebar)}
-          sidebarVisible={sidebarVisible}
-          onToggleStatus={() => setWorkspaceFeature("statusBar", !workspaceFeatures.statusBar)}
-          statusVisible={statusVisible}
-          onAbout={() => setAboutOpen(true)}
-          onShortcuts={() => setShortcutsOpen(true)}
-          menuVisible={menuVisible}
-          workspaceFeatures={workspaceFeatures}
-          headerLeft={headerBranch}
-          headerTrailing={headerTrailing}
-          headerRight={headerStatus}
-        />
-      ) : null}
-
-      <div className={cx("flex min-h-0 flex-1 p-1", sidebar === "bots" ? "gap-1" : "gap-0")}>
+    <div className="relative flex h-dvh flex-col overflow-hidden bg-background-full">
+      <div className="pointer-events-none absolute inset-x-0 top-2 z-[100] flex justify-center px-12">
+        <div className="pointer-events-auto w-full max-w-xl"><QuickOpen project={project} focusToken={quickOpenToken} onOpenFile={openFile} floating /></div>
+      </div>
+      <div className="flex min-h-0 flex-1 gap-0 p-1">
         {primaryOnLeft && primarySidebar}
         {primaryOnLeft && primaryResize}
+        {primaryOnLeft && collapsedSidebarHandle}
 
         <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-1 overflow-hidden">
           <main className={cx(
@@ -1274,6 +1244,7 @@ export default function Workbench() {
           ) : null}
         </div>
 
+        {!primaryOnLeft && collapsedSidebarHandle}
         {!primaryOnLeft && primaryResize}
         {!primaryOnLeft && primarySidebar}
       </div>
@@ -1319,8 +1290,6 @@ export default function Workbench() {
       >
         <div className="flex flex-col gap-0.5">
           <div className="mb-1 px-2 text-caption-1-regular text-text-tertiary">Interface</div>
-          <LayoutRow label="Barra superior" checked={workspaceFeatures.topBar} onChange={(value) => setWorkspaceFeature("topBar", value)} />
-          <LayoutRow label="Barra de menus" checked={workspaceFeatures.menuBar} onChange={(value) => setWorkspaceFeature("menuBar", value)} />
           <LayoutRow label="Barra de atividades" checked={workspaceFeatures.activityBar} onChange={(value) => setWorkspaceFeature("activityBar", value)} />
           <LayoutRow label="Barra lateral" shortcut="Ctrl+B" checked={workspaceFeatures.primarySidebar} onChange={(value) => setWorkspaceFeature("primarySidebar", value)} />
           <LayoutRow label="Abas e conteúdo" checked={workspaceFeatures.tabs} onChange={(value) => setWorkspaceFeature("tabs", value)} />
@@ -1333,7 +1302,6 @@ export default function Workbench() {
               if (value) setTerminalOpen(true);
             }}
           />
-          <LayoutRow label="Barra de status" checked={workspaceFeatures.statusBar} onChange={(value) => setWorkspaceFeature("statusBar", value)} />
         </div>
 
         <LayoutSection label="Ferramentas">

@@ -112,7 +112,7 @@ function GenericAiPanel({ tab, project, config, onClose }: Props & { config: AIC
               <p className="text-caption-1-regular text-text-secondary">O agente pode ler {project.root} através do servidor.</p>
             </div>
           )}
-          <AgentTranscript messages={messages} streaming={streaming} />
+          <AgentTranscript messages={messages} streaming={streaming} projectId={project.id} projectRoot={project.root} />
           <div ref={bottomRef} />
         </div>
       </div>
