@@ -120,6 +120,7 @@ export default function Workbench() {
   const [quickOpenToken, setQuickOpenToken] = useState(0);
   const [layoutOpen, setLayoutOpen] = useState(false);
   const sidebarVisible = workspaceFeatures.primarySidebar;
+  const activityVisible = workspaceFeatures.activityBar;
   const tabsVisible = workspaceFeatures.tabs;
   const panelAlignment = useSettings((state) => state.panelAlignment);
   const [projectsMenuOpen, setProjectsMenuOpen] = useState(false);
@@ -1149,7 +1150,7 @@ export default function Workbench() {
   const primarySidebar = (
     <Suspense fallback={null}>
       <div className="relative z-40 flex min-h-0 shrink-0 overflow-visible rounded-3xl border border-border-button-white bg-background-primary-default shadow-sidebar">
-        <div className="overflow-visible rounded-s-3xl">
+        {activityVisible ? <div className="overflow-visible rounded-s-3xl">
           <ActivityBar
             projectControl={activityProjectControl}
             branchControl={activityBranchControl}
@@ -1157,9 +1158,9 @@ export default function Workbench() {
             settingsControl={<TophSettings user={user} projectRoot={project.root} onCustomizeLayout={openLayoutSettings} />}
             onQuickOpen={() => setQuickOpenToken((current) => current + 1)}
           />
-        </div>
+        </div> : null}
         {effectiveSidebarVisible ? (
-          <aside className={cx("flex min-h-0 shrink-0 flex-col overflow-hidden rounded-e-[22px] bg-background-primary-default", botsView ? "w-[clamp(220px,22vw,var(--sidebar-width))]" : "w-[var(--sidebar-width)]")}>
+          <aside className={cx("flex min-h-0 shrink-0 flex-col overflow-hidden bg-background-primary-default", activityVisible ? "rounded-e-[22px]" : "rounded-[22px]", botsView ? "w-[clamp(220px,22vw,var(--sidebar-width))]" : "w-[var(--sidebar-width)]")}>
             <SidebarContent />
           </aside>
         ) : null}
@@ -1186,46 +1187,49 @@ export default function Workbench() {
             "relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden",
             sidebar === "bots" && project ? "bg-transparent" : "rounded-3xl border border-border-button-white bg-background-primary-default shadow-sidebar",
           )}>
-            <Button
-              type="button"
-              variant="secondary"
-              size="small"
-              iconOnly
-              leadingIcon={effectiveSidebarVisible ? PanelLeftClose : PanelLeftOpen}
-              className="absolute left-2 top-2 z-50 shadow-md"
-              aria-label={effectiveSidebarVisible ? "Ocultar navegação" : "Mostrar navegação"}
-              title={effectiveSidebarVisible ? "Ocultar navegação (Ctrl+B)" : "Mostrar navegação (Ctrl+B)"}
-              onClick={() => setWorkspaceFeature("primarySidebar", !effectiveSidebarVisible)}
-            />
-            {sidebar === "bots" && project ? (
-              <BotStudioTab key={project.id} project={project} />
-            ) : sidebar === "debug" && project && featureIsEnabled("debug") ? (
-              <DebugPanel project={project} />
-            ) : (
-              <>
-                {tabsVisible ? <Tabs /> : null}
-                <div className="relative flex min-h-0 flex-1 overflow-hidden">
-                  {!activeTab && project && (
-                    <div className="flex h-full w-full flex-col items-center justify-center gap-4 p-8 text-center">
-                      <BrandMark size="large" />
-                      <h2 className="text-title-2-medium text-text-primary">{project.name}</h2>
-                      <p className="max-w-lg text-body-regular text-text-secondary">{project.root}</p>
-                       <div className="flex flex-wrap items-center justify-center gap-2">
-                         {featureIsEnabled("files") && <Button variant="secondary" size="small" onClick={() => selectSidebar("files")}>Explorer</Button>}
-                         {featureIsEnabled("databases") && <Button variant="secondary" size="small" onClick={() => selectSidebar("db")}>Database</Button>}
-                         <Button variant="secondary" size="small" onClick={() => setSidebar("bots")}>Tophs</Button>
-                       </div>
-                    </div>
-                  )}
-                  <Suspense fallback={null}>
-                    {tabsVisible && activeTab?.kind === "editor" && project && featureIsEnabled("files") && <EditorPanel debugEnabled={debugEnabled} tab={activeTab} project={project} onOpenChanges={(path) => openDiff(path, false)} />}
-                    {tabsVisible && activeTab?.kind === "db" && featureIsEnabled("databases") && <DbPanelTab tab={activeTab} />}
-                    {tabsVisible && activeTab?.kind === "web" && featureIsEnabled("webApps") && <WebPanelTab tab={activeTab} />}
-                    {tabsVisible && activeTab?.kind === "diff" && project && featureIsEnabled("files") && <DiffPanelTab tab={activeTab} project={project} />}
-                  </Suspense>
-                </div>
-              </>
-            )}
+            <div className="flex h-11 shrink-0 items-center border-b border-separator-border px-2">
+              <Button
+                type="button"
+                variant="secondary"
+                size="small"
+                iconOnly
+                leadingIcon={activityVisible ? PanelLeftClose : PanelLeftOpen}
+                aria-label={activityVisible ? "Ocultar barra vertical" : "Mostrar barra vertical"}
+                title={activityVisible ? "Ocultar barra vertical" : "Mostrar barra vertical"}
+                onClick={() => setWorkspaceFeature("activityBar", !activityVisible)}
+              />
+            </div>
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+              {sidebar === "bots" && project ? (
+                <BotStudioTab key={project.id} project={project} />
+              ) : sidebar === "debug" && project && featureIsEnabled("debug") ? (
+                <DebugPanel project={project} />
+              ) : (
+                <>
+                  {tabsVisible ? <Tabs /> : null}
+                  <div className="relative flex min-h-0 flex-1 overflow-hidden">
+                    {!activeTab && project && (
+                      <div className="flex h-full w-full flex-col items-center justify-center gap-4 p-8 text-center">
+                        <BrandMark size="large" />
+                        <h2 className="text-title-2-medium text-text-primary">{project.name}</h2>
+                        <p className="max-w-lg text-body-regular text-text-secondary">{project.root}</p>
+                         <div className="flex flex-wrap items-center justify-center gap-2">
+                           {featureIsEnabled("files") && <Button variant="secondary" size="small" onClick={() => selectSidebar("files")}>Explorer</Button>}
+                           {featureIsEnabled("databases") && <Button variant="secondary" size="small" onClick={() => selectSidebar("db")}>Database</Button>}
+                           <Button variant="secondary" size="small" onClick={() => setSidebar("bots")}>Tophs</Button>
+                         </div>
+                      </div>
+                    )}
+                    <Suspense fallback={null}>
+                      {tabsVisible && activeTab?.kind === "editor" && project && featureIsEnabled("files") && <EditorPanel debugEnabled={debugEnabled} tab={activeTab} project={project} onOpenChanges={(path) => openDiff(path, false)} />}
+                      {tabsVisible && activeTab?.kind === "db" && featureIsEnabled("databases") && <DbPanelTab tab={activeTab} />}
+                      {tabsVisible && activeTab?.kind === "web" && featureIsEnabled("webApps") && <WebPanelTab tab={activeTab} />}
+                      {tabsVisible && activeTab?.kind === "diff" && project && featureIsEnabled("files") && <DiffPanelTab tab={activeTab} project={project} />}
+                    </Suspense>
+                  </div>
+                </>
+              )}
+            </div>
           </main>
 
           {project && sidebar !== "bots" && featureIsEnabled("terminal") && terminalOpen ? (

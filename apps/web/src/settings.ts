@@ -45,7 +45,7 @@ export const desktopWorkspaceFeatures: WorkspaceFeatures = {
   ...defaultWorkspaceFeatures,
   topBar: false,
   menuBar: false,
-  activityBar: false,
+  activityBar: true,
   primarySidebar: true,
   tabs: false,
   terminal: false,
@@ -117,6 +117,7 @@ export type SettingsPatch = Partial<Omit<SettingsState, "update" | "setTheme" | 
 const STORAGE_KEY = "toph_settings";
 const DESKTOP_INITIALIZED_KEY = "toph_desktop_workspace_initialized_v1";
 const DESKTOP_SIDEBAR_MIGRATED_KEY = "toph_desktop_sidebar_migrated_v1";
+const ACTIVITY_BAR_CONTROL_MIGRATED_KEY = "toph_activity_bar_control_migrated_v1";
 
 export const defaultSettings = {
   theme: "dark" as Theme,
@@ -143,7 +144,7 @@ export const desktopDefaultSettings = {
   workspaceFeatures: desktopWorkspaceFeatures,
   topBarVisible: false,
   menuVisible: false,
-  activityVisible: false,
+  activityVisible: true,
   sidebarVisible: true,
   tabsVisible: false,
   statusVisible: false,
@@ -182,6 +183,13 @@ function readSettings(): Omit<SettingsState, "update" | "setTheme" | "reset"> {
   const fallback = desktop ? desktopDefaultSettings : defaultSettings;
   let desktopFirstRun = false;
   let migrateDesktopSidebar = false;
+  let migrateActivityBar = false;
+  try {
+    migrateActivityBar = localStorage.getItem(ACTIVITY_BAR_CONTROL_MIGRATED_KEY) !== "1";
+    if (migrateActivityBar) localStorage.setItem(ACTIVITY_BAR_CONTROL_MIGRATED_KEY, "1");
+  } catch {
+    migrateActivityBar = true;
+  }
   if (desktop) {
     try {
       desktopFirstRun = localStorage.getItem(DESKTOP_INITIALIZED_KEY) !== "1";
@@ -206,6 +214,7 @@ function readSettings(): Omit<SettingsState, "update" | "setTheme" | "reset"> {
         ? { ...desktopWorkspaceFeatures }
         : legacyFeatures(value, fallback.workspaceFeatures);
     if (migrateDesktopSidebar) workspaceFeatures.primarySidebar = true;
+    if (migrateActivityBar) workspaceFeatures.activityBar = true;
     return {
       theme:
         value.theme === "light" || value.theme === "dark"
