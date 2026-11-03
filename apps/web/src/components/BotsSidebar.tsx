@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Bot, MessageSquare, Plus, Sparkles, UserRound } from "@toph/icons";
+import { Bot, History, MessageSquare, Plus, Settings2, Sparkles, UserRound } from "@toph/icons";
 import type { Project } from "../api";
 import { useAI } from "../ai";
 import { botThread, TOPH_PRESETS, useBots, type TophMode } from "../bots";
@@ -10,6 +10,10 @@ import { cx } from "@/boardui/utils/cx";
 
 interface Props {
   project: Project;
+}
+
+function fire(action: "config" | "sessions") {
+  window.dispatchEvent(new CustomEvent("toph:tophs-action", { detail: { action } }));
 }
 
 export default function BotsSidebar({ project }: Props) {
@@ -79,7 +83,11 @@ export default function BotsSidebar({ project }: Props) {
       <div className="flex h-11 shrink-0 items-center gap-2 border-b px-3">
         <Bot size={15} className="text-accent-500" />
         <strong className="text-body-medium text-text-primary">Tophs</strong>
-        <span className="ms-auto rounded-full bg-background-tertiary-default px-1.5 text-caption-2-regular text-text-tertiary">{totalBots}</span>
+        <span className="rounded-full bg-background-tertiary-default px-1.5 text-caption-2-regular text-text-tertiary">{totalBots}</span>
+        <span className="min-w-0 flex-1" />
+        {workspace?.activeBotId ? <Button variant="ghost" size="xs" iconOnly leadingIcon={Settings2} aria-label="Configurar Toph" title="Configurar Toph" onClick={() => fire("config")} /> : null}
+        {workspace?.activeBotId ? <Button variant="ghost" size="xs" iconOnly leadingIcon={History} aria-label="Sessões do Toph" title="Sessões do Toph" onClick={() => fire("sessions")} /> : null}
+        {mode === "team" ? <Button variant="ghost" size="xs" iconOnly leadingIcon={Plus} aria-label="Adicionar Toph" title="Adicionar Toph" onClick={() => setGalleryOpen(true)} /> : null}
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto p-2.5">
         <div className="mb-1.5 flex items-center gap-2 px-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-tertiary">

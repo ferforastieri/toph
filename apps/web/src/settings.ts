@@ -46,7 +46,7 @@ export const desktopWorkspaceFeatures: WorkspaceFeatures = {
   topBar: false,
   menuBar: false,
   activityBar: false,
-  primarySidebar: false,
+  primarySidebar: true,
   tabs: false,
   terminal: false,
   statusBar: false,
@@ -116,6 +116,7 @@ export type SettingsPatch = Partial<Omit<SettingsState, "update" | "setTheme" | 
 
 const STORAGE_KEY = "toph_settings";
 const DESKTOP_INITIALIZED_KEY = "toph_desktop_workspace_initialized_v1";
+const DESKTOP_SIDEBAR_MIGRATED_KEY = "toph_desktop_sidebar_migrated_v1";
 
 export const defaultSettings = {
   theme: "dark" as Theme,
@@ -143,7 +144,7 @@ export const desktopDefaultSettings = {
   topBarVisible: false,
   menuVisible: false,
   activityVisible: false,
-  sidebarVisible: false,
+  sidebarVisible: true,
   tabsVisible: false,
   statusVisible: false,
 };
@@ -180,12 +181,16 @@ function readSettings(): Omit<SettingsState, "update" | "setTheme" | "reset"> {
   const desktop = isDesktopClient();
   const fallback = desktop ? desktopDefaultSettings : defaultSettings;
   let desktopFirstRun = false;
+  let migrateDesktopSidebar = false;
   if (desktop) {
     try {
       desktopFirstRun = localStorage.getItem(DESKTOP_INITIALIZED_KEY) !== "1";
       if (desktopFirstRun) localStorage.setItem(DESKTOP_INITIALIZED_KEY, "1");
+      migrateDesktopSidebar = localStorage.getItem(DESKTOP_SIDEBAR_MIGRATED_KEY) !== "1";
+      if (migrateDesktopSidebar) localStorage.setItem(DESKTOP_SIDEBAR_MIGRATED_KEY, "1");
     } catch {
       desktopFirstRun = true;
+      migrateDesktopSidebar = true;
     }
   }
   try {
@@ -200,6 +205,7 @@ function readSettings(): Omit<SettingsState, "update" | "setTheme" | "reset"> {
       : desktop
         ? { ...desktopWorkspaceFeatures }
         : legacyFeatures(value, fallback.workspaceFeatures);
+    if (migrateDesktopSidebar) workspaceFeatures.primarySidebar = true;
     return {
       theme:
         value.theme === "light" || value.theme === "dark"

@@ -75,7 +75,23 @@ pub struct AiConfigInput {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Message {
     pub role: String,
-    pub content: String,
+    pub content: Value,
+}
+
+fn message_text(content: &Value) -> String {
+    if let Some(text) = content.as_str() {
+        return text.to_string();
+    }
+    content
+        .as_array()
+        .map(|parts| {
+            parts
+                .iter()
+                .filter_map(|part| part.get("text").and_then(Value::as_str))
+                .collect::<Vec<_>>()
+                .join("\n")
+        })
+        .unwrap_or_default()
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -507,7 +523,7 @@ impl AiService {
             .iter()
             .filter(|message| {
                 if message.role == "system" {
-                    system.push_str(&message.content);
+                    system.push_str(&message_text(&message.content));
                     system.push('\n');
                     false
                 } else {
@@ -594,14 +610,14 @@ impl AiService {
         }
         let mut messages = vec![Message {
             role: "user".into(),
-            content: prompt,
+            content: json!(prompt),
         }];
         if !config.system_prompt.is_empty() {
             messages.insert(
                 0,
                 Message {
                     role: "system".into(),
-                    content: config.system_prompt.clone(),
+                    content: json!(config.system_prompt.clone()),
                 },
             );
         }

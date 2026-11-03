@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { ArrowUp, AtSign, ChevronDown, FilePlus2, ImagePlus, Plus, Square, TerminalSquare, X } from "@toph/icons";
+import { ArrowUp, AtSign, ChevronDown, FilePlus2, ImagePlus, LoaderCircle, Mic, Plus, Square, TerminalSquare, X } from "@toph/icons";
 import type { AIModel } from "../api";
 import { Button } from "@/boardui/base/buttons/button";
 import { IconButton } from "@/boardui/base/buttons/icon-button";
@@ -8,9 +8,9 @@ import { DropdownDivider, DropdownGroup, DropdownItem } from "@/boardui/base/dro
 import ComposerMenu from "./ComposerMenu";
 import { ComposerLoader } from "@/boardui/application/composer-loader/composer-loader";
 import ModelPicker from "./ModelPicker";
-import { readableTextOn } from "../lib";
+import { useAudioRecorder, type AgentAttachment } from "./useAudioRecorder";
 
-export interface AgentAttachment { name: string; uri: string; mime: string; size: number; }
+export type { AgentAttachment } from "./useAudioRecorder";
 
 interface Props {
   value: string;
@@ -26,18 +26,26 @@ interface Props {
   onEffortChange: (value: string) => void;
   placeholder: string;
   allowAttachments?: boolean;
-  accentColor?: string;
   modeControls?: ReactNode;
 }
 
-export function AgentComposer({ value, onChange, onSend, onStop, busy, models, model, onModelChange, effort, efforts, onEffortChange, placeholder, allowAttachments = true, accentColor, modeControls }: Props) {
+export function AgentComposer({ value, onChange, onSend, onStop, busy, models, model, onModelChange, effort, efforts, onEffortChange, placeholder, allowAttachments = true, modeControls }: Props) {
   const [attachments, setAttachments] = useState<AgentAttachment[]>([]);
-  const accent = accentColor ?? "var(--color-accent-500)";
-  const accentText = accent.startsWith("var(") ? "var(--color-text-on-accent)" : readableTextOn(accent);
   const [error, setError] = useState("");
   const [addMenuOpen, setAddMenuOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const areaRef = useRef<HTMLTextAreaElement>(null);
+  const audio = useAudioRecorder({
+    onComplete: (attachment, transcript) => {
+      if (allowAttachments) setAttachments((current) => [...current, attachment].slice(0, 6));
+      if (transcript) {
+        onChange(`${value}${value.trim() ? "\n\n" : ""}Transcrição do áudio:\n${transcript}`);
+      } else if (!allowAttachments) {
+        setError("Este navegador não conseguiu transcrever o áudio.");
+      }
+    },
+    onError: setError,
+  });
 
   useEffect(() => {
     const key = (event: KeyboardEvent) => {
@@ -72,7 +80,7 @@ export function AgentComposer({ value, onChange, onSend, onStop, busy, models, m
   }
 
   function submit() {
-    if (busy || (!value.trim() && attachments.length === 0)) return;
+    if (busy || audio.recording || audio.processing || (!value.trim() && attachments.length === 0)) return;
     onSend(value.trim(), attachments);
     setAttachments([]);
     setError("");
@@ -96,7 +104,7 @@ export function AgentComposer({ value, onChange, onSend, onStop, busy, models, m
             <div className="flex flex-wrap gap-1.5">
               {attachments.map((file) => (
                 <span key={`${file.name}-${file.size}`} className="flex items-center gap-1.5 rounded-lg bg-background-secondary-default px-2 py-1">
-                  <FilePlus2 size={13} className="text-foreground-icon-secondary" />
+                  {file.mime.startsWith("audio/") ? <Mic size={13} className="text-foreground-icon-secondary" /> : <FilePlus2 size={13} className="text-foreground-icon-secondary" />}
                   <span className="max-w-40 truncate text-caption-1-regular text-text-primary">{file.name}</span>
                   <span className="text-caption-2-regular text-text-tertiary">{Math.ceil(file.size / 1024)} KB</span>
                   <IconButton icon={X} size="small" aria-label={`Remover ${file.name}`} className="size-4 border-transparent bg-transparent p-0 shadow-none [&_svg]:size-3" onClick={() => setAttachments((items) => items.filter((item) => item !== file))} />
@@ -104,6 +112,13 @@ export function AgentComposer({ value, onChange, onSend, onStop, busy, models, m
               ))}
             </div>
           )}
+          {audio.recording ? (
+            <div className="flex items-center gap-2 text-caption-2-regular text-status-rose-text" role="status">
+              <span className="size-2 animate-pulse rounded-full bg-current" />
+              <span className="shrink-0">Gravando {Math.floor(audio.elapsed / 60).toString().padStart(2, "0")}:{(audio.elapsed % 60).toString().padStart(2, "0")}</span>
+              {audio.liveTranscript ? <span className="min-w-0 truncate text-text-tertiary">{audio.liveTranscript}</span> : null}
+            </div>
+          ) : null}
           {error && <p className="text-caption-2-regular text-text-error-primary">{error}</p>}
           <Textarea
             ref={areaRef}
@@ -130,7 +145,7 @@ export function AgentComposer({ value, onChange, onSend, onStop, busy, models, m
               {(close) => (
                 <>
                   <DropdownGroup>
-                    {allowAttachments && <DropdownItem onSelect={() => { close(); fileRef.current?.click(); }}><ImagePlus size={15} /> Imagens e arquivos <span className="ms-auto text-caption-2-regular text-text-tertiary">Ctrl+U</span></DropdownItem>}
+                    {allowAttachments && <DropdownItem onSelect={() => { close(); fileRef.current?.click(); }}><ImagePlus size={15} /> Imagens, áudios e arquivos <span className="ms-auto text-caption-2-regular text-text-tertiary">Ctrl+U</span></DropdownItem>}
                     <DropdownItem onSelect={() => { close(); insert("/"); }}><TerminalSquare size={15} /> Comandos <span className="ms-auto text-caption-2-regular text-text-tertiary">/</span></DropdownItem>
                     <DropdownItem onSelect={() => { close(); insert("@"); }}><AtSign size={15} /> Contexto <span className="ms-auto text-caption-2-regular text-text-tertiary">@</span></DropdownItem>
                   </DropdownGroup>
@@ -145,15 +160,27 @@ export function AgentComposer({ value, onChange, onSend, onStop, busy, models, m
               <ModelPicker models={models} model={model} onModelChange={onModelChange} effort={effort} efforts={efforts} onEffortChange={onEffortChange} />
               {modeControls && <div className="flex shrink-0 items-center gap-0.5">{modeControls}</div>}
             </div>
+            <Button
+              type="button"
+              variant={audio.recording ? "danger" : "secondary"}
+              size="small"
+              iconOnly
+              leadingIcon={audio.processing ? LoaderCircle : audio.recording ? Square : Mic}
+              onClick={() => audio.recording ? audio.stop() : void audio.start()}
+              disabled={busy || audio.processing || !audio.supported}
+              aria-label={audio.processing ? "Processando áudio" : audio.recording ? "Parar gravação" : "Gravar áudio"}
+              title={audio.supported ? (audio.recording ? "Parar gravação" : "Gravar áudio") : "Gravação de áudio indisponível"}
+              className={audio.processing ? "shrink-0 [&_svg]:animate-spin" : "shrink-0"}
+            />
             {busy && onStop ? (
-              <Button type="button" variant="secondary" size="small" iconOnly leadingIcon={Square} onClick={onStop} aria-label="Parar" className="size-8 shrink-0 rounded-lg border-0 hover:opacity-90" style={{ backgroundColor: accent, color: accentText }} />
+              <Button type="button" variant="secondary" size="small" iconOnly leadingIcon={Square} onClick={onStop} aria-label="Parar" className="shrink-0" />
             ) : (
-              <Button type="submit" size="small" iconOnly leadingIcon={ArrowUp} disabled={!value.trim() && attachments.length === 0} aria-label="Enviar" className="size-8 shrink-0 rounded-lg border-0 bg-text-primary text-background-full hover:bg-text-secondary disabled:opacity-40" style={{ backgroundColor: accent, color: accentText }} />
+              <Button type="submit" variant="primary" size="small" iconOnly leadingIcon={ArrowUp} disabled={audio.recording || audio.processing || (!value.trim() && attachments.length === 0)} aria-label="Enviar" className="shrink-0" />
             )}
           </div>
         </form>
       </ComposerLoader>
-      {allowAttachments && <input ref={fileRef} type="file" hidden multiple accept="image/*,.pdf,.txt,.md,.json,.csv,.log" onChange={(event) => void pickFiles(event.target.files)} />}
+      {allowAttachments && <input ref={fileRef} type="file" hidden multiple accept="image/*,audio/*,.pdf,.txt,.md,.json,.csv,.log" onChange={(event) => void pickFiles(event.target.files)} />}
     </div>
   );
 }

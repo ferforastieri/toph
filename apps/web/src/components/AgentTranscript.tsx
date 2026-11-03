@@ -2,8 +2,10 @@ import { memo, useEffect, useState } from "react";
 import type { Components } from "react-markdown";
 import ReactMarkdown, { defaultUrlTransform } from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Check, ChevronDown, CircleAlert, Copy, LoaderCircle, X } from "@toph/icons";
+import { Check, ChevronDown, CircleAlert, Copy, Image, LoaderCircle, X } from "@toph/icons";
+import { api } from "../api";
 import type { AiMessage } from "../store";
+import { extractAgentDiffs, extractAgentImages, parsedToolRecord, type AgentDiffArtifact, type AgentImageArtifact } from "../agentArtifacts";
 import { Button } from "@/boardui/base/buttons/button";
 import { Chip } from "@/boardui/base/badges/chip";
 
@@ -13,6 +15,8 @@ interface Props {
   onPermission?: (messageId: string, permissionId: string, decision: "once" | "always" | "reject") => void;
   className?: string;
   toolsExpanded?: boolean;
+  projectId?: string;
+  projectRoot?: string;
 }
 
 const markdownComponents: Components = {
@@ -66,84 +70,34 @@ interface MessageProps {
   showCaret: boolean;
   onPermission?: (messageId: string, permissionId: string, decision: "once" | "always" | "reject") => void;
   toolsExpanded?: boolean;
+  projectId?: string;
+  projectRoot?: string;
 }
 
-function parsedToolValue(value?: string): Record<string, any> | null {
-  if (!value) return null;
-  try {
-    const parsed = JSON.parse(value);
-    return parsed && typeof parsed === "object" ? parsed : null;
-  } catch {
-    return null;
-  }
-}
-
-interface ToolImage {
+export interface ResolvedAgentImage extends AgentImageArtifact {
   uri: string;
-  mime: string;
-  name?: string;
 }
 
-const toolImageCache = new Map<string, ToolImage[]>();
-
-function extractToolImages(value?: string, cacheKey?: string): ToolImage[] {
-  if (!value) return [];
-  if (cacheKey) {
-    const cached = toolImageCache.get(cacheKey);
-    if (cached) return cached;
-  }
-  const images = new Map<string, ToolImage>();
-  const add = (uri: string, mime: string, name?: string) => {
-    if (!uri) return;
-    const existing = images.get(uri);
-    if (existing) {
-      if (name) existing.name = name;
-      if (mime && mime !== "image/*") existing.mime = mime;
-      return;
-    }
-    images.set(uri, { uri, mime: mime || "image/*", name });
-  };
-  const visit = (input: unknown, depth = 0) => {
-    if (depth > 6 || input == null) return;
-    if (typeof input === "string") {
-      const pattern = /data:(image\/[a-z0-9.+-]+);base64,[a-z0-9+/=\r\n]+/gi;
-      let match: RegExpExecArray | null;
-      while ((match = pattern.exec(input))) add(match[0].replace(/\s+/g, ""), match[1] ?? "image/*");
-      const start = input.indexOf("{");
-      if (start >= 0) {
-        try { visit(JSON.parse(input.slice(start)), depth + 1); } catch { /* keep the raw tool output */ }
-      }
-      return;
-    }
-    if (Array.isArray(input)) {
-      for (const item of input) visit(item, depth + 1);
-      return;
-    }
-    if (typeof input === "object") {
-      const item = input as Record<string, unknown>;
-      const mime = String(item.mime ?? item.mimeType ?? "");
-      const uri = String(item.uri ?? item.url ?? item.src ?? "");
-      if (uri && (mime.startsWith("image/") || /^data:image\//i.test(uri) || /\.(png|jpe?g|webp|gif|avif)(\?|#|$)/i.test(uri))) {
-        const inferred = uri.match(/^data:(image\/[^;]+)/i)?.[1] ?? "image/*";
-        add(uri, mime || inferred, typeof item.name === "string" ? item.name : undefined);
-      }
-      for (const nested of Object.values(item)) visit(nested, depth + 1);
-    }
-  };
-  visit(value);
-  const result = [...images.values()];
-  if (cacheKey) {
-    if (toolImageCache.size >= 48) {
-      const oldest = toolImageCache.keys().next().value;
-      if (oldest) toolImageCache.delete(oldest);
-    }
-    toolImageCache.set(cacheKey, result);
-  }
-  return result;
+function resolveImageSource(source: string, projectId?: string, projectRoot?: string): string {
+  if (/^(?:data:|https?:|blob:)/i.test(source) || source.startsWith("/api/")) return source;
+  if (!projectId) return source;
+  let path = source.replace(/^file:\/\//i, "").replace(/\\/g, "/");
+  const root = projectRoot?.replace(/\\/g, "/").replace(/\/+$/, "") ?? "";
+  if (root && path.startsWith(`${root}/`)) path = path.slice(root.length + 1);
+  else if (/^(?:[a-z]:\/|\/)/i.test(path)) return source;
+  path = path.replace(/^\.\//, "");
+  return path ? api.rawUrl(projectId, path) : source;
 }
 
-function imageLabel(image: ToolImage): string {
-  return image.name?.split("/").pop() || "Imagem";
+export function agentImagesForMessages(messages: AiMessage[], projectId?: string, projectRoot?: string): ResolvedAgentImage[] {
+  return extractAgentImages(...messages.flatMap((message) => [message.text, message.detail]))
+    .map((image) => ({ ...image, uri: resolveImageSource(image.source, projectId, projectRoot) }));
+}
+
+function imageLabel(image: AgentImageArtifact): string {
+  if (image.name) return image.name.split(/[\\/]/).pop() || "Imagem";
+  if (/^data:/i.test(image.source)) return "Imagem gerada";
+  return image.source.split(/[\\/]/).pop()?.split(/[?#]/)[0] || "Imagem";
 }
 
 function rawToolName(message: AiMessage): string {
@@ -172,7 +126,7 @@ function toolLabel(message: AiMessage): string {
 }
 
 function toolSubtitle(message: AiMessage): string {
-  const input = parsedToolValue(message.text);
+  const input = parsedToolRecord(message.text);
   const name = toolKind(message);
   if (/shell|bash|command|execute|terminal/.test(name)) {
     return String(input?.command ?? input?.cmd ?? input?.script ?? message.detail ?? "");
@@ -212,57 +166,99 @@ function PermissionActions({ message, onPermission }: { message: AiMessage; onPe
   );
 }
 
-function ToolOutput({ message, images }: { message: AiMessage; images: ToolImage[] }) {
-  const name = toolKind(message);
-  const input = parsedToolValue(message.text);
-  if (images.length > 0) {
-    return (
-      <div className="mt-2 flex max-w-full flex-col gap-2">
+export function AgentImageGallery({ images, title }: { images: ResolvedAgentImage[]; title?: string }) {
+  if (images.length === 0) return null;
+  return (
+    <section className="mt-2 min-w-0">
+      {title ? <div className="mb-2 flex items-center gap-1.5 text-[11px] font-medium text-text-secondary"><Image size={13} /> {title}</div> : null}
+      <div className="grid min-w-0 grid-cols-1 gap-2 2xl:grid-cols-2">
         {images.map((image, index) => (
-          <figure key={`${imageLabel(image)}-${index}`} className="w-fit max-w-full">
-            <a href={image.uri} target="_blank" rel="noreferrer" className="block w-fit max-w-full">
-              <img src={image.uri} alt={imageLabel(image)} loading="lazy" className="max-h-[420px] max-w-full rounded-xl border border-border-button-default bg-background-secondary-default object-contain" />
+          <figure key={`${image.source}-${index}`} className="min-w-0 max-w-full">
+            <a href={image.uri} target="_blank" rel="noreferrer" className="block min-w-0 max-w-full overflow-hidden rounded-lg bg-background-full">
+              <img src={image.uri} alt={imageLabel(image)} loading="lazy" className="max-h-[440px] w-full max-w-full object-contain" />
             </a>
-            <figcaption className="mt-1 max-w-full truncate text-[11px] text-text-tertiary">{imageLabel(image)}</figcaption>
+            <figcaption className="mt-1 flex items-center justify-between gap-2 text-[10px] text-text-tertiary">
+              <span className="min-w-0 truncate">{imageLabel(image)}</span>
+              <span className="shrink-0">{image.mime === "image/*" ? "IMAGEM" : image.mime.replace(/^image\//, "").toUpperCase()}</span>
+            </figcaption>
           </figure>
         ))}
       </div>
-    );
-  }
-  const oldText = String(input?.oldString ?? "");
-  const newText = String(input?.newString ?? input?.content ?? input?.text ?? "");
-  if (/edit|write|patch|apply/.test(name) && (oldText || newText)) {
-    return (
-      <div className="mt-2 overflow-x-auto rounded-xl bg-background-secondary-default p-3 font-mono text-[11.5px] leading-relaxed">
-        {oldText.split("\n").map((line, index) => <div key={`old-${index}`} className="flex gap-2 text-status-rose-text"><span className="w-3 shrink-0 select-none">-</span><span className="whitespace-pre">{line}</span></div>)}
-        {newText.split("\n").map((line, index) => <div key={`new-${index}`} className="flex gap-2 text-status-lime-text"><span className="w-3 shrink-0 select-none">+</span><span className="whitespace-pre">{line}</span></div>)}
+    </section>
+  );
+}
+
+function DiffView({ diff }: { diff: AgentDiffArtifact }) {
+  return (
+    <section className="mt-2 min-w-0 overflow-hidden border-y border-separator-border bg-background-full/35">
+      <header className="flex h-7 items-center gap-2 border-b border-separator-border px-2 font-mono text-[10px]">
+        <span className="min-w-0 flex-1 truncate text-text-secondary" title={diff.title}>{diff.title}</span>
+        <span className="text-status-rose-text">−{diff.deletions}</span>
+        <span className="text-status-lime-text">+{diff.additions}</span>
+      </header>
+      <div className="grid grid-cols-[36px_36px_16px_minmax(0,1fr)] border-b border-separator-border bg-background-secondary-default/60 text-[8px] font-semibold uppercase tracking-wide text-text-tertiary">
+        <span className="border-e border-separator-border px-1 text-center">Antes</span>
+        <span className="border-e border-separator-border px-1 text-center">Depois</span>
+        <span />
+        <span className="px-1">Conteúdo</span>
       </div>
-    );
-  }
-  if (!message.detail) return null;
+      <div className="max-h-[440px] min-w-0 overflow-auto font-mono text-[11px] leading-5">
+        {diff.lines.map((line, index) => (
+          <div
+            key={`${line.kind}-${line.oldLine ?? ""}-${line.newLine ?? ""}-${index}`}
+            className={line.kind === "add"
+              ? "grid min-w-max grid-cols-[36px_36px_16px_minmax(240px,1fr)] bg-status-lime-background text-status-lime-text"
+              : line.kind === "remove"
+                ? "grid min-w-max grid-cols-[36px_36px_16px_minmax(240px,1fr)] bg-status-rose-background text-status-rose-text"
+                : line.kind === "header"
+                  ? "grid min-w-max grid-cols-[36px_36px_16px_minmax(240px,1fr)] bg-background-secondary-default text-text-tertiary"
+                  : "grid min-w-max grid-cols-[36px_36px_16px_minmax(240px,1fr)] text-text-secondary"}
+          >
+            <span className="select-none border-e border-separator-border px-1 text-right text-text-tertiary/70">{line.oldLine ?? ""}</span>
+            <span className="select-none border-e border-separator-border px-1 text-right text-text-tertiary/70">{line.newLine ?? ""}</span>
+            <span className="select-none text-center">{line.kind === "add" ? "+" : line.kind === "remove" ? "−" : line.kind === "header" ? "·" : " "}</span>
+            <span className="whitespace-pre pe-3">{line.text || " "}</span>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function ToolOutput({ message, images }: { message: AiMessage; images: ResolvedAgentImage[] }) {
+  const name = toolKind(message);
+  const input = parsedToolRecord(message.text);
+  const diffs = extractAgentDiffs(rawToolName(message), message.text, message.detail);
+  if (!message.detail && images.length === 0 && diffs.length === 0) return null;
   const command = /shell|bash|command|execute|terminal/.test(name)
     ? String(input?.command ?? input?.cmd ?? input?.script ?? "")
     : "";
   return (
-    <div className="relative mt-2 overflow-hidden rounded-xl bg-background-secondary-default">
-      <Button
-        variant="ghost"
-        size="xs"
-        iconOnly
-        leadingIcon={Copy}
-        aria-label="Copiar saída"
-        title="Copiar saída"
-        className="absolute right-1 top-1 z-10 size-6 text-text-tertiary"
-        onClick={() => void navigator.clipboard.writeText(`${command ? `${command}\n` : ""}${message.detail ?? ""}`).catch(() => undefined)}
-      />
-      <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-words p-3 pe-9 font-mono text-[11.5px] leading-relaxed text-text-secondary">{command ? <span className="block text-text-primary">{command}</span> : null}{message.detail}</pre>
+    <div className="min-w-0">
+      <AgentImageGallery images={images} />
+      {diffs.map((diff, index) => <DiffView key={`${diff.title}-${index}`} diff={diff} />)}
+      {message.detail && images.length === 0 && diffs.length === 0 ? (
+        <div className="relative mt-2 overflow-hidden border-s-2 border-separator-border bg-background-secondary-default/45">
+          <Button
+            variant="ghost"
+            size="xs"
+            iconOnly
+            leadingIcon={Copy}
+            aria-label="Copiar saída"
+            title="Copiar saída"
+            className="absolute right-1 top-1 z-10 size-6 text-text-tertiary"
+            onClick={() => void navigator.clipboard.writeText(`${command ? `${command}\n` : ""}${message.detail ?? ""}`).catch(() => undefined)}
+          />
+          <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-words p-3 pe-9 font-mono text-[11.5px] leading-relaxed text-text-secondary">{command ? <span className="block text-text-primary">{command}</span> : null}{message.detail}</pre>
+        </div>
+      ) : null}
     </div>
   );
 }
 
-function ToolRow({ message, onPermission, defaultOpen = false }: { message: AiMessage; onPermission?: MessageProps["onPermission"]; defaultOpen?: boolean }) {
+function ToolRow({ message, onPermission, defaultOpen = false, projectId, projectRoot }: { message: AiMessage; onPermission?: MessageProps["onPermission"]; defaultOpen?: boolean; projectId?: string; projectRoot?: string }) {
   const [open, setOpen] = useState(defaultOpen);
-  const images = extractToolImages(message.detail, `${message.id}:${message.detail?.length ?? 0}`);
+  const images = agentImagesForMessages([message], projectId, projectRoot);
   const hasImage = images.length > 0;
   const label = toolLabel(message);
   const subtitle = toolSubtitle(message);
@@ -314,11 +310,11 @@ function ThoughtRow({ message, duration }: { message: AiMessage; duration?: stri
   );
 }
 
-function ToolGroup({ messages, onPermission, defaultOpen = false }: { messages: AiMessage[]; onPermission?: MessageProps["onPermission"]; defaultOpen?: boolean }) {
+function ToolGroup({ messages, onPermission, defaultOpen = false, projectId, projectRoot }: { messages: AiMessage[]; onPermission?: MessageProps["onPermission"]; defaultOpen?: boolean; projectId?: string; projectRoot?: string }) {
   const [open, setOpen] = useState(defaultOpen);
   const tools = messages.filter((message) => message.role === "tool");
   const thoughts = messages.filter((message) => message.role === "reasoning");
-  const hasImage = tools.some((message) => extractToolImages(message.detail, `${message.id}:${message.detail?.length ?? 0}`).length > 0);
+  const hasImage = agentImagesForMessages(tools, projectId, projectRoot).length > 0;
   const count = tools.length || thoughts.length;
   useEffect(() => {
     if (hasImage || defaultOpen) setOpen(true);
@@ -329,6 +325,19 @@ function ToolGroup({ messages, onPermission, defaultOpen = false }: { messages: 
     if (!labels.includes(label)) labels.push(label);
   }
   if (labels.length === 0) labels.push("Thought");
+  const rows = (
+    <div className={defaultOpen ? "flex flex-col gap-1" : "mt-1 flex flex-col gap-0"}>
+      {messages.map((message, index) => {
+        if (message.role === "reasoning") {
+          const next = messages[index + 1];
+          const seconds = next ? Math.max(0, Math.round((next.createdAt - message.createdAt) / 1000)) : 0;
+          return <ThoughtRow key={message.id} message={message} duration={seconds > 0 ? `${seconds}s` : undefined} />;
+        }
+        return <ToolRow key={message.id} message={message} onPermission={onPermission} defaultOpen={defaultOpen} projectId={projectId} projectRoot={projectRoot} />;
+      })}
+    </div>
+  );
+  if (defaultOpen) return rows;
   return (
     <div className="w-full">
       <button
@@ -343,23 +352,12 @@ function ToolGroup({ messages, onPermission, defaultOpen = false }: { messages: 
         <span className="truncate">{labels.join(", ")}</span>
         <ChevronDown className={`size-3 shrink-0 transition-transform ${open ? "rotate-180" : "-rotate-90"}`} />
       </button>
-      {open ? (
-        <div className="mt-1 flex flex-col gap-0">
-          {messages.map((message, index) => {
-            if (message.role === "reasoning") {
-              const next = messages[index + 1];
-              const seconds = next ? Math.max(0, Math.round((next.createdAt - message.createdAt) / 1000)) : 0;
-              return <ThoughtRow key={message.id} message={message} duration={seconds > 0 ? `${seconds}s` : undefined} />;
-            }
-            return <ToolRow key={message.id} message={message} onPermission={onPermission} defaultOpen={defaultOpen} />;
-          })}
-        </div>
-      ) : null}
+      {open ? rows : null}
     </div>
   );
 }
 
-const TranscriptMessage = memo(function TranscriptMessage({ message, showCaret, onPermission, toolsExpanded }: MessageProps) {
+const TranscriptMessage = memo(function TranscriptMessage({ message, showCaret, onPermission, toolsExpanded, projectId, projectRoot }: MessageProps) {
   if (message.role === "error") {
     return <Chip color="rose" variant="subtle" className="justify-start gap-1.5 whitespace-normal px-2 py-1.5"><CircleAlert size={13} /> {message.text}</Chip>;
   }
@@ -380,7 +378,7 @@ const TranscriptMessage = memo(function TranscriptMessage({ message, showCaret, 
     return <p className="text-[12px] text-text-tertiary">{message.text}</p>;
   }
   if (message.role === "tool") {
-    return <ToolRow message={message} onPermission={onPermission} defaultOpen={toolsExpanded} />;
+    return <ToolRow message={message} onPermission={onPermission} defaultOpen={toolsExpanded} projectId={projectId} projectRoot={projectRoot} />;
   }
   return (
     <div className="min-w-0">
@@ -396,9 +394,13 @@ const TranscriptMessage = memo(function TranscriptMessage({ message, showCaret, 
       )}
     </div>
   );
-}, (prev, next) => prev.message === next.message && prev.showCaret === next.showCaret && prev.toolsExpanded === next.toolsExpanded);
+}, (prev, next) => prev.message === next.message
+  && prev.showCaret === next.showCaret
+  && prev.toolsExpanded === next.toolsExpanded
+  && prev.projectId === next.projectId
+  && prev.projectRoot === next.projectRoot);
 
-export default function AgentTranscript({ messages, streaming, onPermission, className, toolsExpanded = false }: Props) {
+export default function AgentTranscript({ messages, streaming, onPermission, className, toolsExpanded = false, projectId, projectRoot }: Props) {
   const nodes: Array<{ kind: "message"; message: AiMessage } | { kind: "group"; messages: AiMessage[] }> = [];
   let group: AiMessage[] = [];
   const flush = () => {
@@ -419,7 +421,7 @@ export default function AgentTranscript({ messages, streaming, onPermission, cla
   return (
     <div className={className ?? "flex flex-col gap-4 px-1 py-1"}>
       {nodes.map((node, index) => node.kind === "group" ? (
-        <ToolGroup key={`group-${index}-${node.messages[0]?.id ?? ""}`} messages={node.messages} onPermission={onPermission} defaultOpen={toolsExpanded} />
+        <ToolGroup key={`group-${index}-${node.messages[0]?.id ?? ""}`} messages={node.messages} onPermission={onPermission} defaultOpen={toolsExpanded} projectId={projectId} projectRoot={projectRoot} />
       ) : (
         <TranscriptMessage
           key={node.message.id}
@@ -427,6 +429,8 @@ export default function AgentTranscript({ messages, streaming, onPermission, cla
           showCaret={streaming && node.message.id === lastMessage?.id && node.message.status === "running"}
           onPermission={onPermission}
           toolsExpanded={toolsExpanded}
+          projectId={projectId}
+          projectRoot={projectRoot}
         />
       ))}
       {streaming && (

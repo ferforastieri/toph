@@ -28,6 +28,8 @@ function toolContent(value: unknown): string {
   if (!value) return "";
   if (typeof value === "string") return value;
   if (Array.isArray(value)) {
+    const textOnly = value.every((part) => typeof part === "string" || (part && typeof part === "object" && (part as { type?: unknown }).type === "text"));
+    if (!textOnly) return JSON.stringify(value, null, 2);
     return value.map((part) => {
       if (typeof part === "string") return part;
       if (part && typeof part === "object" && "text" in part) return String((part as { text?: unknown }).text ?? "");
@@ -912,6 +914,8 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
           <AgentTranscript
             messages={messages}
             streaming={streaming}
+            projectId={project.id}
+            projectRoot={project.root}
             onPermission={(messageId, permissionId, decision) => void replyPermission(messageId, permissionId, decision)}
           />
           {forms.map((form) => (

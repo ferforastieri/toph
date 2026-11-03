@@ -1,15 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { OpenCode } from "@opencode/client";
 import { connectClientMcp, type ClientMcpTool } from "@opencode/client/mcp";
-import { Bot, ChevronDown, Copy, History, ListTree, LoaderCircle, MessageSquarePlus, Monitor, Settings2, SlidersHorizontal, UserRound } from "@toph/icons";
-import { api, openCodeBase, type AIMessage, type Project } from "../api";
+import { Bot, ChevronDown, Copy, ListTree, LoaderCircle, MessageSquarePlus, Monitor, UserRound } from "@toph/icons";
+import { api, ApiError, openCodeBase, type AIMessage, type AIMessageContentPart, type Project } from "../api";
 import { modelDisplay, useAI } from "../ai";
 import { TOPH_PRESETS, useBots, type BotMessage, type MiniBot } from "../bots";
 import { notifyAiResponse } from "../aiNotifications";
 import { playBotResponseSound, unlockBotSound } from "../botSound";
 import BotAvatar from "../components/BotAvatar";
 import BotConfig from "../components/BotConfig";
-import AgentTranscript from "../components/AgentTranscript";
+import AgentTranscript, { AgentImageGallery, agentImagesForMessages } from "../components/AgentTranscript";
 import OpenCodeFormCard, { type OpenCodeForm, type OpenCodeFormAnswer } from "../components/OpenCodeFormCard";
 import TophSessionsSheet from "../components/TophSessionsSheet";
 import type { OpenCodeSessionSummary } from "../opencodeSessions";
@@ -24,6 +24,7 @@ import ComposerMenu from "../ui/ComposerMenu";
 import AiUsageMeter from "../ui/AiUsageMeter";
 import ResizeHandle from "../ui/resize";
 import { useSettings } from "../settings";
+import { extractAgentFilePaths } from "../agentArtifacts";
 
 interface Props {
   project: Project;
@@ -64,6 +65,8 @@ function toolContent(value: unknown): string {
   if (!value) return "";
   if (typeof value === "string") return value;
   if (Array.isArray(value)) {
+    const textOnly = value.every((part) => typeof part === "string" || (part && typeof part === "object" && (part as { type?: unknown }).type === "text"));
+    if (!textOnly) return JSON.stringify(value, null, 2);
     return value.map((part) => {
       if (typeof part === "string") return part;
       if (part && typeof part === "object" && "text" in part) return String((part as { text?: unknown }).text ?? "");
@@ -77,6 +80,11 @@ interface AssistantState {
   id: string;
   text: string;
   error: string;
+}
+
+interface ToolFileSnapshot {
+  path: string;
+  before: Promise<{ exists: boolean; content: string | null }>;
 }
 
 function lastAssistant(context: unknown): AssistantState | null {
@@ -313,6 +321,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
   const [forms, setForms] = useState<Array<{ form: OpenCodeForm; botId: string }>>([]);
   const [formBusy, setFormBusy] = useState<string | null>(null);
   const sessionBotMap = useRef(new Map<string, string>());
+  const toolFileSnapshots = useRef(new Map<string, ToolFileSnapshot[]>());
   const scrollRef = useRef<HTMLDivElement>(null);
   const activityScrollRef = useRef<HTMLDivElement>(null);
   const stickToBottom = useRef(true);
@@ -324,6 +333,61 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
       headers: { "X-Toph-CSRF": csrf },
     });
   }, []);
+
+  function relativeToolPath(value: string): string | null {
+    let path = value.replace(/^file:\/\//i, "").replace(/\\/g, "/");
+    const root = project.root.replace(/\\/g, "/").replace(/\/+$/, "");
+    if (path.startsWith(`${root}/`)) path = path.slice(root.length + 1);
+    else if (/^(?:[a-z]:\/|\/)/i.test(path)) return null;
+    path = path.replace(/^\.\//, "");
+    if (!path || path === ".." || path.startsWith("../")) return null;
+    return path;
+  }
+
+  function readSnapshot(path: string): Promise<{ exists: boolean; content: string | null }> {
+    return api.file(project.id, path)
+      .then((file) => ({ exists: true, content: file.size <= 300_000 ? file.content : null }))
+      .catch((error) => error instanceof ApiError && error.status === 404
+        ? { exists: false, content: "" }
+        : { exists: false, content: null });
+  }
+
+  function startToolFileSnapshot(sessionId: string, toolId: string, toolName: string, inputText: string) {
+    const key = `${sessionId}:${toolId}`;
+    if (toolFileSnapshots.current.has(key)) return;
+    const paths = extractAgentFilePaths(toolName, inputText)
+      .map(relativeToolPath)
+      .filter((path): path is string => Boolean(path))
+      .slice(0, 12);
+    if (paths.length === 0) return;
+    toolFileSnapshots.current.set(key, [...new Set(paths)].map((path) => ({ path, before: readSnapshot(path) })));
+  }
+
+  function finishToolFileSnapshot(sessionId: string, toolId: string, messageId: string, output: unknown) {
+    const key = `${sessionId}:${toolId}`;
+    const snapshots = toolFileSnapshots.current.get(key);
+    toolFileSnapshots.current.delete(key);
+    if (!snapshots?.length) return;
+    void Promise.all(snapshots.map(async (snapshot) => {
+      const [before, after] = await Promise.all([snapshot.before, readSnapshot(snapshot.path)]);
+      if (before.content === null || after.content === null) return null;
+      if (before.exists === after.exists && before.content === after.content) return null;
+      return {
+        path: snapshot.path,
+        before: before.content,
+        after: after.content,
+        beforeExists: before.exists,
+        afterExists: after.exists,
+      };
+    })).then((changes) => {
+      const actual = changes.filter((change): change is NonNullable<typeof change> => Boolean(change));
+      if (actual.length === 0) return;
+      useBots.getState().updateMessage(project.id, messageId, {
+        detail: JSON.stringify({ output, changes: actual }, null, 2),
+        status: "complete",
+      });
+    });
+  }
 
   useEffect(() => {
     ensure(project.id);
@@ -441,6 +505,11 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
   );
   const visibleRunningBots = [...runningBots].filter((botId) => visibleBotIds.has(botId));
   const visibleForms = forms.filter(({ botId }) => visibleBotIds.has(botId));
+  const assistantImages = agentImagesForMessages(
+    displayMessages.filter((message) => message.role === "assistant").map(toAiMessage),
+    project.id,
+    project.root,
+  );
   const draftKey = `${project.id}:${mode}:${activeBot?.id ?? "none"}:${activeBot?.sessionId ?? "new"}`;
   const savedDraft = useTophDrafts((state) => state.drafts[draftKey] ?? "");
   const setDraft = useTophDrafts((state) => state.setDraft);
@@ -628,20 +697,41 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
               state.appendMessage(project.id, id, String(data.delta ?? ""));
               break;
             }
-            case "session.tool.input.ended":
-              state.updateMessage(project.id, messageID("tool", String(data.id ?? "")), { content: String(data.text ?? ""), status: "running" });
-              break;
-            case "session.tool.called": {
-              const id = messageID("tool", String(data.id ?? ""));
-              ensure({ id, role: "tool", botId, title: "Tool", content: toolContent(data.input), detail: "", status: "running", createdAt: Date.now() });
+            case "session.tool.input.ended": {
+              const toolId = String(data.id ?? "");
+              const id = messageID("tool", toolId);
+              const inputText = String(data.text ?? "");
+              state.updateMessage(project.id, id, { content: inputText, status: "running" });
+              const title = state.byProject[project.id]?.messages.find((message) => message.id === id)?.title ?? "";
+              startToolFileSnapshot(sessionId, toolId, title.replace(/^Tool\s*·\s*/i, ""), inputText);
               break;
             }
-            case "session.tool.success":
-              state.updateMessage(project.id, messageID("tool", String(data.id ?? "")), { detail: toolContent(data.content ?? data.metadata), status: "complete" });
+            case "session.tool.called": {
+              const toolId = String(data.id ?? "");
+              const id = messageID("tool", toolId);
+              const existingTitle = state.byProject[project.id]?.messages.find((message) => message.id === id)?.title ?? "";
+              const name = typeof data.name === "string" && data.name
+                ? data.name
+                : existingTitle.replace(/^Tool\s*·\s*/i, "") || "call";
+              const inputText = toolContent(data.input);
+              ensure({ id, role: "tool", botId, title: `Tool · ${name}`, content: inputText, detail: "", status: "running", createdAt: Date.now() });
+              state.updateMessage(project.id, id, { title: `Tool · ${name}`, content: inputText, status: "running" });
+              startToolFileSnapshot(sessionId, toolId, name, inputText);
               break;
-            case "session.tool.failed":
+            }
+            case "session.tool.success": {
+              const toolId = String(data.id ?? "");
+              const id = messageID("tool", toolId);
+              const output = data.content ?? data.metadata;
+              state.updateMessage(project.id, id, { detail: toolContent(output), status: "complete" });
+              finishToolFileSnapshot(sessionId, toolId, id, output);
+              break;
+            }
+            case "session.tool.failed": {
+              toolFileSnapshots.current.delete(`${sessionId}:${String(data.id ?? "")}`);
               state.updateMessage(project.id, messageID("tool", String(data.id ?? "")), { detail: toolContent(data.error ?? data.content), status: "error" });
               break;
+            }
             case "form.replied":
             case "form.cancelled": {
               const formId = String(data.id ?? "");
@@ -682,7 +772,10 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
         // The final response fallback still works if the event stream is unavailable.
       }
     })();
-    return () => controller.abort();
+    return () => {
+      controller.abort();
+      toolFileSnapshots.current.clear();
+    };
   }, [client, project.id, connectionEpoch]);
 
   function newBot() {
@@ -812,7 +905,22 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
     throw new Error("O bot não respondeu a tempo.");
   }
 
-  async function directReply(bot: MiniBot, botsInTeam: MiniBot[], history: BotMessage[], userText: string): Promise<string> {
+  async function directReply(bot: MiniBot, botsInTeam: MiniBot[], history: BotMessage[], userText: string, attachments: AgentAttachment[] = []): Promise<string> {
+    let currentContent: AIMessage["content"] = userText;
+    if (["openai", "codex", "custom"].includes(aiConfig?.provider ?? "") && attachments.length > 0) {
+      const parts: AIMessageContentPart[] = [{ type: "text", text: userText || "Analise os anexos enviados." }];
+      for (const attachment of attachments) {
+        if (attachment.mime.startsWith("image/")) {
+          parts.push({ type: "image_url", image_url: { url: attachment.uri } });
+          continue;
+        }
+        if (attachment.mime === "audio/wav" || attachment.mime === "audio/mpeg" || attachment.mime === "audio/mp3") {
+          const data = attachment.uri.split(",", 2)[1] ?? "";
+          if (data) parts.push({ type: "input_audio", input_audio: { data, format: attachment.mime === "audio/wav" ? "wav" : "mp3" } });
+        }
+      }
+      currentContent = parts;
+    }
     const messages: AIMessage[] = [
       { role: "system", content: botPrompt(bot, botsInTeam, [], "", project.name, mode) },
       ...history
@@ -822,7 +930,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
           role: message.role === "user" ? "user" as const : "assistant" as const,
           content: `${message.role === "user" ? "Usuário" : botsInTeam.find((item) => item.id === message.botId)?.name ?? "Bot"}: ${message.content}`,
         })),
-      { role: "user", content: userText },
+      { role: "user", content: currentContent },
     ];
     const result = await api.aiChat(messages, {
       model: bot.model || aiConfig?.model || models[0]?.id,
@@ -905,7 +1013,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
         status: "running",
         createdAt: Date.now(),
       });
-      const reply = await directReply(bot, bots, history, userText);
+      const reply = await directReply(bot, bots, history, userText, options.attachments);
       if (options.token !== undefined && options.token !== runToken.current) {
         removeMessage(project.id, pendingId);
         return null;
@@ -1185,21 +1293,8 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
     if (next === "solo") createSolo(project.id);
   }
 
-  const conversationTitle = mode === "solo"
-    ? "Conversa individual"
-    : activeWorker
-      ? activeWorker.name
-      : "Conversa da equipe";
-  const conversationSubtitle = activeBot
-    ? mode === "team" && !activeWorker
-      ? `${bots.length} ${bots.length === 1 ? "Toph colaborando" : "Tophs colaborando"}`
-      : activeBot.role || "Assistente"
-    : mode === "team"
-      ? "Adicione o primeiro Toph à equipe"
-      : "Preparando seu Toph";
-
   return (
-    <div className="flex h-full min-h-0 w-full flex-1 gap-1 overflow-hidden" onPointerDown={unlockBotSound}>
+    <div className="flex h-full min-h-0 w-full flex-1 gap-0 overflow-hidden" onPointerDown={unlockBotSound}>
       <section className="flex min-w-0 flex-1 flex-col overflow-hidden bg-background-full max-[900px]:rounded-none max-[900px]:border-0 max-[900px]:shadow-none min-[901px]:rounded-3xl min-[901px]:border min-[901px]:border-border-button-white min-[901px]:shadow-sidebar">
         {mobile ? (
           <div className="grid shrink-0 grid-cols-2 gap-1 border-b border-separator-border bg-background-secondary-default p-1.5">
@@ -1207,22 +1302,6 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
             <Button variant={mode === "team" ? "secondary" : "ghost"} size="small" leadingIcon={Bot} onClick={() => selectConversation("team")}>Equipe</Button>
           </div>
         ) : null}
-        {!mobile ? (
-          <header className="flex h-12 shrink-0 items-center gap-2 border-b border-separator-border bg-background-secondary-default px-3">
-            {activeBot ? <BotAvatar bot={activeBot} size={30} /> : <span className="flex size-8 items-center justify-center rounded-full bg-background-tertiary-default text-text-tertiary"><Bot size={15} /></span>}
-            <div className="flex min-w-0 flex-1 flex-col">
-              <strong className="truncate text-caption-1-semibold text-text-primary">{conversationTitle}</strong>
-              <span className="truncate text-caption-2-regular text-text-tertiary">{conversationSubtitle}</span>
-            </div>
-            <div className="flex shrink-0 items-center gap-0.5">
-              {activeBot ? <Button variant="ghost" size="small" iconOnly leadingIcon={Settings2} aria-label="Configurar Toph" title="Configurar Toph" onClick={() => setConfigOpen(true)} className="size-8" /> : null}
-              <Button variant="ghost" size="small" iconOnly leadingIcon={SlidersHorizontal} aria-label="Configurar recursos do workspace" title="Configurar recursos do workspace" onClick={() => window.dispatchEvent(new CustomEvent("toph:layout-settings"))} className="size-8" />
-              {mode === "team" ? <Button variant="ghost" size="small" iconOnly leadingIcon={MessageSquarePlus} aria-label="Adicionar Toph à equipe" title="Adicionar Toph à equipe" onClick={newBot} className="size-8" /> : null}
-              {activeBot ? <Button variant="ghost" size="small" iconOnly leadingIcon={History} aria-label="Sessões" title="Sessões" onClick={() => setSessionsOpen(true)} className="size-8" /> : null}
-            </div>
-          </header>
-        ) : null}
-
         <div
           ref={scrollRef}
           className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-x-none"
@@ -1284,7 +1363,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
                   </div>
                 );
               }
-              if (group.kind === "system") return <AgentTranscript key={`system-${index}`} messages={group.messages.map(toAiMessage)} streaming={false} />;
+              if (group.kind === "system") return <AgentTranscript key={`system-${index}`} messages={group.messages.map(toAiMessage)} streaming={false} projectId={project.id} projectRoot={project.root} />;
               const bot = bots.find((item) => item.id === group.botId);
               if (!bot) return null;
               const footerAssistant = [...group.messages].reverse().find((message) => message.role === "assistant" && !message.pending);
@@ -1305,6 +1384,8 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
                     messages={group.messages.map(toAiMessage)}
                     streaming={isLatestBotGroup && runningBots.has(bot.id)}
                     onPermission={(messageId, permissionId, decision) => void replyPermission(bot, messageId, permissionId, decision)}
+                    projectId={project.id}
+                    projectRoot={project.root}
                   />
                   {mode === "solo" && !footerBusy && footerAssistant ? (
                     <MessageInfo
@@ -1327,7 +1408,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
                 return (
                   <section key={`pending-${botId}`} className="flex flex-col gap-2">
                     <header className="flex items-center gap-2"><BotAvatar bot={bot} size={28} /><strong className="truncate text-caption-1-semibold text-text-primary">{bot.name}</strong></header>
-                    <AgentTranscript messages={[]} streaming />
+                    <AgentTranscript messages={[]} streaming projectId={project.id} projectRoot={project.root} />
                   </section>
                 );
               }) : null}
@@ -1407,8 +1488,8 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
               </div>
               {visibleRunningBots.length > 0 ? (
                 <span className="flex items-center gap-1.5 rounded-full bg-accent-500/10 px-2 py-1 text-[10px] font-medium text-accent-600"><LoaderCircle className="size-3 animate-spin" /> Ao vivo</span>
-              ) : activityMessages.length > 0 ? (
-                <span className="rounded-full bg-background-tertiary-default px-2 py-1 text-[10px] text-text-tertiary">{activityMessages.length}</span>
+              ) : activityMessages.length + assistantImages.length > 0 ? (
+                <span className="rounded-full bg-background-tertiary-default px-2 py-1 text-[10px] text-text-tertiary">{activityMessages.length + assistantImages.length}</span>
               ) : null}
             </header>
             <div
@@ -1425,7 +1506,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
                   <strong className="text-caption-1-semibold text-text-primary">Nenhuma atividade ainda</strong>
                   <p className="max-w-xs text-caption-2-regular leading-relaxed text-text-tertiary">Quando um Toph começar a trabalhar, cada ação aparecerá aqui.</p>
                 </div>
-              ) : activityGroups.length === 0 && visibleRunningBots.length === 0 && visibleForms.length === 0 ? (
+              ) : activityGroups.length === 0 && visibleRunningBots.length === 0 && visibleForms.length === 0 && assistantImages.length === 0 ? (
                 <div className="flex h-full min-h-[220px] flex-col items-center justify-center gap-3 px-5 text-center">
                   <ListTree className="size-6 text-text-tertiary" />
                   <strong className="text-caption-1-semibold text-text-primary">Pronto para acompanhar</strong>
@@ -1433,13 +1514,14 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
                 </div>
               ) : (
                 <div className="flex min-w-0 flex-col gap-3">
+                  <AgentImageGallery images={assistantImages} title="Imagens da resposta" />
                   {activityGroups.map((group, index) => {
                     if (group.kind !== "bot") return null;
                     const bot = bots.find((item) => item.id === group.botId);
                     if (!bot) return null;
                     const latest = lastActivityGroupIndex.get(bot.id) === index;
                     return (
-                      <section key={`activity-${bot.id}-${index}`} className="min-w-0 rounded-2xl border border-border-button-default bg-background-secondary-default/35 p-2.5">
+                      <section key={`activity-${bot.id}-${index}`} className="min-w-0 border-b border-separator-border pb-3 last:border-b-0">
                         <header className="mb-1.5 flex items-center gap-2">
                           <BotAvatar bot={bot} size={26} />
                           <div className="flex min-w-0 flex-1 flex-col">
@@ -1454,6 +1536,8 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
                           toolsExpanded
                           className="flex min-w-0 flex-col gap-1"
                           onPermission={(messageId, permissionId, decision) => void replyPermission(bot, messageId, permissionId, decision)}
+                          projectId={project.id}
+                          projectRoot={project.root}
                         />
                       </section>
                     );
@@ -1465,9 +1549,9 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
                       const bot = bots.find((item) => item.id === botId);
                       if (!bot) return null;
                       return (
-                        <section key={`activity-pending-${bot.id}`} className="rounded-2xl border border-accent-500/25 bg-accent-500/5 p-3">
+                        <section key={`activity-pending-${bot.id}`} className="border-b border-separator-border pb-3 last:border-b-0">
                           <header className="mb-2 flex items-center gap-2"><BotAvatar bot={bot} size={26} /><strong className="truncate text-caption-1-semibold text-text-primary">{bot.name}</strong></header>
-                          <AgentTranscript messages={[]} streaming className="flex flex-col gap-1" />
+                          <AgentTranscript messages={[]} streaming className="flex flex-col gap-1" projectId={project.id} projectRoot={project.root} />
                         </section>
                       );
                     })}
@@ -1476,7 +1560,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
                     const bot = bots.find((item) => item.id === botId);
                     if (!bot) return null;
                     return (
-                      <section key={`activity-form-${form.id}`} className="flex flex-col gap-2 rounded-2xl border border-accent-500/25 bg-background-secondary-default/40 p-2.5">
+                      <section key={`activity-form-${form.id}`} className="flex flex-col gap-2 border-b border-separator-border pb-3 last:border-b-0">
                         <header className="flex items-center gap-2"><BotAvatar bot={bot} size={26} /><strong className="truncate text-caption-1-semibold text-text-primary">{bot.name}</strong></header>
                         <OpenCodeFormCard form={form} busy={formBusy === form.id} onSubmit={(answer) => void answerForm(form, bot, answer)} onCancel={() => void cancelForm(form, bot)} />
                       </section>

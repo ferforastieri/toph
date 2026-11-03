@@ -64,6 +64,12 @@ if (!manifest.includes("android.permission.POST_NOTIFICATIONS")) {
     '    <uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />',
   );
 }
+if (!manifest.includes("android.permission.RECORD_AUDIO")) {
+  manifest = manifest.replace(
+    '    <uses-permission android:name="android.permission.INTERNET" />',
+    '    <uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.RECORD_AUDIO" />',
+  );
+}
 if (!manifest.includes('android:windowSoftInputMode="adjustResize"')) {
   manifest = manifest.replace(
     'android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode"',
