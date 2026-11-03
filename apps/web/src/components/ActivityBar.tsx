@@ -18,8 +18,6 @@ const items: Array<{ id: Sidebar; feature: WorkspaceFeature; label: string; icon
 
 interface Props {
   projectControl?: ReactNode;
-  branchControl?: ReactNode;
-  notificationControl?: ReactNode;
   settingsControl?: ReactNode;
   onQuickOpen: () => void;
 }
@@ -45,7 +43,7 @@ function ThemeToggle() {
   );
 }
 
-export default function ActivityBar({ projectControl, branchControl, notificationControl, settingsControl, onQuickOpen }: Props) {
+export default function ActivityBar({ projectControl, settingsControl, onQuickOpen }: Props) {
   const sidebar = useApp((state) => state.sidebar);
   const setSidebar = useApp((state) => state.setSidebar);
   const toggleTerminal = useApp((state) => state.toggleTerminal);
@@ -75,7 +73,6 @@ export default function ActivityBar({ projectControl, branchControl, notificatio
             </TooltipTrigger>
           );
         })}
-        {branchControl}
         {featureEnabled(workspaceFeatures, "files") ? (
           <TooltipTrigger delay={400}>
             <Button variant="ghost" size="medium" iconOnly leadingIcon={Search} className="size-9" aria-label="Busca rápida" onClick={onQuickOpen} />
@@ -99,7 +96,6 @@ export default function ActivityBar({ projectControl, branchControl, notificatio
         ) : null}
       </div>
       <div className="mt-auto flex flex-col items-center gap-2">
-        {notificationControl}
         <ThemeToggle />
         <Divider className="w-6" />
         {settingsControl}
