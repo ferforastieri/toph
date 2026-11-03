@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { botThread, useBots, type BotMessage, type BotWorkspace, type MiniBot } from "./bots";
+import { BOT_AVATARS, TOPH_PRESETS, botThread, useBots, type BotMessage, type BotWorkspace, type MiniBot } from "./bots";
 
 function bot(id: string, overrides: Partial<MiniBot> = {}): MiniBot {
   return {
@@ -12,7 +12,7 @@ function bot(id: string, overrides: Partial<MiniBot> = {}): MiniBot {
     model: "",
     language: "auto",
     color: "#FFB547",
-    avatar: "mark-smile",
+    avatar: "toph-core",
     notifications: true,
     coordinator: false,
     createdAt: 1,
@@ -77,7 +77,7 @@ describe("Toph workspace sessions", () => {
       ...workspace([]),
       bots: [bot("bot-1", { avatar: "logo-smile" as MiniBot["avatar"] })],
     });
-    expect(useBots.getState().byProject.p.bots[0].avatar).toBe("mark-smile");
+    expect(useBots.getState().byProject.p.bots[0].avatar).toBe("toph-core");
   });
 
   it("keeps individual and team conversations available at the same time", () => {
@@ -93,5 +93,11 @@ describe("Toph workspace sessions", () => {
     state = useBots.getState().byProject.p;
     expect(botThread(state, "solo").bots.map((item) => item.name)).toEqual(["Toph"]);
     expect(botThread(state, "team").bots.map((item) => item.name)).toEqual(["Atlas"]);
+  });
+
+  it("ships twenty unique generated Toph identities", () => {
+    expect(BOT_AVATARS).toHaveLength(20);
+    expect(new Set(BOT_AVATARS).size).toBe(20);
+    expect(TOPH_PRESETS.every((preset) => BOT_AVATARS.includes(preset.avatar))).toBe(true);
   });
 });

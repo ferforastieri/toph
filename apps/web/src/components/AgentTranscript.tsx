@@ -8,6 +8,7 @@ import type { AiMessage } from "../store";
 import { extractAgentDiffs, extractAgentImages, parsedToolRecord, type AgentDiffArtifact, type AgentImageArtifact } from "../agentArtifacts";
 import { Button } from "@/boardui/base/buttons/button";
 import { Chip } from "@/boardui/base/badges/chip";
+import AgentQuestionCard, { parseAgentQuestions } from "./AgentQuestionCard";
 
 interface Props {
   messages: AiMessage[];
@@ -17,6 +18,7 @@ interface Props {
   toolsExpanded?: boolean;
   projectId?: string;
   projectRoot?: string;
+  onQuestion?: (messageId: string, answer: string) => void;
 }
 
 const markdownComponents: Components = {
@@ -72,6 +74,7 @@ interface MessageProps {
   toolsExpanded?: boolean;
   projectId?: string;
   projectRoot?: string;
+  onQuestion?: (messageId: string, answer: string) => void;
 }
 
 export interface ResolvedAgentImage extends AgentImageArtifact {
@@ -256,8 +259,9 @@ function ToolOutput({ message, images }: { message: AiMessage; images: ResolvedA
   );
 }
 
-function ToolRow({ message, onPermission, defaultOpen = false, projectId, projectRoot }: { message: AiMessage; onPermission?: MessageProps["onPermission"]; defaultOpen?: boolean; projectId?: string; projectRoot?: string }) {
+function ToolRow({ message, onPermission, onQuestion, defaultOpen = false, projectId, projectRoot }: { message: AiMessage; onPermission?: MessageProps["onPermission"]; onQuestion?: MessageProps["onQuestion"]; defaultOpen?: boolean; projectId?: string; projectRoot?: string }) {
   const [open, setOpen] = useState(defaultOpen);
+  const questions = toolKind(message) === "question" ? parseAgentQuestions(message.text) : [];
   const images = agentImagesForMessages([message], projectId, projectRoot);
   const hasImage = images.length > 0;
   const label = toolLabel(message);
@@ -267,6 +271,12 @@ function ToolRow({ message, onPermission, defaultOpen = false, projectId, projec
   useEffect(() => {
     if (hasImage || defaultOpen) setOpen(true);
   }, [hasImage, defaultOpen]);
+  if (questions.length > 0) {
+    if (message.status === "complete" && message.detail && message.detail !== "{}") {
+      return <div className="border-y border-separator-border bg-background-secondary-default/35 px-2 py-2 text-caption-1-regular whitespace-pre-wrap text-text-secondary">{message.detail}</div>;
+    }
+    return <AgentQuestionCard questions={questions} onSubmit={onQuestion ? (answer) => onQuestion(message.id, answer) : undefined} />;
+  }
   return (
     <div className="py-0.5">
       <button
@@ -310,7 +320,7 @@ function ThoughtRow({ message, duration }: { message: AiMessage; duration?: stri
   );
 }
 
-function ToolGroup({ messages, onPermission, defaultOpen = false, projectId, projectRoot }: { messages: AiMessage[]; onPermission?: MessageProps["onPermission"]; defaultOpen?: boolean; projectId?: string; projectRoot?: string }) {
+function ToolGroup({ messages, onPermission, onQuestion, defaultOpen = false, projectId, projectRoot }: { messages: AiMessage[]; onPermission?: MessageProps["onPermission"]; onQuestion?: MessageProps["onQuestion"]; defaultOpen?: boolean; projectId?: string; projectRoot?: string }) {
   const [open, setOpen] = useState(defaultOpen);
   const tools = messages.filter((message) => message.role === "tool");
   const thoughts = messages.filter((message) => message.role === "reasoning");
@@ -333,7 +343,7 @@ function ToolGroup({ messages, onPermission, defaultOpen = false, projectId, pro
           const seconds = next ? Math.max(0, Math.round((next.createdAt - message.createdAt) / 1000)) : 0;
           return <ThoughtRow key={message.id} message={message} duration={seconds > 0 ? `${seconds}s` : undefined} />;
         }
-        return <ToolRow key={message.id} message={message} onPermission={onPermission} defaultOpen={defaultOpen} projectId={projectId} projectRoot={projectRoot} />;
+        return <ToolRow key={message.id} message={message} onPermission={onPermission} onQuestion={onQuestion} defaultOpen={defaultOpen} projectId={projectId} projectRoot={projectRoot} />;
       })}
     </div>
   );
@@ -357,7 +367,7 @@ function ToolGroup({ messages, onPermission, defaultOpen = false, projectId, pro
   );
 }
 
-const TranscriptMessage = memo(function TranscriptMessage({ message, showCaret, onPermission, toolsExpanded, projectId, projectRoot }: MessageProps) {
+const TranscriptMessage = memo(function TranscriptMessage({ message, showCaret, onPermission, onQuestion, toolsExpanded, projectId, projectRoot }: MessageProps) {
   if (message.role === "error") {
     return <Chip color="rose" variant="subtle" className="justify-start gap-1.5 whitespace-normal px-2 py-1.5"><CircleAlert size={13} /> {message.text}</Chip>;
   }
@@ -378,7 +388,7 @@ const TranscriptMessage = memo(function TranscriptMessage({ message, showCaret, 
     return <p className="text-[12px] text-text-tertiary">{message.text}</p>;
   }
   if (message.role === "tool") {
-    return <ToolRow message={message} onPermission={onPermission} defaultOpen={toolsExpanded} projectId={projectId} projectRoot={projectRoot} />;
+    return <ToolRow message={message} onPermission={onPermission} onQuestion={onQuestion} defaultOpen={toolsExpanded} projectId={projectId} projectRoot={projectRoot} />;
   }
   return (
     <div className="min-w-0">
@@ -400,7 +410,7 @@ const TranscriptMessage = memo(function TranscriptMessage({ message, showCaret, 
   && prev.projectId === next.projectId
   && prev.projectRoot === next.projectRoot);
 
-export default function AgentTranscript({ messages, streaming, onPermission, className, toolsExpanded = false, projectId, projectRoot }: Props) {
+export default function AgentTranscript({ messages, streaming, onPermission, onQuestion, className, toolsExpanded = false, projectId, projectRoot }: Props) {
   const nodes: Array<{ kind: "message"; message: AiMessage } | { kind: "group"; messages: AiMessage[] }> = [];
   let group: AiMessage[] = [];
   const flush = () => {
@@ -421,13 +431,14 @@ export default function AgentTranscript({ messages, streaming, onPermission, cla
   return (
     <div className={className ?? "flex flex-col gap-4 px-1 py-1"}>
       {nodes.map((node, index) => node.kind === "group" ? (
-        <ToolGroup key={`group-${index}-${node.messages[0]?.id ?? ""}`} messages={node.messages} onPermission={onPermission} defaultOpen={toolsExpanded} projectId={projectId} projectRoot={projectRoot} />
+        <ToolGroup key={`group-${index}-${node.messages[0]?.id ?? ""}`} messages={node.messages} onPermission={onPermission} onQuestion={onQuestion} defaultOpen={toolsExpanded} projectId={projectId} projectRoot={projectRoot} />
       ) : (
         <TranscriptMessage
           key={node.message.id}
           message={node.message}
           showCaret={streaming && node.message.id === lastMessage?.id && node.message.status === "running"}
           onPermission={onPermission}
+          onQuestion={onQuestion}
           toolsExpanded={toolsExpanded}
           projectId={projectId}
           projectRoot={projectRoot}

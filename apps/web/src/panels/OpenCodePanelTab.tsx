@@ -95,9 +95,9 @@ function restoreMessages(context: unknown): AiMessage[] {
         id: `tool-${part.id ?? part.name}`,
         role: "tool",
         title: `Tool · ${String(part.name ?? "call")}`,
-        text: toolContent(part.input),
-        detail: toolContent(part.content ?? part.output),
-        status: part.state === "error" ? "error" : "complete",
+        text: toolContent(part.state?.input ?? part.input),
+        detail: toolContent(part.state?.content ?? part.content ?? part.output ?? part.state?.error),
+        status: part.state?.status === "error" || part.state === "error" ? "error" : part.state?.status === "running" ? "running" : "complete",
         createdAt: Number(message.time?.created ?? Date.now()),
       });
     }
@@ -753,10 +753,10 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
     }
   }
 
-  async function send(text: string, attachments: AgentAttachment[]) {
-    if ((!text && attachments.length === 0) || streaming || sendInFlight.current) return;
+  async function send(text: string, attachments: AgentAttachment[], force = false) {
+    if ((!text && attachments.length === 0) || (!force && (streaming || sendInFlight.current))) return;
     sendInFlight.current = true;
-    if (tab.sessionId) {
+    if (tab.sessionId && !force) {
       const active = await client.session.active().catch(() => null);
       if (active?.[tab.sessionId]?.type === "running") {
         setStreaming(tab.id, true);
@@ -802,6 +802,15 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
     } finally {
       sendInFlight.current = false;
     }
+  }
+
+  async function answerToolQuestion(messageId: string, answer: string) {
+    if (!tab.sessionId) return;
+    await client.session.interrupt({ sessionID: tab.sessionId } as never).catch(() => undefined);
+    updateMessage(tab.id, messageId, { detail: answer, status: "complete" });
+    setStreaming(tab.id, false);
+    sendInFlight.current = false;
+    await send(answer, [], true);
   }
 
   async function replyPermission(messageId: string, requestId: string, decision: "once" | "always" | "reject") {
@@ -917,6 +926,7 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
             projectId={project.id}
             projectRoot={project.root}
             onPermission={(messageId, permissionId, decision) => void replyPermission(messageId, permissionId, decision)}
+            onQuestion={(messageId, answer) => void answerToolQuestion(messageId, answer)}
           />
           {forms.map((form) => (
             <OpenCodeFormCard

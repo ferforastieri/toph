@@ -101,9 +101,15 @@ export function AgentComposer({ value, onChange, onSend, onStop, busy, models, m
           }}
         >
           {attachments.length > 0 && (
-            <div className="flex flex-wrap gap-1.5">
-              {attachments.map((file) => (
-                <span key={`${file.name}-${file.size}`} className="flex items-center gap-1.5 rounded-lg bg-background-secondary-default px-2 py-1">
+            <div className="flex flex-wrap items-start gap-2">
+              {attachments.map((file, index) => file.mime.startsWith("image/") ? (
+                <figure key={`${file.name}-${file.size}-${index}`} className="group relative w-24 overflow-hidden rounded-xl border border-border-button-default bg-background-secondary-default">
+                  <img src={file.uri} alt={file.name} className="h-20 w-full object-cover" />
+                  <figcaption className="truncate px-2 py-1 text-[10px] text-text-secondary">{file.name}</figcaption>
+                  <IconButton icon={X} size="xs" aria-label={`Remover ${file.name}`} className="absolute right-1 top-1 size-5 border-border-button-default bg-background-primary-default/90 p-0 shadow-xs [&_svg]:size-3" onClick={() => setAttachments((items) => items.filter((item) => item !== file))} />
+                </figure>
+              ) : (
+                <span key={`${file.name}-${file.size}-${index}`} className="flex items-center gap-1.5 rounded-lg bg-background-secondary-default px-2 py-1">
                   {file.mime.startsWith("audio/") ? <Mic size={13} className="text-foreground-icon-secondary" /> : <FilePlus2 size={13} className="text-foreground-icon-secondary" />}
                   <span className="max-w-40 truncate text-caption-1-regular text-text-primary">{file.name}</span>
                   <span className="text-caption-2-regular text-text-tertiary">{Math.ceil(file.size / 1024)} KB</span>

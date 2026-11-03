@@ -2,10 +2,13 @@ import { useMemo, useState } from "react";
 import { Bell, Bot } from "@toph/icons";
 import { useApp, type AppNotification } from "../store";
 import HeaderAccordion from "./HeaderAccordion";
+import ActivityPopover from "./ActivityPopover";
+import { Button } from "@/boardui/base/buttons/button";
 
 interface Props {
   onOpen: (notification: AppNotification) => void;
   align?: "left" | "right";
+  variant?: "header" | "activity";
 }
 
 function timeAgo(timestamp: number): string {
@@ -21,7 +24,7 @@ function timeAgo(timestamp: number): string {
   return new Date(value).toLocaleDateString("pt-BR");
 }
 
-export default function NotificationBell({ onOpen, align = "left" }: Props) {
+export default function NotificationBell({ onOpen, align = "left", variant = "header" }: Props) {
   const notifications = useApp((state) => state.notifications);
   const projects = useApp((state) => state.projects);
   const markAllNotificationsRead = useApp((state) => state.markAllNotificationsRead);
@@ -32,15 +35,77 @@ export default function NotificationBell({ onOpen, align = "left" }: Props) {
   );
   const projectName = (projectId?: string) => projects.find((project) => project.id === projectId)?.name ?? "";
   const unread = items.filter((notification) => !notification.read).length;
+  const setOpenState = (next: boolean) => {
+    if (next) markAllNotificationsRead();
+    setOpen(next);
+  };
+  const content = (
+    <>
+      <div className="flex items-center gap-2.5 border-b border-separator-border p-3">
+        <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-accent-500/15 text-accent-500">
+          <Bell size={16} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <strong className="text-body-2-medium text-text-primary">Notificações</strong>
+          <p className="truncate text-caption-2-regular text-text-tertiary">Todas as notificações da sua conta</p>
+        </div>
+        <span className="shrink-0 rounded-full bg-background-secondary-default px-2 py-0.5 text-caption-2-regular text-text-tertiary">{items.length}</span>
+      </div>
+      <div className="flex max-h-80 flex-col gap-1 overflow-y-auto p-2">
+        {items.length === 0 ? (
+          <div className="flex flex-col items-center gap-2 px-3 py-8 text-center">
+            <span className="flex size-10 items-center justify-center rounded-full bg-background-secondary-default text-text-tertiary"><Bell size={18} /></span>
+            <p className="text-caption-1-regular text-text-secondary">Nenhuma notificação.</p>
+          </div>
+        ) : items.map((notification) => (
+          <button
+            key={notification.id}
+            type="button"
+            onClick={() => { setOpen(false); onOpen(notification); }}
+            className="flex w-full items-start gap-3.5 rounded-xl border border-transparent p-2.5 text-start transition-colors hover:border-accent-500/20 hover:bg-accent-500/[0.06]"
+          >
+            <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-accent-500/10 text-accent-500"><Bot size={15} /></span>
+            <span className="flex min-w-0 flex-1 flex-col gap-1 ps-0.5">
+              <span className="flex min-w-0 items-baseline justify-between gap-2">
+                <span className="flex min-w-0 items-center gap-1.5">
+                  {!notification.read && <span className="size-1.5 shrink-0 rounded-full bg-accent-500" />}
+                  <strong className="truncate text-caption-1-semibold text-text-primary">{notification.title}</strong>
+                </span>
+                <span className="shrink-0 text-caption-2-regular text-text-tertiary">{timeAgo(notification.createdAt)}</span>
+              </span>
+              {notification.botRole && <span className="text-caption-2-regular text-accent-500">{notification.botRole}</span>}
+              <span className="line-clamp-2 text-caption-1-regular leading-relaxed text-text-secondary">{notification.body}</span>
+              {projectName(notification.projectId) ? <span className="truncate text-caption-2-regular text-text-tertiary">{projectName(notification.projectId)}</span> : null}
+            </span>
+          </button>
+        ))}
+      </div>
+    </>
+  );
+
+  if (variant === "activity") {
+    return (
+      <ActivityPopover
+        open={open}
+        onOpenChange={setOpenState}
+        panelClassName="w-[min(340px,calc(100vw-64px))]"
+        trigger={
+          <span className="relative flex">
+            <Button variant={open ? "secondary" : "ghost"} size="medium" iconOnly leadingIcon={Bell} className="size-9" aria-label="Notificações" onClick={() => setOpenState(!open)} />
+            {unread > 0 ? <span className="pointer-events-none absolute -right-0.5 -top-0.5 flex min-w-3.5 items-center justify-center rounded-full bg-accent-500 px-1 text-[8px] font-semibold text-text-on-accent">{unread > 9 ? "9+" : unread}</span> : null}
+          </span>
+        }
+      >
+        {content}
+      </ActivityPopover>
+    );
+  }
 
   return (
     <HeaderAccordion
       id="notifications"
       isOpen={open}
-      onOpenChange={(next) => {
-        if (next) markAllNotificationsRead();
-        setOpen(next);
-      }}
+      onOpenChange={setOpenState}
       title={
         <span className="header-accordion-label flex items-center gap-1 text-caption-1-medium leading-none">
           <Bell size={14} className={unread > 0 ? "text-accent-500" : undefined} />
@@ -51,49 +116,7 @@ export default function NotificationBell({ onOpen, align = "left" }: Props) {
       panelClassName={`${align === "right" ? "right-0" : "left-0"} w-[340px]`}
       contentClassName="p-0"
     >
-        <div className="flex items-center gap-2.5 border-b border-separator-border p-3">
-          <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-accent-500/15 text-accent-500">
-            <Bell size={16} />
-          </span>
-          <div className="min-w-0 flex-1">
-            <strong className="text-body-2-medium text-text-primary">Notificações</strong>
-            <p className="truncate text-caption-2-regular text-text-tertiary">Todas as notificações da sua conta</p>
-          </div>
-          <span className="shrink-0 rounded-full bg-background-secondary-default px-2 py-0.5 text-caption-2-regular text-text-tertiary">{items.length}</span>
-        </div>
-        <div className="flex max-h-80 flex-col gap-1 overflow-y-auto p-2">
-          {items.length === 0 ? (
-            <div className="flex flex-col items-center gap-2 px-3 py-8 text-center">
-              <span className="flex size-10 items-center justify-center rounded-full bg-background-secondary-default text-text-tertiary">
-                <Bell size={18} />
-              </span>
-              <p className="text-caption-1-regular text-text-secondary">Nenhuma notificação.</p>
-            </div>
-          ) : items.map((notification) => (
-            <button
-              key={notification.id}
-              type="button"
-              onClick={() => { setOpen(false); onOpen(notification); }}
-              className="flex w-full items-start gap-3.5 rounded-xl border border-transparent p-2.5 text-start transition-colors hover:border-accent-500/20 hover:bg-accent-500/[0.06]"
-            >
-              <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-accent-500/10 text-accent-500">
-                <Bot size={15} />
-              </span>
-              <span className="flex min-w-0 flex-1 flex-col gap-1 ps-0.5">
-                <span className="flex min-w-0 items-baseline justify-between gap-2">
-                  <span className="flex min-w-0 items-center gap-1.5">
-                    {!notification.read && <span className="size-1.5 shrink-0 rounded-full bg-accent-500" />}
-                    <strong className="truncate text-caption-1-semibold text-text-primary">{notification.title}</strong>
-                  </span>
-                  <span className="shrink-0 text-caption-2-regular text-text-tertiary">{timeAgo(notification.createdAt)}</span>
-                </span>
-                {notification.botRole && <span className="text-caption-2-regular text-accent-500">{notification.botRole}</span>}
-                <span className="line-clamp-2 text-caption-1-regular leading-relaxed text-text-secondary">{notification.body}</span>
-                {projectName(notification.projectId) ? <span className="truncate text-caption-2-regular text-text-tertiary">{projectName(notification.projectId)}</span> : null}
-              </span>
-            </button>
-          ))}
-        </div>
+      {content}
     </HeaderAccordion>
   );
 }
