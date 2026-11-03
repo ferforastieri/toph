@@ -26,6 +26,7 @@ import FileIcon from "../ui/FileIcon";
 import GitStatusIcon from "../ui/GitStatusIcon";
 import { useConfirm } from "../ui/confirm";
 import { useProjectEvents } from "../projectEvents";
+import SidebarHeader from "../components/SidebarHeader";
 
 
 function changeName(path: string): string {
@@ -263,9 +264,7 @@ export default function SourceControlPanel({
   return (
     <div className="flex min-h-0 flex-col">
       {!embedded && (
-        <div className="flex h-9 shrink-0 items-center gap-2 border-b px-2 text-body-2-medium text-text-secondary">
-          {headerControl}<span>Source Control</span>
-        </div>
+        <SidebarHeader control={headerControl} icon={<GitBranch size={15} className="text-accent-500" />} title="Source Control" />
       )}
       {showBranch && (
         <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-b px-2 py-1.5">

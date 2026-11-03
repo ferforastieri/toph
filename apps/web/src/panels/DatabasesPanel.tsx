@@ -11,6 +11,7 @@ import { Select, SelectItem } from "@/boardui/base/select/select";
 import { Chip } from "@/boardui/base/badges/chip";
 import { useProjectEvents } from "../projectEvents";
 import LoadingState from "../components/LoadingState";
+import SidebarHeader from "../components/SidebarHeader";
 
 interface Props {
   project: Project;
@@ -63,10 +64,7 @@ export default function DatabasesPanel({ project, onOpenQuery, onOpenTable, embe
           <Button variant="secondary" size="small" leadingIcon={Plus} className="w-full justify-start" onClick={() => setShowForm((value) => !value)}>Nova conexão</Button>
         </div>
       ) : (
-        <div className="flex shrink-0 flex-col items-stretch gap-2 border-b px-2 py-2 min-[901px]:h-9 min-[901px]:flex-row min-[901px]:items-center min-[901px]:justify-between min-[901px]:gap-0 min-[901px]:py-0">
-          <span className="flex items-center gap-2 text-caption-1-medium text-text-secondary">{headerControl}<span>Databases</span></span>
-          <Button variant="ghost" size="xs" iconOnly leadingIcon={Plus} aria-label="Nova conexão" className="max-[900px]:h-8 max-[900px]:w-full" onClick={() => setShowForm((value) => !value)} />
-        </div>
+        <SidebarHeader control={headerControl} icon={<Database size={15} className="text-accent-500" />} title="Databases" actions={<Button variant="ghost" size="xs" iconOnly leadingIcon={Plus} aria-label="Nova conexão" onClick={() => setShowForm((value) => !value)} />} />
       )}
       {showForm && <ConnectionForm projectRoot={project.root} onCreated={() => { setShowForm(false); void load(); }} />}
       {busy && <LoadingState label="Carregando..." className="px-1 py-1" />}
