@@ -1,4 +1,5 @@
-import { Bot, Bug, Database, Files, GitBranch, Globe2, Moon, Sun, TerminalSquare } from "@toph/icons";
+import type { ReactNode } from "react";
+import { ArrowLeft, ArrowRight, Bot, Bug, Database, Files, GitBranch, Globe2, Info, Keyboard, Moon, PanelLeftClose, PanelLeftOpen, Search, Settings2, Sun, TerminalSquare } from "@toph/icons";
 import { useApp, type Sidebar } from "../store";
 import { featureEnabled, useSettings, type WorkspaceFeature } from "../settings";
 import { Button } from "@/boardui/base/buttons/button";
@@ -16,7 +17,22 @@ const items: Array<{ id: Sidebar; feature: WorkspaceFeature; label: string; icon
   { id: "web", feature: "webApps", label: "Web apps", icon: Globe2 },
 ];
 
-export default function ActivityBar() {
+interface Props {
+  projectControl?: ReactNode;
+  branchControl?: ReactNode;
+  notificationControl?: ReactNode;
+  onBack: () => void;
+  onForward: () => void;
+  sidebarVisible: boolean;
+  onToggleSidebar: () => void;
+  onShowSidebar: () => void;
+  onQuickOpen: () => void;
+  onCustomizeLayout: () => void;
+  onShortcuts: () => void;
+  onAbout: () => void;
+}
+
+export default function ActivityBar({ projectControl, branchControl, notificationControl, onBack, onForward, sidebarVisible, onToggleSidebar, onShowSidebar, onQuickOpen, onCustomizeLayout, onShortcuts, onAbout }: Props) {
   const sidebar = useApp((state) => state.sidebar);
   const setSidebar = useApp((state) => state.setSidebar);
   const toggleTerminal = useApp((state) => state.toggleTerminal);
@@ -29,6 +45,12 @@ export default function ActivityBar() {
   return (
     <nav className="flex h-full w-12 shrink-0 flex-col items-center border-e bg-background-primary-default py-2" aria-label="Primary">
       <div className="flex flex-col items-center gap-1">
+        {projectControl}
+        <div className="flex items-center gap-0.5">
+          <Button variant="ghost" size="xs" iconOnly leadingIcon={ArrowLeft} aria-label="Voltar" title="Voltar" onClick={onBack} />
+          <Button variant="ghost" size="xs" iconOnly leadingIcon={ArrowRight} aria-label="Avançar" title="Avançar" onClick={onForward} />
+        </div>
+        <Divider className="my-1 w-6" />
         {items.filter((item) => featureEnabled(workspaceFeatures, item.feature)).map((item) => {
           const active = sidebar === item.id;
           return (
@@ -41,12 +63,19 @@ export default function ActivityBar() {
                 className={cx("size-9", active && "text-accent-500")}
                 aria-label={item.label}
                 aria-pressed={active}
-                onClick={() => setSidebar(item.id)}
+                onClick={() => { setSidebar(item.id); onShowSidebar(); }}
               />
               <Tooltip>{item.label}</Tooltip>
             </TooltipTrigger>
           );
         })}
+        {branchControl}
+        {featureEnabled(workspaceFeatures, "files") && (
+          <TooltipTrigger delay={400}>
+            <Button variant="ghost" size="medium" iconOnly leadingIcon={Search} className="size-9" aria-label="Busca rápida" onClick={onQuickOpen} />
+            <Tooltip>Busca rápida</Tooltip>
+          </TooltipTrigger>
+        )}
         {featureEnabled(workspaceFeatures, "terminal") && (
           <TooltipTrigger delay={400}>
             <Button
@@ -62,8 +91,25 @@ export default function ActivityBar() {
             <Tooltip>Terminal</Tooltip>
           </TooltipTrigger>
         )}
+        <TooltipTrigger delay={400}>
+          <Button variant={sidebarVisible ? "secondary" : "ghost"} size="medium" iconOnly leadingIcon={sidebarVisible ? PanelLeftClose : PanelLeftOpen} className="size-9" aria-label={sidebarVisible ? "Recolher barra lateral" : "Mostrar barra lateral"} onClick={onToggleSidebar} />
+          <Tooltip>{sidebarVisible ? "Recolher barra lateral" : "Mostrar barra lateral"}</Tooltip>
+        </TooltipTrigger>
       </div>
       <div className="mt-auto flex flex-col items-center gap-2">
+        {notificationControl}
+        <TooltipTrigger delay={400}>
+          <Button variant="ghost" size="xs" iconOnly leadingIcon={Keyboard} className="size-8 rounded-full" aria-label="Atalhos" onClick={onShortcuts} />
+          <Tooltip>Atalhos</Tooltip>
+        </TooltipTrigger>
+        <TooltipTrigger delay={400}>
+          <Button variant="ghost" size="xs" iconOnly leadingIcon={Info} className="size-8 rounded-full" aria-label="Sobre o Toph" onClick={onAbout} />
+          <Tooltip>Sobre o Toph</Tooltip>
+        </TooltipTrigger>
+        <TooltipTrigger delay={400}>
+          <Button variant="ghost" size="xs" iconOnly leadingIcon={Settings2} className="size-8 rounded-full" aria-label="Configurar workspace" onClick={onCustomizeLayout} />
+          <Tooltip>Configurar workspace</Tooltip>
+        </TooltipTrigger>
         <div className="flex flex-col items-center gap-0.5 rounded-full bg-background-secondary-default p-1">
           <Button variant={theme === "light" ? "secondary" : "ghost"} size="xs" iconOnly leadingIcon={Sun} className="size-8 rounded-full" aria-label="Modo claro" aria-pressed={theme === "light"} onClick={() => setTheme("light")} />
           <Button variant={theme === "dark" ? "secondary" : "ghost"} size="xs" iconOnly leadingIcon={Moon} className="size-8 rounded-full" aria-label="Modo escuro" aria-pressed={theme === "dark"} onClick={() => setTheme("dark")} />

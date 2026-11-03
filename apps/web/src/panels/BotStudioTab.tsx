@@ -1056,6 +1056,31 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
     }
   }
 
+  async function answerToolQuestion(bot: MiniBot, messageId: string, answer: string) {
+    const currentMessage = useBots.getState().byProject[project.id]?.messages.find((message) => message.id === messageId);
+    const channel = currentMessage?.channel ?? channelForBot(bot);
+    if (bot.sessionId) await client.session.interrupt({ sessionID: bot.sessionId } as never).catch(() => undefined);
+    cancelActiveTurn();
+    updateMessage(project.id, messageId, { detail: answer, status: "complete" });
+    addMessage(project.id, {
+      id: `bot-user-question-${Date.now()}`,
+      role: "user",
+      content: answer,
+      channel,
+      mode: threadMode,
+      createdAt: Date.now(),
+    });
+    const token = ++runToken.current;
+    sendingRef.current = true;
+    setSending(true);
+    try {
+      await respondAsBot(bot, answer, { channel, token });
+    } finally {
+      sendingRef.current = false;
+      setSending(false);
+    }
+  }
+
   async function replyPermission(bot: MiniBot, messageId: string, requestId: string, decision: "once" | "always" | "reject") {
     if (!bot.sessionId) return;
     try {
@@ -1384,6 +1409,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
                     messages={group.messages.map(toAiMessage)}
                     streaming={isLatestBotGroup && runningBots.has(bot.id)}
                     onPermission={(messageId, permissionId, decision) => void replyPermission(bot, messageId, permissionId, decision)}
+                    onQuestion={(messageId, answer) => void answerToolQuestion(bot, messageId, answer)}
                     projectId={project.id}
                     projectRoot={project.root}
                   />
@@ -1536,6 +1562,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
                           toolsExpanded
                           className="flex min-w-0 flex-col gap-1"
                           onPermission={(messageId, permissionId, decision) => void replyPermission(bot, messageId, permissionId, decision)}
+                          onQuestion={(messageId, answer) => void answerToolQuestion(bot, messageId, answer)}
                           projectId={project.id}
                           projectRoot={project.root}
                         />

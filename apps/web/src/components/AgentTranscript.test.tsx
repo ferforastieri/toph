@@ -1,5 +1,5 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 import AgentTranscript from "./AgentTranscript";
 
 describe("AgentTranscript artifacts", () => {
@@ -44,5 +44,30 @@ describe("AgentTranscript artifacts", () => {
     );
 
     expect(screen.getByRole("img", { name: "screen.png" })).toHaveAttribute("src", uri);
+  });
+
+  it("renders question tools as an answerable form", () => {
+    const answer = vi.fn();
+    render(
+      <AgentTranscript
+        streaming={false}
+        toolsExpanded
+        onQuestion={answer}
+        messages={[{
+          id: "question-1",
+          role: "tool",
+          title: "Tool · question",
+          text: JSON.stringify({ questions: [{ header: "Direção", question: "Qual caminho?", options: [{ label: "Primeiro", description: "Opção recomendada" }, { label: "Segundo" }], multiple: false }] }),
+          detail: "{}",
+          status: "error",
+          createdAt: 1,
+        }]}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("Primeiro"));
+    fireEvent.click(screen.getByRole("button", { name: "Responder" }));
+    expect(answer).toHaveBeenCalledWith("question-1", expect.stringContaining("Direção: Primeiro"));
+    expect(screen.queryByText("{}")).not.toBeInTheDocument();
   });
 });
