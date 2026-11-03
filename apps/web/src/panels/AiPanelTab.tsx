@@ -58,9 +58,9 @@ function GenericAiPanel({ tab, project, config, onClose }: Props & { config: AIC
 
   async function send(text: string) {
     if (!text || streaming) return;
-    setInput("");
     const user = { id: `user-${Date.now()}`, role: "user" as const, text, createdAt: Date.now() };
     addMessage(tab.id, user);
+    setInput("");
     setStreaming(tab.id, true);
     try {
       const history = [...messages, user]
@@ -116,7 +116,7 @@ function GenericAiPanel({ tab, project, config, onClose }: Props & { config: AIC
           <div ref={bottomRef} />
         </div>
       </div>
-      <AgentComposer value={input} onChange={setInput} onSend={(text) => void send(text)} busy={streaming} models={models} model={model} onModelChange={setModel} effort={effort} efforts={[]} onEffortChange={setEffort} placeholder={`Pergunte ao ${label}...`} allowAttachments={false} />
+      <AgentComposer value={input} onChange={setInput} onSend={(text) => void send(text)} busy={streaming} models={models} model={model} onModelChange={setModel} effort={effort} efforts={[]} onEffortChange={setEffort} placeholder={`Pergunte ao ${label}...`} allowAttachments={false} history={messages.filter((message) => message.role === "user").map((message) => message.text)} />
       <AiSettingsModal open={settingsOpen} projectRoot={project.root} showConnections={false} onClose={() => setSettingsOpen(false)} />
     </div>
   );

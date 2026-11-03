@@ -767,7 +767,6 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
         return;
       }
     }
-    setInput("");
     setError("");
     stickToBottom.current = true;
     addMessage(tab.id, {
@@ -776,6 +775,7 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
       text: text || attachments.map((file) => file.name).join(", "),
       createdAt: Date.now(),
     });
+    setInput("");
     notifyPending.current = true;
     setStreaming(tab.id, true);
     try {
@@ -981,6 +981,7 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
             </Select>
           </>
         }
+        history={messages.filter((message) => message.role === "user").map((message) => message.text)}
       />
       <AgentSessionsSheet open={sessionsOpen} project={project} activeSessionId={tab.sessionId} onClose={() => setSessionsOpen(false)} onSelect={selectSession} onNew={newSession} />
       <AiSettingsModal open={settingsOpen} initialTab={settingsTab} projectRoot={project.root} onClose={() => setSettingsOpen(false)} />
