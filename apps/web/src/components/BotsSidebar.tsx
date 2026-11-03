@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { Bot, ChevronDown, ChevronRight, History, MessageSquare, Plus, Settings2, Sparkles, UserRound } from "@toph/icons";
+import { Bot, History, Plus, Settings2, Sparkles, UserRound } from "@toph/icons";
 import type { Project } from "../api";
 import { useAI } from "../ai";
 import { botThread, TOPH_PRESETS, useBots, type TophMode } from "../bots";
@@ -8,6 +8,7 @@ import { Button } from "@/boardui/base/buttons/button";
 import { Modal } from "@/boardui/base/modal/modal";
 import { cx } from "@/boardui/utils/cx";
 import SidebarHeader from "./SidebarHeader";
+import { Accordion, AccordionItem } from "@/boardui/base/accordion/accordion";
 
 interface Props {
   project: Project;
@@ -37,7 +38,6 @@ export default function BotsSidebar({ project, headerControl }: Props) {
   const mode: TophMode = workspace?.mode === "team" ? "team" : "solo";
   const soloThread = botThread(workspace, "solo");
   const teamThread = botThread(workspace, "team");
-  const teamLeadId = teamThread.bots.find((bot) => bot.coordinator)?.id ?? teamThread.bots[0]?.id;
   const totalBots = soloThread.bots.length + teamThread.bots.length;
 
   function openConversation(nextMode: TophMode, botId?: string) {
@@ -90,10 +90,9 @@ export default function BotsSidebar({ project, headerControl }: Props) {
     <div className="flex h-full min-h-0 flex-col bg-background-primary-default">
       <SidebarHeader control={headerControl} icon={<Bot size={15} className="text-accent-500" />} title="Tophs" count={<span className="rounded-full bg-background-tertiary-default px-1.5 text-caption-2-regular text-text-tertiary">{totalBots}</span>} actions={<Button variant="ghost" size="xs" iconOnly leadingIcon={Plus} aria-label="Adicionar Toph à equipe" title="Adicionar Toph à equipe" onClick={() => setGalleryOpen(true)} />} />
       <div className="min-h-0 flex-1 overflow-y-auto p-2.5">
-        <button type="button" onClick={() => setIndividualOpen((value) => !value)} className="mb-1.5 flex w-full items-center gap-2 rounded-lg px-1 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-tertiary hover:bg-background-primary-hover">
-          {individualOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}<UserRound size={12} /> <span className="flex-1 text-start">Individuais</span><span>{soloThread.bots.length}</span>
-        </button>
-        {individualOpen ? <div className="mb-3 flex flex-col gap-0.5">
+        <Accordion expandedKeys={individualOpen ? ["individual"] : []} onExpandedChange={(keys) => setIndividualOpen(Array.from(keys).includes("individual"))}>
+          <AccordionItem id="individual" title={<span className="flex min-w-0 flex-1 items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-tertiary"><UserRound size={12} /><span className="flex-1 text-start">Individuais</span><span>{soloThread.bots.length}</span></span>} triggerClassName="mb-1.5 h-7 rounded-lg px-1 text-text-tertiary hover:bg-background-primary-hover" contentClassName="p-0">
+            <div className="mb-3 flex flex-col gap-0.5">
           {soloThread.bots.length === 0 ? (
             <button
               type="button"
@@ -124,38 +123,20 @@ export default function BotsSidebar({ project, headerControl }: Props) {
               </span>
             </div>
           ))}
-        </div> : null}
+            </div>
+          </AccordionItem>
+        </Accordion>
 
-        <div className="mb-1.5 flex items-center gap-2 px-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-tertiary">
-          <Sparkles size={12} /> Equipe
+        <div className="mb-1.5 flex items-center gap-2 px-1 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-tertiary">
+          <Sparkles size={12} /> <span className="flex-1">Equipe</span><span>{teamThread.bots.length}</span>
         </div>
-        <button
-          type="button"
-          onClick={() => {
-            openConversation("team", teamLeadId);
-            window.dispatchEvent(new CustomEvent("toph:close-mobile-panel"));
-          }}
-          className={cx(
-            "mb-1 flex w-full items-center gap-2 rounded-xl border px-2.5 py-2 text-start text-caption-1-medium transition-colors",
-            mode === "team" && (!workspace?.activeBotId || workspace.activeBotId === teamLeadId)
-              ? "border-accent-500/35 bg-accent-500/10 text-text-primary"
-              : "border-border-button-default text-text-secondary hover:bg-background-primary-hover hover:text-text-primary",
-          )}
-        >
-          <MessageSquare size={14} className="shrink-0 text-accent-500" />
-          <span className="min-w-0 flex-1">
-            <span className="block font-medium">Conversa da equipe</span>
-            <span className="block truncate text-caption-2-regular text-text-secondary">Todos os Tophs colaborando</span>
-          </span>
-          <span className="rounded-full bg-background-tertiary-default px-1.5 text-[10px] text-text-tertiary">{teamThread.bots.length}</span>
-        </button>
-        <div className="flex flex-col gap-0.5 ps-2">
+        <div className="flex flex-col gap-0.5">
           {teamThread.bots.map((bot) => (
             <div
               key={bot.id}
               className={cx(
                 "flex w-full items-center rounded-xl pe-1 transition-colors",
-                mode === "team" && bot.id === workspace?.activeBotId && bot.id !== teamLeadId ? "bg-background-tertiary-default" : "hover:bg-background-primary-hover",
+                mode === "team" && bot.id === workspace?.activeBotId ? "bg-background-tertiary-default" : "hover:bg-background-primary-hover",
               )}
             >
               <button type="button" onClick={() => openBot("team", bot.id)} className="flex min-w-0 flex-1 items-center gap-2.5 px-2 py-2 text-start">

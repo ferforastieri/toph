@@ -1086,6 +1086,7 @@ export default function Workbench() {
     <IconButton
       icon={activityVisible ? PanelLeftClose : PanelLeftOpen}
       size="xs"
+      className="border-transparent bg-transparent shadow-none"
       aria-label={activityVisible ? "Ocultar barra vertical" : "Mostrar barra vertical"}
       title={activityVisible ? "Ocultar barra vertical" : "Mostrar barra vertical"}
       onClick={() => setWorkspaceFeature("activityBar", !activityVisible)}
@@ -1168,7 +1169,7 @@ export default function Workbench() {
         {activityVisible ? <div className="overflow-visible rounded-s-3xl">
           <ActivityBar
             projectControl={activityProjectControl}
-            settingsControl={<TophSettings user={user} projectRoot={project.root} onCustomizeLayout={openLayoutSettings} onOpenNotification={openNotification} />}
+            settingsControl={<TophSettings user={user} projectRoot={project.root} onOpenNotification={openNotification} />}
             onQuickOpen={() => setQuickOpenToken((current) => current + 1)}
           />
         </div> : null}
