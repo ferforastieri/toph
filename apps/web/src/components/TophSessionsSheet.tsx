@@ -96,8 +96,8 @@ export default function TophSessionsSheet({ open, project, mode, bot, activeSess
     <Modal
       isOpen={open}
       onClose={onClose}
-      title={`Sessões de ${bot?.name ?? (mode === "solo" ? "Toph Solo" : "Toph")}`}
-      description={mode === "solo" ? "Todas as sessões deste Toph solo." : "Sessões deste membro da equipe."}
+      title={`Sessões de ${bot?.name ?? "Toph"}`}
+      description={mode === "solo" ? "Histórico desta conversa individual." : "Histórico deste membro da equipe."}
       size="lg"
       placement="bottom"
       bodyClassName="p-4"

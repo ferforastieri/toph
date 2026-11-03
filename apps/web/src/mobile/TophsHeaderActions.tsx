@@ -1,4 +1,4 @@
-import { Bot, History, MessageSquarePlus, Settings2, UserRound } from "@toph/icons";
+import { History, MessageSquarePlus, Settings2 } from "@toph/icons";
 import { useBots } from "../bots";
 import { Button } from "@/boardui/base/buttons/button";
 
@@ -13,24 +13,13 @@ function fire(action: "config" | "sessions" | "new") {
 /** Tophs-only fixed header actions. The title is intentionally omitted here. */
 export default function TophsHeaderActions({ projectId }: Props) {
   const workspace = useBots((state) => state.byProject[projectId]);
-  const setMode = useBots((state) => state.setMode);
   const mode = workspace?.mode ?? "unset";
   const active = Boolean(workspace?.bots.length);
 
   if (!active) {
-    if (mode !== "team") return null;
-    return (
-      <Button
-        variant="ghost"
-        size="small"
-        iconOnly
-        leadingIcon={UserRound}
-        aria-label="Mudar para solo"
-        title="Mudar para solo"
-        onClick={() => setMode(projectId, "solo")}
-        className="size-7 shrink-0 [&_svg]:size-4"
-      />
-    );
+    return mode === "team"
+      ? <Button variant="ghost" size="small" iconOnly leadingIcon={MessageSquarePlus} aria-label="Adicionar Toph à equipe" title="Adicionar Toph à equipe" onClick={() => fire("new")} className="size-7 shrink-0 [&_svg]:size-4" />
+      : null;
   }
 
   return (
@@ -40,16 +29,6 @@ export default function TophsHeaderActions({ projectId }: Props) {
       {mode === "team" ? (
         <Button variant="ghost" size="small" iconOnly leadingIcon={MessageSquarePlus} aria-label="Novo Toph" title="Novo Toph" onClick={() => fire("new")} className="size-7 shrink-0 [&_svg]:size-4" />
       ) : null}
-      <Button
-        variant="ghost"
-        size="small"
-        iconOnly
-        leadingIcon={mode === "solo" ? UserRound : Bot}
-        aria-label={mode === "solo" ? "Mudar para equipe" : "Mudar para solo"}
-        title={mode === "solo" ? "Mudar para equipe" : "Mudar para solo"}
-        onClick={() => setMode(projectId, mode === "solo" ? "team" : "solo")}
-        className="size-7 shrink-0 [&_svg]:size-4"
-      />
     </>
   );
 }

@@ -12,6 +12,7 @@ interface Props {
   streaming: boolean;
   onPermission?: (messageId: string, permissionId: string, decision: "once" | "always" | "reject") => void;
   className?: string;
+  toolsExpanded?: boolean;
 }
 
 const markdownComponents: Components = {
@@ -64,6 +65,7 @@ interface MessageProps {
   message: AiMessage;
   showCaret: boolean;
   onPermission?: (messageId: string, permissionId: string, decision: "once" | "always" | "reject") => void;
+  toolsExpanded?: boolean;
 }
 
 function parsedToolValue(value?: string): Record<string, any> | null {
@@ -155,6 +157,7 @@ function toolKind(message: AiMessage): string {
 function toolLabel(message: AiMessage): string {
   const name = toolKind(message);
   if (/shell|bash|command|execute|terminal/.test(name)) return "Shell";
+  if (/browser|navigate|screenshot|page/.test(name)) return "Browser";
   if (/read/.test(name)) return "Read";
   if (/write/.test(name)) return "Write";
   if (/edit|patch|apply/.test(name)) return "Edit";
@@ -173,6 +176,9 @@ function toolSubtitle(message: AiMessage): string {
   const name = toolKind(message);
   if (/shell|bash|command|execute|terminal/.test(name)) {
     return String(input?.command ?? input?.cmd ?? input?.script ?? message.detail ?? "");
+  }
+  if (/browser|navigate|screenshot|page/.test(name)) {
+    return String(input?.url ?? input?.target ?? input?.query ?? input?.title ?? "");
   }
   if (/read|write|edit|patch|apply/.test(name)) {
     const path = String(input?.filePath ?? input?.path ?? input?.file ?? input?.filename ?? "");
@@ -254,8 +260,8 @@ function ToolOutput({ message, images }: { message: AiMessage; images: ToolImage
   );
 }
 
-function ToolRow({ message, onPermission }: { message: AiMessage; onPermission?: MessageProps["onPermission"] }) {
-  const [open, setOpen] = useState(false);
+function ToolRow({ message, onPermission, defaultOpen = false }: { message: AiMessage; onPermission?: MessageProps["onPermission"]; defaultOpen?: boolean }) {
+  const [open, setOpen] = useState(defaultOpen);
   const images = extractToolImages(message.detail, `${message.id}:${message.detail?.length ?? 0}`);
   const hasImage = images.length > 0;
   const label = toolLabel(message);
@@ -263,8 +269,8 @@ function ToolRow({ message, onPermission }: { message: AiMessage; onPermission?:
   const status = toolStatus(message);
   const isRunning = message.status === "running";
   useEffect(() => {
-    if (hasImage) setOpen(true);
-  }, [hasImage]);
+    if (hasImage || defaultOpen) setOpen(true);
+  }, [hasImage, defaultOpen]);
   return (
     <div className="py-0.5">
       <button
@@ -308,15 +314,15 @@ function ThoughtRow({ message, duration }: { message: AiMessage; duration?: stri
   );
 }
 
-function ToolGroup({ messages, onPermission }: { messages: AiMessage[]; onPermission?: MessageProps["onPermission"] }) {
-  const [open, setOpen] = useState(false);
+function ToolGroup({ messages, onPermission, defaultOpen = false }: { messages: AiMessage[]; onPermission?: MessageProps["onPermission"]; defaultOpen?: boolean }) {
+  const [open, setOpen] = useState(defaultOpen);
   const tools = messages.filter((message) => message.role === "tool");
   const thoughts = messages.filter((message) => message.role === "reasoning");
   const hasImage = tools.some((message) => extractToolImages(message.detail, `${message.id}:${message.detail?.length ?? 0}`).length > 0);
   const count = tools.length || thoughts.length;
   useEffect(() => {
-    if (hasImage) setOpen(true);
-  }, [hasImage]);
+    if (hasImage || defaultOpen) setOpen(true);
+  }, [hasImage, defaultOpen]);
   const labels: string[] = [];
   for (const tool of tools) {
     const label = toolLabel(tool);
@@ -345,7 +351,7 @@ function ToolGroup({ messages, onPermission }: { messages: AiMessage[]; onPermis
               const seconds = next ? Math.max(0, Math.round((next.createdAt - message.createdAt) / 1000)) : 0;
               return <ThoughtRow key={message.id} message={message} duration={seconds > 0 ? `${seconds}s` : undefined} />;
             }
-            return <ToolRow key={message.id} message={message} onPermission={onPermission} />;
+            return <ToolRow key={message.id} message={message} onPermission={onPermission} defaultOpen={defaultOpen} />;
           })}
         </div>
       ) : null}
@@ -353,7 +359,7 @@ function ToolGroup({ messages, onPermission }: { messages: AiMessage[]; onPermis
   );
 }
 
-const TranscriptMessage = memo(function TranscriptMessage({ message, showCaret, onPermission }: MessageProps) {
+const TranscriptMessage = memo(function TranscriptMessage({ message, showCaret, onPermission, toolsExpanded }: MessageProps) {
   if (message.role === "error") {
     return <Chip color="rose" variant="subtle" className="justify-start gap-1.5 whitespace-normal px-2 py-1.5"><CircleAlert size={13} /> {message.text}</Chip>;
   }
@@ -374,7 +380,7 @@ const TranscriptMessage = memo(function TranscriptMessage({ message, showCaret, 
     return <p className="text-[12px] text-text-tertiary">{message.text}</p>;
   }
   if (message.role === "tool") {
-    return <ToolRow message={message} onPermission={onPermission} />;
+    return <ToolRow message={message} onPermission={onPermission} defaultOpen={toolsExpanded} />;
   }
   return (
     <div className="min-w-0">
@@ -390,9 +396,9 @@ const TranscriptMessage = memo(function TranscriptMessage({ message, showCaret, 
       )}
     </div>
   );
-}, (prev, next) => prev.message === next.message && prev.showCaret === next.showCaret);
+}, (prev, next) => prev.message === next.message && prev.showCaret === next.showCaret && prev.toolsExpanded === next.toolsExpanded);
 
-export default function AgentTranscript({ messages, streaming, onPermission, className }: Props) {
+export default function AgentTranscript({ messages, streaming, onPermission, className, toolsExpanded = false }: Props) {
   const nodes: Array<{ kind: "message"; message: AiMessage } | { kind: "group"; messages: AiMessage[] }> = [];
   let group: AiMessage[] = [];
   const flush = () => {
@@ -413,13 +419,14 @@ export default function AgentTranscript({ messages, streaming, onPermission, cla
   return (
     <div className={className ?? "flex flex-col gap-4 px-1 py-1"}>
       {nodes.map((node, index) => node.kind === "group" ? (
-        <ToolGroup key={`group-${index}-${node.messages[0]?.id ?? ""}`} messages={node.messages} onPermission={onPermission} />
+        <ToolGroup key={`group-${index}-${node.messages[0]?.id ?? ""}`} messages={node.messages} onPermission={onPermission} defaultOpen={toolsExpanded} />
       ) : (
         <TranscriptMessage
           key={node.message.id}
           message={node.message}
           showCaret={streaming && node.message.id === lastMessage?.id && node.message.status === "running"}
           onPermission={onPermission}
+          toolsExpanded={toolsExpanded}
         />
       ))}
       {streaming && (

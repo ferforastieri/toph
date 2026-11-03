@@ -148,7 +148,8 @@ export default function Workbench() {
   const project = projects.find((item) => item.id === activeProjectId) ?? null;
   const branch = gitStatus.split("\n")[0]?.replace(/^##\s*/, "").split("...")[0] ?? "";
   const activeTab = tabs.find((tab) => tab.id === activeTabId) ?? null;
-  const botsSolo = sidebar === "bots" && botMode === "solo";
+  const botsView = sidebar === "bots";
+  const effectiveSidebarVisible = sidebarVisible || botsView;
   const desktopClient = isDesktopClient();
   const filesEnabled = featureEnabled(workspaceFeatures, "files");
   const sourceControlEnabled = featureEnabled(workspaceFeatures, "sourceControl");
@@ -1105,20 +1106,23 @@ export default function Workbench() {
     </>
   );
 
-  const primaryOnLeft = primarySideBarPosition === "left";
-  const primarySidebar = sidebarVisible || activityVisible ? (
+  const primaryOnLeft = botsView || primarySideBarPosition === "left";
+  const primarySidebar = effectiveSidebarVisible || activityVisible ? (
     <Suspense fallback={null}>
       <div className="flex min-h-0 shrink-0 overflow-hidden rounded-3xl border border-border-button-white bg-background-primary-default shadow-sidebar">
         {activityVisible && <ActivityBar />}
-        {sidebarVisible && (
-          <aside className={cx("flex min-h-0 shrink-0 flex-col overflow-hidden bg-background-primary-default", sidebar === "debug" || botsSolo ? "w-0" : "w-[var(--sidebar-width)]")}>
-            {!botsSolo ? <SidebarContent /> : null}
+        {effectiveSidebarVisible && (
+          <aside className={cx(
+            "flex min-h-0 shrink-0 flex-col overflow-hidden bg-background-primary-default",
+            sidebar === "debug" ? "w-0" : botsView ? "w-[clamp(220px,22vw,var(--sidebar-width))]" : "w-[var(--sidebar-width)]",
+          )}>
+            <SidebarContent />
           </aside>
         )}
       </div>
     </Suspense>
   ) : null;
-  const primaryResize = sidebarVisible && sidebar !== "debug" && !botsSolo ? (
+  const primaryResize = effectiveSidebarVisible && sidebar !== "debug" ? (
     <ResizeHandle className="sidebar-resize" orientation="vertical" value={sidebarWidth} min={220} max={320} invert={!primaryOnLeft} label="Resize sidebar" onChange={(width) => document.documentElement.style.setProperty("--sidebar-width", `${width}px`)} onCommit={(width) => updateSettings({ sidebarWidth: width })} />
   ) : null;
   function branchPickerBody() {
