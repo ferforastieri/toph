@@ -1123,7 +1123,7 @@ export default function Workbench() {
       panelClassName="w-[min(320px,calc(100vw-64px))] p-2.5"
       trigger={
         <button type="button" className="relative flex size-10 items-center justify-center rounded-full hover:bg-background-primary-hover focus-visible:ring-2 focus-visible:ring-border-focus-ring" aria-label={`Trocar projeto. Projeto atual: ${project.name}`} title={`${project.name} · trocar projeto`} onClick={() => setProjectsMenuOpen((open) => !open)}>
-          <Avatar size="sm" initials={project.name.slice(0, 1).toUpperCase()} className="text-caption-2-semibold" style={{ backgroundColor: `${project.color}26`, color: project.color }} />
+          <BrandMark size="small" className="size-6" />
           <span className="absolute -bottom-0.5 -end-0.5 flex size-3.5 items-center justify-center rounded-full border border-background-primary-default bg-background-tertiary-default text-text-secondary"><ChevronDown size={9} /></span>
         </button>
       }
@@ -1146,7 +1146,7 @@ export default function Workbench() {
     </ActivityPopover>
   ) : null;
 
-  const primarySidebar = effectiveSidebarVisible ? (
+  const primarySidebar = (
     <Suspense fallback={null}>
       <div className="relative z-40 flex min-h-0 shrink-0 overflow-visible rounded-3xl border border-border-button-white bg-background-primary-default shadow-sidebar">
         <div className="overflow-visible rounded-s-3xl">
@@ -1158,12 +1158,14 @@ export default function Workbench() {
             onQuickOpen={() => setQuickOpenToken((current) => current + 1)}
           />
         </div>
-        <aside className={cx("flex min-h-0 shrink-0 flex-col overflow-hidden rounded-e-[22px] bg-background-primary-default", botsView ? "w-[clamp(220px,22vw,var(--sidebar-width))]" : "w-[var(--sidebar-width)]")}>
-          <SidebarContent />
-        </aside>
+        {effectiveSidebarVisible ? (
+          <aside className={cx("flex min-h-0 shrink-0 flex-col overflow-hidden rounded-e-[22px] bg-background-primary-default", botsView ? "w-[clamp(220px,22vw,var(--sidebar-width))]" : "w-[var(--sidebar-width)]")}>
+            <SidebarContent />
+          </aside>
+        ) : null}
       </div>
     </Suspense>
-  ) : null;
+  );
   const primaryResize = effectiveSidebarVisible ? (
     <ResizeHandle className="sidebar-resize" orientation="vertical" value={sidebarWidth} min={220} max={320} label="Redimensionar barra lateral" onChange={(width) => document.documentElement.style.setProperty("--sidebar-width", `${width}px`)} onCommit={(width) => updateSettings({ sidebarWidth: width })} />
   ) : null;

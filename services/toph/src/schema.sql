@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS pet_configs (
     user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
     chosen INTEGER NOT NULL DEFAULT 0,
     enabled INTEGER NOT NULL DEFAULT 0,
-    kind TEXT NOT NULL DEFAULT 'momo',
+    kind TEXT NOT NULL DEFAULT 'toph-core',
     mode TEXT NOT NULL DEFAULT 'corner',
     commits INTEGER NOT NULL DEFAULT 0,
     updated_at TEXT NOT NULL

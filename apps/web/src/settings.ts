@@ -282,7 +282,7 @@ export const useSettings = create<SettingsState>((set, get) => ({
       current.workspaceFeatures,
     );
     const next: PersistedSettings = {
-      theme: get().theme,
+      theme: patch.theme ?? current.theme,
       sidebarWidth: patch.sidebarWidth ?? current.sidebarWidth,
       aiPanelWidth: patch.aiPanelWidth ?? current.aiPanelWidth,
       terminalHeight: patch.terminalHeight ?? current.terminalHeight,

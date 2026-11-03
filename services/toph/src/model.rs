@@ -72,7 +72,7 @@ impl Default for PetConfig {
         Self {
             chosen: false,
             enabled: false,
-            kind: "momo".into(),
+            kind: "toph-core".into(),
             mode: "corner".into(),
             commits: 0,
         }
