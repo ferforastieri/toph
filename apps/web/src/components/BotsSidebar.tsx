@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Bot, History, MessageSquare, Plus, Settings2, Sparkles, UserRound } from "@toph/icons";
 import type { Project } from "../api";
 import { useAI } from "../ai";
@@ -10,13 +10,14 @@ import { cx } from "@/boardui/utils/cx";
 
 interface Props {
   project: Project;
+  headerControl?: ReactNode;
 }
 
 function fire(action: "config" | "sessions") {
   window.dispatchEvent(new CustomEvent("toph:tophs-action", { detail: { action } }));
 }
 
-export default function BotsSidebar({ project }: Props) {
+export default function BotsSidebar({ project, headerControl }: Props) {
   const workspace = useBots((state) => state.byProject[project.id]);
   const ensure = useBots((state) => state.ensure);
   const addBot = useBots((state) => state.addBot);
@@ -80,7 +81,8 @@ export default function BotsSidebar({ project }: Props) {
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-background-primary-default">
-      <div className="flex h-11 shrink-0 items-center gap-2 border-b px-3 ps-12">
+      <div className="flex h-11 shrink-0 items-center gap-2 border-b px-2">
+        {headerControl}
         <Bot size={15} className="text-accent-500" />
         <strong className="text-body-medium text-text-primary">Tophs</strong>
         <span className="rounded-full bg-background-tertiary-default px-1.5 text-caption-2-regular text-text-tertiary">{totalBots}</span>

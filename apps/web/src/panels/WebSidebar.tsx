@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { ExternalLink, Globe2, Plus, Trash2 } from "@toph/icons";
 import { api, type WebTarget } from "../api";
 import { useApp } from "../store";
@@ -7,9 +7,9 @@ import { Button } from "@/boardui/base/buttons/button";
 import { IconLinkButton } from "@/boardui/base/buttons/icon-button";
 import { Input } from "@/boardui/base/input/input";
 
-interface Props { onOpenWeb: (target: WebTarget) => void; embedded?: boolean; }
+interface Props { onOpenWeb: (target: WebTarget) => void; embedded?: boolean; headerControl?: ReactNode; }
 
-export default function WebSidebar({ onOpenWeb, embedded = false }: Props) {
+export default function WebSidebar({ onOpenWeb, embedded = false, headerControl }: Props) {
   const [targets, setTargets] = useState<WebTarget[]>([]);
   const [showForm, setShowForm] = useState(false);
   const notify = useApp((state) => state.notify);
@@ -29,7 +29,7 @@ export default function WebSidebar({ onOpenWeb, embedded = false }: Props) {
         </div>
       ) : (
         <div className="flex shrink-0 flex-col items-stretch gap-2 border-b px-2 py-2 min-[901px]:h-9 min-[901px]:flex-row min-[901px]:items-center min-[901px]:justify-between min-[901px]:gap-0 min-[901px]:py-0">
-          <span className="text-caption-1-medium text-text-secondary">Web apps</span>
+          <span className="flex items-center gap-2 text-caption-1-medium text-text-secondary">{headerControl}<span>Web apps</span></span>
           <Button variant="ghost" size="xs" iconOnly leadingIcon={Plus} aria-label="Adicionar web app" className="max-[900px]:h-8 max-[900px]:w-full" onClick={() => setShowForm((value) => !value)} />
         </div>
       )}

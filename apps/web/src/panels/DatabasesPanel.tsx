@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useState, type ReactNode } from "react";
 import { ChevronDown, ChevronRight, Database, Folder, Play, Plus, Table2, Trash2, Wifi } from "@toph/icons";
 import { api, type DBProfile, type Project, type SchemaTable } from "../api";
 import { useApp } from "../store";
@@ -17,9 +17,10 @@ interface Props {
   onOpenQuery: (profileId: string, sql: string) => void;
   onOpenTable: (profileId: string, table: SchemaTable, driver: string) => void;
   embedded?: boolean;
+  headerControl?: ReactNode;
 }
 
-export default function DatabasesPanel({ project, onOpenQuery, onOpenTable, embedded = false }: Props) {
+export default function DatabasesPanel({ project, onOpenQuery, onOpenTable, embedded = false, headerControl }: Props) {
   const [profiles, setProfiles] = useState<DBProfile[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [schemas, setSchemas] = useState<Record<string, SchemaTable[] | undefined>>({});
@@ -63,7 +64,7 @@ export default function DatabasesPanel({ project, onOpenQuery, onOpenTable, embe
         </div>
       ) : (
         <div className="flex shrink-0 flex-col items-stretch gap-2 border-b px-2 py-2 min-[901px]:h-9 min-[901px]:flex-row min-[901px]:items-center min-[901px]:justify-between min-[901px]:gap-0 min-[901px]:py-0">
-          <span className="text-caption-1-medium text-text-secondary">Databases</span>
+          <span className="flex items-center gap-2 text-caption-1-medium text-text-secondary">{headerControl}<span>Databases</span></span>
           <Button variant="ghost" size="xs" iconOnly leadingIcon={Plus} aria-label="Nova conexão" className="max-[900px]:h-8 max-[900px]:w-full" onClick={() => setShowForm((value) => !value)} />
         </div>
       )}
