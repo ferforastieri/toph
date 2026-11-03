@@ -1,10 +1,12 @@
+use std::collections::HashMap;
 use std::path::Path;
 use std::str::FromStr;
 use std::time::Duration;
 
 use chrono::{DateTime, Utc};
+use serde_json::{json, Value};
 use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteSynchronous};
-use sqlx::{Row, SqlitePool};
+use sqlx::{Row, Sqlite, SqlitePool, Transaction};
 
 use crate::errors::{AppError, AppResult};
 use crate::model::{DbProfile, PetConfig, Project, Session, User, WebTarget};
@@ -12,6 +14,31 @@ use crate::model::{DbProfile, PetConfig, Project, Session, User, WebTarget};
 #[derive(Clone)]
 pub struct Store {
     pool: SqlitePool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WorkspaceMessageCursor {
+    pub created_at: i64,
+    pub channel: String,
+    pub id: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct WorkspaceMessagePage {
+    pub items: Vec<Value>,
+    pub has_more: bool,
+    pub next_cursor: Option<WorkspaceMessageCursor>,
+}
+
+#[derive(Debug)]
+struct StoredWorkspaceMessage {
+    id: String,
+    mode: String,
+    channel: String,
+    role: String,
+    bot_id: Option<String>,
+    created_at: i64,
+    payload: String,
 }
 
 impl Store {
@@ -272,9 +299,17 @@ impl Store {
             .bind(project_id)
             .fetch_optional(&self.pool)
             .await?;
-        Ok(row
+        let raw = row
             .map(|row| row.get::<String, _>("layout"))
-            .unwrap_or_else(|| "{}".into()))
+            .unwrap_or_else(|| "{}".into());
+        let mut layout: Value = serde_json::from_str(&raw)?;
+        let messages = take_workspace_messages(&mut layout)?;
+        let compact = layout.to_string();
+        if !messages.is_empty() {
+            self.persist_workspace(user_id, project_id, &compact, messages)
+                .await?;
+        }
+        Ok(compact)
     }
 
     pub async fn save_workspace_layout(
@@ -283,6 +318,21 @@ impl Store {
         project_id: &str,
         layout: &str,
     ) -> AppResult<()> {
+        let mut compact: Value = serde_json::from_str(layout)?;
+        let messages = take_workspace_messages(&mut compact)?;
+        self.persist_workspace(user_id, project_id, &compact.to_string(), messages)
+            .await
+    }
+
+    async fn persist_workspace(
+        &self,
+        user_id: i64,
+        project_id: &str,
+        layout: &str,
+        messages: Vec<StoredWorkspaceMessage>,
+    ) -> AppResult<()> {
+        let mut transaction = self.pool.begin().await?;
+        upsert_workspace_messages(&mut transaction, user_id, project_id, messages).await?;
         sqlx::query(
             "INSERT INTO workspaces (user_id, project_id, layout, updated_at) VALUES (?, ?, ?, ?)
              ON CONFLICT(user_id, project_id) DO UPDATE SET layout = excluded.layout, updated_at = excluded.updated_at",
@@ -291,9 +341,162 @@ impl Store {
         .bind(project_id)
         .bind(layout)
         .bind(now())
+        .execute(&mut *transaction)
+        .await?;
+        transaction.commit().await?;
+        Ok(())
+    }
+
+    pub async fn save_workspace_messages(
+        &self,
+        user_id: i64,
+        project_id: &str,
+        messages: Vec<Value>,
+    ) -> AppResult<()> {
+        let mut records = Vec::with_capacity(messages.len());
+        for message in messages {
+            if let Some(record) = stored_workspace_message(message, None)? {
+                records.push(record);
+            }
+        }
+        let mut transaction = self.pool.begin().await?;
+        upsert_workspace_messages(&mut transaction, user_id, project_id, records).await?;
+        transaction.commit().await?;
+        Ok(())
+    }
+
+    pub async fn replace_workspace_messages(
+        &self,
+        user_id: i64,
+        project_id: &str,
+        mode: &str,
+        channel: &str,
+        messages: Vec<Value>,
+    ) -> AppResult<()> {
+        let mut records = Vec::with_capacity(messages.len());
+        for message in messages {
+            if let Some(record) = stored_workspace_message(message, Some(mode))? {
+                records.push(record);
+            }
+        }
+        let mut transaction = self.pool.begin().await?;
+        sqlx::query(
+            "DELETE FROM bot_messages
+             WHERE user_id = ? AND project_id = ? AND mode = ? AND channel = ?",
+        )
+        .bind(user_id)
+        .bind(project_id)
+        .bind(mode)
+        .bind(channel)
+        .execute(&mut *transaction)
+        .await?;
+        upsert_workspace_messages(&mut transaction, user_id, project_id, records).await?;
+        transaction.commit().await?;
+        Ok(())
+    }
+
+    pub async fn workspace_messages(
+        &self,
+        user_id: i64,
+        project_id: &str,
+        mode: &str,
+        channel: Option<&str>,
+        scope: &str,
+        before: Option<&WorkspaceMessageCursor>,
+        limit: usize,
+    ) -> AppResult<WorkspaceMessagePage> {
+        let limit = limit.clamp(1, 100);
+        let before_at = before.map(|cursor| cursor.created_at);
+        let before_channel = before.map(|cursor| cursor.channel.as_str());
+        let before_id = before.map(|cursor| cursor.id.as_str());
+        let channel_value = channel.filter(|value| !value.is_empty());
+        let rows = sqlx::query(
+            "SELECT message_id, channel, created_at, payload
+             FROM bot_messages
+             WHERE user_id = ? AND project_id = ? AND mode = ?
+               AND (? IS NULL OR channel = ?)
+               AND (
+                 ? = 'all'
+                 OR (? = 'conversation' AND role NOT IN ('tool', 'reasoning'))
+                 OR (? = 'activity' AND role IN ('tool', 'reasoning'))
+               )
+               AND (
+                 ? IS NULL
+                 OR created_at < ?
+                 OR (created_at = ? AND channel < ?)
+                 OR (created_at = ? AND channel = ? AND message_id < ?)
+               )
+             ORDER BY created_at DESC, channel DESC, message_id DESC
+             LIMIT ?",
+        )
+        .bind(user_id)
+        .bind(project_id)
+        .bind(mode)
+        .bind(channel_value)
+        .bind(channel_value)
+        .bind(scope)
+        .bind(scope)
+        .bind(scope)
+        .bind(before_at)
+        .bind(before_at)
+        .bind(before_at)
+        .bind(before_channel)
+        .bind(before_at)
+        .bind(before_channel)
+        .bind(before_id)
+        .bind((limit + 1) as i64)
+        .fetch_all(&self.pool)
+        .await?;
+
+        let has_more = rows.len() > limit;
+        let mut rows = rows.into_iter().take(limit).collect::<Vec<_>>();
+        let next_cursor = if has_more {
+            rows.last().map(|row| WorkspaceMessageCursor {
+                created_at: row.get("created_at"),
+                channel: row.get("channel"),
+                id: row.get("message_id"),
+            })
+        } else {
+            None
+        };
+        rows.reverse();
+        let items = rows
+            .into_iter()
+            .map(|row| serde_json::from_str::<Value>(&row.get::<String, _>("payload")))
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(WorkspaceMessagePage {
+            items,
+            has_more,
+            next_cursor,
+        })
+    }
+
+    pub async fn delete_workspace_messages(
+        &self,
+        user_id: i64,
+        project_id: &str,
+        mode: Option<&str>,
+        channel: Option<&str>,
+        bot_id: Option<&str>,
+    ) -> AppResult<u64> {
+        let result = sqlx::query(
+            "DELETE FROM bot_messages
+             WHERE user_id = ? AND project_id = ?
+               AND (? IS NULL OR mode = ?)
+               AND (? IS NULL OR channel = ?)
+               AND (? IS NULL OR bot_id = ?)",
+        )
+        .bind(user_id)
+        .bind(project_id)
+        .bind(mode)
+        .bind(mode)
+        .bind(channel)
+        .bind(channel)
+        .bind(bot_id)
+        .bind(bot_id)
         .execute(&self.pool)
         .await?;
-        Ok(())
+        Ok(result.rows_affected())
     }
 
     pub async fn pet_config(&self, user_id: i64) -> AppResult<Option<PetConfig>> {
@@ -480,6 +683,145 @@ impl Store {
 
 fn now() -> String {
     Utc::now().to_rfc3339()
+}
+
+fn take_workspace_messages(layout: &mut Value) -> AppResult<Vec<StoredWorkspaceMessage>> {
+    let Some(bots) = layout.get_mut("bots").and_then(Value::as_object_mut) else {
+        return Ok(Vec::new());
+    };
+    let active_mode = bots
+        .get("mode")
+        .and_then(Value::as_str)
+        .filter(|mode| matches!(*mode, "solo" | "team"))
+        .unwrap_or("solo")
+        .to_string();
+    let mut by_id = HashMap::new();
+
+    take_thread_messages(bots, &active_mode, &mut by_id)?;
+    if let Some(thread) = bots.get_mut("savedSolo").and_then(Value::as_object_mut) {
+        take_thread_messages(thread, "solo", &mut by_id)?;
+    }
+    if let Some(thread) = bots.get_mut("savedTeam").and_then(Value::as_object_mut) {
+        take_thread_messages(thread, "team", &mut by_id)?;
+    }
+    Ok(by_id.into_values().collect())
+}
+
+fn take_thread_messages(
+    thread: &mut serde_json::Map<String, Value>,
+    mode_hint: &str,
+    by_id: &mut HashMap<String, StoredWorkspaceMessage>,
+) -> AppResult<()> {
+    let Some(messages) = thread
+        .remove("messages")
+        .and_then(|value| value.as_array().cloned())
+    else {
+        return Ok(());
+    };
+    for message in messages {
+        if let Some(record) = stored_workspace_message(message, Some(mode_hint))? {
+            by_id.insert(
+                format!("{}\u{0}{}\u{0}{}", record.mode, record.channel, record.id),
+                record,
+            );
+        }
+    }
+    Ok(())
+}
+
+fn stored_workspace_message(
+    mut message: Value,
+    mode_hint: Option<&str>,
+) -> AppResult<Option<StoredWorkspaceMessage>> {
+    let Some(object) = message.as_object_mut() else {
+        return Ok(None);
+    };
+    if object.get("pending").and_then(Value::as_bool) == Some(true) {
+        return Ok(None);
+    }
+    let Some(id) = object
+        .get("id")
+        .and_then(Value::as_str)
+        .filter(|id| !id.is_empty())
+        .map(str::to_string)
+    else {
+        return Ok(None);
+    };
+    let mode = object
+        .get("mode")
+        .and_then(Value::as_str)
+        .filter(|mode| matches!(*mode, "solo" | "team"))
+        .or(mode_hint)
+        .unwrap_or("solo")
+        .to_string();
+    let channel = object
+        .get("channel")
+        .and_then(Value::as_str)
+        .filter(|channel| !channel.is_empty())
+        .unwrap_or(if mode == "solo" { "solo" } else { "team" })
+        .to_string();
+    let role = object
+        .get("role")
+        .and_then(Value::as_str)
+        .unwrap_or("system")
+        .to_string();
+    let bot_id = object
+        .get("botId")
+        .and_then(Value::as_str)
+        .filter(|id| !id.is_empty())
+        .map(str::to_string);
+    let created_at = object
+        .get("createdAt")
+        .and_then(Value::as_i64)
+        .unwrap_or_else(|| Utc::now().timestamp_millis());
+    object.insert("mode".into(), Value::String(mode.clone()));
+    object.insert("channel".into(), Value::String(channel.clone()));
+    object.insert("createdAt".into(), json!(created_at));
+    Ok(Some(StoredWorkspaceMessage {
+        id,
+        mode,
+        channel,
+        role,
+        bot_id,
+        created_at,
+        payload: serde_json::to_string(&message)?,
+    }))
+}
+
+async fn upsert_workspace_messages(
+    transaction: &mut Transaction<'_, Sqlite>,
+    user_id: i64,
+    project_id: &str,
+    messages: Vec<StoredWorkspaceMessage>,
+) -> AppResult<()> {
+    for message in messages {
+        sqlx::query(
+            "INSERT INTO bot_messages (
+               user_id, project_id, message_id, mode, channel, role, bot_id, created_at, payload, updated_at
+             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             ON CONFLICT(user_id, project_id, mode, channel, message_id) DO UPDATE SET
+               mode = excluded.mode,
+               channel = excluded.channel,
+               role = excluded.role,
+               bot_id = excluded.bot_id,
+               created_at = excluded.created_at,
+               payload = excluded.payload,
+               updated_at = excluded.updated_at",
+        )
+        .bind(user_id)
+        .bind(project_id)
+        .bind(message.id)
+        .bind(message.mode)
+        .bind(message.channel)
+        .bind(message.role)
+        .bind(message.bot_id)
+        .bind(message.created_at)
+        .bind(message.payload)
+        .bind(now())
+        .execute(&mut **transaction)
+        .await?;
+    }
+    Ok(())
 }
 
 fn map_not_found(error: sqlx::Error) -> AppError {

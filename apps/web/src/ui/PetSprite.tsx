@@ -26,6 +26,7 @@ export default function PetSprite({
       aria-label={`Pet ${kind}`}
       className={cx("shrink-0", animate && "pet-bob", className)}
     >
+      {level >= 2 && <circle cx="40" cy="42" r="31" fill="none" stroke="#ffb547" strokeWidth="1.5" opacity={level >= 4 ? 0.42 : 0.2} strokeDasharray={level >= 4 ? "4 3" : undefined} />}
       <ellipse cx="40" cy="69" rx="19" ry="3.5" fill="currentColor" opacity="0.16" />
       <g transform={`translate(40 44) scale(${growth}) translate(-40 -44)`}>
         {kind === "momo" && <Momo />}
@@ -35,6 +36,13 @@ export default function PetSprite({
       </g>
       {level >= 3 && (
         <path d="M65 9l2.1 4.3 4.7.7-3.4 3.3.8 4.7-4.2-2.2-4.2 2.2.8-4.7-3.4-3.3 4.7-.7z" fill="#fbbf24" stroke="#b45309" strokeWidth="0.8" />
+      )}
+      {level >= 4 && <path d="M13 24l1.2 2.5 2.8.4-2 2 .5 2.7-2.5-1.3-2.5 1.3.5-2.7-2-2 2.8-.4z" fill="#67e8f9" />}
+      {level >= 5 && (
+        <g>
+          <path d="M28 17l5 4 7-8 7 8 5-4-2 12H30z" fill="#fbbf24" stroke="#b45309" strokeWidth="1" strokeLinejoin="round" />
+          <circle cx="33" cy="22" r="1.2" fill="#fff7cc" /><circle cx="40" cy="18" r="1.2" fill="#fff7cc" /><circle cx="47" cy="22" r="1.2" fill="#fff7cc" />
+        </g>
       )}
     </svg>
   );

@@ -74,13 +74,20 @@ export interface BotWorkspace extends TophThread {
   modeExplicit?: boolean;
   savedSolo?: TophThread;
   savedTeam?: TophThread;
+  hydrated?: boolean;
 }
 
 interface BotStore {
   byProject: Record<string, BotWorkspace>;
+  messageWrites: Record<string, Record<string, BotMessage>>;
   load: (projectId: string, workspace?: BotWorkspace | null) => void;
   ensure: (projectId: string) => BotWorkspace;
   snapshot: (projectId: string) => BotWorkspace | null;
+  unload: (projectId: string) => void;
+  mergeMessages: (projectId: string, messages: BotMessage[]) => void;
+  pendingMessageWrites: (projectId: string) => BotMessage[];
+  acknowledgeMessageWrites: (projectId: string, messages: BotMessage[]) => void;
+  discardMessageWrites: (projectId: string, mode: TophMode, channel: string) => void;
   forget: (projectId: string) => void;
   setActiveBot: (projectId: string, botId: string | null) => void;
   setMode: (projectId: string, mode: TophMode) => void;
@@ -234,6 +241,10 @@ function messageChannel(message: BotMessage): string {
   return message.channel ?? (message.mode === "solo" ? "solo" : "team");
 }
 
+function messageKey(message: BotMessage): string {
+  return `${message.mode ?? "team"}\u0000${messageChannel(message)}\u0000${message.id}`;
+}
+
 function sanitizeMessages(input: BotMessage[] | undefined): BotMessage[] {
   return (input ?? [])
     .filter((message) => message && typeof message.id === "string")
@@ -247,8 +258,7 @@ function sanitizeMessages(input: BotMessage[] | undefined): BotMessage[] {
       pending: false,
       durationMs: Number.isFinite(message.durationMs) ? message.durationMs : undefined,
       createdAt: message.createdAt ?? Date.now(),
-    }))
-    .slice(-200);
+    }));
 }
 
 function sanitizeThread(thread: TophThread | undefined): TophThread {
@@ -301,6 +311,7 @@ function sanitizeWorkspace(workspace: BotWorkspace): BotWorkspace {
   const currentMode: TophMode = mode === "solo" ? "solo" : "team";
   return {
     version: 4,
+    hydrated: true,
     mode,
     modeExplicit: workspace.modeExplicit === true || (mode === "team" && bots.length > 0),
     bots: activeRaw.bots,
@@ -311,16 +322,29 @@ function sanitizeWorkspace(workspace: BotWorkspace): BotWorkspace {
   };
 }
 
-function createEmptyWorkspace(): BotWorkspace {
-  return { version: 4, mode: "solo", modeExplicit: false, bots: [], messages: [], activeBotId: null };
+function createEmptyWorkspace(hydrated = false): BotWorkspace {
+  return { version: 4, mode: "solo", modeExplicit: false, bots: [], messages: [], activeBotId: null, hydrated };
+}
+
+function queueMessageWrites(
+  writes: Record<string, Record<string, BotMessage>>,
+  projectId: string,
+  messages: BotMessage[],
+): Record<string, Record<string, BotMessage>> {
+  const pending = { ...(writes[projectId] ?? {}) };
+  for (const message of messages) {
+    if (!message.pending) pending[messageKey(message)] = message;
+  }
+  return { ...writes, [projectId]: pending };
 }
 
 export const useBots = create<BotStore>((set, get) => ({
   byProject: {},
+  messageWrites: {},
 
   load: (projectId, workspace) => {
     if (!workspace) {
-      const next = createEmptyWorkspace();
+      const next = createEmptyWorkspace(true);
       set((state) => ({ byProject: { ...state.byProject, [projectId]: next } }));
       return;
     }
@@ -346,21 +370,70 @@ export const useBots = create<BotStore>((set, get) => ({
       modeExplicit: workspace.modeExplicit === true,
       bots: workspace.bots,
       activeBotId: workspace.activeBotId,
-      messages: workspace.messages.filter((message) => !message.pending).slice(-200),
+      messages: [],
       // The active thread is already stored above. Keeping a second copy in
       // savedSolo/savedTeam doubles the memory and layout payload.
-      savedSolo: mode === "solo" ? undefined : workspace.savedSolo,
+      savedSolo: mode === "solo" ? undefined : workspace.savedSolo
+        ? { ...workspace.savedSolo, messages: [] }
+        : undefined,
       savedTeam: mode === "team" ? undefined : workspace.savedTeam
-        ? { ...workspace.savedTeam, messages: workspace.savedTeam.messages.filter((message) => !message.pending).slice(-200) }
+        ? { ...workspace.savedTeam, messages: [] }
         : undefined,
     };
   },
 
-  forget: (projectId) =>
+  mergeMessages: (projectId, messages) =>
+    set((state) => {
+      const workspace = state.byProject[projectId];
+      if (!workspace || messages.length === 0) return state;
+      const byId = new Map(sanitizeMessages(messages).map((message) => [messageKey(message), message]));
+      for (const message of workspace.messages) byId.set(messageKey(message), message);
+      return {
+        byProject: {
+          ...state.byProject,
+          [projectId]: {
+            ...workspace,
+            messages: [...byId.values()].sort((a, b) => a.createdAt - b.createdAt || messageChannel(a).localeCompare(messageChannel(b)) || a.id.localeCompare(b.id)),
+          },
+        },
+      };
+    }),
+
+  pendingMessageWrites: (projectId) => Object.values(get().messageWrites[projectId] ?? {}),
+
+  acknowledgeMessageWrites: (projectId, messages) =>
+    set((state) => {
+      const pending = { ...(state.messageWrites[projectId] ?? {}) };
+      for (const message of messages) {
+        const key = messageKey(message);
+        if (pending[key] === message) delete pending[key];
+      }
+      return { messageWrites: { ...state.messageWrites, [projectId]: pending } };
+    }),
+
+  discardMessageWrites: (projectId, mode, channel) =>
+    set((state) => {
+      const pending = Object.fromEntries(
+        Object.entries(state.messageWrites[projectId] ?? {}).filter(([, message]) =>
+          message.mode !== mode || messageChannel(message) !== channel),
+      );
+      return { messageWrites: { ...state.messageWrites, [projectId]: pending } };
+    }),
+
+  unload: (projectId) =>
     set((state) => {
       const byProject = { ...state.byProject };
       delete byProject[projectId];
       return { byProject };
+    }),
+
+  forget: (projectId) =>
+    set((state) => {
+      const byProject = { ...state.byProject };
+      const messageWrites = { ...state.messageWrites };
+      delete byProject[projectId];
+      delete messageWrites[projectId];
+      return { byProject, messageWrites };
     }),
 
   setActiveBot: (projectId, activeBotId) =>
@@ -502,8 +575,9 @@ export const useBots = create<BotStore>((set, get) => ({
       return {
         byProject: {
           ...state.byProject,
-          [projectId]: { ...workspace, messages: [...workspace.messages, message].slice(-200) },
+          [projectId]: { ...workspace, messages: [...workspace.messages, message] },
         },
+        messageWrites: queueMessageWrites(state.messageWrites, projectId, [message]),
       };
     }),
 
@@ -511,14 +585,22 @@ export const useBots = create<BotStore>((set, get) => ({
     set((state) => {
       const workspace = state.byProject[projectId];
       if (!workspace) return state;
+      let changed: BotMessage | undefined;
+      const messages = workspace.messages.map((message) => {
+        if (message.id !== messageId) return message;
+        changed = { ...message, content: message.content + text };
+        return changed;
+      });
+      if (!changed) return state;
       return {
         byProject: {
           ...state.byProject,
           [projectId]: {
             ...workspace,
-            messages: workspace.messages.map((message) => message.id === messageId ? { ...message, content: message.content + text } : message),
+            messages,
           },
         },
+        messageWrites: queueMessageWrites(state.messageWrites, projectId, [changed]),
       };
     }),
 
@@ -526,14 +608,22 @@ export const useBots = create<BotStore>((set, get) => ({
     set((state) => {
       const workspace = state.byProject[projectId];
       if (!workspace) return state;
+      let changed: BotMessage | undefined;
+      const messages = workspace.messages.map((message) => {
+        if (message.id !== messageId) return message;
+        changed = { ...message, ...patch };
+        return changed;
+      });
+      if (!changed) return state;
       return {
         byProject: {
           ...state.byProject,
           [projectId]: {
             ...workspace,
-            messages: workspace.messages.map((message) => message.id === messageId ? { ...message, ...patch } : message),
+            messages,
           },
         },
+        messageWrites: queueMessageWrites(state.messageWrites, projectId, [changed]),
       };
     }),
 
@@ -564,9 +654,10 @@ export const useBots = create<BotStore>((set, get) => ({
             messages: [
               ...workspace.messages.filter((message) => messageChannel(message) !== channel),
               ...messages,
-            ].sort((a, b) => a.createdAt - b.createdAt).slice(-200),
+            ].sort((a, b) => a.createdAt - b.createdAt),
           },
         },
+        messageWrites: queueMessageWrites(state.messageWrites, projectId, messages),
       };
     }),
 
@@ -579,7 +670,7 @@ export const useBots = create<BotStore>((set, get) => ({
         : [
             ...workspace.messages.filter((message) => messageChannel(message) !== options.channel),
             ...(options.messages ?? []),
-          ].sort((a, b) => a.createdAt - b.createdAt).slice(-200);
+          ].sort((a, b) => a.createdAt - b.createdAt);
       return {
         byProject: {
           ...state.byProject,
@@ -591,6 +682,7 @@ export const useBots = create<BotStore>((set, get) => ({
             messages,
           },
         },
+        messageWrites: queueMessageWrites(state.messageWrites, projectId, options.messages ?? []),
       };
     }),
 }));

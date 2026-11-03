@@ -2,9 +2,10 @@ import { useEffect, useState } from "react";
 import { LogOut } from "@toph/icons";
 import { api, getApiBase, type User } from "../api";
 import { useApp } from "../store";
-import { Avatar } from "@/boardui/base/avatar/avatar";
 import { Button } from "@/boardui/base/buttons/button";
 import { Modal } from "@/boardui/base/modal/modal";
+import { usePet } from "../pet";
+import PetSprite from "../ui/PetSprite";
 
 interface Props {
   open: boolean;
@@ -12,19 +13,12 @@ interface Props {
   onClose: () => void;
 }
 
-function initials(username?: string): string {
-  const value = username?.trim();
-  if (!value) return "?";
-  const parts = value.split(/[\s._-]+/).filter(Boolean);
-  if (parts.length > 1) return `${parts[0][0] ?? ""}${parts[1][0] ?? ""}`.toUpperCase();
-  return value.slice(0, 2).toUpperCase();
-}
-
 export default function MobileAccountSheet({ open, user, onClose }: Props) {
   const setUser = useApp((state) => state.setUser);
   const notify = useApp((state) => state.notify);
   const [version, setVersion] = useState("");
   const [busy, setBusy] = useState(false);
+  const pet = usePet();
   const server = getApiBase() || window.location.origin;
 
   useEffect(() => {
@@ -49,7 +43,7 @@ export default function MobileAccountSheet({ open, user, onClose }: Props) {
     <Modal isOpen={open} onClose={onClose} title="Conta" description="Sessão deste dispositivo." placement="bottom" size="sm" swipeToClose>
       <div className="flex flex-col gap-3">
         <div className="flex items-center gap-3 rounded-2xl border border-border-button-default bg-background-secondary-default p-3">
-          <Avatar size="lg" initials={initials(user?.username)} className="size-12 bg-accent-500/15 text-base text-accent-500" />
+          <PetSprite kind={pet.kind} size={48} commits={pet.commits} />
           <div className="min-w-0 flex-1">
             <p className="truncate text-body-medium text-text-primary">{user?.username ?? "Conta"}</p>
             <p className="truncate text-caption-1-regular text-text-secondary">{server}</p>

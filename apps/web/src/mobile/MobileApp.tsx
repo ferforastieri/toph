@@ -358,7 +358,7 @@ export default function MobileApp() {
       />
       <main className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background-primary-default">
         {screen === "bots" ? (
-          <BotStudioTab project={project} mobile />
+          <BotStudioTab key={project.id} project={project} mobile />
         ) : screen === "files" ? (
           <div className="min-h-0 flex-1 overflow-hidden">
             <FilesScreen project={project} onOpenFile={openFile} />

@@ -336,6 +336,26 @@ export interface WorkspaceLayout {
   bots?: unknown;
 }
 
+export interface WorkspaceMessageCursor {
+  createdAt: number;
+  channel: string;
+  id: string;
+}
+
+export interface WorkspaceMessagePage<T> {
+  items: T[];
+  hasMore: boolean;
+  nextCursor: WorkspaceMessageCursor | null;
+}
+
+export interface WorkspaceMessageQuery {
+  mode: "solo" | "team";
+  channel?: string;
+  scope?: "all" | "conversation" | "activity";
+  before?: WorkspaceMessageCursor | null;
+  limit?: number;
+}
+
 export class ApiError extends Error {
   status: number;
 
@@ -672,6 +692,50 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(layout),
     });
+  },
+
+  async workspaceMessages<T>(projectId: string, query: WorkspaceMessageQuery): Promise<WorkspaceMessagePage<T>> {
+    const params = new URLSearchParams({
+      mode: query.mode,
+      scope: query.scope ?? "all",
+      limit: String(query.limit ?? 30),
+    });
+    if (query.channel) params.set("channel", query.channel);
+    if (query.before) {
+      params.set("beforeAt", String(query.before.createdAt));
+      params.set("beforeChannel", query.before.channel);
+      params.set("beforeId", query.before.id);
+    }
+    return request<WorkspaceMessagePage<T>>(
+      `/projects/${encodeURIComponent(projectId)}/workspace/messages?${params}`,
+    );
+  },
+
+  async saveWorkspaceMessages(projectId: string, messages: unknown[]): Promise<void> {
+    if (messages.length === 0) return;
+    await request(`/projects/${encodeURIComponent(projectId)}/workspace/messages`, {
+      method: "PUT",
+      ...json({ messages }),
+    });
+  },
+
+  async replaceWorkspaceMessages(projectId: string, filter: { mode: "solo" | "team"; channel: string }, messages: unknown[]): Promise<void> {
+    await request(`/projects/${encodeURIComponent(projectId)}/workspace/messages`, {
+      method: "PUT",
+      ...json({ messages, replace: filter }),
+    });
+  },
+
+  async deleteWorkspaceMessages(projectId: string, filter: { mode?: "solo" | "team"; channel?: string; botId?: string }): Promise<number> {
+    const params = new URLSearchParams();
+    if (filter.mode) params.set("mode", filter.mode);
+    if (filter.channel) params.set("channel", filter.channel);
+    if (filter.botId) params.set("botId", filter.botId);
+    const response = await request<{ deleted: number }>(
+      `/projects/${encodeURIComponent(projectId)}/workspace/messages?${params}`,
+      { method: "DELETE" },
+    );
+    return response.deleted;
   },
 
   async createTerminal(projectId: string, shell = "bash"): Promise<{ id: string; projectId: string; shell: string }> {

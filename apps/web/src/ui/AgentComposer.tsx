@@ -90,7 +90,7 @@ export function AgentComposer({ value, onChange, onSend, onStop, busy, models, m
     <div className="flex w-full flex-col p-2">
       <ComposerLoader active={busy} radius={14} surface={false}>
         <form
-          onSubmit={(event) => { event.preventDefault(); submit(); }}
+          onSubmit={(event) => { event.preventDefault(); event.stopPropagation(); if (!busy) submit(); }}
           className="flex flex-col gap-2 rounded-[14px] border border-border-button-default bg-background-primary-default p-3 pb-2 shadow-xs"
           onKeyDownCapture={(event) => { if (event.key === "Enter" && !event.shiftKey && event.target === areaRef.current) { event.preventDefault(); submit(); } }}
           onPaste={(event) => {
@@ -179,7 +179,17 @@ export function AgentComposer({ value, onChange, onSend, onStop, busy, models, m
               className={audio.processing ? "shrink-0 [&_svg]:animate-spin" : "shrink-0"}
             />
             {busy && onStop ? (
-              <Button type="button" variant="secondary" size="small" iconOnly leadingIcon={Square} onClick={onStop} aria-label="Parar" className="shrink-0" />
+              <Button
+                type="button"
+                variant="secondary"
+                size="small"
+                iconOnly
+                leadingIcon={Square}
+                onPointerDown={(event) => { event.preventDefault(); event.stopPropagation(); }}
+                onClick={(event) => { event.preventDefault(); event.stopPropagation(); onStop(); }}
+                aria-label="Parar"
+                className="shrink-0"
+              />
             ) : (
               <Button type="submit" variant="primary" size="small" iconOnly leadingIcon={ArrowUp} disabled={audio.recording || audio.processing || (!value.trim() && attachments.length === 0)} aria-label="Enviar" className="shrink-0" />
             )}

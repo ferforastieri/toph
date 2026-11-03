@@ -11,18 +11,17 @@ export default function PetPicker() {
   const enabled = usePet((state) => state.enabled);
   const kind = usePet((state) => state.kind);
   const choose = usePet((state) => state.choose);
-  const disable = usePet((state) => state.disable);
 
   if (!loaded || !username || chosen) return null;
 
   return (
     <Modal
       isOpen
-      onClose={disable}
-      title="Escolha seu pet"
-      description="Ele vai morar no seu avatar e crescer com os seus commits."
+      onClose={() => choose(kind)}
+      title="Escolha seu Toph pet"
+      description="Seu companheiro de avatar é separado dos agentes e evolui com os commits."
       size="lg"
-      footer={<Button variant="secondary" onClick={disable}>Continuar sem pet</Button>}
+      footer={<Button variant="secondary" onClick={() => choose(kind)}>Usar {PET_OPTIONS.find((option) => option.kind === kind)?.name ?? "este pet"}</Button>}
     >
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {PET_OPTIONS.map((option) => (
@@ -48,7 +47,7 @@ export default function PetPicker() {
         ))}
       </div>
       <p className="mt-4 rounded-xl border border-border-button-default bg-background-secondary-default/50 px-3 py-2 text-caption-1-regular text-text-secondary">
-        Cada commit alimenta o pet. A cada 3 commits ele cresce e ganha uma estrela.
+        Cada commit alimenta o pet. A cada três commits ele muda de aparência.
       </p>
     </Modal>
   );

@@ -40,22 +40,32 @@ export function parseAgentQuestions(value: string): AgentQuestion[] {
 interface Props {
   questions: AgentQuestion[];
   busy?: boolean;
-  onSubmit?: (answer: string) => void;
+  onSubmit?: (answer: string) => void | Promise<void>;
 }
 
 export default function AgentQuestionCard({ questions, busy = false, onSubmit }: Props) {
   const [selected, setSelected] = useState<Record<number, string[]>>({});
   const [custom, setCustom] = useState<Record<number, string>>({});
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
   const complete = useMemo(() => questions.every((_, index) => (selected[index]?.length ?? 0) > 0 || Boolean(custom[index]?.trim())), [custom, questions, selected]);
 
-  function submit() {
-    if (!complete || !onSubmit) return;
+  async function submit() {
+    if (!complete || !onSubmit || submitting) return;
     const lines = questions.map((question, index) => {
       const answers = [...(selected[index] ?? [])];
       if (custom[index]?.trim()) answers.push(custom[index].trim());
       return `- ${question.header || question.question}: ${answers.join(", ")}`;
     });
-    onSubmit(`Respostas às perguntas do agente:\n${lines.join("\n")}`);
+    setSubmitting(true);
+    setError("");
+    try {
+      await onSubmit(`Respostas às perguntas do agente:\n${lines.join("\n")}`);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Não foi possível enviar a resposta.");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -85,7 +95,7 @@ export default function AgentQuestionCard({ questions, busy = false, onSubmit }:
               })}
             </div>
           ) : (
-            <RadioGroup value={selected[index]?.[0] ?? ""} onChange={(value) => setSelected((current) => ({ ...current, [index]: [value] }))} className="gap-0.5">
+            <RadioGroup aria-label={question.header || question.question} value={selected[index]?.[0] ?? ""} onChange={(value) => setSelected((current) => ({ ...current, [index]: [value] }))} className="gap-0.5">
               {question.options.map((option) => (
                 <Radio key={option.label} value={option.label} size="sm" className="rounded-lg px-2 py-1.5 hover:bg-background-primary-hover">
                   <span className="flex min-w-0 flex-col"><span>{option.label}</span>{option.description ? <span className="text-caption-2-regular text-text-tertiary">{option.description}</span> : null}</span>
@@ -96,7 +106,8 @@ export default function AgentQuestionCard({ questions, busy = false, onSubmit }:
           <Input value={custom[index] ?? ""} onChange={(value) => setCustom((current) => ({ ...current, [index]: value }))} placeholder="Outra resposta..." aria-label={`Outra resposta para ${question.header || question.question}`} />
         </div>
       ))}
-      {onSubmit ? <Button type="button" size="small" leadingIcon={Send} disabled={!complete || busy} onClick={submit} className="self-end">{busy ? "Enviando..." : "Responder"}</Button> : null}
+      {error ? <p className="text-caption-2-regular text-status-rose-text">{error}</p> : null}
+      {onSubmit ? <Button type="button" size="small" leadingIcon={Send} disabled={!complete || busy || submitting} onClick={() => void submit()} className="self-end">{busy || submitting ? "Enviando..." : "Responder"}</Button> : null}
     </section>
   );
 }

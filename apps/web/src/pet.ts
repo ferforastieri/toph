@@ -124,7 +124,7 @@ export const usePet = create<PetState>((set, get) => ({
   },
   choose: (kind) => {
     const username = get().username;
-    const next = { ...snapshot(get()), chosen: true, enabled: true, kind };
+    const next = { ...snapshot(get()), chosen: true, enabled: true, kind, mode: "corner" as const };
     set(next);
     persistPet(username, next);
   },

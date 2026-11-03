@@ -43,6 +43,7 @@ type ConfigSection = "profile" | "model" | "tools";
 export default function BotConfig({ projectId, projectRoot, bot, mode }: Props) {
   const updateBot = useBots((state) => state.updateBot);
   const removeBot = useBots((state) => state.removeBot);
+  const discardMessageWrites = useBots((state) => state.discardMessageWrites);
   const aiConfig = useAI((state) => state.config);
   const models = useAI((state) => state.models);
   const loadModels = useAI((state) => state.loadModels);
@@ -118,7 +119,13 @@ export default function BotConfig({ projectId, projectRoot, bot, mode }: Props) 
       confirmLabel: "Remover bot",
       danger: true,
     });
-    if (ok) removeBot(projectId, bot.id);
+    if (ok) {
+      const threadMode = mode === "solo" ? "solo" : "team";
+      const channel = threadMode === "solo" ? "solo" : bot.coordinator ? "team" : `worker:${bot.id}`;
+      discardMessageWrites(projectId, threadMode, channel);
+      await api.deleteWorkspaceMessages(projectId, { mode: threadMode, channel }).catch(() => undefined);
+      removeBot(projectId, bot.id);
+    }
   }
 
   const selectedModelInfo = selectedModel ?? (effectiveModel
