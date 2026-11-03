@@ -1164,6 +1164,17 @@ export default function Workbench() {
             <SidebarContent />
           </aside>
         ) : null}
+        <Button
+          type="button"
+          variant="secondary"
+          size="small"
+          iconOnly
+          leadingIcon={activityVisible ? PanelLeftClose : PanelLeftOpen}
+          className="absolute -right-10 top-1 z-50 shadow-md"
+          aria-label={activityVisible ? "Ocultar barra vertical" : "Mostrar barra vertical"}
+          title={activityVisible ? "Ocultar barra vertical" : "Mostrar barra vertical"}
+          onClick={() => setWorkspaceFeature("activityBar", !activityVisible)}
+        />
       </div>
     </Suspense>
   );
@@ -1187,49 +1198,35 @@ export default function Workbench() {
             "relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden",
             sidebar === "bots" && project ? "bg-transparent" : "rounded-3xl border border-border-button-white bg-background-primary-default shadow-sidebar",
           )}>
-            <div className="flex h-11 shrink-0 items-center border-b border-separator-border px-2">
-              <Button
-                type="button"
-                variant="secondary"
-                size="small"
-                iconOnly
-                leadingIcon={activityVisible ? PanelLeftClose : PanelLeftOpen}
-                aria-label={activityVisible ? "Ocultar barra vertical" : "Mostrar barra vertical"}
-                title={activityVisible ? "Ocultar barra vertical" : "Mostrar barra vertical"}
-                onClick={() => setWorkspaceFeature("activityBar", !activityVisible)}
-              />
-            </div>
-            <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-              {sidebar === "bots" && project ? (
-                <BotStudioTab key={project.id} project={project} />
-              ) : sidebar === "debug" && project && featureIsEnabled("debug") ? (
-                <DebugPanel project={project} />
-              ) : (
-                <>
-                  {tabsVisible ? <Tabs /> : null}
-                  <div className="relative flex min-h-0 flex-1 overflow-hidden">
-                    {!activeTab && project && (
-                      <div className="flex h-full w-full flex-col items-center justify-center gap-4 p-8 text-center">
-                        <BrandMark size="large" />
-                        <h2 className="text-title-2-medium text-text-primary">{project.name}</h2>
-                        <p className="max-w-lg text-body-regular text-text-secondary">{project.root}</p>
-                         <div className="flex flex-wrap items-center justify-center gap-2">
-                           {featureIsEnabled("files") && <Button variant="secondary" size="small" onClick={() => selectSidebar("files")}>Explorer</Button>}
-                           {featureIsEnabled("databases") && <Button variant="secondary" size="small" onClick={() => selectSidebar("db")}>Database</Button>}
-                           <Button variant="secondary" size="small" onClick={() => setSidebar("bots")}>Tophs</Button>
-                         </div>
-                      </div>
-                    )}
-                    <Suspense fallback={null}>
-                      {tabsVisible && activeTab?.kind === "editor" && project && featureIsEnabled("files") && <EditorPanel debugEnabled={debugEnabled} tab={activeTab} project={project} onOpenChanges={(path) => openDiff(path, false)} />}
-                      {tabsVisible && activeTab?.kind === "db" && featureIsEnabled("databases") && <DbPanelTab tab={activeTab} />}
-                      {tabsVisible && activeTab?.kind === "web" && featureIsEnabled("webApps") && <WebPanelTab tab={activeTab} />}
-                      {tabsVisible && activeTab?.kind === "diff" && project && featureIsEnabled("files") && <DiffPanelTab tab={activeTab} project={project} />}
-                    </Suspense>
-                  </div>
-                </>
-              )}
-            </div>
+            {sidebar === "bots" && project ? (
+              <BotStudioTab key={project.id} project={project} />
+            ) : sidebar === "debug" && project && featureIsEnabled("debug") ? (
+              <DebugPanel project={project} />
+            ) : (
+              <>
+                {tabsVisible ? <Tabs /> : null}
+                <div className="relative flex min-h-0 flex-1 overflow-hidden">
+                  {!activeTab && project && (
+                    <div className="flex h-full w-full flex-col items-center justify-center gap-4 p-8 text-center">
+                      <BrandMark size="large" />
+                      <h2 className="text-title-2-medium text-text-primary">{project.name}</h2>
+                      <p className="max-w-lg text-body-regular text-text-secondary">{project.root}</p>
+                       <div className="flex flex-wrap items-center justify-center gap-2">
+                         {featureIsEnabled("files") && <Button variant="secondary" size="small" onClick={() => selectSidebar("files")}>Explorer</Button>}
+                         {featureIsEnabled("databases") && <Button variant="secondary" size="small" onClick={() => selectSidebar("db")}>Database</Button>}
+                         <Button variant="secondary" size="small" onClick={() => setSidebar("bots")}>Tophs</Button>
+                       </div>
+                    </div>
+                  )}
+                  <Suspense fallback={null}>
+                    {tabsVisible && activeTab?.kind === "editor" && project && featureIsEnabled("files") && <EditorPanel debugEnabled={debugEnabled} tab={activeTab} project={project} onOpenChanges={(path) => openDiff(path, false)} />}
+                    {tabsVisible && activeTab?.kind === "db" && featureIsEnabled("databases") && <DbPanelTab tab={activeTab} />}
+                    {tabsVisible && activeTab?.kind === "web" && featureIsEnabled("webApps") && <WebPanelTab tab={activeTab} />}
+                    {tabsVisible && activeTab?.kind === "diff" && project && featureIsEnabled("files") && <DiffPanelTab tab={activeTab} project={project} />}
+                  </Suspense>
+                </div>
+              </>
+            )}
           </main>
 
           {project && sidebar !== "bots" && featureIsEnabled("terminal") && terminalOpen ? (
