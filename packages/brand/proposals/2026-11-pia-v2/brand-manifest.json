@@ -1,0 +1,78 @@
+{
+  "style": "Original Toph glossy 3D mascot family",
+  "avatars": [],
+  "brand": [
+    {
+      "name": "brand-logo-mark",
+      "path": "originals/brand-logo-mark.png",
+      "width": 1024,
+      "height": 1024,
+      "bytes": 737593,
+      "sha256": "dc8d7427733e829849732716be9d772bc80d007fbe9fcf3694c9d59282899d4e"
+    },
+    {
+      "name": "brand-logo-horizontal",
+      "path": "originals/brand-logo-horizontal.png",
+      "width": 1536,
+      "height": 512,
+      "bytes": 500986,
+      "sha256": "2681d3ddd720d5512717d9f32814cb73cd255fdf86c93bc790e250b3e83a279d"
+    },
+    {
+      "name": "brand-logo-vertical",
+      "path": "originals/brand-logo-vertical.png",
+      "width": 1024,
+      "height": 1024,
+      "bytes": 732295,
+      "sha256": "0d5cb2361aa2ea99ebce3cd82c8e1a832932b26216f32cc73a929b40cdd00046"
+    },
+    {
+      "name": "brand-logo-mono-white",
+      "path": "originals/brand-logo-mono-white.png",
+      "width": 1536,
+      "height": 512,
+      "bytes": 420598,
+      "sha256": "6c9511e0ad7b30cfabe8f19e830422a90e0200ead192895fe7826f659037294f"
+    },
+    {
+      "name": "brand-logo-mono-black",
+      "path": "originals/brand-logo-mono-black.png",
+      "width": 1536,
+      "height": 512,
+      "bytes": 512749,
+      "sha256": "46a8d2bab33f08b067818d69e561b04f060b3b6b7563fcc6c45414dbed7b4b2b"
+    },
+    {
+      "name": "brand-favicon",
+      "path": "originals/brand-favicon.png",
+      "width": 512,
+      "height": 512,
+      "bytes": 150659,
+      "sha256": "e2dba29b3e5259ac123d8be57ae40c2261e2b4ae80f9853c19589a1a9118c6a1"
+    },
+    {
+      "name": "brand-app-icon",
+      "path": "originals/brand-app-icon.png",
+      "width": 1024,
+      "height": 1024,
+      "bytes": 792910,
+      "sha256": "a29c3202913dfdb98d4a7ef9de67b30bc9a44780e5338515c8b56e66d3ab5805"
+    },
+    {
+      "name": "brand-banner",
+      "path": "originals/brand-banner.png",
+      "width": 1600,
+      "height": 600,
+      "bytes": 576204,
+      "sha256": "77a317cadecdeb394a20966c93d1e7b2d88d6f9c9fe09aafcb778823557a3e43"
+    },
+    {
+      "name": "brand-social-share",
+      "path": "originals/brand-social-share.png",
+      "width": 1200,
+      "height": 630,
+      "bytes": 487381,
+      "sha256": "d5694c5c5540df64cc247aa700243bc5a4c2cf8b87460281239a27ba546da897"
+    }
+  ]
+}
