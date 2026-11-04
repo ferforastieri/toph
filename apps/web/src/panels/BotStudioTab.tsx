@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ComponentProps } from "react";
 import { OpenCode } from "@opencode/client";
 import { connectClientMcp, type ClientMcpTool } from "@opencode/client/mcp";
 import { Bot, ChevronDown, Copy, ListTree, LoaderCircle, MessageSquarePlus, Monitor, Plus } from "@toph/icons";
@@ -211,6 +211,41 @@ type ChatGroup =
   | { kind: "toph"; tophId: string; messages: ChatMessage[] }
   | { kind: "system"; messages: ChatMessage[] };
 
+/**
+ * Owns the composer text so typing does not re-render the conversation,
+ * activity panel and every transcript row on each keystroke.
+ */
+function ComposerBar({
+  draftKey,
+  onSend,
+  ...props
+}: {
+  draftKey: string;
+  onSend: (value: string, attachments: AgentAttachment[]) => void;
+} & Omit<ComponentProps<typeof AgentComposer>, "value" | "onChange" | "onSend">) {
+  const saved = useTophDrafts((state) => state.drafts[draftKey] ?? "");
+  const setDraft = useTophDrafts((state) => state.setDraft);
+  const clearDraft = useTophDrafts((state) => state.clearDraft);
+  const [value, setValue] = useState(saved);
+
+  useEffect(() => {
+    setValue(saved);
+  }, [draftKey]);
+
+  function change(next: string) {
+    setValue(next);
+    setDraft(draftKey, next);
+  }
+
+  function submit(text: string, attachments: AgentAttachment[]) {
+    setValue("");
+    clearDraft(draftKey);
+    onSend(text, attachments);
+  }
+
+  return <AgentComposer {...props} value={value} onChange={change} onSend={submit} />;
+}
+
 function groupChatMessages(messages: ChatMessage[]): ChatGroup[] {
   const groups: ChatGroup[] = [];
   for (const message of messages) {
@@ -333,9 +368,13 @@ function truncateToolText(value: string, limit = 12_000): string {
   return `${value.slice(0, limit)}\n… (${value.length - limit} caracteres omitidos)`;
 }
 
+const aiMessageCache = new WeakMap<ChatMessage, AiMessage>();
+
 function toAiMessage(message: ChatMessage): AiMessage {
+  const cached = aiMessageCache.get(message);
+  if (cached) return cached;
   const isActivity = message.role === "tool" || message.role === "reasoning";
-  return {
+  const next: AiMessage = {
     id: message.id,
     role: message.role === "reasoning" ? "reasoning" : message.role === "tool" ? "tool" : message.role === "error" ? "error" : "assistant",
     text: isActivity ? truncateToolText(message.content) : message.content,
@@ -347,6 +386,8 @@ function toAiMessage(message: ChatMessage): AiMessage {
     durationMs: message.durationMs,
     createdAt: message.createdAt,
   };
+  aiMessageCache.set(message, next);
+  return next;
 }
 
 interface ActivitySummary {
@@ -440,7 +481,6 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
   const models = useAI((state) => state.models);
   const activityWidth = useSettings((state) => state.aiPanelWidth);
   const updateSettings = useSettings((state) => state.update);
-  const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [configTophId, setConfigTophId] = useState<string | null>(null);
@@ -453,6 +493,7 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
   const [formBusy, setFormBusy] = useState<string | null>(null);
   const [conversationPage, setConversationPage] = useState<HistoryPageState>(EMPTY_HISTORY_PAGE);
   const [activityPage, setActivityPage] = useState<HistoryPageState>(EMPTY_HISTORY_PAGE);
+  const [activityWindow, setActivityWindow] = useState(300);
   const [historyReloadToken, setHistoryReloadToken] = useState(0);
   const sessionTophMap = useRef(new Map<string, string>());
   const toolFileSnapshots = useRef(new Map<string, ToolFileSnapshot[]>());
@@ -491,45 +532,68 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
   const chat = activeChat(projectChats);
   const tophs = chatTophs(projectChats, chat?.id);
   const coordinator = chatCoordinator(tophs);
-  const messages = projectChats?.messages.filter((message) => message.chatId === chat?.id) ?? [];
-  const conversationMessages = mobile
-    ? messages
-    : messages.filter((message) => message.role !== "tool" && message.role !== "reasoning");
-  const activityMessages = messages.filter((message) => message.role === "tool" || message.role === "reasoning");
-  const groupedMessages = groupChatMessages(conversationMessages);
-  const visibleActivityMessages = activityFocus
-    ? activityMessages.filter((message) =>
-        message.tophId === activityFocus.tophId
-        && message.createdAt >= activityFocus.from
-        && message.createdAt <= activityFocus.to)
-    : activityMessages;
-  const activityGroups = groupChatMessages(visibleActivityMessages);
-  const latestUserAt = [...conversationMessages].reverse().find((message) => message.role === "user")?.createdAt ?? 0;
-  const lastTophGroupIndex = new Map<string, number>();
-  groupedMessages.forEach((group, index) => {
-    if (group.kind === "toph") lastTophGroupIndex.set(group.tophId, index);
-  });
-  const lastActivityGroupIndex = new Map<string, number>();
-  activityGroups.forEach((group, index) => {
-    if (group.kind === "toph") lastActivityGroupIndex.set(group.tophId, index);
-  });
+  const messages = useMemo(
+    () => projectChats?.messages.filter((message) => message.chatId === chat?.id) ?? [],
+    [projectChats?.messages, chat?.id],
+  );
+  const conversationMessages = useMemo(
+    () => mobile ? messages : messages.filter((message) => message.role !== "tool" && message.role !== "reasoning"),
+    [messages, mobile],
+  );
+  const activityMessages = useMemo(
+    () => messages.filter((message) => message.role === "tool" || message.role === "reasoning"),
+    [messages],
+  );
+  const groupedMessages = useMemo(() => groupChatMessages(conversationMessages), [conversationMessages]);
+  const visibleActivityMessages = useMemo(
+    () => activityFocus
+      ? activityMessages.filter((message) =>
+          message.tophId === activityFocus.tophId
+          && message.createdAt >= activityFocus.from
+          && message.createdAt <= activityFocus.to)
+      : activityMessages,
+    [activityMessages, activityFocus],
+  );
+  const activityGroups = useMemo(
+    () => groupChatMessages(
+      visibleActivityMessages.length > activityWindow
+        ? visibleActivityMessages.slice(-activityWindow)
+        : visibleActivityMessages,
+    ),
+    [visibleActivityMessages, activityWindow],
+  );
+  const latestUserAt = useMemo(
+    () => [...conversationMessages].reverse().find((message) => message.role === "user")?.createdAt ?? 0,
+    [conversationMessages],
+  );
+  const lastTophGroupIndex = useMemo(() => {
+    const map = new Map<string, number>();
+    groupedMessages.forEach((group, index) => {
+      if (group.kind === "toph") map.set(group.tophId, index);
+    });
+    return map;
+  }, [groupedMessages]);
+  const lastActivityGroupIndex = useMemo(() => {
+    const map = new Map<string, number>();
+    activityGroups.forEach((group, index) => {
+      if (group.kind === "toph") map.set(group.tophId, index);
+    });
+    return map;
+  }, [activityGroups]);
   const completedReplies = messages.filter((message) => message.role === "assistant" && !message.pending && message.status !== "running").length;
   const visibleRunningTophs = [...runningTophs].filter((tophId) => tophs.some((toph) => toph.id === tophId));
   const panelRunningTophs = activityFocus ? visibleRunningTophs.filter((tophId) => tophId === activityFocus.tophId) : visibleRunningTophs;
   const panelForms = activityFocus ? forms.filter(({ tophId }) => tophId === activityFocus.tophId) : forms;
   const visibleForms = forms.filter(({ tophId }) => tophs.some((toph) => toph.id === tophId));
-  const assistantImages = agentImagesForMessages(
+  const assistantImages = useMemo(() => agentImagesForMessages(
     messages
       .filter((message) => message.role === "assistant" && (!activityFocus || message.tophId === activityFocus.tophId))
       .slice(-ASSISTANT_IMAGE_SCAN_LIMIT)
       .map(toAiMessage),
     project.id,
     project.root,
-  ).slice(-ASSISTANT_IMAGE_RENDER_LIMIT);
+  ).slice(-ASSISTANT_IMAGE_RENDER_LIMIT), [messages, activityFocus, project.id, project.root]);
   const draftKey = `${project.id}:${chat?.id ?? "none"}`;
-  const savedDraft = useTophDrafts((state) => state.drafts[draftKey] ?? "");
-  const setDraft = useTophDrafts((state) => state.setDraft);
-  const clearDraft = useTophDrafts((state) => state.clearDraft);
   const configToph = tophs.find((toph) => toph.id === configTophId) ?? null;
   const sessionsToph = tophs.find((toph) => toph.id === sessionsTophId) ?? null;
   const activeModel = coordinator?.model || aiConfig?.model || models[0]?.id || "";
@@ -597,6 +661,7 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
 
   useEffect(() => {
     setActivityFocus(null);
+    setActivityWindow(300);
   }, [chat?.id]);
 
   useEffect(() => {
@@ -750,15 +815,6 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
   }, [externalAction, onExternalActionHandled]);
 
   useEffect(() => {
-    setInput(savedDraft);
-  }, [draftKey]);
-
-  function updateInput(value: string) {
-    setInput(value);
-    setDraft(draftKey, value);
-  }
-
-  useEffect(() => {
     const fallback = aiConfig?.model || models[0]?.id;
     if (!fallback) return;
     const current = projectChats?.tophs.filter((toph) => toph.chatId === chat?.id) ?? [];
@@ -804,7 +860,10 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
           })
           .map((toph) => toph.id),
       );
-      setRunningTophs(running);
+      setRunningTophs((current) => {
+        if (current.size === running.size && [...running].every((id) => current.has(id))) return current;
+        return running;
+      });
     }, 3000);
     return () => window.clearInterval(timer);
   }, [chat?.id, client, project.id, tophSessionKey]);
@@ -1352,8 +1411,6 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
       sendingRef.current = false;
       return;
     }
-    setInput("");
-    clearDraft(draftKey);
     setSending(true);
     try {
       const first = coordinator ?? tophs[0];
@@ -1560,7 +1617,7 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
                 ? hasRunningTool ? "working" : hasAssistantText ? "responding" : "thinking"
                 : null;
               return (
-                <section key={`toph-${group.tophId}-${index}`} className="flex min-w-0 max-w-full items-start gap-2.5">
+                <section key={`toph-${group.tophId}-${index}`} className="flex min-w-0 max-w-full items-start gap-2.5 [content-visibility:auto] [contain-intrinsic-size:auto_200px]">
                   <TophActivityAvatar bot={toph} state={activityState} size={32} className="mt-0.5" />
                   <div className="flex min-w-0 flex-1 flex-col gap-1.5">
                     <header className="flex min-w-0 items-baseline gap-2">
@@ -1635,9 +1692,8 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
 
         {chat && tophs.length > 0 ? (
           <div className="shrink-0">
-            <AgentComposer
-              value={input}
-              onChange={updateInput}
+            <ComposerBar
+              draftKey={draftKey}
               onSend={(value, attachments) => void send(value, attachments)}
               onStop={() => void stop()}
               busy={sending || runningTophs.size > 0}
@@ -1720,6 +1776,11 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
                   <button type="button" onClick={() => setActivityFocus(null)} className="shrink-0 font-medium hover:underline">Ver tudo</button>
                 </div>
               ) : null}
+              {visibleActivityMessages.length > activityWindow ? (
+                <Button variant="ghost" size="small" className="mb-3 w-full" onClick={() => setActivityWindow((value) => value + 300)}>
+                  Mostrar mais ({visibleActivityMessages.length - activityWindow} anteriores)
+                </Button>
+              ) : null}
               {activityPage.hasMore ? (
                 <Button variant="ghost" size="small" className="mb-3 w-full" disabled={activityPage.loading} onClick={() => void loadOlderHistory("activity")}>
                   {activityPage.loading ? "Carregando..." : "Carregar atividades anteriores"}
@@ -1759,7 +1820,7 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
                       ? group.messages.some((message) => (message.role === "tool" || message.role === "reasoning") && message.status === "running") ? "working" : "thinking"
                       : null;
                     return (
-                      <section key={`activity-${toph.id}-${index}`} className="min-w-0 border-b border-separator-border pb-3 last:border-b-0">
+                      <section key={`activity-${toph.id}-${index}`} className="min-w-0 border-b border-separator-border pb-3 last:border-b-0 [content-visibility:auto] [contain-intrinsic-size:auto_160px]">
                         <header className="mb-1.5 flex items-center gap-2">
                           <TophActivityAvatar bot={toph} state={activityState} size={26} />
                           <div className="flex min-w-0 flex-1 flex-col">
