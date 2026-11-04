@@ -88,6 +88,28 @@ export interface PetConfig {
   commits: number;
 }
 
+export interface ImageProviderConfig {
+  id: string;
+  label: string;
+  kind: string;
+  baseUrl: string;
+  model: string;
+  enabled: boolean;
+  hasKey: boolean;
+}
+
+export interface ImageProviderInput {
+  id: string;
+  label: string;
+  kind: string;
+  baseUrl: string;
+  model: string;
+  enabled: boolean;
+  apiKey?: string;
+  clearKey?: boolean;
+  hasKey?: boolean;
+}
+
 export interface AIConfig {
   provider: string;
   baseUrl: string;
@@ -99,6 +121,7 @@ export interface AIConfig {
   autocomplete: boolean;
   systemPrompt: string;
   hasKey: boolean;
+  imageProviders: ImageProviderConfig[];
 }
 
 export interface AIConfigInput {
@@ -113,6 +136,7 @@ export interface AIConfigInput {
   temperature: number;
   autocomplete: boolean;
   systemPrompt: string;
+  imageProviders: ImageProviderInput[];
 }
 
 export interface AIUsageWindow {
@@ -997,7 +1021,7 @@ export const api = {
 
   async aiChat(
     messages: AIMessage[],
-    options: { model?: string; effort?: string; yolo?: boolean } = {},
+    options: { model?: string; effort?: string; yolo?: boolean; projectId?: string; tools?: string[] } = {},
   ): Promise<{ text: string }> {
     return request<{ text: string }>("/ai/chat", {
       method: "POST",

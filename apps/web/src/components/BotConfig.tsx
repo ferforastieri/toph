@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Bot, Check, ChevronDown, PlugZap, Settings2, Trash2, UserRound, Wrench } from "@toph/icons";
+import { Bot, Check, ChevronDown, Image, MessageSquare, PlugZap, Settings2, Trash2, UserRound, Wrench } from "@toph/icons";
 import { OpenCode } from "@opencode/client";
 import { openCodeBase, api, type EmailAccount } from "../api";
 import type { ChatToph } from "../chats";
@@ -107,6 +107,16 @@ export default function BotConfig({ projectId, projectRoot, bot }: Props) {
   function toggleEmail(id: string) {
     const current = bot.emailAccountIds ?? [];
     update({ emailAccountIds: current.includes(id) ? current.filter((item) => item !== id) : [...current, id] });
+  }
+
+  const TOOL_OPTIONS = [
+    { id: "generate_image", label: "Gerar imagens", description: "Criar e salvar imagens no projeto com os provedores configurados.", icon: Image },
+    { id: "delegate", label: "Conversar com outros Tophs", description: "Mencionar @outro-toph e receber a resposta dele no chat.", icon: MessageSquare },
+  ] as const;
+
+  function toggleTool(id: string) {
+    const current = bot.tools?.length ? bot.tools : TOOL_OPTIONS.map((tool) => tool.id);
+    update({ tools: current.includes(id) ? current.filter((item) => item !== id) : [...current, id] });
   }
 
   function update(patch: Partial<ChatToph>) {
@@ -336,6 +346,29 @@ export default function BotConfig({ projectId, projectRoot, bot }: Props) {
             <div className="flex items-center gap-2 text-body-medium text-text-primary"><Wrench size={16} className="text-accent-500" /> Ferramentas deste Toph</div>
             <p className="mt-1 text-caption-1-regular text-text-secondary">Gerencie os servidores MCP e marque quais ferramentas ficam disponíveis para este agente.</p>
           </div>
+          <div className="flex flex-col gap-2 rounded-2xl border border-border-button-default bg-background-secondary-default p-3">
+            <div>
+              <p className="text-body-medium text-text-primary">Ferramentas do agente</p>
+              <p className="mt-1 text-caption-2-regular text-text-secondary">Ligue ou desligue ferramentas para este Toph. Sem seleção, todas ficam ativas.</p>
+            </div>
+            <div className="flex flex-col gap-2">
+              {TOOL_OPTIONS.map((tool) => {
+                const active = !bot.tools?.length || bot.tools.includes(tool.id);
+                const Icon = tool.icon;
+                return (
+                  <button key={tool.id} type="button" aria-pressed={active} onClick={() => toggleTool(tool.id)} className={`flex items-start gap-2 rounded-xl border px-3 py-2 text-left transition-colors ${active ? "border-accent-500/40 bg-accent-500/10" : "border-border-button-default hover:bg-background-primary-hover"}`}>
+                    <Icon size={15} className={active ? "mt-0.5 text-accent-600" : "mt-0.5 text-text-tertiary"} />
+                    <span className="flex min-w-0 flex-1 flex-col">
+                      <span className="text-caption-1-medium text-text-primary">{tool.label}</span>
+                      <span className="text-caption-2-regular text-text-tertiary">{tool.description}</span>
+                    </span>
+                    {active ? <Check size={14} className="mt-0.5 text-accent-600" /> : null}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           <div className="flex flex-col gap-2 rounded-2xl border border-border-button-default bg-background-secondary-default p-3">
             <div className="flex items-start justify-between gap-3">
               <div>

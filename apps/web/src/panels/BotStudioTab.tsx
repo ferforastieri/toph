@@ -162,6 +162,11 @@ function languageInstruction(toph: ChatToph): string {
   }
 }
 
+function tophHasTool(toph: ChatToph, tool: string): boolean {
+  const tools = toph.tools ?? [];
+  return tools.length === 0 || tools.includes(tool);
+}
+
 function tophPrompt(toph: ChatToph, tophs: ChatToph[], messages: ChatMessage[], userText: string, company: string, chatName: string): string {
   const names = new Map(tophs.map((item) => [item.id, item.name]));
   const coordinator = tophs.find((item) => item.coordinator) ?? tophs[0];
@@ -181,6 +186,12 @@ function tophPrompt(toph: ChatToph, tophs: ChatToph[], messages: ChatMessage[], 
     "Nunca execute comandos que ficam esperando indefinidamente (tail -f, watch, gh run watch, sleep longo). Para acompanhar pipelines, use timeout e consulte o status; depois responda.",
     `Tophs deste chat: ${tophs.map((item) => `@${item.handle} (${item.name}${item.coordinator ? ", coordenador" : ""})`).join(", ")}.`,
     `MCPs habilitados para você: ${toph.mcpServers.length ? toph.mcpServers.join(", ") : "nenhum"}.`,
+    tophHasTool(toph, "generate_image")
+      ? "Você tem a ferramenta generate_image: use-a quando o pedido envolver criar, desenhar ou redesenhar imagens, avatares, logos, ícones ou ilustrações. Ela salva o PNG dentro do projeto e devolve o caminho e a URL; mostre a imagem na resposta com markdown ![descrição](url)."
+      : "",
+    tophHasTool(toph, "delegate")
+      ? "Você pode conversar com os outros Tophs do chat: mencione @handle deles na sua resposta. O sistema entrega a mensagem, traz a resposta dele para o chat e você consolida o resultado."
+      : "Você não deve delegar para outros Tophs nesta configuração.",
     toph.emailAccountIds.length ? "Você tem ferramentas de email habilitadas. Use-as apenas para as contas autorizadas." : "Você não tem contas de email habilitadas.",
     languageInstruction(toph),
     history ? `Contexto recente do chat:\n${history}` : "",
@@ -1037,9 +1048,10 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
       }
       throw error;
     }
-    const deadline = Date.now() + 120_000;
+    // Wait for the agent for as long as it needs. The only thing that stops this
+    // loop is the user pressing stop (runToken changes); there is no deadline.
     let latest = "";
-    while (Date.now() < deadline) {
+    while (token === runToken.current) {
       await new Promise((resolve) => window.setTimeout(resolve, 400));
       if (token !== runToken.current) throw new Error("__stopped__");
       const stored = completedStoredReply(current.id, current.chatId, since);
@@ -1050,14 +1062,13 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
       const assistant = lastAssistant(latestList?.data ?? []);
       if (!assistant || assistant.id === before) continue;
       latest = assistant.text || latest;
-      if (latest) return latest;
       if (assistant.error) throw new Error(assistant.error);
+      if (latest) return latest;
     }
-    if (latest) return latest;
     const stored = completedStoredReply(current.id, current.chatId, since);
     if (stored) return stored.content.trim();
-    await client.session.interrupt({ sessionID: sessionId } as never).catch(() => undefined);
-    throw new Error("A execução demorou mais de 2 minutos e foi interrompida. Para pipelines longos, use timeout e consulte o status.");
+    if (latest) return latest;
+    throw new Error("__stopped__");
   }
 
   async function directReply(toph: ChatToph, tophsNow: ChatToph[], history: ChatMessage[], userText: string, attachments: AgentAttachment[] = []): Promise<string> {
@@ -1091,6 +1102,8 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
       model: toph.model || aiConfig?.model || models[0]?.id,
       effort: toph.effort || undefined,
       yolo: (toph.permissionMode ?? "yolo") === "yolo",
+      projectId: project.id,
+      tools: toph.tools ?? [],
     });
     return result.text;
   }
@@ -1296,9 +1309,13 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
       if (!first) return;
       const reply = await respondAsToph(first, text, { attachments, token });
       if (!reply || token !== runToken.current) return;
-      if (first.coordinator) {
-        const direct = mentionedTophs(tophs, text).filter((toph) => toph.id !== first.id);
-        const delegated = mentionedTophs(tophs, reply).filter((toph) => toph.id !== first.id);
+      if (first.coordinator || tophHasTool(first, "delegate")) {
+        const direct = first.coordinator
+          ? mentionedTophs(tophs, text).filter((toph) => toph.id !== first.id)
+          : [];
+        const delegated = tophHasTool(first, "delegate")
+          ? mentionedTophs(tophs, reply).filter((toph) => toph.id !== first.id)
+          : [];
         const workers = [...new Map([...delegated, ...direct].map((toph) => [toph.id, toph])).values()];
         if (workers.length > 0) {
           const workerReplies = await Promise.all(workers.map(async (worker) => {
@@ -1311,7 +1328,7 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
             return workerReply ? `${worker.name}: ${workerReply}` : null;
           }));
           const results = workerReplies.filter((item): item is string => Boolean(item));
-          if (results.length > 0 && token === runToken.current) {
+          if (results.length > 0 && token === runToken.current && first.coordinator) {
             await respondAsToph(
               first,
               `Retornos dos Tophs do chat:\n\n${results.join("\n\n")}\n\nConsolide esses retornos em uma resposta final para o usuário.`,
