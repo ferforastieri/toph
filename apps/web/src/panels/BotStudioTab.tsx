@@ -585,6 +585,10 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
     project.id,
     project.root,
   ).slice(-ASSISTANT_IMAGE_RENDER_LIMIT), [messages, activityFocus, project.id, project.root]);
+  const composerHistory = useMemo(
+    () => messages.filter((message) => message.role === "user").map((message) => message.content),
+    [messages],
+  );
   const draftKey = `${project.id}:${chat?.id ?? "none"}`;
   const configToph = tophs.find((toph) => toph.id === configTophId) ?? null;
   const sessionsToph = tophs.find((toph) => toph.id === sessionsTophId) ?? null;
@@ -833,6 +837,27 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
 
   useEffect(() => {
     const controller = new AbortController();
+    // Streaming events arrive per token. Coalesce them so the store and React
+    // update at most ~12 times per second instead of once per token.
+    const pendingAppends = new Map<string, { projectId: string; id: string; text: string }>();
+    let appendTimer: number | undefined;
+    const flushAppends = () => {
+      if (appendTimer !== undefined) {
+        window.clearTimeout(appendTimer);
+        appendTimer = undefined;
+      }
+      if (pendingAppends.size === 0) return;
+      const store = useChats.getState();
+      for (const item of pendingAppends.values()) store.appendMessage(item.projectId, item.id, item.text);
+      pendingAppends.clear();
+    };
+    const queueAppend = (projectId: string, id: string, text: string) => {
+      const key = `${projectId}:${id}`;
+      const current = pendingAppends.get(key);
+      if (current) current.text += text;
+      else pendingAppends.set(key, { projectId, id, text });
+      if (appendTimer === undefined) appendTimer = window.setTimeout(flushAppends, 80);
+    };
     (async () => {
       try {
         for await (const event of client.event.subscribe({ signal: controller.signal })) {
@@ -870,10 +895,11 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
             case "session.text.delta": {
               const id = messageID("assistant");
               ensure({ id, chatId, tophId, role: "assistant", content: "", status: "running", createdAt: Date.now() });
-              state.appendMessage(project.id, id, String(data.delta ?? ""));
+              queueAppend(project.id, id, String(data.delta ?? ""));
               break;
             }
             case "session.text.ended":
+              flushAppends();
               state.updateMessage(project.id, messageID("assistant"), { content: String(data.text ?? ""), status: "complete" });
               break;
             case "session.reasoning.started":
@@ -882,7 +908,7 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
             case "session.reasoning.delta": {
               const id = messageID("reasoning");
               ensure({ id, chatId, tophId, role: "reasoning", title: "Thought", content: "", status: "running", createdAt: Date.now() });
-              state.appendMessage(project.id, id, String(data.delta ?? ""));
+              queueAppend(project.id, id, String(data.delta ?? ""));
               break;
             }
             case "session.reasoning.ended": {
@@ -901,10 +927,11 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
             case "session.tool.input.delta": {
               const id = messageID("tool", String(data.id ?? ""));
               ensure({ id, chatId, tophId, role: "tool", title: "Tool", content: "", detail: "", status: "running", createdAt: Date.now() });
-              state.appendMessage(project.id, id, String(data.delta ?? ""));
+              queueAppend(project.id, id, String(data.delta ?? ""));
               break;
             }
             case "session.tool.input.ended": {
+              flushAppends();
               const toolId = String(data.id ?? "");
               const id = messageID("tool", toolId);
               const inputText = String(data.text ?? "");
@@ -927,6 +954,7 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
               break;
             }
             case "session.tool.success": {
+              flushAppends();
               const toolId = String(data.id ?? "");
               const id = messageID("tool", toolId);
               const output = data.content ?? data.metadata;
@@ -936,6 +964,7 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
               break;
             }
             case "session.tool.failed": {
+              flushAppends();
               toolFileSnapshots.current.delete(`${sessionId}:${String(data.id ?? "")}`);
               state.updateMessage(project.id, messageID("tool", String(data.id ?? "")), { detail: toolContent(data.error ?? data.content), status: "error" });
               break;
@@ -981,6 +1010,7 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
       }
     })();
     return () => {
+      flushAppends();
       controller.abort();
       toolFileSnapshots.current.clear();
     };
@@ -1680,7 +1710,7 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
                   <AiUsageMeter client={client} refreshKey={`${chat.id}:${completedReplies}`} />
                 </>
               }
-              history={messages.filter((message) => message.role === "user").map((message) => message.content)}
+              history={composerHistory}
             />
           </div>
         ) : null}
