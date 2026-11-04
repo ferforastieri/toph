@@ -1,8 +1,9 @@
 import type { ComponentType } from "react";
-import { Bell, FolderGit2, LayoutPanelLeft, Menu } from "@toph/icons";
+import { FolderGit2, LayoutPanelLeft, Menu, Moon, Sun } from "@toph/icons";
 import { Badge } from "@/boardui/base/badges/badge";
 import { cx } from "@/boardui/utils/cx";
 import { Button } from "@/boardui/base/buttons/button";
+import { useSettings } from "../../settings";
 
 interface Props {
   title: string;
@@ -11,14 +12,35 @@ interface Props {
   unreadCount: number;
   icon: ComponentType<{ className?: string }>;
   onMenu: () => void;
-  onNotifications: () => void;
   onProjects: () => void;
   hideTitle?: boolean;
   floating?: boolean;
 }
 
+function ThemeToggle({ floating }: { floating: boolean }) {
+  const theme = useSettings((state) => state.theme);
+  const setTheme = useSettings((state) => state.setTheme);
+  const light = theme === "light";
+  return (
+    <button
+      type="button"
+      aria-label={light ? "Ativar modo escuro" : "Ativar modo claro"}
+      aria-pressed={light}
+      title={light ? "Ativar modo escuro" : "Ativar modo claro"}
+      onClick={() => setTheme(light ? "dark" : "light")}
+      className={cx(
+        "relative flex shrink-0 items-center justify-center overflow-hidden rounded-full text-foreground-icon-secondary transition-colors hover:bg-background-primary-hover hover:text-foreground-icon-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus-ring",
+        floating ? "size-8" : "size-9",
+      )}
+    >
+      <Sun className={cx("absolute size-4 transition-all duration-300", light ? "rotate-0 scale-100 opacity-100" : "-rotate-90 scale-50 opacity-0")} />
+      <Moon className={cx("absolute size-4 transition-all duration-300", light ? "rotate-90 scale-50 opacity-0" : "rotate-0 scale-100 opacity-100")} />
+    </button>
+  );
+}
+
 /** Compact version of the mobile hero header, with the app controls on the right. */
-export default function MobileTopBar({ title, subtitle, projectName, unreadCount, icon: Icon, onMenu, onNotifications, onProjects, hideTitle = false, floating = false }: Props) {
+export default function MobileTopBar({ title, subtitle, projectName, unreadCount, icon: Icon, onMenu, onProjects, hideTitle = false, floating = false }: Props) {
   const secondary = subtitle === undefined ? projectName : subtitle;
   return (
     <header className={cx(
@@ -30,7 +52,7 @@ export default function MobileTopBar({ title, subtitle, projectName, unreadCount
       <div className="relative flex w-full min-w-0 items-center gap-2">
         <button
           type="button"
-          aria-label="Abrir menu"
+          aria-label={unreadCount > 0 ? `Abrir menu, ${unreadCount} notificações não lidas` : "Abrir menu"}
           title="Abrir menu"
           onClick={onMenu}
           className={cx(
@@ -46,6 +68,11 @@ export default function MobileTopBar({ title, subtitle, projectName, unreadCount
               <LayoutPanelLeft className="size-2" />
             </span>
           ) : null}
+          {unreadCount > 0 ? (
+            <Badge color="primary" className="pointer-events-none absolute -right-1 -top-1 min-w-4 px-1 text-[10px]">
+              {unreadCount > 9 ? "9+" : unreadCount}
+            </Badge>
+          ) : null}
         </button>
         {!floating && !hideTitle ? (
           <div className="flex min-w-0 flex-1 flex-col gap-0">
@@ -56,23 +83,6 @@ export default function MobileTopBar({ title, subtitle, projectName, unreadCount
           <div className="min-w-0 flex-1" />
         ) : null}
         <div className={cx("flex min-w-0 shrink-0 items-center gap-0.5", floating && "max-w-[calc(100vw-4.5rem)] justify-end rounded-full bg-foreground-icon-primary/10 p-1 shadow-xs backdrop-blur-md")}>
-          <div className="relative shrink-0">
-            <Button
-              variant="ghost"
-              size="small"
-              iconOnly
-              leadingIcon={Bell}
-              aria-label={unreadCount > 0 ? `Notificações, ${unreadCount} não lidas` : "Notificações"}
-              title="Notificações"
-              onClick={onNotifications}
-              className={cx("rounded-full", floating ? "size-8" : "size-9 [&_svg]:size-4")}
-            />
-            {unreadCount > 0 ? (
-              <Badge color="primary" className="pointer-events-none absolute -right-0.5 -top-0.5 min-w-4 px-1 text-[10px]">
-                {unreadCount > 9 ? "9+" : unreadCount}
-              </Badge>
-            ) : null}
-          </div>
           <Button
             variant="ghost"
             size="small"
@@ -84,6 +94,7 @@ export default function MobileTopBar({ title, subtitle, projectName, unreadCount
           >
             <span className="min-w-0 max-w-24 truncate text-caption-2-medium">{projectName}</span>
           </Button>
+          <ThemeToggle floating={floating} />
         </div>
       </div>
     </header>

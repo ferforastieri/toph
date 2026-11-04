@@ -8,7 +8,7 @@ import { basename, quoteIdentifier } from "../lib";
 import BrandMark from "@toph/brand";
 import { Button } from "@/boardui/base/buttons/button";
 import { Modal } from "@/boardui/base/modal/modal";
-import BotStudioTab from "../panels/BotStudioTab";
+import BotStudioTab, { type TophActionRequest } from "../panels/BotStudioTab";
 import DbPanelTab from "../panels/DbPanelTab";
 import DiffPanelTab from "../panels/DiffPanelTab";
 import EditorPanel from "../panels/EditorPanel";
@@ -31,6 +31,7 @@ import { useTophDrafts } from "../tophDrafts";
 import MobileBranchSheet from "./MobileBranchSheet";
 import MobileNotificationsSheet from "./MobileNotificationsSheet";
 import MobileAccountSheet from "./MobileAccountSheet";
+import MobileConversationsSheet from "./MobileConversationsSheet";
 
 export default function MobileApp() {
   const projects = useApp((state) => state.projects);
@@ -63,6 +64,8 @@ export default function MobileApp() {
   const [branchOpen, setBranchOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
+  const [conversationsOpen, setConversationsOpen] = useState(false);
+  const [pendingTophAction, setPendingTophAction] = useState<TophActionRequest | null>(null);
   const swipeStart = useRef<{ x: number; y: number } | null>(null);
   const [currentBranch, setCurrentBranch] = useState("");
   const pageSubtitle = screen === "scm" && currentBranch ? currentBranch : (project?.name ?? "");
@@ -71,6 +74,8 @@ export default function MobileApp() {
     setScreen("bots");
     setMenuOpen(false);
     setTerminalOpen(false);
+    setConversationsOpen(false);
+    setPendingTophAction(null);
   }, [activeProjectId]);
 
   function refreshBranch() {
@@ -89,11 +94,13 @@ export default function MobileApp() {
 
   function openNotification(notification: AppNotification) {
     if (notification.projectId) {
-      setActiveProject(notification.projectId);
-      if (notification.botId) useBots.getState().setActiveBot(notification.projectId, notification.botId);
+      window.dispatchEvent(new CustomEvent("toph:open-bot", {
+        detail: { projectId: notification.projectId, botId: notification.botId },
+      }));
     }
     markNotificationRead(notification.id);
     setScreen("bots");
+    setTerminalOpen(false);
     setNotificationsOpen(false);
   }
 
@@ -149,6 +156,22 @@ export default function MobileApp() {
     setScreen(next);
     setMenuOpen(false);
     setTerminalOpen(false);
+  }
+
+  function openConversations() {
+    setMenuOpen(false);
+    setConversationsOpen(true);
+  }
+
+  function selectConversationScreen() {
+    setConversationsOpen(false);
+    setTerminalOpen(false);
+    setScreen("bots");
+  }
+
+  function openTophAction(mode: TophActionRequest["mode"], botId: string, action: TophActionRequest["action"]) {
+    setPendingTophAction({ mode, botId, action });
+    selectConversationScreen();
   }
 
   function openFile(path: string, line?: number) {
@@ -351,12 +374,17 @@ export default function MobileApp() {
         unreadCount={unreadCount}
         icon={pageIcon}
         onMenu={() => setMenuOpen(true)}
-        onNotifications={() => setNotificationsOpen(true)}
         onProjects={() => setProjectsOpen(true)}
       />
       <main className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background-primary-default">
         {screen === "bots" ? (
-          <BotStudioTab key={project.id} project={project} mobile />
+          <BotStudioTab
+            key={project.id}
+            project={project}
+            mobile
+            externalAction={pendingTophAction}
+            onExternalActionHandled={() => setPendingTophAction(null)}
+          />
         ) : screen === "files" ? (
           <div className="min-h-0 flex-1 overflow-hidden">
             <FilesScreen project={project} onOpenFile={openFile} />
@@ -408,9 +436,12 @@ export default function MobileApp() {
           user={user}
           projectName={project.name}
           branch={currentBranch}
+          unreadCount={unreadCount}
           onSelect={selectScreen}
+          onConversations={openConversations}
           onBranch={() => { setMenuOpen(false); setBranchOpen(true); }}
           onAccount={() => { setMenuOpen(false); setAccountOpen(true); }}
+          onNotifications={() => { setMenuOpen(false); setNotificationsOpen(true); }}
           onTerminal={() => { setMenuOpen(false); setTerminalOpen(true); }}
           onClose={() => setMenuOpen(false)}
         />
@@ -433,7 +464,6 @@ export default function MobileApp() {
             unreadCount={unreadCount}
             icon={TerminalSquare}
             onMenu={() => setMenuOpen(true)}
-            onNotifications={() => setNotificationsOpen(true)}
             onProjects={() => setProjectsOpen(true)}
           />
           <div className="min-h-0 flex-1">
@@ -455,6 +485,13 @@ export default function MobileApp() {
         projectId={project.id}
         onClose={() => setBranchOpen(false)}
         onChanged={refreshBranch}
+      />
+      <MobileConversationsSheet
+        open={conversationsOpen}
+        project={project}
+        onClose={() => setConversationsOpen(false)}
+        onSelected={selectConversationScreen}
+        onAction={openTophAction}
       />
       <MobileNotificationsSheet
         open={notificationsOpen}

@@ -13,7 +13,7 @@ interface Props {
   compact?: boolean;
 }
 
-/** Shared Toph row used by the desktop sidebar and the mobile Tophs screen. */
+/** Shared Toph row used by the desktop sidebar and the mobile conversations sheet. */
 export default function TophRow({ bot, active, onSelect, onConfig, onSessions, compact = false }: Props) {
   return (
     <div
