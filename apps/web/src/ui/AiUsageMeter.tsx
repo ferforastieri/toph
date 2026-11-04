@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { OpenCodeClient, SessionStatsInfo } from "@opencode/client";
-import { ProgressBar, ProgressCircle } from "@/boardui/base/progress/progress";
+import { ProgressBar } from "@/boardui/base/progress/progress";
 import { api, type AIUsageWindow } from "../api";
 import { modelGroup, providerLabel, useAI } from "../ai";
 import ProviderIcon from "../components/ProviderIcon";
@@ -139,17 +139,16 @@ export default function AiUsageMeter({ client, refreshKey }: Props) {
       label="Uso da IA"
       trigger={(
         <span
-          className="relative inline-flex size-5 shrink-0 items-center justify-center"
+          className="inline-flex shrink-0 items-center gap-1.5"
           title={weekly ? `Uso semanal: ${Math.round(remainingPercent(weekly))}% restante` : "Uso da IA"}
         >
-          <ProgressCircle
-            value={weeklyRemaining ?? 0}
-            maxValue={100}
-            size="sm"
-            className="absolute inset-0 m-auto"
-            aria-label={weekly ? `Uso semanal: ${Math.round(remainingPercent(weekly))}% restante` : "Uso da IA"}
-          />
-          <ProviderIcon provider={provider} className="relative size-3 text-text-primary" />
+          <ProviderIcon provider={provider} className="size-3.5 text-text-primary" />
+          <span className="relative h-1 w-7 overflow-hidden rounded-full bg-background-tertiary-default" aria-hidden>
+            <span
+              className="absolute inset-y-0 left-0 rounded-full bg-accent-500 transition-[width] duration-500 ease-out"
+              style={{ width: `${weeklyRemaining ?? 0}%` }}
+            />
+          </span>
         </span>
       )}
       popoverClassName="w-[340px] p-0"
