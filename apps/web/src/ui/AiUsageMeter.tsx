@@ -148,7 +148,7 @@ export default function AiUsageMeter({ client, refreshKey }: Props) {
               className="absolute inset-0"
               aria-label={weekly ? `Uso semanal: ${Math.round(remainingPercent(weekly))}% restante` : "Uso da IA"}
             />
-            <ProviderIcon provider={provider} className="relative size-3 text-accent-600" />
+            <ProviderIcon provider={provider} className="relative size-3 text-text-primary" />
           </span>
           <span className="tabular-nums">{triggerLabel}</span>
         </>
@@ -159,7 +159,7 @@ export default function AiUsageMeter({ client, refreshKey }: Props) {
       {() => (
         <div className="flex flex-col gap-3">
           <div className="flex items-center gap-2">
-            <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-background-secondary-default text-accent-600">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-background-secondary-default text-text-primary">
               <ProviderIcon provider={provider} className="size-4" />
             </span>
             <div className="flex min-w-0 flex-1 flex-col gap-0.5">
