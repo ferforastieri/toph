@@ -42,8 +42,8 @@ interface Props {
   onExternalActionHandled?: () => void;
 }
 
-const CONVERSATION_PAGE_SIZE = 30;
-const ACTIVITY_PAGE_SIZE = 12;
+const CONVERSATION_PAGE_SIZE = 400;
+const ACTIVITY_PAGE_SIZE = 400;
 const ASSISTANT_IMAGE_SCAN_LIMIT = 12;
 const ASSISTANT_IMAGE_RENDER_LIMIT = 8;
 
@@ -493,7 +493,6 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
   const [formBusy, setFormBusy] = useState<string | null>(null);
   const [conversationPage, setConversationPage] = useState<HistoryPageState>(EMPTY_HISTORY_PAGE);
   const [activityPage, setActivityPage] = useState<HistoryPageState>(EMPTY_HISTORY_PAGE);
-  const [activityWindow, setActivityWindow] = useState(300);
   const [historyReloadToken, setHistoryReloadToken] = useState(0);
   const sessionTophMap = useRef(new Map<string, string>());
   const toolFileSnapshots = useRef(new Map<string, ToolFileSnapshot[]>());
@@ -554,14 +553,7 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
       : activityMessages,
     [activityMessages, activityFocus],
   );
-  const activityGroups = useMemo(
-    () => groupChatMessages(
-      visibleActivityMessages.length > activityWindow
-        ? visibleActivityMessages.slice(-activityWindow)
-        : visibleActivityMessages,
-    ),
-    [visibleActivityMessages, activityWindow],
-  );
+  const activityGroups = useMemo(() => groupChatMessages(visibleActivityMessages), [visibleActivityMessages]);
   const latestUserAt = useMemo(
     () => [...conversationMessages].reverse().find((message) => message.role === "user")?.createdAt ?? 0,
     [conversationMessages],
@@ -661,7 +653,6 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
 
   useEffect(() => {
     setActivityFocus(null);
-    setActivityWindow(300);
   }, [chat?.id]);
 
   useEffect(() => {
@@ -767,34 +758,6 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
     return () => { cancelled = true; };
   }, [chat?.id, projectChats?.hydrated, historyReloadToken, mergeMessages, project.id]);
 
-  async function loadOlderHistory(scope: "conversation" | "activity") {
-    if (!chat) return;
-    const state = scope === "conversation" ? conversationPage : activityPage;
-    const setState = scope === "conversation" ? setConversationPage : setActivityPage;
-    if (state.loading || !state.hasMore || !state.cursor) return;
-    const element = scope === "conversation" ? scrollRef.current : activityScrollRef.current;
-    const previousHeight = element?.scrollHeight ?? 0;
-    const previousTop = element?.scrollTop ?? 0;
-    if (scope === "conversation") stickToBottom.current = false;
-    else stickActivityToBottom.current = false;
-    setState((current) => ({ ...current, loading: true, error: "" }));
-    try {
-      const page = await api.workspaceMessages<ChatMessage>(project.id, {
-        mode: "chat",
-        channel: chat.id,
-        scope,
-        before: state.cursor,
-        limit: scope === "conversation" ? CONVERSATION_PAGE_SIZE : ACTIVITY_PAGE_SIZE,
-      });
-      mergeMessages(project.id, page.items);
-      setState({ cursor: page.nextCursor, hasMore: page.hasMore, loading: false, ready: true, error: "" });
-      window.requestAnimationFrame(() => {
-        if (element) element.scrollTop = previousTop + Math.max(0, element.scrollHeight - previousHeight);
-      });
-    } catch (error) {
-      setState((current) => ({ ...current, loading: false, error: error instanceof Error ? error.message : "Não foi possível carregar o histórico." }));
-    }
-  }
 
   useEffect(() => {
     const handler = (event: Event) => {
@@ -1534,20 +1497,6 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
           }}
         >
           <div className="mx-auto flex min-h-full w-full min-w-0 max-w-[760px] flex-col gap-4 overflow-x-hidden p-4 [&_img]:max-w-full [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_table]:block [&_table]:max-w-full [&_table]:overflow-x-auto">
-            {conversationPage.hasMore || (mobile && activityPage.hasMore) ? (
-              <Button
-                variant="ghost"
-                size="small"
-                className="self-center"
-                disabled={conversationPage.loading || (mobile && activityPage.loading)}
-                onClick={() => {
-                  void loadOlderHistory("conversation");
-                  if (mobile) void loadOlderHistory("activity");
-                }}
-              >
-                {conversationPage.loading || (mobile && activityPage.loading) ? "Carregando..." : "Carregar mensagens anteriores"}
-              </Button>
-            ) : null}
             {!conversationPage.ready && conversationPage.loading ? (
               <div className="my-auto flex items-center justify-center gap-2 py-8 text-caption-1-regular text-text-tertiary"><LoaderCircle className="size-4 animate-spin" /> Carregando conversa...</div>
             ) : null}
@@ -1775,16 +1724,6 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
                   <span className="truncate">Mostrando {tophs.find((toph) => toph.id === activityFocus.tophId)?.name ?? "Toph"}</span>
                   <button type="button" onClick={() => setActivityFocus(null)} className="shrink-0 font-medium hover:underline">Ver tudo</button>
                 </div>
-              ) : null}
-              {visibleActivityMessages.length > activityWindow ? (
-                <Button variant="ghost" size="small" className="mb-3 w-full" onClick={() => setActivityWindow((value) => value + 300)}>
-                  Mostrar mais ({visibleActivityMessages.length - activityWindow} anteriores)
-                </Button>
-              ) : null}
-              {activityPage.hasMore ? (
-                <Button variant="ghost" size="small" className="mb-3 w-full" disabled={activityPage.loading} onClick={() => void loadOlderHistory("activity")}>
-                  {activityPage.loading ? "Carregando..." : "Carregar atividades anteriores"}
-                </Button>
               ) : null}
               {!activityPage.ready && activityPage.loading ? (
                 <div className="flex items-center justify-center gap-2 py-8 text-caption-1-regular text-text-tertiary"><LoaderCircle className="size-4 animate-spin" /> Carregando atividades...</div>

@@ -462,7 +462,7 @@ impl Store {
         before: Option<&WorkspaceMessageCursor>,
         limit: usize,
     ) -> AppResult<WorkspaceMessagePage> {
-        let limit = limit.clamp(1, 100);
+        let limit = limit.clamp(1, 500);
         let before_at = before.map(|cursor| cursor.created_at);
         let before_channel = before.map(|cursor| cursor.channel.as_str());
         let before_id = before.map(|cursor| cursor.id.as_str());
