@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ComponentProps } from "react";
 import { OpenCode } from "@opencode/client";
 import { connectClientMcp, type ClientMcpTool } from "@opencode/client/mcp";
-import { Bot, ChevronDown, Copy, ListTree, LoaderCircle, MessageSquarePlus, Monitor, Plus } from "@toph/icons";
+import { Bot, ChevronDown, Copy, CornerDownRight, ListTree, LoaderCircle, MessageSquarePlus, Monitor, Plus } from "@toph/icons";
 import { api, ApiError, openCodeBase, type AIMessage, type AIMessageContentPart, type Project } from "../api";
 import { modelDisplay, useAI } from "../ai";
 import { activeChat, chatCoordinator, chatTophs, useChats, type ChatMessage, type ChatToph } from "../chats";
@@ -559,6 +559,13 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
     () => [...conversationMessages].reverse().find((message) => message.role === "user")?.createdAt ?? 0,
     [conversationMessages],
   );
+  const turnSummary = useMemo(() => {
+    if (!latestUserAt) return null;
+    const replies = messages.filter((message) => message.role === "assistant" && !message.pending && message.createdAt >= latestUserAt);
+    if (replies.length === 0) return null;
+    const last = Math.max(...replies.map((message) => message.createdAt));
+    return { replies: replies.length, seconds: Math.max(1, Math.round((last - latestUserAt) / 1000)) };
+  }, [messages, latestUserAt]);
   const lastTophGroupIndex = useMemo(() => {
     const map = new Map<string, number>();
     groupedMessages.forEach((group, index) => {
@@ -1420,6 +1427,16 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
           : [];
         const workers = [...new Map([...delegated, ...direct].map((toph) => [toph.id, toph])).values()];
         if (workers.length > 0) {
+          const reason = text.replace(/\s+/g, " ").trim().slice(0, 90);
+          for (const worker of workers) {
+            addMessage(project.id, {
+              id: `bot-route-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+              chatId: chat.id,
+              role: "system",
+              content: `O coordenador ${first.name} chamou @${worker.handle}${reason ? ` · ${reason}` : ""}`,
+              createdAt: Date.now(),
+            });
+          }
           const workerReplies = await Promise.all(workers.map(async (worker) => {
             if (token !== runToken.current) return null;
             const workerReply = await respondAsToph(
@@ -1594,7 +1611,16 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
                   </div>
                 );
               }
-              if (group.kind === "system") return <AgentTranscript key={`system-${index}`} messages={group.messages.map(toAiMessage)} streaming={false} projectId={project.id} projectRoot={project.root} />;
+              if (group.kind === "system") return (
+                <div key={`system-${index}`} className="flex flex-col items-center gap-1.5">
+                  {group.messages.map((message) => (
+                    <span key={message.id} className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-accent-500/20 bg-accent-500/10 px-2.5 py-1 text-[11px] text-accent-600">
+                      <CornerDownRight size={12} className="shrink-0" />
+                      <span className="truncate">{message.content}</span>
+                    </span>
+                  ))}
+                </div>
+              );
               const toph = tophs.find((item) => item.id === group.tophId);
               if (!toph) return null;
               const footerAssistant = [...group.messages].reverse().find((message) => message.role === "assistant" && !message.pending);
@@ -1607,13 +1633,15 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
               const activityState: TophActivityState | null = groupStreaming || group.messages.some((message) => message.status === "running")
                 ? hasRunningTool ? "working" : hasAssistantText ? "responding" : "thinking"
                 : null;
+              const tophModel = toph.model || activeModel;
+              const tophModelLabel = modelDisplay(models.find((item) => item.id === tophModel) ?? (tophModel ? { id: tophModel, label: tophModel.split("/").pop() ?? tophModel } : undefined));
               return (
                 <section key={`toph-${group.tophId}-${index}`} className="flex min-w-0 max-w-full items-start gap-2.5 [content-visibility:auto] [contain-intrinsic-size:auto_200px]">
                   <TophActivityAvatar bot={toph} state={activityState} size={32} className="mt-0.5" />
-                  <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-                    <header className="flex min-w-0 items-baseline gap-2">
+                  <div className="flex min-w-0 flex-1 flex-col gap-1.5 border-s-2 ps-2.5" style={{ borderColor: `${toph.color}33` }}>
+                    <header className="flex min-w-0 items-baseline gap-2" title={toph.role}>
                       <strong className="truncate text-caption-1-semibold text-text-primary">{toph.name}</strong>
-                      <span className="truncate text-caption-2-regular text-text-tertiary">{activityState ? <TophActivityStatus state={activityState} /> : toph.role || "Toph"}</span>
+                      <span className="truncate text-caption-2-regular text-text-tertiary">{activityState ? <TophActivityStatus state={activityState} /> : tophModelLabel || toph.role || "Toph"}</span>
                     </header>
                     <AgentTranscript
                       messages={group.messages.map(toAiMessage)}
@@ -1678,6 +1706,12 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
                 </section>
               );
             }) : null}
+
+            {turnSummary && !sending && runningTophs.size === 0 ? (
+              <div className="flex items-center justify-center gap-1.5 py-1 text-[11px] text-text-tertiary">
+                {turnSummary.replies} {turnSummary.replies === 1 ? "resposta" : "respostas"} · {turnSummary.seconds}s
+              </div>
+            ) : null}
           </div>
         </div>
 
