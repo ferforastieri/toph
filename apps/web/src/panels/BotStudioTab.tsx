@@ -325,6 +325,63 @@ function toAiMessage(message: ChatMessage): AiMessage {
   };
 }
 
+interface ActivitySummary {
+  text: string;
+  from: number;
+  to: number;
+}
+
+function activitySummaryForGroup(
+  group: ChatGroup,
+  index: number,
+  groups: ChatGroup[],
+  activityMessages: ChatMessage[],
+): ActivitySummary | null {
+  if (group.kind !== "toph") return null;
+  let turnStart = group.messages[0]?.createdAt ?? 0;
+  for (let cursor = index - 1; cursor >= 0; cursor -= 1) {
+    const previous = groups[cursor];
+    if (previous.kind === "user") {
+      turnStart = previous.message.createdAt;
+      break;
+    }
+  }
+  let turnEnd = 0;
+  for (let cursor = index + 1; cursor < groups.length; cursor += 1) {
+    const next = groups[cursor];
+    if (next.kind === "user") {
+      turnEnd = next.message.createdAt;
+      break;
+    }
+  }
+  const activity = activityMessages.filter((message) =>
+    message.tophId === group.tophId
+    && message.createdAt >= turnStart
+    && (turnEnd === 0 || message.createdAt < turnEnd),
+  );
+  const toolNames = activity
+    .filter((message) => message.role === "tool")
+    .map((message) => (message.title ?? "").replace(/^Tool\s*·\s*/i, "").trim().toLowerCase());
+  const reads = toolNames.filter((name) => name === "read" || name.includes("read")).length;
+  const searches = toolNames.filter((name) => name === "glob" || name === "grep" || name === "list" || name.includes("search") || name.includes("glob") || name.includes("grep")).length;
+  const commands = toolNames.filter((name) => name === "bash" || name === "shell" || name.includes("command") || name.includes("terminal")).length;
+  const edits = toolNames.filter((name) => name === "edit" || name === "write" || name === "patch" || name.includes("apply")).length;
+  const last = Math.max(
+    turnStart,
+    ...group.messages.map((message) => message.createdAt),
+    ...activity.map((message) => message.createdAt),
+  );
+  const seconds = Math.max(1, Math.round((last - turnStart) / 1000));
+  const parts: string[] = [];
+  if (reads > 0) parts.push(`Leu ${reads} arquivo${reads === 1 ? "" : "s"}`);
+  if (searches > 0) parts.push(`explorou ${searches} arquivo${searches === 1 ? "" : "s"}`);
+  if (commands > 0) parts.push(`rodou ${commands} comando${commands === 1 ? "" : "s"}`);
+  if (edits > 0) parts.push(`editou ${edits} arquivo${edits === 1 ? "" : "s"}`);
+  if (parts.length === 0 && seconds < 2) return null;
+  parts.push(`${seconds} s`);
+  return { text: parts.join(" · "), from: turnStart, to: turnEnd || last + 1 };
+}
+
 type TophActivityState = "thinking" | "working" | "responding";
 
 function TophActivityAvatar({ bot, state, size = 32, className }: { bot: ChatToph; state: TophActivityState | null; size?: number; className?: string }) {
@@ -364,6 +421,7 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [configTophId, setConfigTophId] = useState<string | null>(null);
   const [sessionsTophId, setSessionsTophId] = useState<string | null>(null);
+  const [activityFocus, setActivityFocus] = useState<{ tophId: string; from: number; to: number } | null>(null);
   const sendingRef = useRef(false);
   const runToken = useRef(0);
   const [runningTophs, setRunningTophs] = useState<Set<string>>(new Set());
@@ -395,7 +453,13 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
     : messages.filter((message) => message.role !== "tool" && message.role !== "reasoning");
   const activityMessages = messages.filter((message) => message.role === "tool" || message.role === "reasoning");
   const groupedMessages = groupChatMessages(conversationMessages);
-  const activityGroups = groupChatMessages(activityMessages);
+  const visibleActivityMessages = activityFocus
+    ? activityMessages.filter((message) =>
+        message.tophId === activityFocus.tophId
+        && message.createdAt >= activityFocus.from
+        && message.createdAt <= activityFocus.to)
+    : activityMessages;
+  const activityGroups = groupChatMessages(visibleActivityMessages);
   const latestUserAt = [...conversationMessages].reverse().find((message) => message.role === "user")?.createdAt ?? 0;
   const lastTophGroupIndex = new Map<string, number>();
   groupedMessages.forEach((group, index) => {
@@ -407,9 +471,14 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
   });
   const completedReplies = messages.filter((message) => message.role === "assistant" && !message.pending && message.status !== "running").length;
   const visibleRunningTophs = [...runningTophs].filter((tophId) => tophs.some((toph) => toph.id === tophId));
+  const panelRunningTophs = activityFocus ? visibleRunningTophs.filter((tophId) => tophId === activityFocus.tophId) : visibleRunningTophs;
+  const panelForms = activityFocus ? forms.filter(({ tophId }) => tophId === activityFocus.tophId) : forms;
   const visibleForms = forms.filter(({ tophId }) => tophs.some((toph) => toph.id === tophId));
   const assistantImages = agentImagesForMessages(
-    messages.filter((message) => message.role === "assistant").slice(-ASSISTANT_IMAGE_SCAN_LIMIT).map(toAiMessage),
+    messages
+      .filter((message) => message.role === "assistant" && (!activityFocus || message.tophId === activityFocus.tophId))
+      .slice(-ASSISTANT_IMAGE_SCAN_LIMIT)
+      .map(toAiMessage),
     project.id,
     project.root,
   ).slice(-ASSISTANT_IMAGE_RENDER_LIMIT);
@@ -481,6 +550,10 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
   useEffect(() => {
     ensure(project.id);
   }, [ensure, project.id]);
+
+  useEffect(() => {
+    setActivityFocus(null);
+  }, [chat?.id]);
 
   useEffect(() => {
     if (aiConfig?.provider !== "opencode") return;
@@ -847,6 +920,18 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
     };
   }
 
+  function completedStoredReply(tophId: string, chatId: string, since: number): ChatMessage | null {
+    const messages = useChats.getState().byProject[project.id]?.messages ?? [];
+    return [...messages].reverse().find((message) =>
+      message.role === "assistant"
+      && message.tophId === tophId
+      && message.chatId === chatId
+      && message.createdAt >= since
+      && message.status === "complete"
+      && Boolean(message.content.trim()),
+    ) ?? null;
+  }
+
   async function ensureSession(toph: ChatToph): Promise<string> {
     const current = storedToph(toph);
     if (current.sessionId) return current.sessionId;
@@ -898,7 +983,7 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
     }
   }
 
-  async function openCodeReply(toph: ChatToph, userText: string, attachments: AgentAttachment[] = [], token = runToken.current, retry = false): Promise<string> {
+  async function openCodeReply(toph: ChatToph, userText: string, attachments: AgentAttachment[] = [], token = runToken.current, retry = false, since = Date.now()): Promise<string> {
     const current = storedToph(toph);
     const { chat: chatNow, tophs: tophsNow, messages: allHistory } = currentChat(current);
     const history = promptHistory(allHistory, userText);
@@ -925,7 +1010,7 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
       if (!retry && current.sessionId) {
         sessionTophMap.current.delete(current.sessionId);
         updateToph(project.id, current.id, { sessionId: undefined, sessionPrimed: false });
-        return openCodeReply({ ...current, sessionId: undefined, sessionPrimed: false }, userText, attachments, token, true);
+        return openCodeReply({ ...current, sessionId: undefined, sessionPrimed: false }, userText, attachments, token, true, since);
       }
       throw error;
     }
@@ -934,6 +1019,8 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
     while (Date.now() < deadline) {
       await new Promise((resolve) => window.setTimeout(resolve, 400));
       if (token !== runToken.current) throw new Error("__stopped__");
+      const stored = completedStoredReply(current.id, current.chatId, since);
+      if (stored) return stored.content.trim();
       const active = await client.session.active().catch(() => null);
       if (!active || active[sessionId]) continue;
       const context = await client.session.context({ sessionID: sessionId } as never).catch(() => null);
@@ -944,6 +1031,8 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
       if (assistant.error) throw new Error(assistant.error);
     }
     if (latest) return latest;
+    const stored = completedStoredReply(current.id, current.chatId, since);
+    if (stored) return stored.content.trim();
     throw new Error("O Toph não respondeu a tempo.");
   }
 
@@ -990,7 +1079,7 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
     try {
       if (aiConfig?.provider === "opencode") {
         const current = storedToph(toph);
-        const reply = await openCodeReply(current, userText, options.attachments, options.token);
+        const reply = await openCodeReply(current, userText, options.attachments, options.token, false, startedAt);
         if (options.token !== undefined && options.token !== runToken.current) return null;
         if (!current.sessionPrimed) updateToph(project.id, current.id, { sessionPrimed: true });
         const currentMessages = useChats.getState().byProject[project.id]?.messages ?? [];
@@ -1067,7 +1156,12 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
     } catch (error) {
       if (error instanceof Error && error.message === "__stopped__") return null;
       if (options.token !== undefined && options.token !== runToken.current) return null;
-      const recovered = recoverBotReply(useChats.getState().byProject[project.id]?.messages ?? [], toph.id, toph.chatId, startedAt);
+      let recovered = recoverBotReply(useChats.getState().byProject[project.id]?.messages ?? [], toph.id, toph.chatId, startedAt);
+      if (!recovered) {
+        await new Promise((resolve) => window.setTimeout(resolve, 1800));
+        if (options.token !== undefined && options.token !== runToken.current) return null;
+        recovered = recoverBotReply(useChats.getState().byProject[project.id]?.messages ?? [], toph.id, toph.chatId, startedAt);
+      }
       if (recovered) {
         updateMessage(project.id, recovered.id, { pending: false, status: "complete" });
         return recovered.content.trim();
@@ -1243,6 +1337,13 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
     setTophSession(project.id, toph.id, undefined, { sessionPrimed: false });
   }
 
+  function focusActivity(tophId: string, from: number, to: number) {
+    setActivityFocus({ tophId, from, to });
+    window.requestAnimationFrame(() => {
+      activityScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+    });
+  }
+
   function openCreateChat() {
     window.dispatchEvent(new CustomEvent("toph:create-chat"));
   }
@@ -1356,6 +1457,7 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
               const toph = tophs.find((item) => item.id === group.tophId);
               if (!toph) return null;
               const footerAssistant = [...group.messages].reverse().find((message) => message.role === "assistant" && !message.pending);
+              const summary = activitySummaryForGroup(group, index, groupedMessages, activityMessages);
               const isLatestTophGroup = lastTophGroupIndex.get(toph.id) === index;
               const belongsToCurrentTurn = latestUserAt === 0 || group.messages.some((message) => message.createdAt >= latestUserAt);
               const groupStreaming = belongsToCurrentTurn && isLatestTophGroup && runningTophs.has(toph.id);
@@ -1380,6 +1482,21 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
                       projectId={project.id}
                       projectRoot={project.root}
                     />
+                    {summary ? (
+                      mobile ? (
+                        <span className="flex w-fit items-center gap-1.5 rounded-full border border-border-button-default bg-background-secondary-default px-2 py-1 text-[11px] text-text-tertiary">
+                          <ListTree size={12} /> {summary.text}
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => focusActivity(toph.id, summary.from, summary.to)}
+                          className="flex w-fit items-center gap-1.5 rounded-full border border-border-button-default bg-background-secondary-default px-2 py-1 text-[11px] text-text-secondary transition-colors hover:border-accent-500/40 hover:bg-accent-500/5 hover:text-accent-600"
+                        >
+                          <ListTree size={12} /> {summary.text}
+                        </button>
+                      )
+                    ) : null}
                     {footerAssistant ? (
                       <MessageInfo
                         agentMode={toph.agentMode}
@@ -1490,10 +1607,10 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
                 <strong className="truncate text-caption-1-semibold text-text-primary">Acompanhamento</strong>
                 <span className="truncate text-caption-2-regular text-text-tertiary">Arquivos, navegador, terminal e ferramentas</span>
               </div>
-              {visibleRunningTophs.length > 0 ? (
+              {panelRunningTophs.length > 0 ? (
                 <span className="flex items-center gap-1.5 rounded-full bg-accent-500/10 px-2 py-1 text-[10px] font-medium text-accent-600"><LoaderCircle className="size-3 animate-spin" /> Ao vivo</span>
-              ) : activityMessages.length + assistantImages.length > 0 ? (
-                <span className="rounded-full bg-background-tertiary-default px-2 py-1 text-[10px] text-text-tertiary">{activityMessages.length + assistantImages.length}</span>
+              ) : visibleActivityMessages.length + assistantImages.length > 0 ? (
+                <span className="rounded-full bg-background-tertiary-default px-2 py-1 text-[10px] text-text-tertiary">{visibleActivityMessages.length + assistantImages.length}</span>
               ) : null}
             </header>
             <div
@@ -1504,6 +1621,12 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
                 stickActivityToBottom.current = element.scrollHeight - element.scrollTop - element.clientHeight < 80;
               }}
             >
+              {activityFocus ? (
+                <div className="mb-2 flex items-center justify-between gap-2 rounded-xl bg-accent-500/10 px-2 py-1.5 text-caption-2-regular text-accent-600">
+                  <span className="truncate">Mostrando {tophs.find((toph) => toph.id === activityFocus.tophId)?.name ?? "Toph"}</span>
+                  <button type="button" onClick={() => setActivityFocus(null)} className="shrink-0 font-medium hover:underline">Ver tudo</button>
+                </div>
+              ) : null}
               {activityPage.hasMore ? (
                 <Button variant="ghost" size="small" className="mb-3 w-full" disabled={activityPage.loading} onClick={() => void loadOlderHistory("activity")}>
                   {activityPage.loading ? "Carregando..." : "Carregar atividades anteriores"}
@@ -1524,11 +1647,11 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
                   <strong className="text-caption-1-semibold text-text-primary">Nenhuma atividade ainda</strong>
                   <p className="max-w-xs text-caption-2-regular leading-relaxed text-text-tertiary">Quando um Toph começar a trabalhar, cada ação aparecerá aqui.</p>
                 </div>
-              ) : activityPage.ready && activityGroups.length === 0 && visibleRunningTophs.length === 0 && visibleForms.length === 0 && assistantImages.length === 0 ? (
+              ) : activityPage.ready && activityGroups.length === 0 && panelRunningTophs.length === 0 && panelForms.length === 0 && assistantImages.length === 0 ? (
                 <div className="flex h-full min-h-[220px] flex-col items-center justify-center gap-3 px-5 text-center">
                   <ListTree className="size-6 text-text-tertiary" />
-                  <strong className="text-caption-1-semibold text-text-primary">Pronto para acompanhar</strong>
-                  <p className="max-w-xs text-caption-2-regular leading-relaxed text-text-tertiary">As leituras, edições, comandos e visualizações do navegador serão mostradas em tempo real.</p>
+                  <strong className="text-caption-1-semibold text-text-primary">{activityFocus ? "Nenhuma atividade nesta resposta" : "Pronto para acompanhar"}</strong>
+                  <p className="max-w-xs text-caption-2-regular leading-relaxed text-text-tertiary">{activityFocus ? "Use Ver tudo para ver o acompanhamento completo do chat." : "As leituras, edições, comandos e visualizações do navegador serão mostradas em tempo real."}</p>
                 </div>
               ) : (
                 <div className="flex min-w-0 flex-col gap-3">
@@ -1565,7 +1688,7 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
                     );
                   })}
 
-                  {visibleRunningTophs
+                  {panelRunningTophs
                     .filter((tophId) => !activityGroups.some((group) => group.kind === "toph" && group.tophId === tophId))
                     .map((tophId) => {
                       const toph = tophs.find((item) => item.id === tophId);
@@ -1581,7 +1704,7 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
                       );
                     })}
 
-                  {visibleForms.map(({ form, tophId }) => {
+                  {panelForms.map(({ form, tophId }) => {
                     const toph = tophs.find((item) => item.id === tophId);
                     if (!toph) return null;
                     return (
