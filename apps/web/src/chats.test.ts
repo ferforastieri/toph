@@ -24,23 +24,22 @@ describe("useChats", () => {
 
     const individual = project.chats.find((chat) => chat.kind === "individual")!;
     const team = project.chats.find((chat) => chat.kind === "team")!;
-    expect(chatTophs(project, individual.id)).toHaveLength(1);
-    expect(chatTophs(project, individual.id)[0].coordinator).toBe(true);
-    expect(chatTophs(project, team.id).length).toBeGreaterThanOrEqual(2);
-    expect(chatTophs(project, team.id).filter((toph) => toph.coordinator)).toHaveLength(1);
+    expect(chatTophs(project, individual.id)).toHaveLength(0);
+    expect(chatTophs(project, team.id)).toHaveLength(0);
     expect(activeChat(project)?.kind).toBe("individual");
   });
 
   it("keeps exactly one Toph in the individual chat", () => {
     const project = useChats.getState().ensure("p");
     const individual = project.chats.find((chat) => chat.kind === "individual")!;
-    expect(useChats.getState().addToph("p", individual.id, preset("Leo", "Dev"))).toBeNull();
+    expect(useChats.getState().addToph("p", individual.id, preset("Leo", "Dev"))).not.toBeNull();
+    expect(useChats.getState().addToph("p", individual.id, preset("Nico", "Revisor"))).toBeNull();
   });
 
   it("keeps messages in the chat and removes them with their Toph", () => {
     const project = useChats.getState().ensure("p");
     const team = project.chats.find((chat) => chat.kind === "team")!;
-    const toph = chatTophs(project, team.id).find((member) => !member.coordinator)!;
+    const toph = useChats.getState().addToph("p", team.id, preset("Leo", "Dev"))!;
     const message: ChatMessage = {
       id: "m1",
       chatId: team.id,
@@ -58,11 +57,11 @@ describe("useChats", () => {
     expect(useChats.getState().byProject.p.messages).toHaveLength(0);
   });
 
-  it("keeps a single Toph per role in the team", () => {
+  it("lets the user create Tophs with any role", () => {
     const project = useChats.getState().ensure("p");
     const team = project.chats.find((chat) => chat.kind === "team")!;
     expect(useChats.getState().addToph("p", team.id, preset("Leo", "Dev"))).not.toBeNull();
-    expect(useChats.getState().addToph("p", team.id, preset("Outro", "Dev"))).toBeNull();
+    expect(useChats.getState().addToph("p", team.id, preset("Outro", "Dev"))).not.toBeNull();
   });
 
   it("marks a project loaded from the server as hydrated", () => {
@@ -80,7 +79,9 @@ describe("useChats", () => {
   it("replaces the coordinator when the current one leaves", () => {
     const project = useChats.getState().ensure("p");
     const team = project.chats.find((chat) => chat.kind === "team")!;
-    const coordinator = chatCoordinator(chatTophs(project, team.id))!;
+    useChats.getState().addToph("p", team.id, preset("Leo", "Dev"));
+    useChats.getState().addToph("p", team.id, preset("Nico", "Revisor"));
+    const coordinator = chatCoordinator(chatTophs(useChats.getState().byProject.p, team.id))!;
 
     useChats.getState().removeToph("p", coordinator.id);
 
