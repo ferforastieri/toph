@@ -1,7 +1,8 @@
 import { useEffect, useState, type CSSProperties } from "react";
 import type { MiniBot } from "../bots";
 import { cx } from "@/boardui/utils/cx";
-import { pointerLookStyle, usePointerLook } from "../ui/usePointerLook";
+import { usePointerLook } from "../ui/usePointerLook";
+import TophEyes, { TophColorOverlay } from "./TophEyes";
 
 interface Props {
   bot: Pick<MiniBot, "name" | "color" | "avatar">;
@@ -17,7 +18,8 @@ const CORE_AVATAR = `${AVATAR_BASE}toph-core.png`;
 export default function BotAvatar({ bot, size = 36, className, style, look = true }: Props) {
   const source = `${AVATAR_BASE}${bot.avatar}.png`;
   const [image, setImage] = useState(source);
-  const lookRef = usePointerLook<HTMLSpanElement>();
+  const lookRef = usePointerLook<HTMLSpanElement>({ disabled: !look });
+  const activeAvatar = image === CORE_AVATAR ? "toph-core" : bot.avatar;
 
   useEffect(() => setImage(source), [source]);
 
@@ -29,7 +31,7 @@ export default function BotAvatar({ bot, size = 36, className, style, look = tru
       title={bot.name}
       aria-hidden
     >
-      <span className="pointer-events-none absolute inset-0 block" style={look ? pointerLookStyle : undefined}>
+      <span className="pointer-events-none absolute inset-0 block">
         <img
           src={image}
           alt=""
@@ -39,23 +41,16 @@ export default function BotAvatar({ bot, size = 36, className, style, look = tru
           onError={() => { if (image !== CORE_AVATAR) setImage(CORE_AVATAR); }}
           className="size-full select-none object-contain grayscale drop-shadow-[0_1px_1px_rgba(0,0,0,0.18)]"
         />
-        <span
-          data-avatar-color={bot.color}
-          className="pointer-events-none absolute inset-0 size-full"
-          style={{
-            backgroundColor: bot.color,
-            WebkitMaskImage: `url("${image}")`,
-            maskImage: `url("${image}")`,
-            WebkitMaskPosition: "center",
-            maskPosition: "center",
-            WebkitMaskRepeat: "no-repeat",
-            maskRepeat: "no-repeat",
-            WebkitMaskSize: "contain",
-            maskSize: "contain",
-            mixBlendMode: "color",
-          }}
-        />
+        <TophColorOverlay color={bot.color} image={image} data-avatar-color={bot.color} />
       </span>
+      {look ? (
+        <TophEyes
+          avatar={activeAvatar}
+          image={image}
+          color={bot.color}
+          imageClassName="grayscale"
+        />
+      ) : null}
     </span>
   );
 }

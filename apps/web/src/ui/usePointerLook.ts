@@ -1,19 +1,19 @@
 import { useEffect, useRef } from "react";
 
 interface Options {
-  /** Maximum horizontal travel in pixels. */
+  /** Maximum travel in pixels, regardless of avatar size. */
   max?: number;
-  /** Maximum tilt in degrees. */
-  tilt?: number;
+  /** Travel as a fraction of the avatar width. */
+  strength?: number;
   disabled?: boolean;
 }
 
 /**
- * Makes a Toph avatar follow the pointer. The offsets are written as CSS
- * variables straight to the element, so pointer movement never re-renders
- * React or the surrounding chat.
+ * Makes a Toph look at the pointer. Only the `--toph-look-x` and
+ * `--toph-look-y` CSS variables change, so the avatar body never moves and
+ * pointer movement never re-renders React.
  */
-export function usePointerLook<T extends HTMLElement>({ max = 4, tilt = 5, disabled = false }: Options = {}) {
+export function usePointerLook<T extends HTMLElement>({ max = 4, strength = 0.025, disabled = false }: Options = {}) {
   const ref = useRef<T>(null);
 
   useEffect(() => {
@@ -30,12 +30,12 @@ export function usePointerLook<T extends HTMLElement>({ max = 4, tilt = 5, disab
       const dx = point.x - (rect.left + rect.width / 2);
       const dy = point.y - (rect.top + rect.height / 2);
       const distance = Math.hypot(dx, dy) || 1;
-      const strength = Math.min(1, distance / Math.max(160, rect.width * 4));
-      const lookX = (dx / distance) * max * strength;
-      const lookY = (dy / distance) * max * 0.65 * strength;
+      const strengthFactor = Math.min(1, distance / Math.max(160, rect.width * 4));
+      const travel = Math.min(max, Math.max(1, rect.width * strength));
+      const lookX = (dx / distance) * travel * strengthFactor;
+      const lookY = (dy / distance) * travel * 0.65 * strengthFactor;
       element.style.setProperty("--toph-look-x", `${lookX.toFixed(2)}px`);
       element.style.setProperty("--toph-look-y", `${lookY.toFixed(2)}px`);
-      element.style.setProperty("--toph-look-tilt", `${((dx / distance) * tilt * strength).toFixed(2)}deg`);
     };
 
     const onPointerMove = (event: PointerEvent) => {
@@ -48,7 +48,6 @@ export function usePointerLook<T extends HTMLElement>({ max = 4, tilt = 5, disab
       frame = 0;
       element.style.setProperty("--toph-look-x", "0px");
       element.style.setProperty("--toph-look-y", "0px");
-      element.style.setProperty("--toph-look-tilt", "0deg");
     };
 
     window.addEventListener("pointermove", onPointerMove, { passive: true });
@@ -60,12 +59,7 @@ export function usePointerLook<T extends HTMLElement>({ max = 4, tilt = 5, disab
       window.removeEventListener("pointerleave", reset);
       window.removeEventListener("blur", reset);
     };
-  }, [disabled, max, tilt]);
+  }, [disabled, max, strength]);
 
   return ref;
 }
-
-export const pointerLookStyle = {
-  transform: "translate3d(var(--toph-look-x, 0px), var(--toph-look-y, 0px), 0) rotate(var(--toph-look-tilt, 0deg))",
-  transition: "transform 90ms linear",
-} as const;
