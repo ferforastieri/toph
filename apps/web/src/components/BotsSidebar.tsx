@@ -1,12 +1,12 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { Bot, History, Plus, Settings2, Sparkles, UserRound } from "@toph/icons";
+import { Bot, Plus, Sparkles, UserRound } from "@toph/icons";
 import type { Project } from "../api";
 import { useAI } from "../ai";
 import { botThread, TOPH_PRESETS, useBots, type TophMode } from "../bots";
 import BotAvatar from "./BotAvatar";
+import TophRow from "./TophRow";
 import { Button } from "@/boardui/base/buttons/button";
 import { Modal } from "@/boardui/base/modal/modal";
-import { cx } from "@/boardui/utils/cx";
 import SidebarHeader from "./SidebarHeader";
 import { Accordion, AccordionItem } from "@/boardui/base/accordion/accordion";
 
@@ -103,25 +103,14 @@ export default function BotsSidebar({ project, headerControl }: Props) {
               Criar conversa individual
             </button>
           ) : soloThread.bots.map((bot) => (
-            <div
+            <TophRow
               key={bot.id}
-              className={cx(
-                "flex w-full items-center rounded-xl pe-1 transition-colors",
-                mode === "solo" && bot.id === workspace?.activeBotId ? "bg-background-tertiary-default" : "hover:bg-background-primary-hover",
-              )}
-            >
-              <button type="button" onClick={() => openBot("solo", bot.id)} className="flex min-w-0 flex-1 items-center gap-2.5 px-2 py-2 text-start">
-                <BotAvatar bot={bot} size={32} />
-                <span className="flex min-w-0 flex-1 flex-col">
-                  <span className="truncate text-caption-1-medium text-text-primary">{bot.name}</span>
-                  <span className="truncate text-caption-2-regular text-text-secondary">{bot.role || "Assistente"}</span>
-                </span>
-              </button>
-              <span className="flex shrink-0 items-center gap-0.5">
-                <Button variant="ghost" size="xs" iconOnly leadingIcon={Settings2} aria-label={`Configurar ${bot.name}`} title="Configurar Toph" onClick={() => openBotAction("solo", bot.id, "config")} />
-                <Button variant="ghost" size="xs" iconOnly leadingIcon={History} aria-label={`Sessões de ${bot.name}`} title="Sessões do Toph" onClick={() => openBotAction("solo", bot.id, "sessions")} />
-              </span>
-            </div>
+              bot={bot}
+              active={mode === "solo" && bot.id === workspace?.activeBotId}
+              onSelect={() => openBot("solo", bot.id)}
+              onConfig={() => openBotAction("solo", bot.id, "config")}
+              onSessions={() => openBotAction("solo", bot.id, "sessions")}
+            />
           ))}
             </div>
           </AccordionItem>
@@ -132,28 +121,14 @@ export default function BotsSidebar({ project, headerControl }: Props) {
         </div>
         <div className="flex flex-col gap-0.5">
           {teamThread.bots.map((bot) => (
-            <div
+            <TophRow
               key={bot.id}
-              className={cx(
-                "flex w-full items-center rounded-xl pe-1 transition-colors",
-                mode === "team" && bot.id === workspace?.activeBotId ? "bg-background-tertiary-default" : "hover:bg-background-primary-hover",
-              )}
-            >
-              <button type="button" onClick={() => openBot("team", bot.id)} className="flex min-w-0 flex-1 items-center gap-2.5 px-2 py-2 text-start">
-                <BotAvatar bot={bot} size={30} />
-                <span className="flex min-w-0 flex-1 flex-col">
-                  <span className="flex items-center gap-1.5">
-                    <span className="truncate text-caption-1-medium text-text-primary">{bot.name}</span>
-                    {bot.coordinator && <span className="shrink-0 rounded-full bg-accent-500/15 px-1 text-[9px] font-medium text-accent-600">coord.</span>}
-                  </span>
-                  <span className="truncate text-caption-2-regular text-text-secondary">{bot.role || "Especialista"}</span>
-                </span>
-              </button>
-              <span className="flex shrink-0 items-center gap-0.5">
-                <Button variant="ghost" size="xs" iconOnly leadingIcon={Settings2} aria-label={`Configurar ${bot.name}`} title="Configurar Toph" onClick={() => openBotAction("team", bot.id, "config")} />
-                <Button variant="ghost" size="xs" iconOnly leadingIcon={History} aria-label={`Sessões de ${bot.name}`} title="Sessões do Toph" onClick={() => openBotAction("team", bot.id, "sessions")} />
-              </span>
-            </div>
+              bot={bot}
+              active={mode === "team" && bot.id === workspace?.activeBotId}
+              onSelect={() => openBot("team", bot.id)}
+              onConfig={() => openBotAction("team", bot.id, "config")}
+              onSessions={() => openBotAction("team", bot.id, "sessions")}
+            />
           ))}
         </div>
       </div>

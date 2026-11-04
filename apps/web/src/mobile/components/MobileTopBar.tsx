@@ -1,4 +1,4 @@
-import type { ComponentType, ReactNode } from "react";
+import type { ComponentType } from "react";
 import { Bell, FolderGit2, LayoutPanelLeft, Menu } from "@toph/icons";
 import { Badge } from "@/boardui/base/badges/badge";
 import { cx } from "@/boardui/utils/cx";
@@ -13,13 +13,12 @@ interface Props {
   onMenu: () => void;
   onNotifications: () => void;
   onProjects: () => void;
-  extraActions?: ReactNode;
   hideTitle?: boolean;
   floating?: boolean;
 }
 
 /** Compact version of the mobile hero header, with the app controls on the right. */
-export default function MobileTopBar({ title, subtitle, projectName, unreadCount, icon: Icon, onMenu, onNotifications, onProjects, extraActions, hideTitle = false, floating = false }: Props) {
+export default function MobileTopBar({ title, subtitle, projectName, unreadCount, icon: Icon, onMenu, onNotifications, onProjects, hideTitle = false, floating = false }: Props) {
   const secondary = subtitle === undefined ? projectName : subtitle;
   return (
     <header className={cx(
@@ -27,7 +26,7 @@ export default function MobileTopBar({ title, subtitle, projectName, unreadCount
         ? "fixed inset-x-3 top-[calc(var(--safe-top)+0.5rem)] z-50 flex items-center justify-between gap-2"
         : "relative shrink-0 overflow-hidden border-b border-separator-border bg-background-secondary-default px-3 pb-2 pt-2",
     )}>
-      {!extraActions ? <div className="pointer-events-none absolute -right-10 -top-16 size-36 rounded-full bg-accent-500/10 blur-2xl" /> : null}
+      <div className="pointer-events-none absolute -right-10 -top-16 size-36 rounded-full bg-accent-500/10 blur-2xl" />
       <div className="relative flex w-full min-w-0 items-center gap-2">
         <button
           type="button"
@@ -57,7 +56,6 @@ export default function MobileTopBar({ title, subtitle, projectName, unreadCount
           <div className="min-w-0 flex-1" />
         ) : null}
         <div className={cx("flex min-w-0 shrink-0 items-center gap-0.5", floating && "max-w-[calc(100vw-4.5rem)] justify-end rounded-full bg-foreground-icon-primary/10 p-1 shadow-xs backdrop-blur-md")}>
-          {extraActions ? <div className="flex min-w-0 items-center gap-0.5">{extraActions}</div> : null}
           <div className="relative shrink-0">
             <Button
               variant="ghost"
@@ -84,7 +82,7 @@ export default function MobileTopBar({ title, subtitle, projectName, unreadCount
             onClick={onProjects}
             className={cx("shrink-0 gap-1 rounded-full", floating ? "h-8 px-1" : "h-9 px-1 [&_svg]:size-4")}
           >
-            <span className={cx("min-w-0 truncate text-caption-2-medium", extraActions ? "max-w-20 max-[430px]:hidden" : "max-w-24")}>{projectName}</span>
+            <span className="min-w-0 max-w-24 truncate text-caption-2-medium">{projectName}</span>
           </Button>
         </div>
       </div>

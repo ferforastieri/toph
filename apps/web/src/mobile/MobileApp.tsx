@@ -26,7 +26,6 @@ import WebAppsScreen from "./screens/WebAppsScreen";
 import ProjectSwitcher from "../components/ProjectSwitcher";
 import CloseProjectModal from "../components/CloseProjectModal";
 import MobileTopBar from "./components/MobileTopBar";
-import TophsHeaderActions from "./TophsHeaderActions";
 import { useBots, botSessionIds } from "../bots";
 import { useTophDrafts } from "../tophDrafts";
 import MobileBranchSheet from "./MobileBranchSheet";
@@ -66,7 +65,7 @@ export default function MobileApp() {
   const [accountOpen, setAccountOpen] = useState(false);
   const swipeStart = useRef<{ x: number; y: number } | null>(null);
   const [currentBranch, setCurrentBranch] = useState("");
-  const pageSubtitle = screen === "bots" ? "" : screen === "scm" && currentBranch ? currentBranch : (project?.name ?? "");
+  const pageSubtitle = screen === "scm" && currentBranch ? currentBranch : (project?.name ?? "");
 
   useEffect(() => {
     setScreen("bots");
@@ -354,7 +353,6 @@ export default function MobileApp() {
         onMenu={() => setMenuOpen(true)}
         onNotifications={() => setNotificationsOpen(true)}
         onProjects={() => setProjectsOpen(true)}
-        extraActions={screen === "bots" ? <TophsHeaderActions projectId={project.id} /> : undefined}
       />
       <main className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background-primary-default">
         {screen === "bots" ? (
