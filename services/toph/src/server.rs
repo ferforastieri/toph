@@ -1614,7 +1614,7 @@ async fn get_workspace_messages(
             query.channel.as_deref(),
             scope,
             before.as_ref(),
-            query.limit.unwrap_or(30),
+            query.limit.unwrap_or(500),
         )
         .await?;
     Ok(Json(json!({
