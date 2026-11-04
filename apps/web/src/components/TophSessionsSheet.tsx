@@ -44,6 +44,7 @@ export default function TophSessionsSheet({ open, project, toph, activeSessionId
   const [allSessions, setAllSessions] = useState<OpenCodeSessionSummary[]>(() => sessionCache.get(project.root) ?? []);
   const [loading, setLoading] = useState(!sessionCache.has(project.root));
   const [error, setError] = useState("");
+  const [scope, setScope] = useState<"toph" | "project">("toph");
 
   useEffect(() => {
     if (!toph) return;
@@ -68,6 +69,10 @@ export default function TophSessionsSheet({ open, project, toph, activeSessionId
   }, [project.root, toph?.id]);
 
   useEffect(() => {
+    if (open) setScope("toph");
+  }, [open, toph?.id]);
+
+  useEffect(() => {
     if (!open || !toph) return;
     const cached = sessionCache.get(project.root);
     if (cached) {
@@ -82,19 +87,20 @@ export default function TophSessionsSheet({ open, project, toph, activeSessionId
 
   const sessions = useMemo(() => {
     if (!toph) return [];
+    if (scope === "project") return allSessions;
     return allSessions.filter((session) =>
       session.metadata?.tophBotId === toph.id
       || session.id === toph.sessionId
       || Boolean(session.title?.startsWith(`${toph.name} · `)),
     );
-  }, [allSessions, toph]);
+  }, [allSessions, scope, toph]);
 
   return (
     <Modal
       isOpen={open}
       onClose={onClose}
       title={`Sessões de ${toph?.name ?? "Toph"}`}
-      description="Escolha uma sessão para este Toph ou comece uma nova."
+      description="Escolha uma sessão para este Toph ou veja todas as sessões do projeto."
       size="lg"
       placement="bottom"
       bodyClassName="p-4"
@@ -103,9 +109,20 @@ export default function TophSessionsSheet({ open, project, toph, activeSessionId
     >
       <div className="flex flex-col gap-2">
         <div className="flex items-center gap-2 text-caption-1-medium text-text-secondary"><History size={14} /> OpenCode</div>
+        <div className="flex items-center gap-1 rounded-xl bg-background-secondary-default p-1">
+          <button type="button" onClick={() => setScope("toph")} className={`flex-1 rounded-lg px-2 py-1.5 text-caption-1-medium transition-colors ${scope === "toph" ? "bg-background-primary-default text-text-primary shadow-xs" : "text-text-secondary hover:bg-background-primary-hover"}`}>Deste Toph</button>
+          <button type="button" onClick={() => setScope("project")} className={`flex-1 rounded-lg px-2 py-1.5 text-caption-1-medium transition-colors ${scope === "project" ? "bg-background-primary-default text-text-primary shadow-xs" : "text-text-secondary hover:bg-background-primary-hover"}`}>Todas do projeto</button>
+        </div>
         {loading ? <LoadingState label="Carregando sessões..." className="py-2" /> : null}
         {!loading && error ? <Chip color="rose" variant="subtle" className="justify-start whitespace-normal px-2 py-1.5">{error}</Chip> : null}
-        {!loading && !error && sessions.length === 0 ? <p className="py-6 text-center text-body-regular text-text-secondary">Nenhuma sessão salva ainda.</p> : null}
+        {!loading && !error && sessions.length === 0 ? (
+          <div className="flex flex-col items-center gap-2 py-6 text-center">
+            <p className="text-body-regular text-text-secondary">
+              {scope === "toph" ? "Nenhuma sessão deste Toph ainda." : "Nenhuma sessão encontrada neste projeto."}
+            </p>
+            {scope === "toph" ? <Button variant="secondary" size="small" onClick={() => setScope("project")}>Ver todas as sessões do projeto</Button> : null}
+          </div>
+        ) : null}
         <div className="flex max-h-[440px] flex-col gap-1 overflow-y-auto">
           {sessions.map((session) => {
             const active = session.id === activeSessionId;
