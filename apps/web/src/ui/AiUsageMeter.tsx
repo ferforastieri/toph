@@ -6,7 +6,7 @@ import { modelGroup, providerLabel, useAI } from "../ai";
 import ProviderIcon from "../components/ProviderIcon";
 import ComposerMenu from "./ComposerMenu";
 
-const RING_CIRCUMFERENCE = 2 * Math.PI * 9.5;
+const RING_CIRCUMFERENCE = 2 * Math.PI * 11.5;
 
 function startOfMonth(value = new Date()): Date {
   const date = new Date(value);
@@ -141,7 +141,7 @@ export default function AiUsageMeter({ client, refreshKey }: Props) {
       label="Uso da IA"
       trigger={(
         <span
-          className="relative inline-flex size-[22px] shrink-0 items-center justify-center"
+          className="relative inline-flex size-[26px] shrink-0 items-center justify-center"
           title={weekly
             ? `Uso semanal: ${Math.round(weekly.percent)}% usado · ${Math.round(remainingPercent(weekly))}% restante`
             : "Uso da IA"}
@@ -151,23 +151,23 @@ export default function AiUsageMeter({ client, refreshKey }: Props) {
             : "Uso da IA"}
         >
           <span className={showLoadingRing ? "absolute inset-0 animate-spin" : "absolute inset-0"}>
-            <svg viewBox="0 0 22 22" className="size-full -rotate-90" aria-hidden>
-              <circle cx="11" cy="11" r="9.5" fill="none" strokeWidth="1.5" className="stroke-border-button-default" />
+            <svg viewBox="0 0 26 26" className="size-full -rotate-90" aria-hidden>
+              <circle cx="13" cy="13" r="11.5" fill="none" strokeWidth="1.6" className="stroke-border-button-default" />
               <circle
-                cx="11"
-                cy="11"
-                r="9.5"
+                cx="13"
+                cy="13"
+                r="11.5"
                 fill="none"
-                strokeWidth="1.5"
+                strokeWidth="1.6"
                 strokeLinecap="round"
                 strokeDasharray={showLoadingRing ? `${RING_CIRCUMFERENCE * 0.28} ${RING_CIRCUMFERENCE}` : RING_CIRCUMFERENCE}
-                strokeDashoffset={showLoadingRing ? 0 : RING_CIRCUMFERENCE * (1 - Math.max(0, Math.min(100, weekly?.percent ?? 0)) / 100)}
+                strokeDashoffset={showLoadingRing ? 0 : RING_CIRCUMFERENCE * (1 - Math.max(0, Math.min(100, remainingPercent(weekly))) / 100)}
                 className="stroke-accent-500"
                 style={{ transition: "stroke-dashoffset 700ms cubic-bezier(0.22, 1, 0.36, 1)" }}
               />
             </svg>
           </span>
-          <ProviderIcon provider={provider} className="relative size-3 text-text-primary" />
+          <ProviderIcon provider={provider} className="relative size-3.5 text-text-primary" />
         </span>
       )}
       popoverClassName="w-[340px] p-0"
