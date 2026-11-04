@@ -18,7 +18,7 @@ export default function TophRow({ bot, active, onSelect, onConfig, onSessions, c
   return (
     <div
       className={cx(
-        "flex w-full items-center rounded-xl pe-1 transition-colors",
+        "flex w-full items-center rounded-xl pe-1 transition-[background-color,color,transform,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
         active ? "bg-background-tertiary-default" : "hover:bg-background-primary-hover",
       )}
     >
@@ -26,7 +26,7 @@ export default function TophRow({ bot, active, onSelect, onConfig, onSessions, c
         type="button"
         onClick={onSelect}
         aria-current={active ? "true" : undefined}
-        className={cx("flex min-w-0 flex-1 items-center gap-2.5 text-start", compact ? "px-2 py-1.5" : "px-2 py-2")}
+        className={cx("flex min-w-0 flex-1 items-center gap-2.5 text-start transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] active:scale-[0.99]", compact ? "px-2 py-1.5" : "px-2 py-2")}
       >
         <BotAvatar bot={bot} size={compact ? 28 : 32} />
         <span className="flex min-w-0 flex-1 flex-col">

@@ -5,7 +5,7 @@ import { useIsMobile } from "./useIsMobile";
 import { cx } from "@/boardui/utils/cx";
 
 export const COMPOSER_TRIGGER_CLASS =
-  "flex h-7 min-w-0 items-center gap-1.5 rounded-md px-1.5 text-body-2-medium text-text-secondary outline-none transition-colors hover:bg-background-secondary-hover focus-visible:ring-2 focus-visible:ring-border-focus-ring";
+  "composer-trigger flex h-7 min-w-0 items-center gap-1.5 rounded-md px-1.5 text-body-2-medium text-text-secondary outline-none transition-[background-color,color,transform,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] hover:bg-background-secondary-hover active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-border-focus-ring";
 
 interface Props {
   label: string;
@@ -43,6 +43,7 @@ export default function ComposerMenu({
         <button
           type="button"
           aria-label={label}
+          aria-expanded={open}
           className={cx(COMPOSER_TRIGGER_CLASS, triggerClassName)}
           onClick={() => setOpen(true)}
         >

@@ -86,7 +86,7 @@ export function RadioDot({ selected = false, size = "sm", focusVisible = false, 
       <span
         className={cx(
           "absolute inset-0 rounded-full border-border-checkbox-default bg-background-primary-default shadow-xs",
-          "transition-opacity duration-200 ease",
+          "transition-opacity duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
           s.border,
           selected && "opacity-0",
         )}
@@ -95,7 +95,7 @@ export function RadioDot({ selected = false, size = "sm", focusVisible = false, 
       <span
         className={cx(
           "absolute inset-0 rounded-full",
-          "transition-opacity duration-200 ease",
+          "transition-opacity duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
           s.selected,
           !selected && "opacity-0",
         )}
@@ -106,7 +106,7 @@ export function RadioDot({ selected = false, size = "sm", focusVisible = false, 
       <span
         className={cx(
           "absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-text-on-accent",
-          "transition-[scale,opacity] duration-200 ease",
+          "transition-[scale,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
           s.inner,
           selected ? "scale-100 opacity-100" : "scale-0 opacity-0",
         )}

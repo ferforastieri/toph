@@ -67,7 +67,7 @@ export default function ProviderModelPicker({ models, model, onChange, placehold
                 <button type="button" onClick={() => toggle(provider)} className="flex w-full items-center gap-2 rounded-xl px-2 py-2 text-start text-caption-1-semibold text-text-secondary transition-colors hover:bg-background-primary-hover hover:text-text-primary">
                   <span className="min-w-0 flex-1 truncate">{providerLabel(provider)}</span>
                   <span className="rounded-full bg-background-tertiary-default px-1.5 text-caption-2-regular text-text-tertiary">{items.length}</span>
-                  <ChevronDown size={13} className={cx("shrink-0 transition-transform", expanded ? "rotate-180" : "")} />
+                  <ChevronDown size={13} className={cx("shrink-0 transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]", expanded ? "rotate-180" : "")} />
                 </button>
                 {expanded ? (
                   <div className="flex flex-col gap-0.5 pb-1">

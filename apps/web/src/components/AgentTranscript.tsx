@@ -294,7 +294,7 @@ function ToolRow({ message, onPermission, onQuestion, defaultOpen = false, proje
         <span className="shrink-0 font-medium text-text-primary">{label}</span>
         {subtitle ? <span className="min-w-0 flex-1 truncate font-mono text-[11.5px] text-text-tertiary" dir="ltr">{subtitle}</span> : <span className="min-w-0 flex-1" />}
         {isRunning ? <LoaderCircle className="size-3 shrink-0 animate-spin text-accent-500" /> : status ? <span className="shrink-0 text-[11px] text-status-rose-text">{status}</span> : null}
-        <ChevronDown className={`size-3 shrink-0 text-text-tertiary transition-transform ${open ? "rotate-180" : "-rotate-90 opacity-0 group-hover:opacity-100"}`} />
+        <ChevronDown className={`size-3 shrink-0 text-text-tertiary transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${open ? "rotate-180" : "-rotate-90 opacity-0 group-hover:opacity-100"}`} />
       </button>
       {open ? (
         <div className="ps-2">
@@ -319,7 +319,7 @@ function ThoughtRow({ message, duration }: { message: AiMessage; duration?: stri
         <span className="shrink-0 font-medium text-text-primary">Thought</span>
         {message.status === "running" ? <LoaderCircle className="size-3 shrink-0 animate-spin text-accent-500" /> : message.durationMs ? <span className="text-[11px] text-text-tertiary">{Math.max(1, Math.round(message.durationMs / 1000))}s</span> : duration ? <span className="text-[11px] text-text-tertiary">{duration}</span> : null}
         <span className="min-w-0 flex-1" />
-        <ChevronDown className={`size-3 shrink-0 text-text-tertiary transition-transform ${open ? "rotate-180" : "-rotate-90 opacity-0 group-hover:opacity-100"}`} />
+        <ChevronDown className={`size-3 shrink-0 text-text-tertiary transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${open ? "rotate-180" : "-rotate-90 opacity-0 group-hover:opacity-100"}`} />
       </button>
       {open && message.text ? <p className="ps-2 pt-1 text-[12px] leading-relaxed text-text-tertiary whitespace-pre-wrap break-words">{message.text}</p> : null}
     </div>
@@ -366,7 +366,7 @@ function ToolGroup({ messages, onPermission, onQuestion, defaultOpen = false, pr
         <span>Used</span>
         <span className="tabular-nums">{count}</span>
         <span className="truncate">{labels.join(", ")}</span>
-        <ChevronDown className={`size-3 shrink-0 transition-transform ${open ? "rotate-180" : "-rotate-90"}`} />
+        <ChevronDown className={`size-3 shrink-0 transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${open ? "rotate-180" : "-rotate-90"}`} />
       </button>
       {open ? rows : null}
     </div>
@@ -460,12 +460,6 @@ export default function AgentTranscript({ messages, streaming, onPermission, onQ
           bubble={bubble}
         />
       ))}
-      {streaming && (
-        <div className="flex items-center gap-2 px-1 py-1 text-[13px] text-text-tertiary">
-          <LoaderCircle className="size-3.5 animate-spin" />
-          <span>Working</span>
-        </div>
-      )}
     </div>
   );
 }

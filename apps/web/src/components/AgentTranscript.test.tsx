@@ -85,6 +85,11 @@ describe("AgentTranscript artifacts", () => {
     expect(container.querySelector("[data-transcript-bubble]")).toHaveTextContent("Olá, eu sou o Toph.");
   });
 
+  it("does not render the old generic working row", () => {
+    render(<AgentTranscript streaming messages={[]} />);
+    expect(screen.queryByText("Working")).not.toBeInTheDocument();
+  });
+
   it("does not offer an answer for an interrupted question", () => {
     render(
       <AgentTranscript

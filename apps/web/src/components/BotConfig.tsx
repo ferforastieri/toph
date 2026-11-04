@@ -165,7 +165,7 @@ export default function BotConfig({ projectId, projectRoot, bot, mode }: Props) 
               role="tab"
               aria-selected={active}
               onClick={() => setSection(item.id)}
-              className={`flex min-w-0 flex-col items-center gap-1 rounded-xl px-2 py-2 text-center transition-colors ${active ? "bg-background-primary-default text-text-primary shadow-xs" : "text-text-secondary hover:bg-background-primary-hover"}`}
+              className={`flex min-w-0 flex-col items-center gap-1 rounded-xl px-2 py-2 text-center transition-[background-color,color,transform,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] active:scale-[0.98] ${active ? "bg-background-primary-default text-text-primary shadow-xs" : "text-text-secondary hover:bg-background-primary-hover"}`}
             >
               <Icon size={15} />
               <span className="truncate text-caption-1-semibold">{item.label}</span>
@@ -225,7 +225,7 @@ export default function BotConfig({ projectId, projectRoot, bot, mode }: Props) 
                     aria-label={avatar.label}
                     aria-pressed={bot.avatar === avatar.id}
                     onClick={() => update({ avatar: avatar.id })}
-                    className="rounded-xl border border-border-button-default p-1 hover:bg-background-primary-hover"
+                    className="rounded-xl border border-border-button-default p-1 transition-[background-color,border-color,transform,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] hover:bg-background-primary-hover active:scale-[0.95]"
                   >
                     <BotAvatar bot={{ ...bot, avatar: avatar.id }} size={28} />
                   </button>
@@ -288,8 +288,8 @@ export default function BotConfig({ projectId, projectRoot, bot, mode }: Props) 
               >
                 {(close) => (
                   <>
-                    <button type="button" onClick={() => { update({ agentMode: "build" }); close(); }} className="flex w-full items-center rounded-lg px-2 py-2 text-start text-body-2-regular text-text-primary hover:bg-background-secondary-hover">Build</button>
-                    <button type="button" onClick={() => { update({ agentMode: "plan" }); close(); }} className="flex w-full items-center rounded-lg px-2 py-2 text-start text-body-2-regular text-text-primary hover:bg-background-secondary-hover">Plano</button>
+                    <button type="button" onClick={() => { update({ agentMode: "build" }); close(); }} className="flex w-full items-center rounded-lg px-2 py-2 text-start text-body-2-regular text-text-primary transition-[background-color,color,transform,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] hover:bg-background-secondary-hover active:scale-[0.98]">Build</button>
+                    <button type="button" onClick={() => { update({ agentMode: "plan" }); close(); }} className="flex w-full items-center rounded-lg px-2 py-2 text-start text-body-2-regular text-text-primary transition-[background-color,color,transform,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] hover:bg-background-secondary-hover active:scale-[0.98]">Plano</button>
                   </>
                 )}
               </ComposerMenu>
@@ -305,8 +305,8 @@ export default function BotConfig({ projectId, projectRoot, bot, mode }: Props) 
               >
                 {(close) => (
                   <>
-                    <button type="button" onClick={() => { update({ permissionMode: "yolo" }); close(); }} className="flex w-full items-center rounded-lg px-2 py-2 text-start text-body-2-regular text-text-primary hover:bg-background-secondary-hover">YOLO</button>
-                    <button type="button" onClick={() => { update({ permissionMode: "ask" }); close(); }} className="flex w-full items-center rounded-lg px-2 py-2 text-start text-body-2-regular text-text-primary hover:bg-background-secondary-hover">Perguntar</button>
+                    <button type="button" onClick={() => { update({ permissionMode: "yolo" }); close(); }} className="flex w-full items-center rounded-lg px-2 py-2 text-start text-body-2-regular text-text-primary transition-[background-color,color,transform,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] hover:bg-background-secondary-hover active:scale-[0.98]">YOLO</button>
+                    <button type="button" onClick={() => { update({ permissionMode: "ask" }); close(); }} className="flex w-full items-center rounded-lg px-2 py-2 text-start text-body-2-regular text-text-primary transition-[background-color,color,transform,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] hover:bg-background-secondary-hover active:scale-[0.98]">Perguntar</button>
                   </>
                 )}
               </ComposerMenu>
@@ -348,7 +348,7 @@ export default function BotConfig({ projectId, projectRoot, bot, mode }: Props) 
                 {mcpServers.map((server) => {
                   const selected = (bot.mcpServers ?? []).includes(server);
                   return (
-                    <button key={server} type="button" aria-pressed={selected} onClick={() => toggleMcp(server)} className={`flex items-center gap-1 rounded-full border px-2 py-1 text-caption-2-medium transition-colors ${selected ? "border-accent-500/40 bg-accent-500/10 text-accent-600" : "border-border-button-default text-text-secondary hover:bg-background-primary-hover"}`}>
+                    <button key={server} type="button" aria-pressed={selected} onClick={() => toggleMcp(server)} className={`flex items-center gap-1 rounded-full border px-2 py-1 text-caption-2-medium transition-[background-color,border-color,color,transform,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] active:scale-[0.97] ${selected ? "border-accent-500/40 bg-accent-500/10 text-accent-600" : "border-border-button-default text-text-secondary hover:bg-background-primary-hover"}`}>
                       {selected ? <Check size={11} /> : null}{server}
                     </button>
                   );
@@ -369,7 +369,7 @@ export default function BotConfig({ projectId, projectRoot, bot, mode }: Props) 
                 {emailAccounts.map((account) => {
                   const selected = (bot.emailAccountIds ?? []).includes(account.id);
                   return (
-                    <button key={account.id} type="button" aria-pressed={selected} onClick={() => toggleEmail(account.id)} className={`flex items-center gap-1 rounded-full border px-2 py-1 text-caption-2-medium transition-colors ${selected ? "border-accent-500/40 bg-accent-500/10 text-accent-600" : "border-border-button-default text-text-secondary hover:bg-background-primary-hover"}`}>
+                    <button key={account.id} type="button" aria-pressed={selected} onClick={() => toggleEmail(account.id)} className={`flex items-center gap-1 rounded-full border px-2 py-1 text-caption-2-medium transition-[background-color,border-color,color,transform,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] active:scale-[0.97] ${selected ? "border-accent-500/40 bg-accent-500/10 text-accent-600" : "border-border-button-default text-text-secondary hover:bg-background-primary-hover"}`}>
                       {selected ? <Check size={11} /> : null}{account.name}
                     </button>
                   );

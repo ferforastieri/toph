@@ -109,6 +109,7 @@ export function DropdownTrigger({ className, ...props }: ComponentProps<typeof A
       {...props}
       className={cx(
         "cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-border-focus-ring",
+        "transition-[background-color,color,transform,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] active:scale-[0.98]",
         className as string,
       )}
     />
