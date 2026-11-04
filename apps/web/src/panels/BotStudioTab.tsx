@@ -178,6 +178,7 @@ function tophPrompt(toph: ChatToph, tophs: ChatToph[], messages: ChatMessage[], 
     toph.description ? `Sua função: ${toph.description}` : "",
     toph.personality ? `Sua personalidade: ${toph.personality}` : "",
     chatRules,
+    "Nunca execute comandos que ficam esperando indefinidamente (tail -f, watch, gh run watch, sleep longo). Para acompanhar pipelines, use timeout e consulte o status; depois responda.",
     `Tophs deste chat: ${tophs.map((item) => `@${item.handle} (${item.name}${item.coordinator ? ", coordenador" : ""})`).join(", ")}.`,
     `MCPs habilitados para você: ${toph.mcpServers.length ? toph.mcpServers.join(", ") : "nenhum"}.`,
     toph.emailAccountIds.length ? "Você tem ferramentas de email habilitadas. Use-as apenas para as contas autorizadas." : "Você não tem contas de email habilitadas.",
@@ -310,13 +311,19 @@ function restoreTophMessages(context: unknown, tophId: string, chatId: string): 
   return restored;
 }
 
+function truncateToolText(value: string, limit = 12_000): string {
+  if (value.length <= limit) return value;
+  return `${value.slice(0, limit)}\n… (${value.length - limit} caracteres omitidos)`;
+}
+
 function toAiMessage(message: ChatMessage): AiMessage {
+  const isActivity = message.role === "tool" || message.role === "reasoning";
   return {
     id: message.id,
     role: message.role === "reasoning" ? "reasoning" : message.role === "tool" ? "tool" : message.role === "error" ? "error" : "assistant",
-    text: message.content,
+    text: isActivity ? truncateToolText(message.content) : message.content,
     title: message.title,
-    detail: message.detail,
+    detail: isActivity && message.detail ? truncateToolText(message.detail) : message.detail,
     status: message.status,
     permissionId: message.permissionId,
     permissionAction: message.permissionAction,
@@ -741,9 +748,24 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
       if (document.hidden) return;
       const active = await client.session.active().catch(() => null);
       if (!active) return;
-      const current = chatTophs(useChats.getState().byProject[project.id], chat.id);
+      const state = useChats.getState();
+      const current = chatTophs(state.byProject[project.id], chat.id);
+      const chatMessages = state.byProject[project.id]?.messages.filter((message) => message.chatId === chat.id) ?? [];
+      const latestUserAt = [...chatMessages].reverse().find((message) => message.role === "user")?.createdAt ?? 0;
       const running = new Set(
-        current.filter((toph) => toph.sessionId && active[toph.sessionId]?.type === "running").map((toph) => toph.id),
+        current
+          .filter((toph) => {
+            if (!toph.sessionId || active[toph.sessionId]?.type !== "running") return false;
+            const replied = chatMessages.some((message) =>
+              message.tophId === toph.id
+              && message.role === "assistant"
+              && message.status === "complete"
+              && Boolean(message.content.trim())
+              && message.createdAt >= latestUserAt,
+            );
+            return !replied;
+          })
+          .map((toph) => toph.id),
       );
       setRunningTophs(running);
     }, 3000);
@@ -999,7 +1021,8 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
     await client.session.switchAgent({ sessionID: sessionId, agent: current.agentMode ?? "build" } as never).catch(() => undefined);
     if (token !== runToken.current) throw new Error("__stopped__");
     const prompt = tophPrompt(current, tophsNow, history, userText, project.name, chatNow?.name ?? "chat");
-    const before = lastAssistant(await client.session.context({ sessionID: sessionId } as never).catch(() => null))?.id ?? "";
+    const beforeList = await client.message.list({ sessionID: sessionId, limit: 1, order: "desc", type: "assistant" } as never).catch(() => null);
+    const before = lastAssistant(beforeList?.data ?? [])?.id ?? "";
     try {
       await client.session.prompt({
         sessionID: sessionId,
@@ -1014,7 +1037,7 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
       }
       throw error;
     }
-    const deadline = Date.now() + 90_000;
+    const deadline = Date.now() + 120_000;
     let latest = "";
     while (Date.now() < deadline) {
       await new Promise((resolve) => window.setTimeout(resolve, 400));
@@ -1023,8 +1046,8 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
       if (stored) return stored.content.trim();
       const active = await client.session.active().catch(() => null);
       if (!active || active[sessionId]) continue;
-      const context = await client.session.context({ sessionID: sessionId } as never).catch(() => null);
-      const assistant = lastAssistant(context);
+      const latestList = await client.message.list({ sessionID: sessionId, limit: 1, order: "desc", type: "assistant" } as never).catch(() => null);
+      const assistant = lastAssistant(latestList?.data ?? []);
       if (!assistant || assistant.id === before) continue;
       latest = assistant.text || latest;
       if (latest) return latest;
@@ -1033,7 +1056,8 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
     if (latest) return latest;
     const stored = completedStoredReply(current.id, current.chatId, since);
     if (stored) return stored.content.trim();
-    throw new Error("O Toph não respondeu a tempo.");
+    await client.session.interrupt({ sessionID: sessionId } as never).catch(() => undefined);
+    throw new Error("A execução demorou mais de 2 minutos e foi interrompida. Para pipelines longos, use timeout e consulte o status.");
   }
 
   async function directReply(toph: ChatToph, tophsNow: ChatToph[], history: ChatMessage[], userText: string, attachments: AgentAttachment[] = []): Promise<string> {
@@ -1306,8 +1330,9 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
     const toph = sessionsToph;
     if (!toph) return;
     setSessionsTophId(null);
-    const context = await client.session.context({ sessionID: session.id } as never).catch(() => null);
-    if (!context) return;
+    const page = await client.message.list({ sessionID: session.id, limit: 80, order: "desc" } as never).catch(() => null);
+    if (!page?.data?.length) return;
+    const context = [...page.data].reverse();
     const existingUsers = new Set(
       currentChat(toph).messages
         .filter((message) => message.role === "user")
