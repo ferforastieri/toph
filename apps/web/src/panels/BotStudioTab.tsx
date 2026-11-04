@@ -486,6 +486,7 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
   const [configTophId, setConfigTophId] = useState<string | null>(null);
   const [sessionsTophId, setSessionsTophId] = useState<string | null>(null);
   const [activityFocus, setActivityFocus] = useState<{ tophId: string; from: number; to: number } | null>(null);
+  const [activityOpen, setActivityOpen] = useState(false);
   const sendingRef = useRef(false);
   const runToken = useRef(0);
   const [runningTophs, setRunningTophs] = useState<Set<string>>(new Set());
@@ -1467,20 +1468,26 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
     sessionTophMap.current.set(session.id, toph.id);
   }
 
-  async function newSession() {
+  function newSession() {
     const toph = sessionsToph;
     if (!toph) return;
     setSessionsTophId(null);
-    if (toph.sessionId) {
-      await client.session.interrupt({ sessionID: toph.sessionId } as never).catch(() => undefined);
-      sessionTophMap.current.delete(toph.sessionId);
-    }
-    await api.deleteChatMessages(project.id, toph.chatId, toph.id).catch(() => undefined);
+    // Update the UI immediately; the network cleanup happens in the background
+    // so a slow interrupt/delete can never leave the chat looking unchanged.
     replaceTophMessages(project.id, toph.id, []);
     setTophSession(project.id, toph.id, undefined, { sessionPrimed: false });
+    setActivityFocus(null);
+    if (toph.sessionId) {
+      const sessionId = toph.sessionId;
+      sessionTophMap.current.delete(sessionId);
+      void client.session.interrupt({ sessionID: sessionId } as never).catch(() => undefined);
+    }
+    void api.deleteChatMessages(project.id, toph.chatId, toph.id).catch(() => undefined);
+    window.requestAnimationFrame(() => scrollRef.current?.scrollTo({ top: 0 }));
   }
 
   function focusActivity(tophId: string, from: number, to: number) {
+    setActivityOpen(true);
     setActivityFocus({ tophId, from, to });
     window.requestAnimationFrame(() => {
       activityScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
@@ -1516,6 +1523,11 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
             <Button variant="ghost" size="small" iconOnly={mobile} leadingIcon={mobile ? Plus : MessageSquarePlus} aria-label="Adicionar Toph" title="Adicionar Toph" onClick={() => setGalleryOpen(true)}>
               {mobile ? null : "Adicionar Toph"}
             </Button>
+            {!mobile ? (
+              <Button variant="ghost" size="small" leadingIcon={Monitor} aria-pressed={activityOpen} onClick={() => setActivityOpen((value) => !value)}>
+                {activityOpen ? "Ocultar" : "Acompanhamento"}
+              </Button>
+            ) : null}
           </div>
         ) : null}
         <div
@@ -1526,7 +1538,7 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
             stickToBottom.current = element.scrollHeight - element.scrollTop - element.clientHeight < 80;
           }}
         >
-          <div className="mx-auto flex min-h-full w-full min-w-0 max-w-[760px] flex-col gap-4 overflow-x-hidden p-4 [&_img]:max-w-full [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_table]:block [&_table]:max-w-full [&_table]:overflow-x-auto">
+          <div key={chat?.id ?? "none"} className="toph-view-in mx-auto flex min-h-full w-full min-w-0 max-w-[760px] flex-col gap-4 overflow-x-hidden p-4 [&_img]:max-w-full [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_table]:block [&_table]:max-w-full [&_table]:overflow-x-auto">
             {!conversationPage.ready && conversationPage.loading ? (
               <div className="my-auto flex items-center justify-center gap-2 py-8 text-caption-1-regular text-text-tertiary"><LoaderCircle className="size-4 animate-spin" /> Carregando conversa...</div>
             ) : null}
@@ -1716,7 +1728,7 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
         ) : null}
       </section>
 
-      {!mobile ? (
+      {!mobile && activityOpen ? (
         <>
           <ResizeHandle
             orientation="vertical"
@@ -1728,7 +1740,7 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
             onChange={(width) => document.documentElement.style.setProperty("--ai-panel-width", `${width}px`)}
             onCommit={(width) => updateSettings({ aiPanelWidth: width })}
           />
-          <aside className="flex min-h-0 w-[clamp(300px,34vw,var(--ai-panel-width))] shrink-0 flex-col overflow-hidden rounded-3xl border border-border-button-white bg-background-primary-default shadow-sidebar">
+          <aside className="toph-panel-in flex min-h-0 w-[clamp(300px,34vw,var(--ai-panel-width))] shrink-0 flex-col overflow-hidden rounded-3xl border border-border-button-white bg-background-primary-default shadow-sidebar">
             <header className="flex h-12 shrink-0 items-center gap-2 border-b border-separator-border bg-background-secondary-default px-3">
               <span className="flex size-8 items-center justify-center rounded-xl bg-accent-500/10 text-accent-500"><Monitor size={15} /></span>
               <div className="flex min-w-0 flex-1 flex-col">
@@ -1777,7 +1789,7 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
                   <p className="max-w-xs text-caption-2-regular leading-relaxed text-text-tertiary">{activityFocus ? "Use Ver tudo para ver o acompanhamento completo do chat." : "As leituras, edições, comandos e visualizações do navegador serão mostradas em tempo real."}</p>
                 </div>
               ) : (
-                <div className="flex min-w-0 flex-col gap-3">
+                <div key={activityFocus ? `${activityFocus.tophId}:${activityFocus.from}` : chat?.id ?? "none"} className="toph-view-in flex min-w-0 flex-col gap-3">
                   <AgentImageGallery images={assistantImages} title="Imagens da resposta" />
                   {activityGroups.map((group, index) => {
                     if (group.kind !== "toph") return null;

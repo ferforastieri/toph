@@ -128,6 +128,12 @@ function toolKind(message: AiMessage): string {
   return rawToolName(message).toLowerCase();
 }
 
+/** Shell output often contains URLs and file names that are not artifacts.
+ * Only inspect tools that actually produce files or images. */
+function toolShowsImages(message: AiMessage): boolean {
+  return !/shell|bash|command|terminal|grep|glob|webfetch|http/.test(toolKind(message));
+}
+
 function toolLabel(message: AiMessage): string {
   const name = toolKind(message);
   if (/shell|bash|command|execute|terminal/.test(name)) return "Shell";
@@ -280,7 +286,7 @@ const ToolRow = memo(function ToolRow({ message, onPermission, onQuestion, defau
   const [open, setOpen] = useState(defaultOpen);
   const questions = toolKind(message) === "question" ? parseAgentQuestions(message.text) : [];
   const images = useMemo(
-    () => agentImagesForMessages([message], projectId, projectRoot),
+    () => toolShowsImages(message) ? agentImagesForMessages([message], projectId, projectRoot) : [],
     [message, projectId, projectRoot],
   );
   const hasImage = images.length > 0;
@@ -353,7 +359,7 @@ function ToolGroup({ messages, onPermission, onQuestion, defaultOpen = false, pr
   const thoughts = messages.filter((message) => message.role === "reasoning");
   const imageKey = tools.map((message) => `${message.id}:${message.text.length}:${message.detail?.length ?? 0}`).join("|");
   const images = useMemo(
-    () => agentImagesForMessages(tools, projectId, projectRoot),
+    () => agentImagesForMessages(tools.filter(toolShowsImages), projectId, projectRoot),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [imageKey, projectId, projectRoot],
   );
