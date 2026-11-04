@@ -249,7 +249,7 @@ export default function TophSettings({ user, projectRoot, onOpenNotification }: 
                       key={option.kind}
                       type="button"
                       onClick={() => pet.choose(option.kind)}
-                      className={cx("flex flex-col items-center gap-2 rounded-2xl border p-3 text-center transition-colors", pet.kind === option.kind ? "border-accent-500 bg-accent-500/10" : "border-border-button-default hover:bg-background-primary-hover")}
+                      className={cx("flex flex-col items-center gap-2 rounded-2xl border p-3 text-center transition-[background-color,border-color,color,transform,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] active:scale-[0.98]", pet.kind === option.kind ? "border-accent-500 bg-accent-500/10" : "border-border-button-default hover:bg-background-primary-hover")}
                     >
                       <PetSprite kind={option.kind} size={46} commits={pet.commits} animate={false} />
                       <span className="text-caption-1-semibold text-text-primary">{option.name}</span>

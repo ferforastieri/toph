@@ -193,7 +193,7 @@ export function SettingsModal({
         tabIndex={-1}
         onClick={onClose}
         className={cx(
-          "absolute inset-0 cursor-default bg-black/70 transition-opacity duration-300 ease-out",
+          "toph-modal-backdrop absolute inset-0 cursor-default bg-black/70 transition-opacity duration-300 ease-out",
           visible ? "opacity-100" : "opacity-0",
         )}
       />

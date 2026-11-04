@@ -83,7 +83,7 @@ export default function MobileConversationsSheet({ open, project, onClose, onSel
               <button
                 type="button"
                 onClick={() => setGalleryTarget("solo")}
-                className="flex w-full items-center gap-2.5 rounded-xl border border-dashed border-border-button-default px-2.5 py-2.5 text-start text-caption-1-medium text-text-secondary transition-colors hover:bg-background-primary-hover hover:text-text-primary"
+                className="flex w-full items-center gap-2.5 rounded-xl border border-dashed border-border-button-default px-2.5 py-2.5 text-start text-caption-1-medium text-text-secondary transition-[background-color,color,transform,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] hover:bg-background-primary-hover hover:text-text-primary active:scale-[0.99]"
               >
                 <span className="flex size-8 items-center justify-center rounded-full bg-background-secondary-default"><Plus size={14} /></span>
                 Adicionar Toph individual
@@ -112,7 +112,7 @@ export default function MobileConversationsSheet({ open, project, onClose, onSel
               <button
                 type="button"
                 onClick={() => setGalleryTarget("team")}
-                className="flex w-full items-center gap-2.5 rounded-xl border border-dashed border-border-button-default px-2.5 py-2.5 text-start text-caption-1-medium text-text-secondary transition-colors hover:bg-background-primary-hover hover:text-text-primary"
+                className="flex w-full items-center gap-2.5 rounded-xl border border-dashed border-border-button-default px-2.5 py-2.5 text-start text-caption-1-medium text-text-secondary transition-[background-color,color,transform,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] hover:bg-background-primary-hover hover:text-text-primary active:scale-[0.99]"
               >
                 <span className="flex size-8 items-center justify-center rounded-full bg-background-secondary-default"><Plus size={14} /></span>
                 Adicionar primeiro Toph
@@ -123,7 +123,7 @@ export default function MobileConversationsSheet({ open, project, onClose, onSel
                   type="button"
                   onClick={openTeamGeneral}
                   aria-current={teamGeneralActive ? "true" : undefined}
-                  className={`flex w-full items-center gap-2.5 rounded-xl px-2 py-2 text-start transition-colors ${teamGeneralActive ? "bg-background-tertiary-default" : "hover:bg-background-primary-hover"}`}
+                  className={`flex w-full items-center gap-2.5 rounded-xl px-2 py-2 text-start transition-[background-color,color,transform,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] active:scale-[0.99] ${teamGeneralActive ? "bg-background-tertiary-default" : "hover:bg-background-primary-hover"}`}
                 >
                   <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-accent-500/10 text-accent-500"><MessageSquare size={14} /></span>
                   <span className="flex min-w-0 flex-1 flex-col">

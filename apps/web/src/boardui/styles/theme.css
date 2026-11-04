@@ -857,20 +857,19 @@
   --input-transition-ms:  150ms;
 }
 
-/* Keep color feedback quick while the physical press motion remains soft.
- * The transform uses a shorter duration on press and the slower duration only
- * when returning to rest, so hover styles never inherit the 700ms timing. */
+/* Match the global accordion chevron motion: 300ms with the same soft
+ * cubic-bezier for color, opacity and the physical press transform. */
 @utility button-press-motion {
   transition:
-    background-color var(--button-transition-ms) ease,
-    border-color var(--button-transition-ms) ease,
-    box-shadow var(--button-transition-ms) ease,
-    color var(--button-transition-ms) ease,
-    transform 420ms cubic-bezier(0.4, 0, 0.2, 1);
+    background-color 300ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 300ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 300ms cubic-bezier(0.22, 1, 0.36, 1),
+    color 300ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 300ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 300ms cubic-bezier(0.22, 1, 0.36, 1);
 
   &:active:not(:disabled):not([aria-disabled="true"]) {
-    transform: scale(0.98);
-    transition-duration: 150ms, 150ms, 150ms, 150ms, 220ms;
+    transform: scale(0.97);
   }
 
   &:disabled,

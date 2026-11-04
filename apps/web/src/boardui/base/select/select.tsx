@@ -106,7 +106,7 @@ export function Select<T extends object>({
               "flex w-full cursor-pointer items-center justify-between rounded-2lg",
               "border border-border-button-default bg-background-primary-default shadow-xs",
               "text-text-primary",
-              "transition-[background-color,border-color,box-shadow,padding,font-size] duration-200 ease",
+              "transition-[background-color,border-color,box-shadow,color,padding,font-size,transform,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
               "hover:bg-background-primary-hover hover:border-border-button-hover",
               "outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-border-focus-ring",
               "disabled:cursor-not-allowed disabled:bg-background-primary-disabled disabled:text-text-tertiary disabled:shadow-none",
@@ -126,7 +126,7 @@ export function Select<T extends object>({
             </AriaSelectValue>
             <ChevronDownSmall
               className={cx(
-                "shrink-0 text-text-secondary transition-transform duration-200 ease",
+                "shrink-0 text-text-secondary transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
                 size === "sm" ? "size-3.5" : "size-4",
                 isOpen && "rotate-180",
               )}

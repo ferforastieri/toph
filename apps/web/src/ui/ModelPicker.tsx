@@ -114,7 +114,7 @@ export default function ModelPicker({ models, model, onModelChange, effort, effo
                 >
                   <span className="min-w-0 flex-1 truncate">{providerLabel(provider)}</span>
                   <span className="rounded-full bg-background-tertiary-default px-1.5 text-caption-2-regular text-text-tertiary">{items.length}</span>
-                  <ChevronDown size={13} className={cx("shrink-0 transition-transform", expanded ? "rotate-180" : "")} />
+                  <ChevronDown size={13} className={cx("shrink-0 transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]", expanded ? "rotate-180" : "")} />
                 </button>
                 {expanded ? (
                   <div className="flex flex-col gap-0.5 pb-1">
@@ -138,7 +138,7 @@ export default function ModelPicker({ models, model, onModelChange, effort, effo
                              </span>
                             {item.provider === "opencode-go" ? <span className="shrink-0 rounded-full bg-background-tertiary-default px-1.5 text-[10px] text-text-tertiary">Go</span> : null}
                             {active ? <Check size={14} className="shrink-0 text-accent-500" /> : null}
-                            {itemVariants.length > 0 ? <ChevronDown size={12} className={cx("shrink-0 text-foreground-icon-tertiary transition-transform", effortOpen ? "rotate-180" : "")} /> : null}
+                            {itemVariants.length > 0 ? <ChevronDown size={12} className={cx("shrink-0 text-foreground-icon-tertiary transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]", effortOpen ? "rotate-180" : "")} /> : null}
                           </button>
                           {effortOpen ? (
                             <div className="px-2 pb-3 pt-1">

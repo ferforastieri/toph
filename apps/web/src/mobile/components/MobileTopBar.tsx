@@ -1,9 +1,8 @@
 import type { ComponentType } from "react";
-import { FolderGit2, LayoutPanelLeft, Menu, Moon, Sun } from "@toph/icons";
+import { FolderGit2, LayoutPanelLeft, Menu, MessageSquare } from "@toph/icons";
 import { Badge } from "@/boardui/base/badges/badge";
 import { cx } from "@/boardui/utils/cx";
 import { Button } from "@/boardui/base/buttons/button";
-import { useSettings } from "../../settings";
 
 interface Props {
   title: string;
@@ -12,35 +11,14 @@ interface Props {
   unreadCount: number;
   icon: ComponentType<{ className?: string }>;
   onMenu: () => void;
+  onConversations?: () => void;
   onProjects: () => void;
   hideTitle?: boolean;
   floating?: boolean;
 }
 
-function ThemeToggle({ floating }: { floating: boolean }) {
-  const theme = useSettings((state) => state.theme);
-  const setTheme = useSettings((state) => state.setTheme);
-  const light = theme === "light";
-  return (
-    <button
-      type="button"
-      aria-label={light ? "Ativar modo escuro" : "Ativar modo claro"}
-      aria-pressed={light}
-      title={light ? "Ativar modo escuro" : "Ativar modo claro"}
-      onClick={() => setTheme(light ? "dark" : "light")}
-      className={cx(
-        "relative flex shrink-0 items-center justify-center overflow-hidden rounded-full text-foreground-icon-secondary transition-colors hover:bg-background-primary-hover hover:text-foreground-icon-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus-ring",
-        floating ? "size-8" : "size-9",
-      )}
-    >
-      <Sun className={cx("absolute size-4 transition-all duration-300", light ? "rotate-0 scale-100 opacity-100" : "-rotate-90 scale-50 opacity-0")} />
-      <Moon className={cx("absolute size-4 transition-all duration-300", light ? "rotate-90 scale-50 opacity-0" : "rotate-0 scale-100 opacity-100")} />
-    </button>
-  );
-}
-
 /** Compact version of the mobile hero header, with the app controls on the right. */
-export default function MobileTopBar({ title, subtitle, projectName, unreadCount, icon: Icon, onMenu, onProjects, hideTitle = false, floating = false }: Props) {
+export default function MobileTopBar({ title, subtitle, projectName, unreadCount, icon: Icon, onMenu, onConversations, onProjects, hideTitle = false, floating = false }: Props) {
   const secondary = subtitle === undefined ? projectName : subtitle;
   return (
     <header className={cx(
@@ -56,7 +34,7 @@ export default function MobileTopBar({ title, subtitle, projectName, unreadCount
           title="Abrir menu"
           onClick={onMenu}
           className={cx(
-            "relative flex shrink-0 items-center justify-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus-ring",
+            "relative flex shrink-0 items-center justify-center transition-[background-color,color,transform,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus-ring",
             floating
               ? "size-10 rounded-full bg-foreground-icon-primary/10 text-text-primary shadow-xs backdrop-blur-md hover:bg-foreground-icon-primary/15"
               : "size-9 rounded-xl border border-accent-500/20 bg-accent-500/10 text-accent-500 shadow-xs hover:bg-accent-500/15",
@@ -94,7 +72,18 @@ export default function MobileTopBar({ title, subtitle, projectName, unreadCount
           >
             <span className="min-w-0 max-w-24 truncate text-caption-2-medium">{projectName}</span>
           </Button>
-          <ThemeToggle floating={floating} />
+          {onConversations ? (
+            <Button
+              variant="ghost"
+              size="small"
+              iconOnly
+              leadingIcon={MessageSquare}
+              aria-label="Abrir conversas"
+              title="Conversas"
+              onClick={onConversations}
+              className={cx("rounded-full", floating ? "size-8" : "size-9 [&_svg]:size-4")}
+            />
+          ) : null}
         </div>
       </div>
     </header>

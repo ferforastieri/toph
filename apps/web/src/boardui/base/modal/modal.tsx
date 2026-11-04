@@ -127,7 +127,7 @@ export function Modal({
         aria-label="Fechar"
         onClick={onClose}
         className={cx(
-          "absolute inset-0 cursor-default bg-black/60 transition-opacity duration-200",
+          "toph-modal-backdrop absolute inset-0 cursor-default bg-black/60 transition-opacity duration-200",
           visible ? "opacity-100" : "opacity-0",
         )}
       />

@@ -160,7 +160,16 @@ export default function MobileApp() {
 
   function openConversations() {
     setMenuOpen(false);
+    setTerminalOpen(false);
     setConversationsOpen(true);
+  }
+
+  function openNotifications() {
+    setMenuOpen(false);
+    setAccountOpen(false);
+    setConversationsOpen(false);
+    setTerminalOpen(false);
+    window.setTimeout(() => setNotificationsOpen(true), 0);
   }
 
   function selectConversationScreen() {
@@ -374,6 +383,7 @@ export default function MobileApp() {
         unreadCount={unreadCount}
         icon={pageIcon}
         onMenu={() => setMenuOpen(true)}
+        onConversations={screen === "bots" ? openConversations : undefined}
         onProjects={() => setProjectsOpen(true)}
       />
       <main className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background-primary-default">
@@ -438,10 +448,9 @@ export default function MobileApp() {
           branch={currentBranch}
           unreadCount={unreadCount}
           onSelect={selectScreen}
-          onConversations={openConversations}
-          onBranch={() => { setMenuOpen(false); setBranchOpen(true); }}
-          onAccount={() => { setMenuOpen(false); setAccountOpen(true); }}
-          onNotifications={() => { setMenuOpen(false); setNotificationsOpen(true); }}
+          onBranch={() => { setMenuOpen(false); setTerminalOpen(false); setBranchOpen(true); }}
+          onAccount={() => { setMenuOpen(false); setTerminalOpen(false); setAccountOpen(true); }}
+          onNotifications={openNotifications}
           onTerminal={() => { setMenuOpen(false); setTerminalOpen(true); }}
           onClose={() => setMenuOpen(false)}
         />
@@ -464,7 +473,7 @@ export default function MobileApp() {
             unreadCount={unreadCount}
             icon={TerminalSquare}
             onMenu={() => setMenuOpen(true)}
-            onProjects={() => setProjectsOpen(true)}
+            onProjects={() => { setTerminalOpen(false); setProjectsOpen(true); }}
           />
           <div className="min-h-0 flex-1">
             <TerminalPanel project={project} onOpenFile={openFile} sheet onClose={() => setTerminalOpen(false)} />

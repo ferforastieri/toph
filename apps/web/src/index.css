@@ -442,6 +442,124 @@
   animation: toph-mobile-backdrop-in 220ms ease-out both;
 }
 
+.mobile-backdrop-in:active,
+.toph-modal-backdrop:active {
+  transform: none;
+}
+
+@keyframes toph-activity-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes toph-activity-bob {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-2px) scale(1.04); }
+}
+
+@keyframes toph-activity-dot {
+  0%, 100% { transform: translateY(0) scale(0.8); opacity: 0.35; }
+  50% { transform: translateY(-3px) scale(1); opacity: 1; }
+}
+
+@keyframes toph-activity-ellipsis {
+  0%, 100% { opacity: 0.25; transform: translateY(0); }
+  50% { opacity: 1; transform: translateY(-1px); }
+}
+
+.toph-activity-ring {
+  position: absolute;
+  inset: -5px;
+  border-radius: 9999px;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0 20%,
+    color-mix(in srgb, var(--color-accent-400) 80%, transparent) 45%,
+    transparent 70% 100%
+  );
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 1px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 1px));
+  animation: toph-activity-spin 2.4s linear infinite;
+  pointer-events: none;
+}
+
+.toph-activity-avatar {
+  animation: toph-activity-bob 1.8s ease-in-out infinite;
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--color-accent-500) 35%, transparent));
+}
+
+.toph-activity-dots {
+  position: absolute;
+  inset: -2px;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.toph-activity-dots i {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  border-radius: 9999px;
+  background: var(--color-accent-400);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--color-accent-500) 50%, transparent);
+  animation: toph-activity-dot 1.2s ease-in-out infinite;
+}
+
+.toph-activity-dots i:nth-child(1) { top: -3px; left: 50%; margin-left: -2px; }
+.toph-activity-dots i:nth-child(2) { bottom: 2px; left: -3px; animation-delay: 160ms; }
+.toph-activity-dots i:nth-child(3) { bottom: 2px; right: -3px; animation-delay: 320ms; }
+
+.toph-activity-status {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 1px;
+  color: var(--color-accent-500);
+  font-weight: 500;
+}
+
+.toph-activity-ellipsis {
+  display: inline-flex;
+}
+
+.toph-activity-ellipsis i {
+  font-style: normal;
+  animation: toph-activity-ellipsis 1.1s ease-in-out infinite;
+}
+
+.toph-activity-ellipsis i:nth-child(2) { animation-delay: 140ms; }
+.toph-activity-ellipsis i:nth-child(3) { animation-delay: 280ms; }
+
+.toph-activity-thinking .toph-activity-ring {
+  animation-duration: 3.2s;
+  opacity: 0.7;
+}
+
+.toph-activity-working .toph-activity-ring {
+  animation-duration: 1.2s;
+}
+
+.toph-activity-working .toph-activity-avatar {
+  animation-duration: 1.1s;
+}
+
+.toph-activity-responding .toph-activity-ring {
+  animation-duration: 1.8s;
+}
+
+.toph-activity-responding .toph-activity-avatar {
+  animation-duration: 1.4s;
+}
+
+.composer-trigger > svg:last-child {
+  transition:
+    rotate 300ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 300ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 300ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.composer-trigger[aria-expanded="true"] > svg:last-child {
+  rotate: 180deg;
+}
+
 @keyframes toph-progress-sweep {
   0% { left: -35%; }
   100% { left: 105%; }
@@ -467,9 +585,22 @@
   to { filter: drop-shadow(0 0 5px color-mix(in srgb, var(--color-accent-500) 45%, transparent)); }
 }
 
-/* Amber hover highlight: animated into place, but steady while hovered. */
+/* Amber hover highlight: animated into place, but steady while hovered.
+   The transition uses the same soft 300ms curve as the global accordion
+   chevron so every action shares one motion language. */
 :where(button, a, [role="button"], [role="tab"], [role="treeitem"], [role="option"], [role="menuitem"]) {
-  transition: color 180ms ease, text-shadow 220ms ease;
+  transition:
+    color 300ms cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 300ms cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 300ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 300ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 300ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 300ms cubic-bezier(0.22, 1, 0.36, 1),
+    text-shadow 300ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+:where(button, [role="button"], [role="tab"], [role="treeitem"], [role="option"], [role="menuitem"]):active:not(:disabled):not([aria-disabled="true"]) {
+  transform: scale(0.98);
 }
 
 :where(button, a, [role="button"], [role="tab"], [role="treeitem"], [role="option"], [role="menuitem"]):hover {
@@ -479,7 +610,14 @@
 }
 
 :where(button, a, [role="button"], [role="tab"], [role="treeitem"], [role="option"], [role="menuitem"]) svg {
-  transition: filter 220ms ease;
+  transition:
+    transform 300ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 300ms cubic-bezier(0.22, 1, 0.36, 1),
+    filter 220ms ease;
+}
+
+:where(button, [role="button"], [role="tab"], [role="treeitem"], [role="option"], [role="menuitem"]):active:not(:disabled):not([aria-disabled="true"]) svg {
+  transform: scale(0.92);
 }
 
 :where(button, a, [role="button"], [role="tab"], [role="treeitem"], [role="option"], [role="menuitem"]):hover svg {
@@ -528,8 +666,16 @@
 
   .dropdown-reveal,
   .mobile-drawer-in,
-  .mobile-backdrop-in {
+  .mobile-backdrop-in,
+  .toph-activity-ring,
+  .toph-activity-avatar,
+  .toph-activity-dots i,
+  .toph-activity-ellipsis i {
     animation: none;
+  }
+
+  .composer-trigger > svg:last-child {
+    transition: none;
   }
 
   [data-input-shell]:hover input,
@@ -541,6 +687,16 @@
   :where(button, a, [role="button"], [role="tab"], [role="treeitem"], [role="option"], [role="menuitem"]):hover,
   :where(button, a, [role="button"], [role="tab"], [role="treeitem"], [role="option"], [role="menuitem"]):hover svg {
     animation: none;
+  }
+
+  :where(button, a, [role="button"], [role="tab"], [role="treeitem"], [role="option"], [role="menuitem"]),
+  :where(button, a, [role="button"], [role="tab"], [role="treeitem"], [role="option"], [role="menuitem"]) svg {
+    transition: none;
+  }
+
+  :where(button, [role="button"], [role="tab"], [role="treeitem"], [role="option"], [role="menuitem"]):active:not(:disabled):not([aria-disabled="true"]),
+  :where(button, [role="button"], [role="tab"], [role="treeitem"], [role="option"], [role="menuitem"]):active:not(:disabled):not([aria-disabled="true"]) svg {
+    transform: none;
   }
 }
 

@@ -21,7 +21,9 @@ export const MENU_ITEMS_CONTAINER = "flex w-full flex-col gap-1 outline-none";
 
 export const MENU_ITEM = [
   "flex w-full cursor-pointer items-center gap-2 rounded-2lg p-2 text-start",
-  "text-text-primary outline-none transition-colors",
+  "text-text-primary outline-none",
+  "transition-[background-color,color,transform,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
+  "active:scale-[0.98]",
 ].join(" ");
 
 export const MENU_ITEM_ACTIVE = "bg-dropdown-item-hover-background";

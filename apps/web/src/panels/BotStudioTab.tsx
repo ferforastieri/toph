@@ -333,6 +333,27 @@ function toAiMessage(message: BotMessage): AiMessage {
   };
 }
 
+type TophActivityState = "thinking" | "working" | "responding";
+
+function TophActivityAvatar({ bot, state, size = 32, className }: { bot: MiniBot; state: TophActivityState | null; size?: number; className?: string }) {
+  return (
+    <span className={cx("relative inline-flex shrink-0 items-center justify-center", state && `toph-activity-${state}`, className)}>
+      {state ? <span className="toph-activity-ring" aria-hidden /> : null}
+      <BotAvatar bot={bot} size={size} className={cx("relative z-[1]", state && "toph-activity-avatar")} />
+      {state ? <span className="toph-activity-dots" aria-hidden><i /><i /><i /></span> : null}
+    </span>
+  );
+}
+
+function TophActivityStatus({ state }: { state: TophActivityState }) {
+  return (
+    <span className="toph-activity-status text-accent-500" role="status" aria-live="polite">
+      {state === "thinking" ? "Pensando" : state === "working" ? "Trabalhando" : "Respondendo"}
+      <span className="toph-activity-ellipsis" aria-hidden><i>.</i><i>.</i><i>.</i></span>
+    </span>
+  );
+}
+
 export default function BotStudioTab({ project, mobile = false, externalAction = null, onExternalActionHandled }: Props) {
   const workspace = useBots((state) => state.byProject[project.id]);
   const ensure = useBots((state) => state.ensure);
@@ -1486,7 +1507,7 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
                   <strong className="truncate text-caption-1-semibold text-text-primary">{mode === "team" && !activeWorker ? "Conversa da equipe" : conversationBot?.name ?? "Toph"}</strong>
                   <span className="truncate text-caption-2-regular text-text-tertiary">{mode === "team" && !activeWorker ? "Todos os Tophs colaborando" : conversationBot?.role || (mode === "team" ? "Especialista" : "Toph")}</span>
                 </span>
-                <ChevronDown size={14} className={cx("shrink-0 text-text-tertiary transition-transform", conversationPickerOpen && "rotate-180")} />
+                <ChevronDown size={14} className={cx("shrink-0 text-text-tertiary transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]", conversationPickerOpen && "rotate-180")} />
               </DropdownTrigger>
               <DropdownPopover aria-label={mode === "team" ? "Conversa da equipe" : "Conversas individuais"} placement="bottom start" className="w-[340px] p-2.5" dialogClassName="gap-1">
                 {mode === "team" ? (
@@ -1615,16 +1636,20 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
               const belongsToCurrentTurn = latestUserAt === 0 || group.messages.some((message) => message.createdAt >= latestUserAt);
               const groupStreaming = belongsToCurrentTurn && isLatestBotGroup && runningBots.has(bot.id);
               const footerBusy = belongsToCurrentTurn && isLatestBotGroup && (runningBots.has(bot.id) || group.messages.some((message) => message.status === "running"));
+              const hasRunningTool = group.messages.some((message) => (message.role === "tool" || message.role === "reasoning") && message.status === "running");
+              const hasAssistantText = group.messages.some((message) => message.role === "assistant" && message.content.trim().length > 0);
+              const activityState: TophActivityState | null = groupStreaming || group.messages.some((message) => message.status === "running")
+                ? hasRunningTool ? "working" : hasAssistantText ? "responding" : "thinking"
+                : null;
               return (
-                <section key={`bot-${group.botId}-${index}`} className="flex min-w-0 max-w-full items-start gap-2.5 overflow-x-hidden">
-                  <BotAvatar bot={bot} size={32} className="mt-0.5" />
+                <section key={`bot-${group.botId}-${index}`} className="flex min-w-0 max-w-full items-start gap-2.5">
+                  <TophActivityAvatar bot={bot} state={activityState} size={32} className="mt-0.5" />
                   <div className="flex min-w-0 flex-1 flex-col gap-1.5">
                     <header className="flex min-w-0 items-baseline gap-2">
                       <strong className="truncate text-caption-1-semibold text-text-primary">{bot.name}</strong>
-                      <span className="truncate text-caption-2-regular text-text-tertiary">{bot.role || (mode === "team" ? "Especialista" : "Toph")}</span>
+                      <span className="truncate text-caption-2-regular text-text-tertiary">{activityState ? <TophActivityStatus state={activityState} /> : bot.role || (mode === "team" ? "Especialista" : "Toph")}</span>
                     </header>
                     <AgentTranscript
-                      bubble
                       messages={group.messages.map(toAiMessage)}
                       streaming={groupStreaming}
                       onPermission={(messageId, permissionId, decision) => void replyPermission(bot, messageId, permissionId, decision)}
@@ -1653,13 +1678,12 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
                 if (!bot) return null;
                 return (
                   <section key={`pending-${botId}`} className="flex min-w-0 max-w-full items-start gap-2.5">
-                    <BotAvatar bot={bot} size={32} className="mt-0.5" />
+                    <TophActivityAvatar bot={bot} state="thinking" size={32} className="mt-0.5" />
                     <div className="flex min-w-0 flex-1 flex-col gap-1.5">
                       <header className="flex min-w-0 items-baseline gap-2">
                         <strong className="truncate text-caption-1-semibold text-text-primary">{bot.name}</strong>
-                        <span className="truncate text-caption-2-regular text-text-tertiary">{bot.role || (mode === "team" ? "Especialista" : "Toph")}</span>
+                        <span className="truncate text-caption-2-regular text-text-tertiary"><TophActivityStatus state="thinking" /></span>
                       </header>
-                      <AgentTranscript bubble messages={[]} streaming projectId={project.id} projectRoot={project.root} />
                     </div>
                   </section>
                 );
@@ -1787,15 +1811,18 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
                     const bot = bots.find((item) => item.id === group.botId);
                     if (!bot) return null;
                     const latest = lastActivityGroupIndex.get(bot.id) === index;
+                    const activityRunning = latest && runningBots.has(bot.id);
+                    const activityState: TophActivityState | null = activityRunning
+                      ? group.messages.some((message) => (message.role === "tool" || message.role === "reasoning") && message.status === "running") ? "working" : "thinking"
+                      : null;
                     return (
                       <section key={`activity-${bot.id}-${index}`} className="min-w-0 border-b border-separator-border pb-3 last:border-b-0">
                         <header className="mb-1.5 flex items-center gap-2">
-                          <BotAvatar bot={bot} size={26} />
+                          <TophActivityAvatar bot={bot} state={activityState} size={26} />
                           <div className="flex min-w-0 flex-1 flex-col">
                             <strong className="truncate text-caption-1-semibold text-text-primary">{bot.name}</strong>
-                            <span className="truncate text-[10px] text-text-tertiary">{bot.role || "Toph"}</span>
+                            <span className="truncate text-[10px] text-text-tertiary">{activityState ? <TophActivityStatus state={activityState} /> : bot.role || "Toph"}</span>
                           </div>
-                          {latest && runningBots.has(bot.id) ? <LoaderCircle className="size-3.5 animate-spin text-accent-500" /> : null}
                         </header>
                         <AgentTranscript
                           messages={group.messages.map(toAiMessage)}
@@ -1818,8 +1845,13 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
                       if (!bot) return null;
                       return (
                         <section key={`activity-pending-${bot.id}`} className="border-b border-separator-border pb-3 last:border-b-0">
-                          <header className="mb-2 flex items-center gap-2"><BotAvatar bot={bot} size={26} /><strong className="truncate text-caption-1-semibold text-text-primary">{bot.name}</strong></header>
-                          <AgentTranscript messages={[]} streaming className="flex flex-col gap-1" projectId={project.id} projectRoot={project.root} />
+                          <header className="mb-2 flex items-center gap-2">
+                            <TophActivityAvatar bot={bot} state="thinking" size={26} />
+                            <div className="flex min-w-0 flex-1 flex-col">
+                              <strong className="truncate text-caption-1-semibold text-text-primary">{bot.name}</strong>
+                              <span className="truncate text-[10px] text-text-tertiary"><TophActivityStatus state="thinking" /></span>
+                            </div>
+                          </header>
                         </section>
                       );
                     })}

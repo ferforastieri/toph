@@ -97,7 +97,7 @@ export function SwitchTrack({
     <span
       aria-hidden
       className={cx(
-        "relative shrink-0 transition-colors duration-200 ease",
+        "relative shrink-0 transition-[background-color,border-color,color,transform,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
         s.track,
         s.trackRadius[shape],
         state.isSelected
@@ -113,7 +113,7 @@ export function SwitchTrack({
           "absolute flex items-center justify-center",
           "bg-linear-to-b from-control-indicator-background from-[43.837%] to-control-indicator-background-subtle",
           "shadow-[0_3px_3px_0_rgb(0_0_0/0.03),0_0.75px_0_0_rgb(0_0_0/0.05)]",
-          "transition-transform duration-200 ease",
+          "transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
           s.thumb,
           s.thumbRadius[shape],
           s.offset,

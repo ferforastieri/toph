@@ -1,7 +1,8 @@
-import { Bot, Bug, Database, FileCode2, Files, GitBranch, Globe2, MessageSquare, TerminalSquare } from "@toph/icons";
+import { Bot, Bug, Database, FileCode2, Files, GitBranch, Globe2, Moon, Sun, TerminalSquare } from "@toph/icons";
 import type { User } from "../api";
 import { Button } from "@/boardui/base/buttons/button";
 import { Badge } from "@/boardui/base/badges/badge";
+import { useSettings } from "../settings";
 import { usePet } from "../pet";
 import PetSprite from "../ui/PetSprite";
 import { cx } from "@/boardui/utils/cx";
@@ -17,7 +18,6 @@ interface Props {
   branch: string;
   unreadCount: number;
   onSelect: (screen: MobileScreen) => void;
-  onConversations: () => void;
   onBranch: () => void;
   onAccount: () => void;
   onNotifications: () => void;
@@ -35,6 +35,25 @@ const screens: Array<{ id: MobileScreen; label: string; description: string; ico
   { id: "workspace", label: "Editor", description: "Aba ativa do workspace", icon: FileCode2 },
 ];
 
+function ThemeToggle() {
+  const theme = useSettings((state) => state.theme);
+  const setTheme = useSettings((state) => state.setTheme);
+  const light = theme === "light";
+  return (
+    <button
+      type="button"
+      aria-label={light ? "Ativar modo escuro" : "Ativar modo claro"}
+      aria-pressed={light}
+      title={light ? "Ativar modo escuro" : "Ativar modo claro"}
+      onClick={() => setTheme(light ? "dark" : "light")}
+      className="relative flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-full text-foreground-icon-secondary transition-[background-color,color,transform,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] hover:bg-background-primary-hover hover:text-foreground-icon-primary active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus-ring"
+    >
+      <Sun className={cx("absolute size-4 transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]", light ? "rotate-0 scale-100 opacity-100" : "-rotate-90 scale-50 opacity-0")} />
+      <Moon className={cx("absolute size-4 transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]", light ? "rotate-90 scale-50 opacity-0" : "rotate-0 scale-100 opacity-100")} />
+    </button>
+  );
+}
+
 export default function MobileMenu({
   screen,
   hasWorkspace,
@@ -43,7 +62,6 @@ export default function MobileMenu({
   branch,
   unreadCount,
   onSelect,
-  onConversations,
   onBranch,
   onAccount,
   onNotifications,
@@ -56,48 +74,21 @@ export default function MobileMenu({
       <button
         type="button"
         aria-label="Fechar menu"
-        className="mobile-backdrop-in absolute inset-0 bg-black/60"
+        className="mobile-backdrop-in absolute inset-0 bg-black/60 active:scale-100"
         onClick={onClose}
       />
       <aside className="mobile-drawer-in absolute bottom-[calc(var(--safe-bottom)+0.5rem)] left-[calc(var(--safe-left)+0.5rem)] top-[calc(var(--safe-top)+0.5rem)] flex w-[min(calc(100vw-3rem-var(--safe-left)-var(--safe-right)),360px)] flex-col overflow-hidden rounded-3xl border border-border-button-white bg-background-primary-default shadow-sidebar">
-        <div className="flex w-full items-center gap-2 border-b border-separator-border p-3">
-          <button
-            type="button"
-            aria-label={unreadCount > 0 ? `Notificações, ${unreadCount} não lidas` : "Notificações"}
-            title="Notificações"
-            onClick={onNotifications}
-            className={cx("relative shrink-0 rounded-full transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus-ring", unreadCount > 0 && "pet-notification")}
-          >
-            <PetSprite kind={pet.kind} size={38} commits={pet.commits} />
-            {unreadCount > 0 ? (
-              <Badge color="primary" className="pointer-events-none absolute -right-1 -top-1 min-w-4 px-1 text-[10px]">
-                {unreadCount > 9 ? "9+" : unreadCount}
-              </Badge>
-            ) : null}
-          </button>
-          <button
-            type="button"
-            title="Abrir conta"
-            onClick={onAccount}
-            className="flex min-w-0 flex-1 flex-col text-start focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus-ring"
-          >
-            <span className="truncate text-body-medium text-text-primary">{user?.username ?? "Conta"}</span>
-            <span className="truncate text-caption-1-regular text-text-secondary">{projectName}</span>
-          </button>
-        </div>
+        <button
+          type="button"
+          title="Abrir conta"
+          onClick={onAccount}
+          className="flex w-full min-w-0 flex-col border-b border-separator-border p-3 text-start transition-[background-color,color,transform,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] hover:bg-background-primary-hover active:scale-[0.995] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus-ring"
+        >
+          <span className="truncate text-body-medium text-text-primary">{user?.username ?? "Conta"}</span>
+          <span className="truncate text-caption-1-regular text-text-secondary">{projectName}</span>
+        </button>
 
         <div className="no-scrollbar flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto p-2">
-          <Button
-            variant="ghost"
-            leadingIcon={MessageSquare}
-            onClick={onConversations}
-            className="h-auto w-full justify-start gap-2 px-3 py-2.5 text-start"
-          >
-            <span className="flex min-w-0 flex-1 flex-col">
-              <span className="text-body-2-medium">Conversas</span>
-              <span className="text-caption-2-regular text-text-tertiary">Trocar de Toph ou equipe</span>
-            </span>
-          </Button>
           {screens.map((item) => {
             const disabled = item.id === "workspace" && !hasWorkspace;
             return (
@@ -128,6 +119,24 @@ export default function MobileMenu({
               <span className="text-caption-2-regular text-text-tertiary">Shell do projeto</span>
             </span>
           </Button>
+        </div>
+
+        <div className="flex shrink-0 items-center justify-between gap-2 border-t border-separator-border p-2">
+          <button
+            type="button"
+            aria-label={unreadCount > 0 ? `Notificações, ${unreadCount} não lidas` : "Notificações"}
+            title="Notificações"
+            onClick={onNotifications}
+            className={cx("relative shrink-0 rounded-full transition-[transform,color,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] hover:scale-105 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus-ring", unreadCount > 0 && "pet-notification")}
+          >
+            <PetSprite kind={pet.kind} size={38} commits={pet.commits} />
+            {unreadCount > 0 ? (
+              <Badge color="primary" className="pointer-events-none absolute -right-1 -top-1 min-w-4 px-1 text-[10px]">
+                {unreadCount > 9 ? "9+" : unreadCount}
+              </Badge>
+            ) : null}
+          </button>
+          <ThemeToggle />
         </div>
       </aside>
     </div>
