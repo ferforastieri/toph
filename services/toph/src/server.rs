@@ -501,6 +501,7 @@ fn router(state: Arc<AppState>) -> Router {
         )
         .route("/api/ai/config", get(get_ai_config).put(save_ai_config))
         .route("/api/ai/models", get(ai_models))
+        .route("/api/ai/usage", get(get_ai_usage))
         .route("/api/ai/test", post(test_ai))
         .route("/api/ai/chat", post(chat_ai))
         .route("/api/ai/complete", post(complete_ai))
@@ -2023,6 +2024,10 @@ async fn complete_ai(
 
 async fn ai_models(State(state): State<Arc<AppState>>) -> AppResult<Json<Value>> {
     Ok(Json(json!({ "models": state.ai.models().await? })))
+}
+
+async fn get_ai_usage(State(state): State<Arc<AppState>>) -> AppResult<Json<Value>> {
+    Ok(Json(state.ai.go_usage().await?))
 }
 
 async fn list_email_accounts(

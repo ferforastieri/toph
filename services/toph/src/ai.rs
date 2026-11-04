@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
 
@@ -592,6 +592,47 @@ impl AiService {
             .ok_or_else(|| AppError::Upstream("AI returned no message".into()))
     }
 
+    /// Current OpenCode Go usage windows (rolling 5-hour, weekly, monthly).
+    /// The token comes from the local OpenCode credential store; it is never
+    /// exposed to the browser.
+    pub async fn go_usage(&self) -> AppResult<Value> {
+        let config = self.load().await?;
+        if config.provider != "opencode-go" && !config.model.starts_with("opencode-go/") {
+            return Ok(json!({
+                "available": false,
+                "reason": "Os limites de 5 horas, semana e mês estão disponíveis apenas para o OpenCode Go."
+            }));
+        }
+        let Some(token) = opencode_go_token().await else {
+            return Ok(json!({
+                "available": false,
+                "reason": "OpenCode Go credential not found"
+            }));
+        };
+        let response = self
+            .client
+            .get("https://opencode.ai/zen/go/v1/usage")
+            .bearer_auth(token)
+            .send()
+            .await
+            .map_err(|error| {
+                AppError::Upstream(format!("OpenCode Go usage request failed: {error}"))
+            })?;
+        let status = response.status();
+        let payload: Value = response.json().await.unwrap_or_else(|_| json!({}));
+        if !status.is_success() {
+            return Ok(json!({
+                "available": false,
+                "reason": format!("OpenCode Go usage returned {status}"),
+                "status": status.as_u16()
+            }));
+        }
+        Ok(json!({
+            "available": true,
+            "usage": payload.get("usage").cloned().unwrap_or(payload)
+        }))
+    }
+
     pub async fn complete(&self, input: CompleteInput) -> AppResult<String> {
         let prefix = tail(&input.prefix, 2500);
         let suffix = head(&input.suffix, 600);
@@ -830,6 +871,52 @@ impl AiConfig {
         self.weekly_token_limit = self.weekly_token_limit.clamp(0, 1_000_000_000);
         self.temperature = self.temperature.clamp(0.0, 2.0);
     }
+}
+
+fn opencode_db_path() -> Option<PathBuf> {
+    if let Some(dir) = std::env::var_os("OPENCODE_DATA_DIR") {
+        return Some(PathBuf::from(dir).join("opencode.db"));
+    }
+    if let Some(dir) = std::env::var_os("XDG_DATA_HOME") {
+        return Some(PathBuf::from(dir).join("opencode").join("opencode.db"));
+    }
+    std::env::var_os("HOME").map(|home| {
+        PathBuf::from(home)
+            .join(".local")
+            .join("share")
+            .join("opencode")
+            .join("opencode.db")
+    })
+}
+
+async fn opencode_go_token() -> Option<String> {
+    let path = opencode_db_path()?;
+    if !path.is_file() {
+        return None;
+    }
+    let options = sqlx::sqlite::SqliteConnectOptions::new()
+        .filename(&path)
+        .read_only(true)
+        .create_if_missing(false);
+    let pool = sqlx::sqlite::SqlitePoolOptions::new()
+        .max_connections(1)
+        .connect_with(options)
+        .await
+        .ok()?;
+    let raw: Option<String> = sqlx::query_scalar(
+        "SELECT value FROM credential WHERE integration_id = 'opencode' AND active = 1 ORDER BY time_updated DESC LIMIT 1",
+    )
+    .fetch_optional(&pool)
+    .await
+    .ok()
+    .flatten();
+    pool.close().await;
+    let parsed: Value = serde_json::from_str(&raw?).ok()?;
+    parsed
+        .get("access")
+        .and_then(Value::as_str)
+        .or_else(|| parsed.get("key").and_then(Value::as_str))
+        .map(str::to_string)
 }
 
 fn default_weekly_token_limit() -> i64 {

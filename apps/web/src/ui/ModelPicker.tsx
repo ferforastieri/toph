@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { Bot, Check, ChevronDown } from "@toph/icons";
+import { Check, ChevronDown } from "@toph/icons";
 import type { AIModel } from "../api";
 import { modelDisplay, modelGroup, modelTitle, providerLabel } from "../ai";
+import ProviderIcon from "../components/ProviderIcon";
 import { cx } from "@/boardui/utils/cx";
 import { Slider } from "@/boardui/base/slider/slider";
 import ComposerMenu from "./ComposerMenu";
@@ -39,6 +40,7 @@ export default function ModelPicker({ models, model, onModelChange, effort, effo
   const uniqueModels = useMemo(() => [...new Map(models.map((item) => [item.id, item])).values()], [models]);
   const selected = uniqueModels.find((item) => item.id === model);
   const selectedInfo = selected ?? (model ? { id: model, label: model.split("/").pop() ?? model } : undefined);
+  const selectedProvider = selected ? modelGroup(selected) : modelGroup({ id: model, label: model.split("/").pop() ?? model });
   const variants = selected?.variants ?? efforts;
 
   const groups = useMemo(() => {
@@ -90,7 +92,7 @@ export default function ModelPicker({ models, model, onModelChange, effort, effo
       onOpenChange={setOpen}
       trigger={
         <>
-          {fullWidth ? <Bot size={13} className="shrink-0 text-foreground-icon-tertiary" /> : null}
+          <ProviderIcon provider={selectedProvider} className="size-3.5 text-foreground-icon-tertiary" />
           <span className="truncate" title={modelTitle(selectedInfo)}>{modelDisplay(selectedInfo)}</span>
           {fullWidth && variants.length > 0 ? <span className="shrink-0 text-caption-2-regular text-text-tertiary">· {effortLabel(effort)}</span> : null}
           <ChevronDown size={12} className="size-3 shrink-0 text-foreground-icon-tertiary" />
@@ -112,6 +114,7 @@ export default function ModelPicker({ models, model, onModelChange, effort, effo
                   onClick={() => toggleProvider(provider)}
                   className="flex w-full items-center gap-2 rounded-xl px-2 py-2 text-start text-caption-1-semibold text-text-secondary transition-colors hover:bg-background-primary-hover hover:text-text-primary"
                 >
+                  <ProviderIcon provider={provider} className="size-3.5 text-text-tertiary" />
                   <span className="min-w-0 flex-1 truncate">{providerLabel(provider)}</span>
                   <span className="rounded-full bg-background-tertiary-default px-1.5 text-caption-2-regular text-text-tertiary">{items.length}</span>
                   <ChevronDown size={13} className={cx("shrink-0 transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]", expanded ? "rotate-180" : "")} />

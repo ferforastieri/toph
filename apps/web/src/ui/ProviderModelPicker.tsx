@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Check, ChevronDown } from "@toph/icons";
 import type { AIModel } from "../api";
 import { modelDisplay, modelGroup, modelTitle, providerLabel } from "../ai";
+import ProviderIcon from "../components/ProviderIcon";
 import { Dropdown, DropdownPopover, DropdownTrigger } from "@/boardui/base/dropdown/dropdown";
 import { cx } from "@/boardui/utils/cx";
 
@@ -20,6 +21,7 @@ export default function ProviderModelPicker({ models, model, onChange, placehold
   const uniqueModels = useMemo(() => [...new Map(models.map((item) => [item.id, item])).values()], [models]);
   const selected = uniqueModels.find((item) => item.id === model);
   const selectedInfo = selected ?? (model ? { id: model, label: model.split("/").pop() ?? model } : undefined);
+  const selectedProvider = selected ? modelGroup(selected) : modelGroup({ id: model, label: model.split("/").pop() ?? model });
 
   const groups = useMemo(() => {
     const grouped = new Map<string, AIModel[]>();
@@ -54,6 +56,7 @@ export default function ProviderModelPicker({ models, model, onChange, placehold
           className,
         )}
       >
+        <ProviderIcon provider={selectedProvider} className="size-3.5 text-foreground-icon-tertiary" />
         <span className="min-w-0 flex-1 truncate" title={selectedInfo ? modelTitle(selectedInfo) : placeholder}>{selectedInfo ? modelDisplay(selectedInfo) : placeholder}</span>
         <ChevronDown size={13} className="size-3.5 shrink-0 text-foreground-icon-tertiary" />
       </DropdownTrigger>
@@ -65,6 +68,7 @@ export default function ProviderModelPicker({ models, model, onChange, placehold
             return (
               <div key={provider} className="border-b border-separator-border last:border-b-0">
                 <button type="button" onClick={() => toggle(provider)} className="flex w-full items-center gap-2 rounded-xl px-2 py-2 text-start text-caption-1-semibold text-text-secondary transition-colors hover:bg-background-primary-hover hover:text-text-primary">
+                  <ProviderIcon provider={provider} className="size-3.5 text-text-tertiary" />
                   <span className="min-w-0 flex-1 truncate">{providerLabel(provider)}</span>
                   <span className="rounded-full bg-background-tertiary-default px-1.5 text-caption-2-regular text-text-tertiary">{items.length}</span>
                   <ChevronDown size={13} className={cx("shrink-0 transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]", expanded ? "rotate-180" : "")} />

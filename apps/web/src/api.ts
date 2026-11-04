@@ -115,6 +115,22 @@ export interface AIConfigInput {
   systemPrompt: string;
 }
 
+export interface AIUsageWindow {
+  status?: string;
+  percent: number;
+  resetsAt?: string | number;
+}
+
+export interface AIUsageResponse {
+  available: boolean;
+  reason?: string;
+  usage?: {
+    rolling?: AIUsageWindow;
+    weekly?: AIUsageWindow;
+    monthly?: AIUsageWindow;
+  };
+}
+
 export interface AIModel {
   id: string;
   label: string;
@@ -940,6 +956,10 @@ export const api = {
 
   async aiModels(): Promise<{ models: AIModel[] }> {
     return request<{ models: AIModel[] }>("/ai/models");
+  },
+
+  async aiUsage(): Promise<AIUsageResponse> {
+    return request<AIUsageResponse>("/ai/usage");
   },
 
   async saveAIConfig(input: AIConfigInput): Promise<AIConfig> {
