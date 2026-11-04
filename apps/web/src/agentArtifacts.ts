@@ -70,6 +70,9 @@ export function extractAgentImages(...values: unknown[]): AgentImageArtifact[] {
   const visit = (input: unknown, depth = 0) => {
     if (input == null || depth > 8) return;
     if (typeof input === "string") {
+      // Large tool payloads are expensive to scan. Skip them fast when they
+      // cannot contain an image reference.
+      if (input.length > 50_000 && !/data:image\/|\.(?:png|jpe?g|webp|gif|avif|bmp|svg)\b|image_url|b64_json|image_base64/i.test(input)) return;
       const parsed = parseJson(input);
       if (parsed !== null) {
         visit(parsed, depth + 1);

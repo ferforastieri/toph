@@ -94,6 +94,12 @@ function MessageInfo({ agentMode, model, createdAt, content, copyLabel, align = 
 }
 
 function toolContent(value: unknown): string {
+  const text = toolContentRaw(value);
+  if (text.length <= 200_000) return text;
+  return `${text.slice(0, 200_000)}\n… (${text.length - 200_000} caracteres omitidos)`;
+}
+
+function toolContentRaw(value: unknown): string {
   if (!value) return "";
   if (typeof value === "string") return value;
   if (Array.isArray(value)) {
@@ -450,6 +456,26 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
   const [historyReloadToken, setHistoryReloadToken] = useState(0);
   const sessionTophMap = useRef(new Map<string, string>());
   const toolFileSnapshots = useRef(new Map<string, ToolFileSnapshot[]>());
+
+  // Inline base64 images coming from tools are uploaded as project files.
+  // Keeping them in the message makes the UI heavy and the history huge.
+  async function persistInlineImages(text: string): Promise<string> {
+    if (!text.includes("data:image/")) return text;
+    const pattern = /data:image\/([a-z0-9.+-]+);base64,([a-z0-9+/=\r\n]+)/gi;
+    const matches = Array.from(text.matchAll(pattern));
+    let next = text;
+    for (const [whole, mime, base64] of matches) {
+      const ext = mime.includes("jpeg") ? "jpg" : mime.split("+")[0].replace(/[^a-z0-9]/g, "") || "png";
+      const path = `toph-generated/chat-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      try {
+        await api.uploadFile(project.id, path, base64.replace(/\s+/g, ""));
+        next = next.split(whole).join(path);
+      } catch {
+        // Keep the inline data if the upload fails.
+      }
+    }
+    return next;
+  }
   const scrollRef = useRef<HTMLDivElement>(null);
   const activityScrollRef = useRef<HTMLDivElement>(null);
   const stickToBottom = useRef(true);
@@ -882,7 +908,8 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
               const toolId = String(data.id ?? "");
               const id = messageID("tool", toolId);
               const output = data.content ?? data.metadata;
-              state.updateMessage(project.id, id, { detail: toolContent(output), status: "complete" });
+              const detail = await persistInlineImages(toolContent(output));
+              state.updateMessage(project.id, id, { detail, status: "complete" });
               finishToolFileSnapshot(sessionId, toolId, id, output);
               break;
             }
@@ -1050,17 +1077,41 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
     }
     // Wait for the agent for as long as it needs. The only thing that stops this
     // loop is the user pressing stop (runToken changes); there is no deadline.
+    // If the session goes idle without a reply we stop polling instead of
+    // spinning forever and leaving the composer stuck.
     let latest = "";
+    let idlePolls = 0;
+    let seenActive = false;
     while (token === runToken.current) {
       await new Promise((resolve) => window.setTimeout(resolve, 400));
       if (token !== runToken.current) throw new Error("__stopped__");
       const stored = completedStoredReply(current.id, current.chatId, since);
       if (stored) return stored.content.trim();
       const active = await client.session.active().catch(() => null);
-      if (!active || active[sessionId]) continue;
+      if (active?.[sessionId]) {
+        seenActive = true;
+        idlePolls = 0;
+        continue;
+      }
+      if (!seenActive) {
+        const early = await client.message.list({ sessionID: sessionId, limit: 1, order: "desc", type: "assistant" } as never).catch(() => null);
+        const earlyAssistant = lastAssistant(early?.data ?? []);
+        if (earlyAssistant && earlyAssistant.id !== before && earlyAssistant.text) return earlyAssistant.text;
+        continue;
+      }
+      idlePolls += 1;
       const latestList = await client.message.list({ sessionID: sessionId, limit: 1, order: "desc", type: "assistant" } as never).catch(() => null);
       const assistant = lastAssistant(latestList?.data ?? []);
-      if (!assistant || assistant.id === before) continue;
+      if (!assistant || assistant.id === before) {
+        if (idlePolls >= 8) {
+          const settled = completedStoredReply(current.id, current.chatId, since);
+          if (settled) return settled.content.trim();
+          if (latest) return latest;
+          throw new Error("O agente terminou sem produzir resposta.");
+        }
+        continue;
+      }
+      idlePolls = 0;
       latest = assistant.text || latest;
       if (assistant.error) throw new Error(assistant.error);
       if (latest) return latest;

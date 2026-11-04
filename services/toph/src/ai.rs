@@ -347,7 +347,10 @@ impl AiService {
                 continue;
             }
             let kind = input.kind.trim().to_lowercase();
-            if !matches!(kind.as_str(), "openai" | "gemini" | "stability" | "replicate") {
+            if !matches!(
+                kind.as_str(),
+                "openai" | "gemini" | "stability" | "replicate"
+            ) {
                 return Err(crate::errors::bad_request(format!(
                     "unsupported image provider: {kind}"
                 )));
@@ -361,7 +364,9 @@ impl AiService {
             } else if let Some(key) = input.api_key.filter(|key| !key.trim().is_empty()) {
                 key.trim().to_string()
             } else {
-                previous.map(|provider| provider.api_key.clone()).unwrap_or_default()
+                previous
+                    .map(|provider| provider.api_key.clone())
+                    .unwrap_or_default()
             };
             let provider_key_enc = encrypt(&self.key, &provider_key)
                 .map_err(|error| AppError::Internal(error.into()))?;
@@ -695,10 +700,7 @@ impl AiService {
                     .pointer("/function/name")
                     .and_then(Value::as_str)
                     .unwrap_or("");
-                let call_id = call
-                    .get("id")
-                    .and_then(Value::as_str)
-                    .unwrap_or("call_0");
+                let call_id = call.get("id").and_then(Value::as_str).unwrap_or("call_0");
                 let arguments = call
                     .pointer("/function/arguments")
                     .and_then(Value::as_str)
@@ -777,7 +779,9 @@ impl AiService {
             .run_image_provider(provider, &prompt, size, model)
             .await?;
         if bytes.is_empty() {
-            return Err(AppError::Upstream("image provider returned an empty file".into()));
+            return Err(AppError::Upstream(
+                "image provider returned an empty file".into(),
+            ));
         }
         let stem = if requested.trim().is_empty() {
             let slug = slugify(&prompt);
@@ -792,8 +796,7 @@ impl AiService {
         let relative = format!("toph-generated/{stem}.png");
         let target = tool.project_root.join(&relative);
         if let Some(parent) = target.parent() {
-            std::fs::create_dir_all(parent)
-                .map_err(|error| AppError::Internal(error.into()))?;
+            std::fs::create_dir_all(parent).map_err(|error| AppError::Internal(error.into()))?;
         }
         std::fs::write(&target, &bytes).map_err(|error| AppError::Internal(error.into()))?;
         let encoded: String = relative
@@ -880,7 +883,10 @@ impl AiService {
                 } else {
                     provider.base_url.as_str()
                 };
-                let url = format!("{}/v2beta/stable-image/generate/core", base.trim_end_matches('/'));
+                let url = format!(
+                    "{}/v2beta/stable-image/generate/core",
+                    base.trim_end_matches('/')
+                );
                 let ratio = match size {
                     "1536x1024" => "3:2",
                     "1024x1536" => "2:3",
@@ -942,16 +948,13 @@ impl AiService {
                     .await?;
                 for _ in 0..120 {
                     if let Some(output) = value.get("output").filter(|value| !value.is_null()) {
-                        let remote = output
-                            .as_str()
-                            .map(str::to_string)
-                            .or_else(|| {
-                                output
-                                    .as_array()
-                                    .and_then(|items| items.first())
-                                    .and_then(Value::as_str)
-                                    .map(str::to_string)
-                            });
+                        let remote = output.as_str().map(str::to_string).or_else(|| {
+                            output
+                                .as_array()
+                                .and_then(|items| items.first())
+                                .and_then(Value::as_str)
+                                .map(str::to_string)
+                        });
                         if let Some(remote) = remote {
                             let response = client.get(&remote).send().await.map_err(|error| {
                                 AppError::Upstream(format!("image download failed: {error}"))
@@ -972,7 +975,11 @@ impl AiService {
                                 .unwrap_or("unknown error")
                         )));
                     }
-                    let Some(poll) = value.get("urls").and_then(|urls| urls.get("get")).and_then(Value::as_str) else {
+                    let Some(poll) = value
+                        .get("urls")
+                        .and_then(|urls| urls.get("get"))
+                        .and_then(Value::as_str)
+                    else {
                         break;
                     };
                     tokio::time::sleep(Duration::from_secs(2)).await;
@@ -1047,9 +1054,7 @@ impl AiService {
                             AppError::Upstream(format!("image download failed: {error}"))
                         });
                 }
-                Err(AppError::Upstream(
-                    "image provider returned no data".into(),
-                ))
+                Err(AppError::Upstream("image provider returned no data".into()))
             }
         }
     }
