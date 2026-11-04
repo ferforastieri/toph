@@ -26,7 +26,7 @@ import WebAppsScreen from "./screens/WebAppsScreen";
 import ProjectSwitcher from "../components/ProjectSwitcher";
 import CloseProjectModal from "../components/CloseProjectModal";
 import MobileTopBar from "./components/MobileTopBar";
-import { useBots, botSessionIds } from "../bots";
+import { chatSessionIds, useChats } from "../chats";
 import { useTophDrafts } from "../tophDrafts";
 import MobileBranchSheet from "./MobileBranchSheet";
 import MobileNotificationsSheet from "./MobileNotificationsSheet";
@@ -52,7 +52,7 @@ export default function MobileApp() {
   const unreadCount = notifications.filter((notification) => !notification.read).length;
 
   const [screen, setScreen] = useState<MobileScreen>("bots");
-  const pageTitle = screen === "bots" ? "Tophs" : screen === "files" ? "Arquivos" : screen === "scm" ? "Git" : screen === "db" ? "Bancos" : screen === "web" ? "Web apps" : screen === "debug" ? "Debug" : (activeTab?.title ?? "Editor");
+  const pageTitle = screen === "bots" ? "Toph" : screen === "files" ? "Arquivos" : screen === "scm" ? "Git" : screen === "db" ? "Bancos" : screen === "web" ? "Web apps" : screen === "debug" ? "Debug" : (activeTab?.title ?? "Editor");
   const pageIcon = screen === "bots" ? Bot : screen === "files" ? Files : screen === "scm" ? GitBranch : screen === "db" ? Database : screen === "web" ? Globe2 : screen === "debug" ? Bug : FileCode2;
   const [menuOpen, setMenuOpen] = useState(false);
   const [terminalOpen, setTerminalOpen] = useState(false);
@@ -178,8 +178,8 @@ export default function MobileApp() {
     setScreen("bots");
   }
 
-  function openTophAction(mode: TophActionRequest["mode"], botId: string, action: TophActionRequest["action"]) {
-    setPendingTophAction({ mode, botId, action });
+  function openTophAction(tophId: string) {
+    setPendingTophAction({ tophId, action: "config" });
     selectConversationScreen();
   }
 
@@ -305,10 +305,10 @@ export default function MobileApp() {
     setCloseBusy(true);
     setCloseError("");
     try {
-      const sessions = botSessionIds(useBots.getState().byProject[id]);
+      const sessions = chatSessionIds(useChats.getState().byProject[id]);
       await Promise.all(sessions.map((sessionId) => api.interruptOpencodeSession(sessionId).catch(() => undefined)));
       const result = await api.closeProject(id);
-      useBots.getState().forget(id);
+      useChats.getState().forget(id);
       useTophDrafts.getState().clearProject(id);
       const wasActive = activeProjectId === id;
       closeProjectTab(id);

@@ -1,9 +1,9 @@
-import type { BotMessage } from "./bots";
+import type { ChatMessage } from "./chats";
 
-export function recoverBotReply(messages: BotMessage[], botId: string, channel: string, startedAt: number): BotMessage | undefined {
+export function recoverBotReply(messages: ChatMessage[], tophId: string, chatId: string, startedAt: number): ChatMessage | undefined {
   return [...messages].reverse().find((message) => message.role === "assistant"
-    && message.botId === botId
-    && message.channel === channel
+    && message.tophId === tophId
+    && message.chatId === chatId
     && message.createdAt >= startedAt
     && Boolean(message.content.trim()));
 }

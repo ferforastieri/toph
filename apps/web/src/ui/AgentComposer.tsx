@@ -18,12 +18,12 @@ interface Props {
   onSend: (value: string, attachments: AgentAttachment[]) => void;
   onStop?: () => void;
   busy: boolean;
-  models: AIModel[];
-  model: string;
-  onModelChange: (value: string) => void;
-  effort: string;
-  efforts: string[];
-  onEffortChange: (value: string) => void;
+  models?: AIModel[];
+  model?: string;
+  onModelChange?: (value: string) => void;
+  effort?: string;
+  efforts?: string[];
+  onEffortChange?: (value: string) => void;
   placeholder: string;
   allowAttachments?: boolean;
   modeControls?: ReactNode;
@@ -204,7 +204,9 @@ export function AgentComposer({ value, onChange, onSend, onStop, busy, models, m
               )}
             </ComposerMenu>
             <div className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
-              <ModelPicker models={models} model={model} onModelChange={onModelChange} effort={effort} efforts={efforts} onEffortChange={onEffortChange} />
+              {models && model !== undefined && onModelChange && onEffortChange ? (
+                <ModelPicker models={models} model={model} onModelChange={onModelChange} effort={effort ?? ""} efforts={efforts ?? []} onEffortChange={onEffortChange} />
+              ) : null}
               {modeControls && <div className="flex shrink-0 items-center gap-0.5">{modeControls}</div>}
             </div>
             <Button

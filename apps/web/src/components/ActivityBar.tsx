@@ -11,7 +11,7 @@ const items: Array<{ id: Sidebar; feature: WorkspaceFeature; label: string; icon
   { id: "files", feature: "files", label: "Explorer", icon: Files },
   { id: "scm", feature: "sourceControl", label: "Source Control", icon: GitBranch },
   { id: "db", feature: "databases", label: "Databases", icon: Database },
-  { id: "bots", feature: "bots", label: "Tophs", icon: Bot },
+  { id: "bots", feature: "bots", label: "Toph", icon: Bot },
   { id: "debug", feature: "debug", label: "Debug", icon: Bug },
   { id: "web", feature: "webApps", label: "Web apps", icon: Globe2 },
 ];

@@ -87,10 +87,9 @@ async fn embedded_server_serves_authenticated_api() {
         .map(|index| {
             serde_json::json!({
                 "id": format!("message-{index:02}"),
+                "chatId": "chat-one",
                 "role": "assistant",
                 "content": format!("answer {index}"),
-                "mode": "solo",
-                "channel": "solo",
                 "createdAt": index,
             })
         })
@@ -101,7 +100,18 @@ async fn embedded_server_serves_authenticated_api() {
         .json(&serde_json::json!({
             "tabs": [],
             "activeTabId": null,
-            "bots": { "mode": "solo", "bots": [], "messages": messages, "activeBotId": null }
+            "chats": {
+                "version": 1,
+                "chats": [{
+                    "id": "chat-one",
+                    "name": "checkout",
+                    "description": "pagamentos",
+                    "createdAt": 1,
+                    "updatedAt": 1
+                }],
+                "tophs": [],
+                "activeChatId": "chat-one"
+            }
         }))
         .send()
         .await
@@ -116,10 +126,21 @@ async fn embedded_server_serves_authenticated_api() {
         .json()
         .await
         .unwrap();
-    assert!(layout["bots"].get("messages").is_none());
+    assert_eq!(layout["chats"]["chats"][0]["name"], "checkout");
+    client
+        .put(format!(
+            "{base}/api/projects/{project_id}/workspace/messages"
+        ))
+        .header("X-Toph-CSRF", &csrf)
+        .json(&serde_json::json!({ "messages": messages }))
+        .send()
+        .await
+        .unwrap()
+        .error_for_status()
+        .unwrap();
     let page: Value = client
         .get(format!(
-            "{base}/api/projects/{project_id}/workspace/messages?mode=solo&channel=solo&scope=conversation&limit=10"
+            "{base}/api/projects/{project_id}/workspace/messages?mode=chat&channel=chat-one&scope=conversation&limit=10"
         ))
         .send()
         .await
@@ -134,7 +155,7 @@ async fn embedded_server_serves_authenticated_api() {
     let cursor = &page["nextCursor"];
     let older: Value = client
         .get(format!(
-            "{base}/api/projects/{project_id}/workspace/messages?mode=solo&channel=solo&scope=conversation&limit=10&beforeAt={}&beforeChannel={}&beforeId={}",
+            "{base}/api/projects/{project_id}/workspace/messages?mode=chat&channel=chat-one&scope=conversation&limit=10&beforeAt={}&beforeChannel={}&beforeId={}",
             cursor["createdAt"].as_i64().unwrap(),
             cursor["channel"].as_str().unwrap(),
             cursor["id"].as_str().unwrap(),
@@ -154,13 +175,12 @@ async fn embedded_server_serves_authenticated_api() {
         ))
         .header("X-Toph-CSRF", &csrf)
         .json(&serde_json::json!({
-            "replace": { "mode": "solo", "channel": "solo" },
+            "replace": { "mode": "chat", "channel": "chat-one" },
             "messages": [{
                 "id": "replacement",
+                "chatId": "chat-one",
                 "role": "assistant",
                 "content": "replacement answer",
-                "mode": "solo",
-                "channel": "solo",
                 "createdAt": 100,
             }]
         }))
@@ -171,7 +191,7 @@ async fn embedded_server_serves_authenticated_api() {
         .unwrap();
     let replaced: Value = client
         .get(format!(
-            "{base}/api/projects/{project_id}/workspace/messages?mode=solo&channel=solo&scope=conversation&limit=10"
+            "{base}/api/projects/{project_id}/workspace/messages?mode=chat&channel=chat-one&scope=conversation&limit=10"
         ))
         .send()
         .await

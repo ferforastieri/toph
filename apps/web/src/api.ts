@@ -349,7 +349,7 @@ export interface WorkspaceLayout {
   aiSessionId?: string;
   aiSessionTitle?: string;
   aiPanelOpen?: boolean;
-  bots?: unknown;
+  chats?: unknown;
 }
 
 export interface WorkspaceMessageCursor {
@@ -365,7 +365,7 @@ export interface WorkspaceMessagePage<T> {
 }
 
 export interface WorkspaceMessageQuery {
-  mode: "solo" | "team";
+  mode: "chat";
   channel?: string;
   scope?: "all" | "conversation" | "activity";
   before?: WorkspaceMessageCursor | null;
@@ -727,6 +727,28 @@ export const api = {
     );
   },
 
+  async chatMessages<T>(projectId: string, chatId: string, query: { before?: WorkspaceMessageCursor | null; limit?: number } = {}): Promise<WorkspaceMessagePage<T>> {
+    return this.workspaceMessages<T>(projectId, {
+      mode: "chat",
+      channel: chatId,
+      scope: "all",
+      before: query.before,
+      limit: query.limit,
+    });
+  },
+
+  async saveChatMessages(projectId: string, messages: unknown[]): Promise<void> {
+    return this.saveWorkspaceMessages(projectId, messages);
+  },
+
+  async replaceChatMessages(projectId: string, chatId: string, messages: unknown[]): Promise<void> {
+    return this.replaceWorkspaceMessages(projectId, { mode: "chat", channel: chatId }, messages);
+  },
+
+  async deleteChatMessages(projectId: string, chatId: string, tophId?: string): Promise<number> {
+    return this.deleteWorkspaceMessages(projectId, { mode: "chat", channel: chatId, botId: tophId });
+  },
+
   async saveWorkspaceMessages(projectId: string, messages: unknown[]): Promise<void> {
     if (messages.length === 0) return;
     await request(`/projects/${encodeURIComponent(projectId)}/workspace/messages`, {
@@ -735,14 +757,14 @@ export const api = {
     });
   },
 
-  async replaceWorkspaceMessages(projectId: string, filter: { mode: "solo" | "team"; channel: string }, messages: unknown[]): Promise<void> {
+  async replaceWorkspaceMessages(projectId: string, filter: { mode: "chat"; channel: string }, messages: unknown[]): Promise<void> {
     await request(`/projects/${encodeURIComponent(projectId)}/workspace/messages`, {
       method: "PUT",
       ...json({ messages, replace: filter }),
     });
   },
 
-  async deleteWorkspaceMessages(projectId: string, filter: { mode?: "solo" | "team"; channel?: string; botId?: string }): Promise<number> {
+  async deleteWorkspaceMessages(projectId: string, filter: { mode?: "chat"; channel?: string; botId?: string }): Promise<number> {
     const params = new URLSearchParams();
     if (filter.mode) params.set("mode", filter.mode);
     if (filter.channel) params.set("channel", filter.channel);

@@ -1,38 +1,33 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { OpenCode } from "@opencode/client";
 import { connectClientMcp, type ClientMcpTool } from "@opencode/client/mcp";
-import { Bot, Check, ChevronDown, Copy, ListTree, LoaderCircle, MessageSquare, MessageSquarePlus, Monitor } from "@toph/icons";
-import { api, ApiError, openCodeBase, type AIMessage, type AIMessageContentPart, type Project, type WorkspaceMessageCursor } from "../api";
+import { Bot, Copy, ListTree, LoaderCircle, MessageSquarePlus, Monitor, Plus } from "@toph/icons";
+import { api, ApiError, openCodeBase, type AIMessage, type AIMessageContentPart, type Project } from "../api";
 import { modelDisplay, useAI } from "../ai";
-import { botMessageChannel, soloChannel, TOPH_PRESETS, useBots, type BotMessage, type MiniBot, type TophMode } from "../bots";
+import { activeChat, chatCoordinator, chatTophs, useChats, type ChatMessage, type ChatToph } from "../chats";
 import { notifyAiResponse } from "../aiNotifications";
 import { playBotResponseSound, unlockBotSound } from "../botSound";
 import BotAvatar from "../components/BotAvatar";
 import BotConfig from "../components/BotConfig";
+import TophGallery from "../components/TophGallery";
 import AgentTranscript, { AgentImageGallery, agentImagesForMessages } from "../components/AgentTranscript";
 import OpenCodeFormCard, { type OpenCodeForm, type OpenCodeFormAnswer } from "../components/OpenCodeFormCard";
-import TophSessionsSheet from "../components/TophSessionsSheet";
-import type { OpenCodeSessionSummary } from "../opencodeSessions";
 import type { AiMessage } from "../store";
 import { Button } from "@/boardui/base/buttons/button";
 import { Modal } from "@/boardui/base/modal/modal";
 import { cx } from "@/boardui/utils/cx";
 import { useTophDrafts } from "../tophDrafts";
 import { AgentComposer, type AgentAttachment } from "../ui/AgentComposer";
-import { Dropdown, DropdownDivider, DropdownItem, DropdownPopover, DropdownTrigger } from "@/boardui/base/dropdown/dropdown";
-import ComposerMenu from "../ui/ComposerMenu";
 import AiUsageMeter from "../ui/AiUsageMeter";
 import ResizeHandle from "../ui/resize";
 import { useSettings } from "../settings";
 import { extractAgentFilePaths } from "../agentArtifacts";
 import { answerOpenCodeQuestion } from "../opencodeQuestion";
 import { recoverBotReply } from "../botReply";
-import { restoredUserText } from "../botHistory";
 
 export interface TophActionRequest {
-  mode: TophMode;
-  botId: string;
-  action: "config" | "sessions";
+  tophId: string;
+  action: "config";
 }
 
 interface Props {
@@ -48,7 +43,7 @@ const ASSISTANT_IMAGE_SCAN_LIMIT = 12;
 const ASSISTANT_IMAGE_RENDER_LIMIT = 8;
 
 interface HistoryPageState {
-  cursor: WorkspaceMessageCursor | null;
+  cursor: { createdAt: number; channel: string; id: string } | null;
   hasMore: boolean;
   loading: boolean;
   ready: boolean;
@@ -139,15 +134,22 @@ function lastAssistant(context: unknown): AssistantState | null {
   return null;
 }
 
-function mentionedBots(bots: MiniBot[], text: string): MiniBot[] {
+function mentionedTophs(tophs: ChatToph[], text: string): ChatToph[] {
   const mentions = new Set(
     [...text.matchAll(/@([a-z0-9-]+)/gi)].map((match) => match[1].toLowerCase()),
   );
-  return bots.filter((bot) => mentions.has(bot.handle.toLowerCase()));
+  return tophs.filter((toph) => mentions.has(toph.handle.toLowerCase()));
 }
 
-function languageInstruction(bot: MiniBot): string {
-  switch (bot.language) {
+function promptHistory(messages: ChatMessage[], userText: string): ChatMessage[] {
+  if (!userText) return messages;
+  const last = messages[messages.length - 1];
+  if (last?.role === "user" && last.content === userText) return messages.slice(0, -1);
+  return messages;
+}
+
+function languageInstruction(toph: ChatToph): string {
+  switch (toph.language) {
     case "pt": return "Responda sempre em português do Brasil.";
     case "en": return "Always answer in English.";
     case "es": return "Responde siempre en español.";
@@ -155,52 +157,50 @@ function languageInstruction(bot: MiniBot): string {
   }
 }
 
-function botPrompt(bot: MiniBot, bots: MiniBot[], messages: BotMessage[], userText: string, company: string, mode: "solo" | "team" | "unset"): string {
-  const names = new Map(bots.map((item) => [item.id, item.name]));
-  const coordinator = bots.find((item) => item.coordinator) ?? bots[0];
+function tophPrompt(toph: ChatToph, tophs: ChatToph[], messages: ChatMessage[], userText: string, company: string, chatName: string): string {
+  const names = new Map(tophs.map((item) => [item.id, item.name]));
+  const coordinator = tophs.find((item) => item.coordinator) ?? tophs[0];
   const history = messages
     .filter((message) => !message.pending && (message.role === "user" || message.role === "assistant"))
     .slice(-14)
-    .map((message) => `${message.role === "user" ? "Usuário" : names.get(message.botId ?? "") ?? "Bot"}: ${message.content}`)
+    .map((message) => `${message.role === "user" ? "Usuário" : names.get(message.tophId ?? "") ?? "Toph"}: ${message.content}`)
     .join("\n\n");
-  const teamRules = mode === "solo"
-    ? "Você é o único agente deste projeto. Não há coordenador nem outros membros para acionar."
-    : bot.coordinator
-      ? "Você é o coordenador do canal compartilhado. Distribua tarefas com @menções, acompanhe os retornos, peça revisão quando necessário e consolide a resposta final. O trabalho dos membros é visível no canal."
-      : `Você é membro da equipe coordenada por ${coordinator?.name ?? "o coordenador"} e trabalha em um canal compartilhado. Responda ao usuário, colabore com os outros membros usando @menções, faça handoff e revise entregas quando fizer sentido. Não esconda seu trabalho dos outros.`;
+  const chatRules = toph.coordinator
+    ? `Você é o coordenador do chat #${chatName}. O usuário fala com o chat. Distribua tarefas com @menções, acompanhe os retornos, peça revisão quando necessário e consolide a resposta final. O trabalho dos membros é visível no chat.`
+    : `Você participa do chat #${chatName}, coordenado por ${coordinator?.name ?? "o coordenador"}. Responda ao usuário, colabore com os outros Tophs usando @menções e entregue o que foi pedido.`;
   return [
-    `Você é ${bot.name}, ${bot.role || "especialista"} na empresa do projeto ${company}.`,
-    bot.description ? `Sua função: ${bot.description}` : "",
-    bot.personality ? `Sua personalidade: ${bot.personality}` : "",
-    teamRules,
-    mode === "team" ? `Equipe: ${bots.map((item) => `@${item.handle} (${item.name}${item.coordinator ? ", coordenador" : ""})`).join(", ")}.` : "",
-    `MCPs habilitados para você: ${bot.mcpServers?.length ? bot.mcpServers.join(", ") : "nenhum"}.`,
-    bot.emailAccountIds?.length ? "Você tem ferramentas de email habilitadas. Use-as apenas para as contas autorizadas." : "Você não tem contas de email habilitadas.",
-    languageInstruction(bot),
-    history ? `Contexto recente:\n${history}` : "",
+    toph.prompt?.trim() || `Você é ${toph.name}, ${toph.role || "especialista"} na empresa do projeto ${company}.`,
+    toph.description ? `Sua função: ${toph.description}` : "",
+    toph.personality ? `Sua personalidade: ${toph.personality}` : "",
+    chatRules,
+    `Tophs deste chat: ${tophs.map((item) => `@${item.handle} (${item.name}${item.coordinator ? ", coordenador" : ""})`).join(", ")}.`,
+    `MCPs habilitados para você: ${toph.mcpServers.length ? toph.mcpServers.join(", ") : "nenhum"}.`,
+    toph.emailAccountIds.length ? "Você tem ferramentas de email habilitadas. Use-as apenas para as contas autorizadas." : "Você não tem contas de email habilitadas.",
+    languageInstruction(toph),
+    history ? `Contexto recente do chat:\n${history}` : "",
     userText ? `Mensagem atual:\n${userText}` : "",
-    `Responda apenas como ${bot.name}, de forma útil e direta.`,
+    `Responda apenas como ${toph.name}, de forma útil e direta.`,
   ].filter(Boolean).join("\n\n");
 }
 
-type BotChatGroup =
-  | { kind: "user"; message: BotMessage }
-  | { kind: "bot"; botId: string; messages: BotMessage[] }
-  | { kind: "system"; messages: BotMessage[] };
+type ChatGroup =
+  | { kind: "user"; message: ChatMessage }
+  | { kind: "toph"; tophId: string; messages: ChatMessage[] }
+  | { kind: "system"; messages: ChatMessage[] };
 
-function groupBotMessages(messages: BotMessage[]): BotChatGroup[] {
-  const groups: BotChatGroup[] = [];
+function groupChatMessages(messages: ChatMessage[]): ChatGroup[] {
+  const groups: ChatGroup[] = [];
   for (const message of messages) {
     if (message.role === "user") {
       groups.push({ kind: "user", message });
       continue;
     }
-    if (message.botId) {
+    if (message.tophId) {
       const last = groups[groups.length - 1];
-      if (last?.kind === "bot" && last.botId === message.botId) {
+      if (last?.kind === "toph" && last.tophId === message.tophId) {
         last.messages.push(message);
       } else {
-        groups.push({ kind: "bot", botId: message.botId, messages: [message] });
+        groups.push({ kind: "toph", tophId: message.tophId, messages: [message] });
       }
       continue;
     }
@@ -211,114 +211,7 @@ function groupBotMessages(messages: BotMessage[]): BotChatGroup[] {
   return groups;
 }
 
-function partTime(part: Record<string, any>, fallback: number, index: number): number {
-  const time = part?.time ?? {};
-  const value = Number(time.created ?? time.start ?? time.ran ?? time.completed);
-  return Number.isFinite(value) && value > 0 ? value : fallback + index;
-}
-
-function partInput(part: Record<string, any>): unknown {
-  return part?.state?.input ?? part?.input ?? part?.inputText ?? null;
-}
-
-function partOutput(part: Record<string, any>): unknown {
-  return part?.state?.content ?? part?.content ?? part?.output ?? part?.state?.metadata ?? null;
-}
-
-function partStatus(part: Record<string, any>): "running" | "complete" | "error" {
-  const status = part?.state?.status ?? part?.status;
-  if (status === "error" || part?.state?.error) return "error";
-  if (status === "running" || status === "pending") return "running";
-  return "complete";
-}
-
-function restoreBotMessages(context: unknown, botId: string, channel: string, mode: "solo" | "team"): BotMessage[] {
-  if (!Array.isArray(context)) return [];
-  const restored: BotMessage[] = [];
-  for (const raw of context as Array<Record<string, any>>) {
-    const messageCreated = Number(raw.time?.created ?? Date.now());
-    if (raw.type === "user") {
-      const text = restoredUserText(String(raw.text ?? ""));
-      if (!text) continue;
-      restored.push({ id: `history-user-${raw.id}`, role: "user", content: text, channel, mode, createdAt: messageCreated });
-      continue;
-    }
-    if (raw.type !== "assistant") continue;
-    const parts = Array.isArray(raw.content) ? raw.content as Array<Record<string, any>> : [];
-    let textRun = "";
-    let textStartedAt = 0;
-    const flushText = () => {
-      if (!textRun.trim()) {
-        textRun = "";
-        return;
-      }
-      restored.push({
-        id: `history-assistant-${raw.id}-${restored.length}`,
-        role: "assistant",
-        botId,
-        content: textRun,
-        channel,
-        mode,
-        status: "complete",
-        createdAt: textStartedAt || messageCreated,
-      });
-      textRun = "";
-    };
-    parts.forEach((part, index) => {
-      const createdAt = partTime(part, messageCreated, index);
-      if (part.type === "text") {
-        if (!textRun) textStartedAt = createdAt;
-        textRun += String(part.text ?? "");
-        return;
-      }
-      flushText();
-      if (part.type === "reasoning") {
-        const completed = Number(part.time?.completed ?? 0);
-        const durationMs = completed > createdAt ? completed - createdAt : undefined;
-        restored.push({
-          id: `history-reasoning-${raw.id}-${index}`,
-          role: "reasoning",
-          botId,
-          title: "Thought",
-          content: String(part.text ?? ""),
-          channel,
-          mode,
-          status: "complete",
-          durationMs,
-          createdAt,
-        });
-        return;
-      }
-      if (part.type !== "tool") return;
-      restored.push({
-        id: `history-tool-${raw.id}-${index}`,
-        role: "tool",
-        botId,
-        title: `Tool · ${String(part.name ?? "call")}`,
-        content: toolContent(partInput(part)),
-        detail: toolContent(partOutput(part)),
-        channel,
-        mode,
-        status: partStatus(part),
-        createdAt,
-      });
-    });
-    flushText();
-  }
-  return restored;
-}
-
-function visibleHistoryWindow(messages: BotMessage[]): BotMessage[] {
-  const conversation = messages
-    .filter((message) => message.role !== "tool" && message.role !== "reasoning")
-    .slice(-CONVERSATION_PAGE_SIZE);
-  const activity = messages
-    .filter((message) => message.role === "tool" || message.role === "reasoning")
-    .slice(-ACTIVITY_PAGE_SIZE);
-  return [...conversation, ...activity].sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id));
-}
-
-function toAiMessage(message: BotMessage): AiMessage {
+function toAiMessage(message: ChatMessage): AiMessage {
   return {
     id: message.id,
     role: message.role === "reasoning" ? "reasoning" : message.role === "tool" ? "tool" : message.role === "error" ? "error" : "assistant",
@@ -335,7 +228,7 @@ function toAiMessage(message: BotMessage): AiMessage {
 
 type TophActivityState = "thinking" | "working" | "responding";
 
-function TophActivityAvatar({ bot, state, size = 32, className }: { bot: MiniBot; state: TophActivityState | null; size?: number; className?: string }) {
+function TophActivityAvatar({ bot, state, size = 32, className }: { bot: ChatToph; state: TophActivityState | null; size?: number; className?: string }) {
   return (
     <span className={cx("relative inline-flex shrink-0 items-center justify-center", state && `toph-activity-${state}`, className)}>
       {state ? <span className="toph-activity-ring" aria-hidden /> : null}
@@ -355,41 +248,30 @@ function TophActivityStatus({ state }: { state: TophActivityState }) {
 }
 
 export default function BotStudioTab({ project, mobile = false, externalAction = null, onExternalActionHandled }: Props) {
-  const workspace = useBots((state) => state.byProject[project.id]);
-  const ensure = useBots((state) => state.ensure);
-  const addBot = useBots((state) => state.addBot);
-  const setActiveBot = useBots((state) => state.setActiveBot);
-  const setMode = useBots((state) => state.setMode);
-  const createSolo = useBots((state) => state.createSolo);
-  const addMessage = useBots((state) => state.addMessage);
-  const updateMessage = useBots((state) => state.updateMessage);
-  const removeMessage = useBots((state) => state.removeMessage);
-  const updateBot = useBots((state) => state.updateBot);
-  const replaceChannelMessages = useBots((state) => state.replaceChannelMessages);
-  const setBotSession = useBots((state) => state.setBotSession);
-  const mergeMessages = useBots((state) => state.mergeMessages);
-  const discardMessageWrites = useBots((state) => state.discardMessageWrites);
+  const projectChats = useChats((state) => state.byProject[project.id]);
+  const ensure = useChats((state) => state.ensure);
+  const addMessage = useChats((state) => state.addMessage);
+  const updateMessage = useChats((state) => state.updateMessage);
+  const removeMessage = useChats((state) => state.removeMessage);
+  const updateToph = useChats((state) => state.updateToph);
+  const mergeMessages = useChats((state) => state.mergeMessages);
   const aiConfig = useAI((state) => state.config);
   const models = useAI((state) => state.models);
   const activityWidth = useSettings((state) => state.aiPanelWidth);
   const updateSettings = useSettings((state) => state.update);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
-  const [configOpen, setConfigOpen] = useState(false);
-  const [sessionsOpen, setSessionsOpen] = useState(false);
-  const [conversationPickerOpen, setConversationPickerOpen] = useState(false);
-  const [connectionEpoch, setConnectionEpoch] = useState(0);
+  const [galleryOpen, setGalleryOpen] = useState(false);
+  const [configTophId, setConfigTophId] = useState<string | null>(null);
   const sendingRef = useRef(false);
   const runToken = useRef(0);
-  const syncInFlight = useRef(false);
-  const restoreToken = useRef(0);
-  const [runningBots, setRunningBots] = useState<Set<string>>(new Set());
-  const [forms, setForms] = useState<Array<{ form: OpenCodeForm; botId: string }>>([]);
+  const [runningTophs, setRunningTophs] = useState<Set<string>>(new Set());
+  const [forms, setForms] = useState<Array<{ form: OpenCodeForm; tophId: string }>>([]);
   const [formBusy, setFormBusy] = useState<string | null>(null);
   const [conversationPage, setConversationPage] = useState<HistoryPageState>(EMPTY_HISTORY_PAGE);
   const [activityPage, setActivityPage] = useState<HistoryPageState>(EMPTY_HISTORY_PAGE);
   const [historyReloadToken, setHistoryReloadToken] = useState(0);
-  const sessionBotMap = useRef(new Map<string, string>());
+  const sessionTophMap = useRef(new Map<string, string>());
   const toolFileSnapshots = useRef(new Map<string, ToolFileSnapshot[]>());
   const scrollRef = useRef<HTMLDivElement>(null);
   const activityScrollRef = useRef<HTMLDivElement>(null);
@@ -402,6 +284,41 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
       headers: { "X-Toph-CSRF": csrf },
     });
   }, []);
+
+  const chat = activeChat(projectChats);
+  const tophs = chatTophs(projectChats, chat?.id);
+  const coordinator = chatCoordinator(tophs);
+  const messages = projectChats?.messages.filter((message) => message.chatId === chat?.id) ?? [];
+  const conversationMessages = mobile
+    ? messages
+    : messages.filter((message) => message.role !== "tool" && message.role !== "reasoning");
+  const activityMessages = messages.filter((message) => message.role === "tool" || message.role === "reasoning");
+  const groupedMessages = groupChatMessages(conversationMessages);
+  const activityGroups = groupChatMessages(activityMessages);
+  const latestUserAt = [...conversationMessages].reverse().find((message) => message.role === "user")?.createdAt ?? 0;
+  const lastTophGroupIndex = new Map<string, number>();
+  groupedMessages.forEach((group, index) => {
+    if (group.kind === "toph") lastTophGroupIndex.set(group.tophId, index);
+  });
+  const lastActivityGroupIndex = new Map<string, number>();
+  activityGroups.forEach((group, index) => {
+    if (group.kind === "toph") lastActivityGroupIndex.set(group.tophId, index);
+  });
+  const completedReplies = messages.filter((message) => message.role === "assistant" && !message.pending && message.status !== "running").length;
+  const visibleRunningTophs = [...runningTophs].filter((tophId) => tophs.some((toph) => toph.id === tophId));
+  const visibleForms = forms.filter(({ tophId }) => tophs.some((toph) => toph.id === tophId));
+  const assistantImages = agentImagesForMessages(
+    messages.filter((message) => message.role === "assistant").slice(-ASSISTANT_IMAGE_SCAN_LIMIT).map(toAiMessage),
+    project.id,
+    project.root,
+  ).slice(-ASSISTANT_IMAGE_RENDER_LIMIT);
+  const draftKey = `${project.id}:${chat?.id ?? "none"}`;
+  const savedDraft = useTophDrafts((state) => state.drafts[draftKey] ?? "");
+  const setDraft = useTophDrafts((state) => state.setDraft);
+  const clearDraft = useTophDrafts((state) => state.clearDraft);
+  const configToph = tophs.find((toph) => toph.id === configTophId) ?? null;
+  const activeModel = coordinator?.model || aiConfig?.model || models[0]?.id || "";
+  const tophSessionKey = tophs.map((toph) => `${toph.id}:${toph.sessionId ?? ""}`).join("|");
 
   function relativeToolPath(value: string): string | null {
     let path = value.replace(/^file:\/\//i, "").replace(/\\/g, "/");
@@ -451,7 +368,7 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
     })).then((changes) => {
       const actual = changes.filter((change): change is NonNullable<typeof change> => Boolean(change));
       if (actual.length === 0) return;
-      useBots.getState().updateMessage(project.id, messageId, {
+      useChats.getState().updateMessage(project.id, messageId, {
         detail: JSON.stringify({ output, changes: actual }, null, 2),
         status: "complete",
       });
@@ -462,14 +379,15 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
     ensure(project.id);
   }, [ensure, project.id]);
 
-
   useEffect(() => {
     if (aiConfig?.provider !== "opencode") return;
     const toolResult = (data: unknown) => ({ content: [{ type: "text" as const, text: JSON.stringify(data) }] });
     const allowedAccounts = (sessionID?: string) => {
-      const botId = sessionID ? sessionBotMap.current.get(sessionID) : undefined;
-      const bot = Object.values(useBots.getState().byProject).flatMap((item) => item.bots).find((item) => item.id === botId);
-      return { bot, ids: bot?.emailAccountIds ?? [] };
+      const tophId = sessionID ? sessionTophMap.current.get(sessionID) : undefined;
+      const toph = Object.values(useChats.getState().byProject)
+        .flatMap((item) => item.tophs)
+        .find((item) => item.id === tophId);
+      return { toph, ids: toph?.emailAccountIds ?? [] };
     };
     const tools: ClientMcpTool[] = [
       {
@@ -535,72 +453,21 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
       tools,
     });
     return () => { void connection.close(); };
-  }, [aiConfig?.provider, project.root, ensure, project.id]);
-
-  const mode = workspace?.mode ?? "unset";
-  const threadMode: "solo" | "team" = mode === "team" ? "team" : "solo";
-  const bots = workspace?.bots ?? [];
-  const messages = workspace?.messages ?? [];
-  const activeBot = bots.find((bot) => bot.id === workspace?.activeBotId) ?? bots[0] ?? null;
-  const coordinator = bots.find((bot) => bot.coordinator) ?? bots[0] ?? null;
-  const activeWorker = mode === "team" && activeBot && activeBot.id !== coordinator?.id ? activeBot : null;
-  const conversationBot = activeWorker ?? activeBot;
-  const modeMessages = messages.filter((message) => message.mode === mode);
-  const displayMessages = mode === "solo"
-    ? activeBot
-      ? modeMessages.filter((message) => botMessageChannel(message) === soloChannel(activeBot))
-      : []
-    : activeWorker
-      ? modeMessages.filter((message) => botMessageChannel(message) === `worker:${activeWorker.id}`)
-      : modeMessages;
-  const conversationMessages = mobile
-    ? displayMessages
-    : displayMessages.filter((message) => message.role !== "tool" && message.role !== "reasoning");
-  const activityMessages = displayMessages.filter((message) => message.role === "tool" || message.role === "reasoning");
-  const groupedMessages = groupBotMessages(conversationMessages);
-  const activityGroups = groupBotMessages(activityMessages);
-  const latestUserAt = [...conversationMessages].reverse().find((message) => message.role === "user")?.createdAt ?? 0;
-  const lastBotGroupIndex = new Map<string, number>();
-  groupedMessages.forEach((group, index) => {
-    if (group.kind === "bot") lastBotGroupIndex.set(group.botId, index);
-  });
-  const lastActivityGroupIndex = new Map<string, number>();
-  activityGroups.forEach((group, index) => {
-    if (group.kind === "bot") lastActivityGroupIndex.set(group.botId, index);
-  });
-  const activeModel = activeBot?.model || aiConfig?.model || models[0]?.id || "";
-  const activeEfforts = models.find((model) => model.id === activeModel)?.variants ?? [];
-  const completedReplies = displayMessages.filter((message) => message.role === "assistant" && !message.pending && message.status !== "running").length;
-  const visibleBotIds = new Set(
-    mode === "solo"
-      ? activeBot ? [activeBot.id] : []
-      : activeWorker ? [activeWorker.id] : bots.map((bot) => bot.id),
-  );
-  const visibleRunningBots = [...runningBots].filter((botId) => visibleBotIds.has(botId));
-  const visibleForms = forms.filter(({ botId }) => visibleBotIds.has(botId));
-  const assistantImages = agentImagesForMessages(
-    displayMessages.filter((message) => message.role === "assistant").slice(-ASSISTANT_IMAGE_SCAN_LIMIT).map(toAiMessage),
-    project.id,
-    project.root,
-  ).slice(-ASSISTANT_IMAGE_RENDER_LIMIT);
-  const historyChannel = threadMode === "solo"
-    ? activeBot ? soloChannel(activeBot) : undefined
-    : activeWorker ? `worker:${activeWorker.id}` : undefined;
-  const historyKey = `${project.id}:${threadMode}:${historyChannel ?? "all"}`;
-  const draftKey = `${project.id}:${mode}:${activeBot?.id ?? "none"}:${activeBot?.sessionId ?? "new"}`;
-  const savedDraft = useTophDrafts((state) => state.drafts[draftKey] ?? "");
-  const setDraft = useTophDrafts((state) => state.setDraft);
-  const clearDraft = useTophDrafts((state) => state.clearDraft);
+  }, [aiConfig?.provider, project.root, project.id]);
 
   useEffect(() => {
-    if (!workspace?.hydrated) return;
+    if (!projectChats?.hydrated || !chat) {
+      setConversationPage(EMPTY_HISTORY_PAGE);
+      setActivityPage(EMPTY_HISTORY_PAGE);
+      return;
+    }
     let cancelled = false;
     setConversationPage({ ...EMPTY_HISTORY_PAGE, loading: true });
     setActivityPage({ ...EMPTY_HISTORY_PAGE, loading: true });
-    const base = { mode: threadMode, channel: historyChannel };
+    const base = { mode: "chat" as const, channel: chat.id };
     void Promise.all([
-      api.workspaceMessages<BotMessage>(project.id, { ...base, scope: "conversation", limit: CONVERSATION_PAGE_SIZE }),
-      api.workspaceMessages<BotMessage>(project.id, { ...base, scope: "activity", limit: ACTIVITY_PAGE_SIZE }),
+      api.workspaceMessages<ChatMessage>(project.id, { ...base, scope: "conversation", limit: CONVERSATION_PAGE_SIZE }),
+      api.workspaceMessages<ChatMessage>(project.id, { ...base, scope: "activity", limit: ACTIVITY_PAGE_SIZE }),
     ]).then(([conversation, activity]) => {
       if (cancelled) return;
       mergeMessages(project.id, [...conversation.items, ...activity.items]);
@@ -613,9 +480,10 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
       setActivityPage({ ...EMPTY_HISTORY_PAGE, ready: true, error: message });
     });
     return () => { cancelled = true; };
-  }, [historyKey, workspace?.hydrated, mergeMessages, project.id, historyReloadToken]);
+  }, [chat?.id, projectChats?.hydrated, historyReloadToken, mergeMessages, project.id]);
 
   async function loadOlderHistory(scope: "conversation" | "activity") {
+    if (!chat) return;
     const state = scope === "conversation" ? conversationPage : activityPage;
     const setState = scope === "conversation" ? setConversationPage : setActivityPage;
     if (state.loading || !state.hasMore || !state.cursor) return;
@@ -626,9 +494,9 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
     else stickActivityToBottom.current = false;
     setState((current) => ({ ...current, loading: true, error: "" }));
     try {
-      const page = await api.workspaceMessages<BotMessage>(project.id, {
-        mode: threadMode,
-        channel: historyChannel,
+      const page = await api.workspaceMessages<ChatMessage>(project.id, {
+        mode: "chat",
+        channel: chat.id,
         scope,
         before: state.cursor,
         limit: scope === "conversation" ? CONVERSATION_PAGE_SIZE : ACTIVITY_PAGE_SIZE,
@@ -644,37 +512,20 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
   }
 
   useEffect(() => {
-    if (!workspace || mode === "team" || bots.length > 0) return;
-    createSolo(project.id);
-  }, [workspace, mode, bots.length, createSolo, project.id]);
-
-  useEffect(() => {
     const handler = (event: Event) => {
-      const action = (event as CustomEvent<{ action?: string }>).detail?.action;
-      if (action === "config") setConfigOpen(true);
-      else if (action === "sessions") setSessionsOpen(true);
-      else if (action === "new") newBot();
+      const detail = (event as CustomEvent<{ action?: string; tophId?: string }>).detail;
+      if (detail?.action === "config" && detail.tophId) setConfigTophId(detail.tophId);
+      else if (detail?.action === "add") setGalleryOpen(true);
     };
-    window.addEventListener("toph:tophs-action", handler);
-    return () => window.removeEventListener("toph:tophs-action", handler);
-  }, [project.id, mode, activeBot?.id]);
+    window.addEventListener("toph:toph-action", handler);
+    return () => window.removeEventListener("toph:toph-action", handler);
+  }, []);
 
   useEffect(() => {
     if (!externalAction) return;
-    const state = useBots.getState();
-    if ((state.byProject[project.id]?.mode ?? "solo") !== externalAction.mode) {
-      setMode(project.id, externalAction.mode);
-    }
-    setActiveBot(project.id, externalAction.botId);
-    if (externalAction.action === "config") {
-      setSessionsOpen(false);
-      setConfigOpen(true);
-    } else {
-      setConfigOpen(false);
-      setSessionsOpen(true);
-    }
+    setConfigTophId(externalAction.tophId);
     onExternalActionHandled?.();
-  }, [externalAction, project.id]);
+  }, [externalAction, onExternalActionHandled]);
 
   useEffect(() => {
     setInput(savedDraft);
@@ -686,92 +537,40 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
   }
 
   useEffect(() => {
-    if (!workspace) return;
-    if (bots.length > 0 && !bots.some((bot) => bot.id === workspace.activeBotId)) {
-      setActiveBot(project.id, bots[0].id);
-    }
-  }, [bots, project.id, setActiveBot, workspace]);
-
-  useEffect(() => {
     const fallback = aiConfig?.model || models[0]?.id;
     if (!fallback) return;
-    for (const bot of bots) {
-      if (!bot.model) updateBot(project.id, bot.id, { model: fallback });
+    const current = projectChats?.tophs.filter((toph) => toph.chatId === chat?.id) ?? [];
+    for (const toph of current) {
+      if (!toph.model) updateToph(project.id, toph.id, { model: fallback });
     }
-  }, [aiConfig?.model, bots, models, project.id, updateBot]);
+  }, [aiConfig?.model, models, project.id, projectChats?.tophs, chat?.id, updateToph]);
 
   useEffect(() => {
-    const map = sessionBotMap.current;
-    map.clear();
-    for (const bot of bots) {
-      if (bot.sessionId) map.set(bot.sessionId, bot.id);
-    }
-  }, [bots]);
+    const element = scrollRef.current;
+    if (!element || !stickToBottom.current) return;
+    element.scrollTop = element.scrollHeight;
+  }, [conversationMessages.length, visibleRunningTophs.length, forms.length]);
 
   useEffect(() => {
-    if (!stickToBottom.current) return;
-    const frame = window.requestAnimationFrame(() => {
-      const element = scrollRef.current;
-      if (element) element.scrollTop = element.scrollHeight;
-    });
-    return () => window.cancelAnimationFrame(frame);
-  }, [messages, sending, forms.length]);
+    const element = activityScrollRef.current;
+    if (!element || !stickActivityToBottom.current) return;
+    element.scrollTop = element.scrollHeight;
+  }, [activityMessages.length, visibleRunningTophs.length, forms.length]);
 
   useEffect(() => {
-    if (!stickActivityToBottom.current) return;
-    const frame = window.requestAnimationFrame(() => {
-      const element = activityScrollRef.current;
-      if (element) element.scrollTop = element.scrollHeight;
-    });
-    return () => window.cancelAnimationFrame(frame);
-  }, [messages, runningBots.size, forms.length]);
-
-  const sessionKey = bots.map((bot) => bot.sessionId ?? "").join("|");
-
-  useEffect(() => {
-    if (!sessionKey || sendingRef.current) return;
-    void syncFromOpenCode();
-  }, [project.id, sessionKey, activeBot?.id]);
-
-  useEffect(() => {
-    const refresh = () => {
+    if (!chat) return;
+    const timer = window.setInterval(async () => {
       if (document.hidden) return;
-      setConnectionEpoch((value) => value + 1);
-      void syncFromOpenCode();
-    };
-    const handlePageShow = (event: PageTransitionEvent) => {
-      if (event.persisted) refresh();
-    };
-    document.addEventListener("visibilitychange", refresh);
-    window.addEventListener("online", refresh);
-    window.addEventListener("focus", refresh);
-    window.addEventListener("pageshow", handlePageShow);
-    return () => {
-      document.removeEventListener("visibilitychange", refresh);
-      window.removeEventListener("online", refresh);
-      window.removeEventListener("focus", refresh);
-      window.removeEventListener("pageshow", handlePageShow);
-    };
-  }, [project.id]);
-
-  useEffect(() => {
-    if (runningBots.size === 0 || sendingRef.current) return;
-    let cancelled = false;
-    const check = async () => {
-      if (cancelled || document.hidden) return;
       const active = await client.session.active().catch(() => null);
-      if (!active || cancelled) return;
-      // With no local polling loop (for example after the WebView was
-      // recreated), refresh from the authoritative context while the turn is
-      // running too. The final refresh runs as soon as the session is idle.
-      await syncFromOpenCode();
-    };
-    const timer = window.setInterval(() => { void check(); }, 2000);
-    return () => {
-      cancelled = true;
-      window.clearInterval(timer);
-    };
-  }, [project.id, runningBots.size]);
+      if (!active) return;
+      const current = chatTophs(useChats.getState().byProject[project.id], chat.id);
+      const running = new Set(
+        current.filter((toph) => toph.sessionId && active[toph.sessionId]?.type === "running").map((toph) => toph.id),
+      );
+      setRunningTophs(running);
+    }, 3000);
+    return () => window.clearInterval(timer);
+  }, [chat?.id, client, project.id, tophSessionKey]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -782,33 +581,36 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
           if (!data) continue;
           if (event.type === "form.created") {
             const form = (data as { form?: OpenCodeForm }).form;
-            const botId = form ? sessionBotMap.current.get(form.sessionID) : undefined;
-            if (form && botId) {
-              setForms((current) => current.some((item) => item.form.id === form.id) ? current : [...current, { form, botId }]);
+            const allTophs = Object.values(useChats.getState().byProject).flatMap((item) => item.tophs);
+            const tophId = form
+              ? sessionTophMap.current.get(form.sessionID) ?? allTophs.find((item) => item.sessionId === form.sessionID)?.id
+              : undefined;
+            if (form && tophId) {
+              setForms((current) => current.some((item) => item.form.id === form.id) ? current : [...current, { form, tophId }]);
             }
             continue;
           }
           const sessionId = String(data.sessionID ?? "");
-          const botId = sessionBotMap.current.get(sessionId);
-          if (!botId) continue;
-          const state = useBots.getState();
-          const bot = state.byProject[project.id]?.bots.find((item) => item.id === botId);
-          if (!bot) continue;
+          const state = useChats.getState();
+          const allTophs = Object.values(state.byProject).flatMap((item) => item.tophs);
+          const tophId = sessionTophMap.current.get(sessionId) ?? allTophs.find((item) => item.sessionId === sessionId)?.id;
+          if (!tophId) continue;
+          const toph = allTophs.find((item) => item.id === tophId);
+          if (!toph) continue;
+          const chatId = toph.chatId;
           const assistantID = String(data.assistantMessageID ?? "");
-          const messageID = (kind: string, id = assistantID) => `bot-${botId}-${kind}-${id || Date.now()}`;
-          const eventMode = state.byProject[project.id]?.mode === "solo" ? "solo" : "team";
-          const eventChannel = eventMode === "solo" ? soloChannel(bot) : bot.coordinator ? "team" : `worker:${botId}`;
-          const ensure = (message: BotMessage) => {
-            const list = useBots.getState().byProject[project.id]?.messages ?? [];
-            if (!list.some((item) => item.id === message.id)) state.addMessage(project.id, { ...message, mode: eventMode, channel: message.channel ?? eventChannel });
+          const messageID = (kind: string, id = assistantID) => `bot-${tophId}-${kind}-${id || Date.now()}`;
+          const ensure = (message: ChatMessage) => {
+            const list = state.byProject[project.id]?.messages ?? [];
+            if (!list.some((item) => item.id === message.id)) state.addMessage(project.id, message);
           };
           switch (event.type) {
             case "session.text.started":
-              ensure({ id: messageID("assistant"), role: "assistant", botId, content: "", status: "running", createdAt: Date.now() });
+              ensure({ id: messageID("assistant"), chatId, tophId, role: "assistant", content: "", status: "running", createdAt: Date.now() });
               break;
             case "session.text.delta": {
               const id = messageID("assistant");
-              ensure({ id, role: "assistant", botId, content: "", status: "running", createdAt: Date.now() });
+              ensure({ id, chatId, tophId, role: "assistant", content: "", status: "running", createdAt: Date.now() });
               state.appendMessage(project.id, id, String(data.delta ?? ""));
               break;
             }
@@ -816,11 +618,11 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
               state.updateMessage(project.id, messageID("assistant"), { content: String(data.text ?? ""), status: "complete" });
               break;
             case "session.reasoning.started":
-              ensure({ id: messageID("reasoning"), role: "reasoning", botId, title: "Thought", content: "", status: "running", createdAt: Date.now() });
+              ensure({ id: messageID("reasoning"), chatId, tophId, role: "reasoning", title: "Thought", content: "", status: "running", createdAt: Date.now() });
               break;
             case "session.reasoning.delta": {
               const id = messageID("reasoning");
-              ensure({ id, role: "reasoning", botId, title: "Thought", content: "", status: "running", createdAt: Date.now() });
+              ensure({ id, chatId, tophId, role: "reasoning", title: "Thought", content: "", status: "running", createdAt: Date.now() });
               state.appendMessage(project.id, id, String(data.delta ?? ""));
               break;
             }
@@ -835,11 +637,11 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
               break;
             }
             case "session.tool.input.started":
-              ensure({ id: messageID("tool", String(data.id ?? "")), role: "tool", botId, title: `Tool · ${String(data.name ?? "call")}`, content: "", detail: "", status: "running", createdAt: Date.now() });
+              ensure({ id: messageID("tool", String(data.id ?? "")), chatId, tophId, role: "tool", title: `Tool · ${String(data.name ?? "call")}`, content: "", detail: "", status: "running", createdAt: Date.now() });
               break;
             case "session.tool.input.delta": {
               const id = messageID("tool", String(data.id ?? ""));
-              ensure({ id, role: "tool", botId, title: "Tool", content: "", detail: "", status: "running", createdAt: Date.now() });
+              ensure({ id, chatId, tophId, role: "tool", title: "Tool", content: "", detail: "", status: "running", createdAt: Date.now() });
               state.appendMessage(project.id, id, String(data.delta ?? ""));
               break;
             }
@@ -860,7 +662,7 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
                 ? data.name
                 : existingTitle.replace(/^Tool\s*·\s*/i, "") || "call";
               const inputText = toolContent(data.input);
-              ensure({ id, role: "tool", botId, title: `Tool · ${name}`, content: inputText, detail: "", status: "running", createdAt: Date.now() });
+              ensure({ id, chatId, tophId, role: "tool", title: `Tool · ${name}`, content: inputText, detail: "", status: "running", createdAt: Date.now() });
               state.updateMessage(project.id, id, { title: `Tool · ${name}`, content: inputText, status: "running" });
               startToolFileSnapshot(sessionId, toolId, name, inputText);
               break;
@@ -886,32 +688,31 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
             }
             case "permission.asked":
               ensure({
-                id: `bot-${botId}-permission-${String(data.id)}`,
+                id: `bot-${tophId}-permission-${String(data.id)}`,
+                chatId,
+                tophId,
                 role: "tool",
-                botId,
                 title: "Permission",
                 content: `Permission requested: ${String(data.action)} ${JSON.stringify(data.resources ?? [])}`,
                 status: "running",
                 permissionId: String(data.id),
                 permissionAction: String(data.action ?? ""),
                 sessionId,
-                mode: eventMode,
-                channel: eventChannel,
                 createdAt: Date.now(),
               });
               break;
             case "session.execution.started":
             case "session.status": {
               const status = event.type === "session.status" ? (data.status as { type?: string } | undefined)?.type : "busy";
-              if (status === "busy") setRunningBots((current) => new Set(current).add(botId));
-              if (status === "idle") setRunningBots((current) => { const next = new Set(current); next.delete(botId); return next; });
+              if (status === "busy") setRunningTophs((current) => new Set(current).add(tophId));
+              if (status === "idle") setRunningTophs((current) => { const next = new Set(current); next.delete(tophId); return next; });
               break;
             }
             case "session.execution.succeeded":
             case "session.execution.failed":
             case "session.execution.interrupted":
             case "session.idle":
-              setRunningBots((current) => { const next = new Set(current); next.delete(botId); return next; });
+              setRunningTophs((current) => { const next = new Set(current); next.delete(tophId); return next; });
               break;
           }
         }
@@ -923,47 +724,33 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
       controller.abort();
       toolFileSnapshots.current.clear();
     };
-  }, [client, project.id, connectionEpoch]);
+  }, [client, project.id]);
 
-  function newBot() {
-    const used = new Set(bots.map((bot) => bot.name));
-    const teamPresets = TOPH_PRESETS.filter((item) => item.name !== "Toph");
-    const preset = teamPresets.find((item) => !used.has(item.name))
-      ?? teamPresets[Math.floor(Math.random() * teamPresets.length)];
-    let name = preset.name;
-    let suffix = 2;
-    while (used.has(name)) {
-      name = `${preset.name} ${suffix}`;
-      suffix += 1;
-    }
-    const bot = addBot(project.id, {
-      name,
-      role: preset.role,
-      description: preset.description,
-      personality: preset.personality,
-      color: preset.color,
-      avatar: preset.avatar,
-      model: aiConfig?.model || models[0]?.id || "",
-      coordinator: bots.length === 0 || preset.coordinator === true,
-    });
-    setActiveBot(project.id, bot.id);
-    setConfigOpen(true);
+  function storedToph(toph: ChatToph): ChatToph {
+    return Object.values(useChats.getState().byProject)
+      .flatMap((item) => item.tophs)
+      .find((item) => item.id === toph.id) ?? toph;
   }
 
-
-  function storedBot(bot: MiniBot): MiniBot {
-    return useBots.getState().byProject[project.id]?.bots.find((item) => item.id === bot.id) ?? bot;
+  function currentChat(toph: ChatToph): { chat: ReturnType<typeof activeChat>; tophs: ChatToph[]; messages: ChatMessage[] } {
+    const state = useChats.getState().byProject[project.id];
+    const chatNow = state?.chats.find((item) => item.id === toph.chatId) ?? null;
+    return {
+      chat: chatNow,
+      tophs: state?.tophs.filter((item) => item.chatId === toph.chatId) ?? [],
+      messages: state?.messages.filter((item) => item.chatId === toph.chatId) ?? [],
+    };
   }
 
-  async function ensureSession(bot: MiniBot): Promise<string> {
-    const current = storedBot(bot);
+  async function ensureSession(toph: ChatToph): Promise<string> {
+    const current = storedToph(toph);
     if (current.sessionId) return current.sessionId;
     const model = splitModel(current.model || aiConfig?.model || models[0]?.id || "");
     const base = {
-      title: `${current.name} · ${project.name}`,
+      title: `${current.name} · #${chat?.name ?? project.name}`,
       location: { directory: project.root },
       agent: current.agentMode ?? "build",
-      metadata: { tophBotId: current.id, tophBot: true },
+      metadata: { tophBotId: current.id, tophChatId: current.chatId, tophBot: true },
       ...(model ? { model } : {}),
     };
     let session: { id: string };
@@ -979,8 +766,8 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
     } catch {
       session = await client.session.create(base as never) as { id: string };
     }
-    updateBot(project.id, current.id, { sessionId: session.id, sessionPrimed: false });
-    sessionBotMap.current.set(session.id, current.id);
+    updateToph(project.id, current.id, { sessionId: session.id, sessionPrimed: false });
+    sessionTophMap.current.set(session.id, current.id);
     if (model) {
       await client.session.switchModel({
         sessionID: session.id,
@@ -990,14 +777,14 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
     return session.id;
   }
 
-  async function applyMcpSelection(bot: MiniBot) {
-    if (!Array.isArray(bot.mcpServers)) return;
+  async function applyMcpSelection(toph: ChatToph) {
+    if (!Array.isArray(toph.mcpServers)) return;
     const location = { directory: project.root };
     const result = await client.mcp.list({ location } as never).catch(() => null) as { data?: Array<{ name: string }> } | null;
     const servers = result?.data ?? [];
     for (const server of servers) {
       if (server.name === "toph_email") continue;
-      const selected = bot.mcpServers.includes(server.name);
+      const selected = toph.mcpServers.includes(server.name);
       if (selected) {
         await client.mcp.connect({ server: server.name, location } as never).catch(() => undefined);
       } else {
@@ -1006,8 +793,10 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
     }
   }
 
-  async function openCodeReply(bot: MiniBot, userText: string, attachments: AgentAttachment[] = [], token = runToken.current): Promise<string> {
-    const current = storedBot(bot);
+  async function openCodeReply(toph: ChatToph, userText: string, attachments: AgentAttachment[] = [], token = runToken.current, retry = false): Promise<string> {
+    const current = storedToph(toph);
+    const { chat: chatNow, tophs: tophsNow, messages: allHistory } = currentChat(current);
+    const history = promptHistory(allHistory, userText);
     await applyMcpSelection(current);
     const sessionId = await ensureSession(current);
     const model = splitModel(current.model || aiConfig?.model || models[0]?.id || "");
@@ -1019,27 +808,28 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
     }
     await client.session.switchAgent({ sessionID: sessionId, agent: current.agentMode ?? "build" } as never).catch(() => undefined);
     if (token !== runToken.current) throw new Error("__stopped__");
-    const context = await client.session.context({ sessionID: sessionId } as never).catch(() => null);
-    const contextMessages = Array.isArray(context) ? context as Array<Record<string, any>> : [];
-    const hasHistory = contextMessages.some((message) => message?.type === "user" || message?.type === "assistant") || (!Array.isArray(context) && Boolean(current.sessionPrimed));
-    const prompt = hasHistory
-      ? userText
-      : botPrompt(current, bots, [], userText, project.name, mode);
-    const before = lastAssistant(context)?.id ?? "";
-    await client.session.prompt({
-      sessionID: sessionId,
-      text: prompt,
-      files: attachments.map((file) => ({ uri: file.uri, name: file.name, description: file.mime })),
-    } as never);
+    const prompt = tophPrompt(current, tophsNow, history, userText, project.name, chatNow?.name ?? "chat");
+    const before = lastAssistant(await client.session.context({ sessionID: sessionId } as never).catch(() => null))?.id ?? "";
+    try {
+      await client.session.prompt({
+        sessionID: sessionId,
+        text: prompt,
+        files: attachments.map((file) => ({ uri: file.uri, name: file.name, description: file.mime })),
+      } as never);
+    } catch (error) {
+      if (!retry && current.sessionId) {
+        sessionTophMap.current.delete(current.sessionId);
+        updateToph(project.id, current.id, { sessionId: undefined, sessionPrimed: false });
+        return openCodeReply({ ...current, sessionId: undefined, sessionPrimed: false }, userText, attachments, token, true);
+      }
+      throw error;
+    }
     const deadline = Date.now() + 90_000;
     let latest = "";
     while (Date.now() < deadline) {
       await new Promise((resolve) => window.setTimeout(resolve, 400));
       if (token !== runToken.current) throw new Error("__stopped__");
       const active = await client.session.active().catch(() => null);
-      // While OpenCode is working, the event stream updates the transcript.
-      // Fetching the full session context on every poll duplicates every
-      // message and image in memory, so read it only after the session idles.
       if (!active || active[sessionId]) continue;
       const context = await client.session.context({ sessionID: sessionId } as never).catch(() => null);
       const assistant = lastAssistant(context);
@@ -1049,10 +839,10 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
       if (assistant.error) throw new Error(assistant.error);
     }
     if (latest) return latest;
-    throw new Error("O bot não respondeu a tempo.");
+    throw new Error("O Toph não respondeu a tempo.");
   }
 
-  async function directReply(bot: MiniBot, botsInTeam: MiniBot[], history: BotMessage[], userText: string, attachments: AgentAttachment[] = []): Promise<string> {
+  async function directReply(toph: ChatToph, tophsNow: ChatToph[], history: ChatMessage[], userText: string, attachments: AgentAttachment[] = []): Promise<string> {
     let currentContent: AIMessage["content"] = userText;
     if (["openai", "codex", "custom"].includes(aiConfig?.provider ?? "") && attachments.length > 0) {
       const parts: AIMessageContentPart[] = [{ type: "text", text: userText || "Analise os anexos enviados." }];
@@ -1069,52 +859,43 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
       currentContent = parts;
     }
     const messages: AIMessage[] = [
-      { role: "system", content: botPrompt(bot, botsInTeam, [], "", project.name, mode) },
+      { role: "system", content: tophPrompt(toph, tophsNow, [], "", project.name, chat?.name ?? "chat") },
       ...history
         .filter((message) => !message.pending && (message.role === "user" || message.role === "assistant"))
         .slice(-14)
         .map((message) => ({
           role: message.role === "user" ? "user" as const : "assistant" as const,
-          content: `${message.role === "user" ? "Usuário" : botsInTeam.find((item) => item.id === message.botId)?.name ?? "Bot"}: ${message.content}`,
+          content: `${message.role === "user" ? "Usuário" : tophsNow.find((item) => item.id === message.tophId)?.name ?? "Toph"}: ${message.content}`,
         })),
       { role: "user", content: currentContent },
     ];
     const result = await api.aiChat(messages, {
-      model: bot.model || aiConfig?.model || models[0]?.id,
-      effort: bot.effort || undefined,
-      yolo: (bot.permissionMode ?? "yolo") === "yolo",
+      model: toph.model || aiConfig?.model || models[0]?.id,
+      effort: toph.effort || undefined,
+      yolo: (toph.permissionMode ?? "yolo") === "yolo",
     });
     return result.text;
   }
 
-  async function respondAsBot(bot: MiniBot, userText: string, options: { attachments?: AgentAttachment[]; audience?: "user" | "coordinator"; channel?: string; token?: number } = {}): Promise<string | null> {
-    const workspaceNow = useBots.getState().byProject[project.id];
-    const allHistory = (workspaceNow?.messages ?? []).filter((message) => message.mode === threadMode);
-    const channel = options.channel ?? (threadMode === "solo" ? soloChannel(bot) : bot.coordinator ? "team" : `worker:${bot.id}`);
-    const history = threadMode === "solo"
-      ? allHistory.filter((message) => botMessageChannel(message) === channel)
-      : bot.coordinator
-        ? allHistory.filter((message) => botMessageChannel(message) === "team")
-        : allHistory.filter((message) => botMessageChannel(message) === channel && (message.role === "user" || message.botId === bot.id));
+  async function respondAsToph(toph: ChatToph, userText: string, options: { attachments?: AgentAttachment[]; token?: number } = {}): Promise<string | null> {
+    const { tophs: tophsNow, messages: allHistory } = currentChat(toph);
+    const history = promptHistory(allHistory, userText);
     const startedAt = Date.now();
-    setRunningBots((current) => new Set(current).add(bot.id));
+    setRunningTophs((current) => new Set(current).add(toph.id));
     try {
       if (aiConfig?.provider === "opencode") {
-        const current = storedBot(bot);
+        const current = storedToph(toph);
         const reply = await openCodeReply(current, userText, options.attachments, options.token);
         if (options.token !== undefined && options.token !== runToken.current) return null;
-        if (!current.sessionPrimed) updateBot(project.id, current.id, { sessionPrimed: true });
-        const currentMessages = useBots.getState().byProject[project.id]?.messages ?? [];
+        if (!current.sessionPrimed) updateToph(project.id, current.id, { sessionPrimed: true });
+        const currentMessages = useChats.getState().byProject[project.id]?.messages ?? [];
         const eventReplies = currentMessages
-          .filter((message) => message.botId === bot.id
+          .filter((message) => message.tophId === toph.id
+            && message.chatId === toph.chatId
             && message.role === "assistant"
             && message.createdAt >= startedAt)
           .sort((a, b) => a.createdAt - b.createdAt);
         const latestEventReply = eventReplies[eventReplies.length - 1];
-        // The OpenCode event stream can miss the final `text.ended`/`idle`
-        // events while the WebView is suspended. The polling result is the
-        // authoritative final text, so update the partial event message
-        // instead of assuming that any event reply is already complete.
         if (latestEventReply) {
           updateMessage(project.id, latestEventReply.id, {
             content: reply.trim(),
@@ -1123,61 +904,57 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
           });
         } else {
           addMessage(project.id, {
-            id: `bot-reply-${bot.id}-${Date.now()}`,
+            id: `bot-reply-${toph.id}-${Date.now()}`,
+            chatId: toph.chatId,
+            tophId: toph.id,
             role: "assistant",
-            botId: bot.id,
             content: reply.trim(),
-            channel,
-            mode: threadMode,
-            audience: options.audience ?? "user",
             status: "complete",
             createdAt: Date.now(),
           });
         }
-        if (bot.notifications) {
+        if (toph.notifications) {
           playBotResponseSound();
           notifyAiResponse({
             projectId: project.id,
             tabId: `bots:${project.id}`,
-            sessionId: bot.sessionId,
-            botId: bot.id,
-            botName: bot.name,
-            botRole: bot.role,
+            sessionId: toph.sessionId,
+            botId: toph.id,
+            botName: toph.name,
+            botRole: toph.role,
             text: reply,
           });
         }
         return reply.trim();
       }
 
-      const pendingId = `bot-reply-${bot.id}-${Date.now()}`;
+      const pendingId = `bot-reply-${toph.id}-${Date.now()}`;
       addMessage(project.id, {
         id: pendingId,
+        chatId: toph.chatId,
+        tophId: toph.id,
         role: "assistant",
-        botId: bot.id,
         content: "",
-        channel,
-        mode: threadMode,
-        audience: options.audience ?? "user",
         pending: true,
         status: "running",
         createdAt: Date.now(),
       });
-      const reply = await directReply(bot, bots, history, userText, options.attachments);
+      const reply = await directReply(toph, tophsNow, history, userText, options.attachments);
       if (options.token !== undefined && options.token !== runToken.current) {
         removeMessage(project.id, pendingId);
         return null;
       }
-      if (!reply.trim()) throw new Error("O bot retornou uma resposta vazia.");
+      if (!reply.trim()) throw new Error("O Toph retornou uma resposta vazia.");
       updateMessage(project.id, pendingId, { content: reply.trim(), pending: false, status: "complete" });
-      if (bot.notifications) {
+      if (toph.notifications) {
         playBotResponseSound();
         notifyAiResponse({
           projectId: project.id,
           tabId: `bots:${project.id}`,
-          sessionId: bot.sessionId,
-          botId: bot.id,
-          botName: bot.name,
-          botRole: bot.role,
+          sessionId: toph.sessionId,
+          botId: toph.id,
+          botName: toph.name,
+          botRole: toph.role,
           text: reply,
         });
       }
@@ -1185,51 +962,48 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
     } catch (error) {
       if (error instanceof Error && error.message === "__stopped__") return null;
       if (options.token !== undefined && options.token !== runToken.current) return null;
-      const recovered = recoverBotReply(useBots.getState().byProject[project.id]?.messages ?? [], bot.id, channel, startedAt);
+      const recovered = recoverBotReply(useChats.getState().byProject[project.id]?.messages ?? [], toph.id, toph.chatId, startedAt);
       if (recovered) {
         updateMessage(project.id, recovered.id, { pending: false, status: "complete" });
         return recovered.content.trim();
       }
-      const text = error instanceof Error ? error.message : "Não foi possível falar com este bot.";
+      const text = error instanceof Error ? error.message : "Não foi possível falar com este Toph.";
       addMessage(project.id, {
-        id: `bot-error-${bot.id}-${Date.now()}`,
+        id: `bot-error-${toph.id}-${Date.now()}`,
+        chatId: toph.chatId,
+        tophId: toph.id,
         role: "error",
-        botId: bot.id,
         content: text,
-        mode: threadMode,
-        channel,
         createdAt: Date.now(),
       });
       return null;
     } finally {
-      setRunningBots((current) => {
+      setRunningTophs((current) => {
         const next = new Set(current);
-        next.delete(bot.id);
+        next.delete(toph.id);
         return next;
       });
     }
   }
 
-  async function answerToolQuestion(bot: MiniBot, messageId: string, answer: string) {
-    if (!bot.sessionId) throw new Error("A sessão desta pergunta não está mais ativa.");
-    const currentMessage = useBots.getState().byProject[project.id]?.messages.find((message) => message.id === messageId);
-    const channel = currentMessage?.channel ?? channelForBot(bot);
-    await answerOpenCodeQuestion(client, bot.sessionId, answer);
+  async function answerToolQuestion(toph: ChatToph, messageId: string, answer: string) {
+    if (!toph.sessionId) throw new Error("A sessão desta pergunta não está mais ativa.");
+    const currentMessage = useChats.getState().byProject[project.id]?.messages.find((message) => message.id === messageId);
+    await answerOpenCodeQuestion(client, toph.sessionId, answer);
     updateMessage(project.id, messageId, { detail: answer, status: "complete" });
     addMessage(project.id, {
       id: `bot-user-question-${Date.now()}`,
+      chatId: currentMessage?.chatId ?? toph.chatId,
       role: "user",
       content: answer,
-      channel,
-      mode: threadMode,
       createdAt: Date.now(),
     });
   }
 
-  async function replyPermission(bot: MiniBot, messageId: string, requestId: string, decision: "once" | "always" | "reject") {
-    if (!bot.sessionId) return;
+  async function replyPermission(toph: ChatToph, messageId: string, requestId: string, decision: "once" | "always" | "reject") {
+    if (!toph.sessionId) return;
     try {
-      await client.permission.reply({ sessionID: bot.sessionId, requestID: requestId, decision } as never);
+      await client.permission.reply({ sessionID: toph.sessionId, requestID: requestId, decision } as never);
       updateMessage(project.id, messageId, {
         permissionId: undefined,
         content: decision === "reject" ? "Permission rejected." : decision === "always" ? "Permission allowed for this session." : "Permission allowed once.",
@@ -1240,151 +1014,25 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
     }
   }
 
-  async function answerForm(form: OpenCodeForm, bot: MiniBot, answer: OpenCodeFormAnswer) {
-    if (!bot.sessionId) return;
+  async function answerForm(form: OpenCodeForm, toph: ChatToph, answer: OpenCodeFormAnswer) {
+    if (!toph.sessionId) return;
     setFormBusy(form.id);
     try {
-      await client.session.form.reply({ sessionID: bot.sessionId, formID: form.id, answer } as never);
+      await client.session.form.reply({ sessionID: toph.sessionId, formID: form.id, answer } as never);
       setForms((current) => current.filter((item) => item.form.id !== form.id));
     } finally {
       setFormBusy(null);
     }
   }
 
-  async function cancelForm(form: OpenCodeForm, bot: MiniBot) {
-    if (!bot.sessionId) return;
+  async function cancelForm(form: OpenCodeForm, toph: ChatToph) {
+    if (!toph.sessionId) return;
     setFormBusy(form.id);
     try {
-      await client.session.form.cancel({ sessionID: bot.sessionId, formID: form.id, message: "Cancelado pelo usuário" } as never);
+      await client.session.form.cancel({ sessionID: toph.sessionId, formID: form.id, message: "Cancelado pelo usuário" } as never);
       setForms((current) => current.filter((item) => item.form.id !== form.id));
     } finally {
       setFormBusy(null);
-    }
-  }
-
-  function channelForBot(bot: MiniBot): string {
-    return threadMode === "solo" ? soloChannel(bot) : bot.coordinator ? "team" : `worker:${bot.id}`;
-  }
-
-  function cancelActiveTurn() {
-    runToken.current += 1;
-    sendingRef.current = false;
-    setSending(false);
-    setRunningBots(new Set());
-    setForms([]);
-  }
-
-  async function restoreSession(session: OpenCodeSessionSummary) {
-    if (!activeBot) return;
-    const botId = activeBot.id;
-    const channel = channelForBot(activeBot);
-    const restoreMode = threadMode;
-    const token = ++restoreToken.current;
-    cancelActiveTurn();
-    setSessionsOpen(false);
-    // Switch the thread and clear it atomically before hydrating it. This
-    // prevents a slow context request from leaving the previous session's
-    // messages visible (or persisting them under the new session id).
-    if (activeBot.sessionId) sessionBotMap.current.delete(activeBot.sessionId);
-    discardMessageWrites(project.id, restoreMode, channel);
-    setBotSession(project.id, botId, session.id, { sessionPrimed: true, channel, messages: [] });
-    sessionBotMap.current.set(session.id, botId);
-    try {
-      const context = await client.session.context({ sessionID: session.id } as never);
-      if (token !== restoreToken.current) return;
-      const workspaceNow = useBots.getState().byProject[project.id];
-      const currentMode = workspaceNow?.mode === "solo" ? "solo" : "team";
-      if (!workspaceNow || workspaceNow.activeBotId !== botId || currentMode !== restoreMode) return;
-      const restored = restoreBotMessages(context, botId, channel, restoreMode);
-      await api.replaceWorkspaceMessages(project.id, { mode: restoreMode, channel }, restored);
-      setBotSession(project.id, botId, session.id, {
-        sessionPrimed: true,
-        channel,
-        messages: visibleHistoryWindow(restored),
-      });
-      discardMessageWrites(project.id, restoreMode, channel);
-    } catch (err) {
-      if (token !== restoreToken.current) return;
-      addMessage(project.id, { id: `session-error-${Date.now()}`, role: "error", content: err instanceof Error ? err.message : "Não foi possível recuperar a sessão.", channel, mode: restoreMode, createdAt: Date.now() });
-    }
-  }
-
-  async function newSession() {
-    if (!activeBot) return;
-    restoreToken.current += 1;
-    cancelActiveTurn();
-    if (activeBot.sessionId) sessionBotMap.current.delete(activeBot.sessionId);
-    const channel = channelForBot(activeBot);
-    discardMessageWrites(project.id, threadMode, channel);
-    await api.deleteWorkspaceMessages(project.id, { mode: threadMode, channel }).catch(() => undefined);
-    setBotSession(project.id, activeBot.id, undefined, { sessionPrimed: false, channel, messages: [] });
-  }
-
-  async function syncFromOpenCode() {
-    if (syncInFlight.current) return;
-    syncInFlight.current = true;
-    try {
-      // Read the live store instead of the closure captured when the effect
-      // was registered. A Tophs session can be created long after the first
-      // render, and the stale closure used to skip the resume sync entirely.
-      const currentBots = useBots.getState().byProject[project.id]?.bots ?? [];
-      if (!currentBots.some((bot) => bot.sessionId)) return;
-      const active = await client.session.active().catch(() => null);
-      if (!active) return;
-      const running = new Set(
-        currentBots.filter((bot) => bot.sessionId && active[bot.sessionId]?.type === "running").map((bot) => bot.id),
-      );
-      setRunningBots(running);
-
-      // While a turn is genuinely running, keep the local streaming timeline.
-      // It is more complete than the last committed context and the event
-      // stream will keep it updated after reconnecting.
-      if (sendingRef.current && running.size > 0) return;
-
-      if (sendingRef.current && running.size === 0) {
-        // Give the server a moment to flip the session to running after a
-        // foreground transition before aborting the in-flight local poll.
-        await new Promise((resolve) => window.setTimeout(resolve, 350));
-        const confirmed = await client.session.active().catch(() => null);
-        if (!confirmed) return;
-        const stillRunning = currentBots
-          .filter((bot) => bot.sessionId && confirmed[bot.sessionId]?.type === "running")
-          .map((bot) => bot.id);
-        if (stillRunning.length > 0) {
-          setRunningBots(new Set(stillRunning));
-          return;
-        }
-      }
-
-      // If the session finished while the app was backgrounded, cancel the
-      // local polling loop before restoring the authoritative final timeline.
-      // Otherwise the old loop could append a duplicate answer afterwards.
-      if (sendingRef.current) {
-        runToken.current += 1;
-        sendingRef.current = false;
-        setSending(false);
-      }
-
-      const selectedBotId = useBots.getState().byProject[project.id]?.activeBotId;
-      for (const bot of currentBots) {
-        if (!bot.sessionId || (bot.id !== selectedBotId && !running.has(bot.id))) continue;
-        const context = await client.session.context({ sessionID: bot.sessionId } as never).catch(() => null);
-        // A failed context request must not erase the local transcript. An
-        // empty array, however, is a valid empty session and must replace the
-        // previous session's messages.
-        if (!Array.isArray(context)) continue;
-        const workspaceNow = useBots.getState().byProject[project.id];
-        const currentBot = workspaceNow?.bots.find((item) => item.id === bot.id);
-        // The user may have selected another session while this request was
-        // in flight. Never let the old response overwrite the new thread.
-        if (!currentBot || currentBot.sessionId !== bot.sessionId) continue;
-        const currentMode = workspaceNow?.mode === "solo" ? "solo" : "team";
-        const channel = currentMode === "solo" ? soloChannel(currentBot) : bot.coordinator ? "team" : `worker:${bot.id}`;
-        const restored = visibleHistoryWindow(restoreBotMessages(context, bot.id, channel, currentMode));
-        replaceChannelMessages(project.id, channel, restored);
-      }
-    } finally {
-      syncInFlight.current = false;
     }
   }
 
@@ -1392,32 +1040,27 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
     runToken.current += 1;
     sendingRef.current = false;
     setSending(false);
-    setRunningBots(new Set());
-    for (const bot of bots) {
-      if (bot.sessionId) await client.session.interrupt({ sessionID: bot.sessionId } as never).catch(() => undefined);
+    setRunningTophs(new Set());
+    for (const toph of tophs) {
+      if (toph.sessionId) await client.session.interrupt({ sessionID: toph.sessionId } as never).catch(() => undefined);
     }
   }
 
   async function send(text: string, attachments: AgentAttachment[] = []) {
-    if ((!text.trim() && attachments.length === 0) || sendingRef.current || sending || bots.length === 0) return;
+    if (!chat || tophs.length === 0 || (!text.trim() && attachments.length === 0) || sendingRef.current || sending) return;
     sendingRef.current = true;
     unlockBotSound();
     stickToBottom.current = true;
     const token = ++runToken.current;
-    const direct = mentionedBots(bots, text);
-    const activeWorker = mode === "team" && activeBot && activeBot.id !== coordinator?.id ? activeBot : null;
-    const targetWorker = activeWorker;
-    const channel = targetWorker ? `worker:${targetWorker.id}` : threadMode === "solo" ? (activeBot ? soloChannel(activeBot) : "solo") : "team";
     const userMessageId = `bot-user-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
     addMessage(project.id, {
       id: userMessageId,
+      chatId: chat.id,
       role: "user",
       content: text || attachments.map((file) => file.name).join(", "),
-      channel,
-      mode: threadMode,
       createdAt: Date.now(),
     });
-    const accepted = useBots.getState().byProject[project.id]?.messages.some((message) => message.id === userMessageId);
+    const accepted = useChats.getState().byProject[project.id]?.messages.some((message) => message.id === userMessageId);
     if (!accepted) {
       sendingRef.current = false;
       return;
@@ -1426,43 +1069,30 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
     clearDraft(draftKey);
     setSending(true);
     try {
-      const firstWave = threadMode === "solo"
-        ? activeBot ? [activeBot] : []
-        : targetWorker
-          ? [targetWorker]
-          : direct.length > 0
-            ? direct
-            : coordinator
-              ? [coordinator]
-              : bots.slice(0, 1);
-      const firstReplies = await Promise.all(firstWave.map(async (bot) => {
-        if (token !== runToken.current) return null;
-        const reply = await respondAsBot(bot, text, { attachments, channel, token });
-        return reply === null ? null : { botId: bot.id, reply };
-      }));
-      const coordinatorReply = firstReplies.find((item) => item?.botId === coordinator?.id)?.reply ?? null;
-
-      // The coordinator delegates in the shared channel and the team replies
-      // are visible to the user. Workers may also mention each other for
-      // review/handoff in their own response.
-      if (mode === "team" && !direct.length && !activeWorker && !targetWorker && coordinator && coordinatorReply) {
-        const workers = mentionedBots(bots, coordinatorReply).filter((bot) => bot.id !== coordinator.id);
+      const first = coordinator ?? tophs[0];
+      if (!first) return;
+      const reply = await respondAsToph(first, text, { attachments, token });
+      if (!reply || token !== runToken.current) return;
+      if (first.coordinator) {
+        const direct = mentionedTophs(tophs, text).filter((toph) => toph.id !== first.id);
+        const delegated = mentionedTophs(tophs, reply).filter((toph) => toph.id !== first.id);
+        const workers = [...new Map([...delegated, ...direct].map((toph) => [toph.id, toph])).values()];
         if (workers.length > 0) {
           const workerReplies = await Promise.all(workers.map(async (worker) => {
             if (token !== runToken.current) return null;
-            const reply = await respondAsBot(
+            const workerReply = await respondAsToph(
               worker,
-              `Tarefa do coordenador ${coordinator.name}:\n\n${coordinatorReply}\n\nPedido original do usuário:\n${text}`,
-              { attachments, audience: "coordinator", channel: `worker:${worker.id}`, token },
+              `Tarefa do coordenador ${first.name}:\n\n${reply}\n\nPedido original do usuário:\n${text}`,
+              { attachments, token },
             );
-            return reply ? `${worker.name}: ${reply}` : null;
+            return workerReply ? `${worker.name}: ${workerReply}` : null;
           }));
           const results = workerReplies.filter((item): item is string => Boolean(item));
-          if (results.length > 0) {
-            await respondAsBot(
-              coordinator,
-              `Retornos dos membros da equipe:\n\n${results.join("\n\n")}\n\nConsolide esses retornos em uma resposta final para o usuário.`,
-              { audience: "user", channel: "team", token },
+          if (results.length > 0 && token === runToken.current) {
+            await respondAsToph(
+              first,
+              `Retornos dos Tophs do chat:\n\n${results.join("\n\n")}\n\nConsolide esses retornos em uma resposta final para o usuário.`,
+              { token },
             );
           }
         }
@@ -1473,75 +1103,35 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
     }
   }
 
-  function openTeamGeneral() {
-    if (mode !== "team") setMode(project.id, "team");
-    setActiveBot(project.id, coordinator?.id ?? bots[0]?.id ?? null);
-  }
-
-  function openTeamBot(botId: string) {
-    if (mode !== "team") setMode(project.id, "team");
-    setActiveBot(project.id, botId);
-  }
-
-  function openSoloBot(botId: string) {
-    if (mode !== "solo") setMode(project.id, "solo");
-    setActiveBot(project.id, botId);
+  function openCreateChat() {
+    window.dispatchEvent(new CustomEvent("toph:create-chat"));
   }
 
   return (
     <div className="flex h-full min-h-0 w-full flex-1 gap-0 overflow-hidden" onPointerDown={unlockBotSound}>
       <section className="flex min-w-0 flex-1 flex-col overflow-hidden bg-background-full max-[900px]:rounded-none max-[900px]:border-0 max-[900px]:shadow-none min-[901px]:rounded-3xl min-[901px]:border min-[901px]:border-border-button-white min-[901px]:shadow-sidebar">
-        {!mobile && bots.length > 0 ? (
+        {chat ? (
           <div className="flex h-12 shrink-0 items-center gap-2 border-b border-separator-border bg-background-secondary-default px-2.5">
-            <Dropdown isOpen={conversationPickerOpen} onOpenChange={setConversationPickerOpen}>
-              <DropdownTrigger
-                aria-label={mode === "team" ? "Selecionar conversa da equipe" : "Selecionar Toph individual"}
-                className="flex min-w-0 max-w-[420px] flex-1 items-center gap-2 rounded-xl px-1.5 py-1 text-start transition-colors hover:bg-background-primary-hover"
-              >
-                {mode === "team" && !activeWorker ? (
-                  <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-accent-500/10 text-accent-500"><MessageSquare size={14} /></span>
-                ) : conversationBot ? (
-                  <BotAvatar bot={conversationBot} size={28} />
-                ) : null}
-                <span className="flex min-w-0 flex-1 flex-col">
-                  <strong className="truncate text-caption-1-semibold text-text-primary">{mode === "team" && !activeWorker ? "Conversa da equipe" : conversationBot?.name ?? "Toph"}</strong>
-                  <span className="truncate text-caption-2-regular text-text-tertiary">{mode === "team" && !activeWorker ? "Todos os Tophs colaborando" : conversationBot?.role || (mode === "team" ? "Especialista" : "Toph")}</span>
+            <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-background-tertiary-default text-caption-1-semibold text-text-tertiary">#</span>
+            <div className="flex min-w-0 flex-1 flex-col">
+              <strong className="truncate text-caption-1-semibold text-text-primary">{chat.name}</strong>
+              <span className="truncate text-caption-2-regular text-text-tertiary">{chat.description || "Chat dos Tophs"}</span>
+            </div>
+            <div className="flex shrink-0 items-center -space-x-2">
+              {tophs.slice(0, 4).map((toph) => (
+                <button key={toph.id} type="button" onClick={() => setConfigTophId(toph.id)} className="rounded-full ring-2 ring-background-secondary-default transition-transform hover:-translate-y-0.5" title={`${toph.name} · ${toph.role}`}>
+                  <BotAvatar bot={toph} size={28} />
+                </button>
+              ))}
+              {tophs.length > 4 ? (
+                <span className="flex size-7 items-center justify-center rounded-full bg-background-tertiary-default text-[10px] font-medium text-text-tertiary ring-2 ring-background-secondary-default">
+                  +{tophs.length - 4}
                 </span>
-                <ChevronDown size={14} className={cx("shrink-0 text-text-tertiary transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]", conversationPickerOpen && "rotate-180")} />
-              </DropdownTrigger>
-              <DropdownPopover aria-label={mode === "team" ? "Conversa da equipe" : "Conversas individuais"} placement="bottom start" className="w-[340px] p-2.5" dialogClassName="gap-1">
-                {mode === "team" ? (
-                  <>
-                    <DropdownItem selected={!activeWorker} onSelect={() => { openTeamGeneral(); setConversationPickerOpen(false); }}>
-                      <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-accent-500/10 text-accent-500"><MessageSquare size={14} /></span>
-                      <span className="flex min-w-0 flex-1 flex-col">
-                        <span className="truncate text-caption-1-semibold">Conversa da equipe</span>
-                        <span className="truncate text-caption-2-regular text-text-tertiary">Todos os Tophs colaborando</span>
-                      </span>
-                      {!activeWorker ? <Check size={14} className="shrink-0 text-accent-500" /> : null}
-                    </DropdownItem>
-                    <DropdownDivider />
-                  </>
-                ) : null}
-                {bots.map((bot) => {
-                  const selected = mode === "team" ? activeWorker?.id === bot.id : activeBot?.id === bot.id;
-                  return (
-                    <DropdownItem key={bot.id} selected={selected} onSelect={() => { if (mode === "team") openTeamBot(bot.id); else openSoloBot(bot.id); setConversationPickerOpen(false); }}>
-                      <BotAvatar bot={bot} size={28} />
-                      <span className="flex min-w-0 flex-1 flex-col">
-                        <span className="flex items-center gap-1.5">
-                          <span className="truncate text-caption-1-semibold">{bot.name}</span>
-                          {bot.coordinator ? <span className="shrink-0 rounded-full bg-accent-500/15 px-1 text-[9px] font-medium text-accent-600">coord.</span> : null}
-                        </span>
-                        <span className="truncate text-caption-2-regular text-text-tertiary">{bot.role || (mode === "team" ? "Especialista" : "Toph")}</span>
-                      </span>
-                      {selected ? <Check size={14} className="shrink-0 text-accent-500" /> : null}
-                    </DropdownItem>
-                  );
-                })}
-              </DropdownPopover>
-            </Dropdown>
-            {mode === "team" && activeWorker ? <Button variant="ghost" size="small" leadingIcon={MessageSquare} className="shrink-0" onClick={openTeamGeneral}>Chat geral</Button> : null}
+              ) : null}
+            </div>
+            <Button variant="ghost" size="small" iconOnly={mobile} leadingIcon={mobile ? Plus : MessageSquarePlus} aria-label="Adicionar Toph" title="Adicionar Toph" onClick={() => setGalleryOpen(true)}>
+              {mobile ? null : "Adicionar Toph"}
+            </Button>
           </div>
         ) : null}
         <div
@@ -1551,9 +1141,9 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
             const element = event.currentTarget;
             stickToBottom.current = element.scrollHeight - element.scrollTop - element.clientHeight < 80;
           }}
-          >
+        >
           <div className="mx-auto flex min-h-full w-full min-w-0 max-w-[760px] flex-col gap-4 overflow-x-hidden p-4 [&_img]:max-w-full [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_table]:block [&_table]:max-w-full [&_table]:overflow-x-auto">
-            {(conversationPage.hasMore || (mobile && activityPage.hasMore)) ? (
+            {conversationPage.hasMore || (mobile && activityPage.hasMore) ? (
               <Button
                 variant="ghost"
                 size="small"
@@ -1576,49 +1166,43 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
                 <Button variant="secondary" size="small" onClick={() => setHistoryReloadToken((value) => value + 1)}>Tentar novamente</Button>
               </div>
             ) : null}
-            {!activeBot ? (
+            {!projectChats?.hydrated ? (
+              <div className="my-auto flex items-center justify-center gap-2 py-8 text-caption-1-regular text-text-tertiary">
+                <LoaderCircle className="size-4 animate-spin" /> Carregando chats...
+              </div>
+            ) : !chat ? (
               <div className="my-auto flex flex-col items-center gap-3 px-6 py-10 text-center">
-                {mode === "team" ? (
-                  <>
-                    <span className="flex size-12 items-center justify-center rounded-2xl bg-accent-500/10 text-accent-500"><Bot size={22} /></span>
-                    <strong className="text-title-3-medium text-text-primary">Sua equipe começa aqui.</strong>
-                    <p className="max-w-sm text-caption-1-regular leading-relaxed text-text-secondary">{mobile ? "Adicione um Toph pelo menu Conversas. A conversa continuará sempre nesta mesma tela." : "Adicione um Toph pela coluna da esquerda. A conversa e o acompanhamento continuarão sempre nesta mesma tela."}</p>
-                    <Button variant="secondary" size="small" leadingIcon={MessageSquarePlus} onClick={newBot}>Adicionar primeiro Toph</Button>
-                  </>
-                ) : (
-                  <>
-                    <LoaderCircle className="size-4 animate-spin text-accent-500" />
-                    <span className="text-caption-1-regular text-text-tertiary">Preparando seu Toph...</span>
-                  </>
-                )}
+                <span className="flex size-12 items-center justify-center rounded-2xl bg-accent-500/10 text-accent-500"><Bot size={22} /></span>
+                <strong className="text-title-3-medium text-text-primary">Crie um chat para começar.</strong>
+                <p className="max-w-sm text-caption-1-regular leading-relaxed text-text-secondary">Cada chat tem os seus próprios Tophs, com papéis, prompts e ferramentas.</p>
+                <Button variant="secondary" size="small" leadingIcon={MessageSquarePlus} onClick={openCreateChat}>Criar chat</Button>
+              </div>
+            ) : tophs.length === 0 ? (
+              <div className="my-auto flex flex-col items-center gap-3 px-6 py-10 text-center">
+                <span className="flex size-12 items-center justify-center rounded-2xl bg-accent-500/10 text-accent-500"><Bot size={22} /></span>
+                <strong className="text-title-3-medium text-text-primary">Adicione o primeiro Toph.</strong>
+                <p className="max-w-sm text-caption-1-regular leading-relaxed text-text-secondary">Escolha um Toph pronto ou crie um livre com o papel que você precisar.</p>
+                <Button variant="secondary" size="small" leadingIcon={MessageSquarePlus} onClick={() => setGalleryOpen(true)}>Adicionar Toph</Button>
               </div>
             ) : conversationPage.ready && conversationMessages.length === 0 ? (
               <div className="my-auto flex flex-col items-center gap-3 px-6 py-10 text-center">
                 <div className="flex -space-x-2">
-                  {(activeWorker ? [activeWorker] : mode === "solo" ? [activeBot] : bots.slice(0, 4)).map((bot) => <BotAvatar key={bot.id} bot={bot} size={38} className="rounded-full bg-background-primary-default ring-2 ring-background-primary-default" />)}
+                  {tophs.slice(0, 4).map((toph) => <BotAvatar key={toph.id} bot={toph} size={38} className="rounded-full bg-background-primary-default ring-2 ring-background-primary-default" />)}
                 </div>
-                <strong className="text-title-3-medium text-text-primary">{mode === "solo" ? `${activeBot.name} está pronto.` : activeWorker ? `Converse com ${activeWorker.name}.` : "A equipe está pronta."}</strong>
-                <p className="max-w-md text-caption-1-regular leading-relaxed text-text-secondary">
-                  {mode === "solo"
-                    ? "Pergunte, programe, anexe arquivos ou peça para executar uma tarefa."
-                    : activeWorker
-                      ? "Esta conversa é direta com este membro da equipe."
-                      : "Fale com a equipe; o coordenador distribui o trabalho e consolida a resposta."}
-                </p>
+                <strong className="text-title-3-medium text-text-primary">O chat está pronto.</strong>
+                <p className="max-w-md text-caption-1-regular leading-relaxed text-text-secondary">Fale com o chat; o coordenador distribui o trabalho e consolida a resposta.</p>
               </div>
             ) : null}
 
             {groupedMessages.map((group, index) => {
               if (group.kind === "user") {
-                const messageBot = group.message.channel?.startsWith("worker:")
-                  ? bots.find((item) => `worker:${item.id}` === group.message.channel)
-                  : mode === "team" ? coordinator : activeBot;
-                const messageModel = messageBot?.model || activeModel;
+                const messageToph = coordinator;
+                const messageModel = messageToph?.model || activeModel;
                 return (
                   <div key={`user-${group.message.id}`} className="ms-auto flex min-w-0 max-w-[88%] flex-col items-end gap-1">
                     <p className="min-w-0 max-w-full overflow-hidden rounded-2xl bg-accent-500 px-3.5 py-2 text-[14px] leading-[1.55] whitespace-pre-wrap break-words text-text-on-accent">{group.message.content}</p>
                     <MessageInfo
-                      agentMode={messageBot?.agentMode}
+                      agentMode={messageToph?.agentMode}
                       model={modelDisplay(models.find((item) => item.id === messageModel) ?? (messageModel ? { id: messageModel, label: messageModel.split("/").pop() ?? messageModel } : undefined))}
                       createdAt={group.message.createdAt}
                       content={group.message.content}
@@ -1629,38 +1213,37 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
                 );
               }
               if (group.kind === "system") return <AgentTranscript key={`system-${index}`} messages={group.messages.map(toAiMessage)} streaming={false} projectId={project.id} projectRoot={project.root} />;
-              const bot = bots.find((item) => item.id === group.botId);
-              if (!bot) return null;
+              const toph = tophs.find((item) => item.id === group.tophId);
+              if (!toph) return null;
               const footerAssistant = [...group.messages].reverse().find((message) => message.role === "assistant" && !message.pending);
-              const isLatestBotGroup = lastBotGroupIndex.get(bot.id) === index;
+              const isLatestTophGroup = lastTophGroupIndex.get(toph.id) === index;
               const belongsToCurrentTurn = latestUserAt === 0 || group.messages.some((message) => message.createdAt >= latestUserAt);
-              const groupStreaming = belongsToCurrentTurn && isLatestBotGroup && runningBots.has(bot.id);
-              const footerBusy = belongsToCurrentTurn && isLatestBotGroup && (runningBots.has(bot.id) || group.messages.some((message) => message.status === "running"));
+              const groupStreaming = belongsToCurrentTurn && isLatestTophGroup && runningTophs.has(toph.id);
               const hasRunningTool = group.messages.some((message) => (message.role === "tool" || message.role === "reasoning") && message.status === "running");
               const hasAssistantText = group.messages.some((message) => message.role === "assistant" && message.content.trim().length > 0);
               const activityState: TophActivityState | null = groupStreaming || group.messages.some((message) => message.status === "running")
                 ? hasRunningTool ? "working" : hasAssistantText ? "responding" : "thinking"
                 : null;
               return (
-                <section key={`bot-${group.botId}-${index}`} className="flex min-w-0 max-w-full items-start gap-2.5">
-                  <TophActivityAvatar bot={bot} state={activityState} size={32} className="mt-0.5" />
+                <section key={`toph-${group.tophId}-${index}`} className="flex min-w-0 max-w-full items-start gap-2.5">
+                  <TophActivityAvatar bot={toph} state={activityState} size={32} className="mt-0.5" />
                   <div className="flex min-w-0 flex-1 flex-col gap-1.5">
                     <header className="flex min-w-0 items-baseline gap-2">
-                      <strong className="truncate text-caption-1-semibold text-text-primary">{bot.name}</strong>
-                      <span className="truncate text-caption-2-regular text-text-tertiary">{activityState ? <TophActivityStatus state={activityState} /> : bot.role || (mode === "team" ? "Especialista" : "Toph")}</span>
+                      <strong className="truncate text-caption-1-semibold text-text-primary">{toph.name}</strong>
+                      <span className="truncate text-caption-2-regular text-text-tertiary">{activityState ? <TophActivityStatus state={activityState} /> : toph.role || "Toph"}</span>
                     </header>
                     <AgentTranscript
                       messages={group.messages.map(toAiMessage)}
                       streaming={groupStreaming}
-                      onPermission={(messageId, permissionId, decision) => void replyPermission(bot, messageId, permissionId, decision)}
-                      onQuestion={(messageId, answer) => void answerToolQuestion(bot, messageId, answer)}
+                      onPermission={(messageId, permissionId, decision) => void replyPermission(toph, messageId, permissionId, decision)}
+                      onQuestion={(messageId, answer) => void answerToolQuestion(toph, messageId, answer)}
                       projectId={project.id}
                       projectRoot={project.root}
                     />
-                    {mode === "solo" && !footerBusy && footerAssistant ? (
+                    {footerAssistant ? (
                       <MessageInfo
-                        agentMode={bot.agentMode}
-                        model={modelDisplay(models.find((item) => item.id === (bot.model || activeModel)) ?? ((bot.model || activeModel) ? { id: bot.model || activeModel, label: (bot.model || activeModel).split("/").pop() ?? (bot.model || activeModel) } : undefined))}
+                        agentMode={toph.agentMode}
+                        model={modelDisplay(models.find((item) => item.id === (toph.model || activeModel)) ?? ((toph.model || activeModel) ? { id: toph.model || activeModel, label: (toph.model || activeModel).split("/").pop() ?? (toph.model || activeModel) } : undefined))}
                         createdAt={footerAssistant.createdAt}
                         content={footerAssistant.content}
                         copyLabel="Copiar resposta"
@@ -1671,17 +1254,17 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
               );
             })}
 
-            {visibleRunningBots
-              .filter((botId) => !groupedMessages.some((group) => group.kind === "bot" && group.botId === botId && (latestUserAt === 0 || group.messages.some((message) => message.createdAt >= latestUserAt))))
-              .map((botId) => {
-                const bot = bots.find((item) => item.id === botId);
-                if (!bot) return null;
+            {visibleRunningTophs
+              .filter((tophId) => !groupedMessages.some((group) => group.kind === "toph" && group.tophId === tophId && (latestUserAt === 0 || group.messages.some((message) => message.createdAt >= latestUserAt))))
+              .map((tophId) => {
+                const toph = tophs.find((item) => item.id === tophId);
+                if (!toph) return null;
                 return (
-                  <section key={`pending-${botId}`} className="flex min-w-0 max-w-full items-start gap-2.5">
-                    <TophActivityAvatar bot={bot} state="thinking" size={32} className="mt-0.5" />
+                  <section key={`pending-${tophId}`} className="flex min-w-0 max-w-full items-start gap-2.5">
+                    <TophActivityAvatar bot={toph} state="thinking" size={32} className="mt-0.5" />
                     <div className="flex min-w-0 flex-1 flex-col gap-1.5">
                       <header className="flex min-w-0 items-baseline gap-2">
-                        <strong className="truncate text-caption-1-semibold text-text-primary">{bot.name}</strong>
+                        <strong className="truncate text-caption-1-semibold text-text-primary">{toph.name}</strong>
                         <span className="truncate text-caption-2-regular text-text-tertiary"><TophActivityStatus state="thinking" /></span>
                       </header>
                     </div>
@@ -1689,59 +1272,33 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
                 );
               })}
 
-            {mobile ? visibleForms.map(({ form, botId }) => {
-              const bot = bots.find((item) => item.id === botId);
-              if (!bot) return null;
+            {mobile ? visibleForms.map(({ form, tophId }) => {
+              const toph = tophs.find((item) => item.id === tophId);
+              if (!toph) return null;
               return (
                 <section key={`form-${form.id}`} className="flex flex-col gap-2">
-                  <header className="flex items-center gap-2"><BotAvatar bot={bot} size={28} /><strong className="truncate text-caption-1-semibold text-text-primary">{bot.name}</strong></header>
-                  <OpenCodeFormCard form={form} busy={formBusy === form.id} onSubmit={(answer) => void answerForm(form, bot, answer)} onCancel={() => void cancelForm(form, bot)} />
+                  <header className="flex items-center gap-2"><BotAvatar bot={toph} size={28} /><strong className="truncate text-caption-1-semibold text-text-primary">{toph.name}</strong></header>
+                  <OpenCodeFormCard form={form} busy={formBusy === form.id} onSubmit={(answer) => void answerForm(form, toph, answer)} onCancel={() => void cancelForm(form, toph)} />
                 </section>
               );
             }) : null}
           </div>
         </div>
 
-        {activeBot ? <div className="shrink-0">
-          <AgentComposer
-            value={input}
-            onChange={updateInput}
-            onSend={(value, attachments) => void send(value, attachments)}
-            onStop={() => void stop()}
-            busy={sending || runningBots.size > 0}
-            models={models}
-            model={activeModel}
-            onModelChange={(value) => updateBot(project.id, activeBot.id, { model: value })}
-            effort={activeBot.effort ?? ""}
-            efforts={activeEfforts}
-            onEffortChange={(value) => updateBot(project.id, activeBot.id, { effort: value })}
-            placeholder={mode === "solo" ? `Pergunte para ${activeBot.name}...` : activeBot.id === coordinator?.id ? "Fale com o coordenador ou @mencione um membro..." : `Pergunte para ${activeBot.name}...`}
-            modeControls={
-              <>
-                <ComposerMenu
-                  label="Modo do agente"
-                  trigger={
-                    <>
-                      <span>{activeBot.agentMode === "plan" ? "Plano" : "Build"}</span>
-                      <ChevronDown size={12} className="size-3 text-foreground-icon-tertiary" />
-                    </>
-                  }
-                  popoverClassName="w-[300px] p-0"
-                  contentClassName="flex flex-col gap-1 p-1.5"
-                >
-                  {(close) => (
-                    <>
-                      <DropdownItem selected={activeBot.agentMode !== "plan"} onSelect={() => { updateBot(project.id, activeBot.id, { agentMode: "build" }); close(); }}>Build</DropdownItem>
-                      <DropdownItem selected={activeBot.agentMode === "plan"} onSelect={() => { updateBot(project.id, activeBot.id, { agentMode: "plan" }); close(); }}>Plano</DropdownItem>
-                    </>
-                  )}
-                </ComposerMenu>
-                <AiUsageMeter client={client} refreshKey={`${sessionKey}:${completedReplies}`} />
-              </>
-            }
-            history={conversationMessages.filter((message) => message.role === "user").map((message) => message.content)}
-          />
-        </div> : null}
+        {chat && tophs.length > 0 ? (
+          <div className="shrink-0">
+            <AgentComposer
+              value={input}
+              onChange={updateInput}
+              onSend={(value, attachments) => void send(value, attachments)}
+              onStop={() => void stop()}
+              busy={sending || runningTophs.size > 0}
+              placeholder={`Mensagem em #${chat.name}`}
+              modeControls={<AiUsageMeter client={client} refreshKey={`${chat.id}:${completedReplies}`} />}
+              history={messages.filter((message) => message.role === "user").map((message) => message.content)}
+            />
+          </div>
+        ) : null}
       </section>
 
       {!mobile ? (
@@ -1763,7 +1320,7 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
                 <strong className="truncate text-caption-1-semibold text-text-primary">Acompanhamento</strong>
                 <span className="truncate text-caption-2-regular text-text-tertiary">Arquivos, navegador, terminal e ferramentas</span>
               </div>
-              {visibleRunningBots.length > 0 ? (
+              {visibleRunningTophs.length > 0 ? (
                 <span className="flex items-center gap-1.5 rounded-full bg-accent-500/10 px-2 py-1 text-[10px] font-medium text-accent-600"><LoaderCircle className="size-3 animate-spin" /> Ao vivo</span>
               ) : activityMessages.length + assistantImages.length > 0 ? (
                 <span className="rounded-full bg-background-tertiary-default px-2 py-1 text-[10px] text-text-tertiary">{activityMessages.length + assistantImages.length}</span>
@@ -1791,13 +1348,13 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
                   <Button variant="secondary" size="small" onClick={() => setHistoryReloadToken((value) => value + 1)}>Tentar novamente</Button>
                 </div>
               ) : null}
-              {!activeBot ? (
+              {!chat || tophs.length === 0 ? (
                 <div className="flex h-full min-h-[220px] flex-col items-center justify-center gap-3 px-5 text-center">
                   <ListTree className="size-6 text-text-tertiary" />
                   <strong className="text-caption-1-semibold text-text-primary">Nenhuma atividade ainda</strong>
                   <p className="max-w-xs text-caption-2-regular leading-relaxed text-text-tertiary">Quando um Toph começar a trabalhar, cada ação aparecerá aqui.</p>
                 </div>
-              ) : activityPage.ready && activityGroups.length === 0 && visibleRunningBots.length === 0 && visibleForms.length === 0 && assistantImages.length === 0 ? (
+              ) : activityPage.ready && activityGroups.length === 0 && visibleRunningTophs.length === 0 && visibleForms.length === 0 && assistantImages.length === 0 ? (
                 <div className="flex h-full min-h-[220px] flex-col items-center justify-center gap-3 px-5 text-center">
                   <ListTree className="size-6 text-text-tertiary" />
                   <strong className="text-caption-1-semibold text-text-primary">Pronto para acompanhar</strong>
@@ -1807,30 +1364,30 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
                 <div className="flex min-w-0 flex-col gap-3">
                   <AgentImageGallery images={assistantImages} title="Imagens da resposta" />
                   {activityGroups.map((group, index) => {
-                    if (group.kind !== "bot") return null;
-                    const bot = bots.find((item) => item.id === group.botId);
-                    if (!bot) return null;
-                    const latest = lastActivityGroupIndex.get(bot.id) === index;
-                    const activityRunning = latest && runningBots.has(bot.id);
+                    if (group.kind !== "toph") return null;
+                    const toph = tophs.find((item) => item.id === group.tophId);
+                    if (!toph) return null;
+                    const latest = lastActivityGroupIndex.get(toph.id) === index;
+                    const activityRunning = latest && runningTophs.has(toph.id);
                     const activityState: TophActivityState | null = activityRunning
                       ? group.messages.some((message) => (message.role === "tool" || message.role === "reasoning") && message.status === "running") ? "working" : "thinking"
                       : null;
                     return (
-                      <section key={`activity-${bot.id}-${index}`} className="min-w-0 border-b border-separator-border pb-3 last:border-b-0">
+                      <section key={`activity-${toph.id}-${index}`} className="min-w-0 border-b border-separator-border pb-3 last:border-b-0">
                         <header className="mb-1.5 flex items-center gap-2">
-                          <TophActivityAvatar bot={bot} state={activityState} size={26} />
+                          <TophActivityAvatar bot={toph} state={activityState} size={26} />
                           <div className="flex min-w-0 flex-1 flex-col">
-                            <strong className="truncate text-caption-1-semibold text-text-primary">{bot.name}</strong>
-                            <span className="truncate text-[10px] text-text-tertiary">{activityState ? <TophActivityStatus state={activityState} /> : bot.role || "Toph"}</span>
+                            <strong className="truncate text-caption-1-semibold text-text-primary">{toph.name}</strong>
+                            <span className="truncate text-[10px] text-text-tertiary">{activityState ? <TophActivityStatus state={activityState} /> : toph.role || "Toph"}</span>
                           </div>
                         </header>
                         <AgentTranscript
                           messages={group.messages.map(toAiMessage)}
-                          streaming={latest && runningBots.has(bot.id)}
-                          toolsExpanded={latest && runningBots.has(bot.id)}
+                          streaming={latest && runningTophs.has(toph.id)}
+                          toolsExpanded={latest && runningTophs.has(toph.id)}
                           className="flex min-w-0 flex-col gap-1"
-                          onPermission={(messageId, permissionId, decision) => void replyPermission(bot, messageId, permissionId, decision)}
-                          onQuestion={(messageId, answer) => void answerToolQuestion(bot, messageId, answer)}
+                          onPermission={(messageId, permissionId, decision) => void replyPermission(toph, messageId, permissionId, decision)}
+                          onQuestion={(messageId, answer) => void answerToolQuestion(toph, messageId, answer)}
                           projectId={project.id}
                           projectRoot={project.root}
                         />
@@ -1838,17 +1395,17 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
                     );
                   })}
 
-                  {visibleRunningBots
-                    .filter((botId) => !activityGroups.some((group) => group.kind === "bot" && group.botId === botId))
-                    .map((botId) => {
-                      const bot = bots.find((item) => item.id === botId);
-                      if (!bot) return null;
+                  {visibleRunningTophs
+                    .filter((tophId) => !activityGroups.some((group) => group.kind === "toph" && group.tophId === tophId))
+                    .map((tophId) => {
+                      const toph = tophs.find((item) => item.id === tophId);
+                      if (!toph) return null;
                       return (
-                        <section key={`activity-pending-${bot.id}`} className="border-b border-separator-border pb-3 last:border-b-0">
+                        <section key={`activity-pending-${toph.id}`} className="border-b border-separator-border pb-3 last:border-b-0">
                           <header className="mb-2 flex items-center gap-2">
-                            <TophActivityAvatar bot={bot} state="thinking" size={26} />
+                            <TophActivityAvatar bot={toph} state="thinking" size={26} />
                             <div className="flex min-w-0 flex-1 flex-col">
-                              <strong className="truncate text-caption-1-semibold text-text-primary">{bot.name}</strong>
+                              <strong className="truncate text-caption-1-semibold text-text-primary">{toph.name}</strong>
                               <span className="truncate text-[10px] text-text-tertiary"><TophActivityStatus state="thinking" /></span>
                             </div>
                           </header>
@@ -1856,13 +1413,13 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
                       );
                     })}
 
-                  {visibleForms.map(({ form, botId }) => {
-                    const bot = bots.find((item) => item.id === botId);
-                    if (!bot) return null;
+                  {visibleForms.map(({ form, tophId }) => {
+                    const toph = tophs.find((item) => item.id === tophId);
+                    if (!toph) return null;
                     return (
                       <section key={`activity-form-${form.id}`} className="flex flex-col gap-2 border-b border-separator-border pb-3 last:border-b-0">
-                        <header className="flex items-center gap-2"><BotAvatar bot={bot} size={26} /><strong className="truncate text-caption-1-semibold text-text-primary">{bot.name}</strong></header>
-                        <OpenCodeFormCard form={form} busy={formBusy === form.id} onSubmit={(answer) => void answerForm(form, bot, answer)} onCancel={() => void cancelForm(form, bot)} />
+                        <header className="flex items-center gap-2"><BotAvatar bot={toph} size={26} /><strong className="truncate text-caption-1-semibold text-text-primary">{toph.name}</strong></header>
+                        <OpenCodeFormCard form={form} busy={formBusy === form.id} onSubmit={(answer) => void answerForm(form, toph, answer)} onCancel={() => void cancelForm(form, toph)} />
                       </section>
                     );
                   })}
@@ -1873,21 +1430,26 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
         </>
       ) : null}
 
-      <Modal isOpen={configOpen && Boolean(activeBot)} onClose={() => setConfigOpen(false)} title={activeBot?.name ?? "Toph"} description={mode === "solo" ? "Configure identidade, modelo, provedor e ferramentas." : "Configure este membro da equipe."} placement={mobile ? "bottom" : "center"} size="xl" bodyClassName="p-0" swipeToClose={mobile}>
-        {activeBot && <BotConfig projectId={project.id} projectRoot={project.root} bot={activeBot} mode={mode} />}
+      <Modal
+        isOpen={Boolean(configToph)}
+        onClose={() => setConfigTophId(null)}
+        title={configToph?.name ?? "Toph"}
+        description="Configure identidade, prompt, modelo e ferramentas deste Toph."
+        placement={mobile ? "bottom" : "center"}
+        size="xl"
+        bodyClassName="p-0"
+        swipeToClose={mobile}
+      >
+        {configToph ? <BotConfig projectId={project.id} projectRoot={project.root} bot={configToph} /> : null}
       </Modal>
 
-      <TophSessionsSheet
-        open={sessionsOpen}
-        project={project}
-        mode={mode}
-        bot={activeBot}
-        activeSessionId={activeBot?.sessionId}
-        onClose={() => setSessionsOpen(false)}
-        onSelect={(session) => void restoreSession(session)}
-        onNew={newSession}
+      <TophGallery
+        open={galleryOpen}
+        projectId={project.id}
+        chatId={chat?.id ?? null}
+        onClose={() => setGalleryOpen(false)}
+        onCreated={(tophId) => setConfigTophId(tophId)}
       />
-
     </div>
   );
 }

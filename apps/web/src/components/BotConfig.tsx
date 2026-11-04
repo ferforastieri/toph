@@ -2,8 +2,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Bot, Check, ChevronDown, PlugZap, Settings2, Trash2, UserRound, Wrench } from "@toph/icons";
 import { OpenCode } from "@opencode/client";
 import { openCodeBase, api, type EmailAccount } from "../api";
-import type { BotAvatar as BotAvatarShape, MiniBot, TophMode } from "../bots";
-import { BOT_AVATAR_LABELS, BOT_AVATARS, useBots } from "../bots";
+import type { ChatToph } from "../chats";
+import { useChats } from "../chats";
+import type { BotAvatar as BotAvatarShape } from "../bots";
+import { BOT_AVATAR_LABELS, BOT_AVATARS } from "../bots";
 import { modelDisplay, modelTitle, useAI } from "../ai";
 import BotAvatar from "./BotAvatar";
 import AiConnectionsPanel from "./AiConnectionsPanel";
@@ -21,8 +23,7 @@ import { useConfirm } from "../ui/confirm";
 interface Props {
   projectId: string;
   projectRoot?: string;
-  bot: MiniBot;
-  mode?: TophMode | "unset";
+  bot: ChatToph;
 }
 
 const AVATARS: Array<{ id: BotAvatarShape; label: string }> = BOT_AVATARS.map((id) => ({
@@ -40,10 +41,10 @@ const LANGUAGES = [
 type ConfigSection = "profile" | "model" | "tools";
 
 
-export default function BotConfig({ projectId, projectRoot, bot, mode }: Props) {
-  const updateBot = useBots((state) => state.updateBot);
-  const removeBot = useBots((state) => state.removeBot);
-  const discardMessageWrites = useBots((state) => state.discardMessageWrites);
+export default function BotConfig({ projectId, projectRoot, bot }: Props) {
+  const updateToph = useChats((state) => state.updateToph);
+  const removeToph = useChats((state) => state.removeToph);
+  const discardMessageWrites = useChats((state) => state.discardMessageWrites);
   const aiConfig = useAI((state) => state.config);
   const models = useAI((state) => state.models);
   const loadModels = useAI((state) => state.loadModels);
@@ -108,23 +109,22 @@ export default function BotConfig({ projectId, projectRoot, bot, mode }: Props) 
     update({ emailAccountIds: current.includes(id) ? current.filter((item) => item !== id) : [...current, id] });
   }
 
-  function update(patch: Partial<MiniBot>) {
-    updateBot(projectId, bot.id, patch);
+  function update(patch: Partial<ChatToph>) {
+    updateToph(projectId, bot.id, patch);
   }
 
   async function remove() {
     const ok = await confirm({
-      title: "Remover bot?",
-      message: `Remover ${bot.name} da equipe e apagar suas mensagens?`,
-      confirmLabel: "Remover bot",
+      title: "Remover Toph?",
+      message: `Remover ${bot.name} deste chat e apagar as mensagens dele?`,
+      confirmLabel: "Remover Toph",
       danger: true,
     });
     if (ok) {
-      const threadMode = mode === "solo" ? "solo" : "team";
-      const channel = threadMode === "solo" ? "solo" : bot.coordinator ? "team" : `worker:${bot.id}`;
-      discardMessageWrites(projectId, threadMode, channel);
-      await api.deleteWorkspaceMessages(projectId, { mode: threadMode, channel }).catch(() => undefined);
-      removeBot(projectId, bot.id);
+      if (bot.sessionId) await api.interruptOpencodeSession(bot.sessionId).catch(() => undefined);
+      discardMessageWrites(projectId, bot.chatId);
+      await api.deleteWorkspaceMessages(projectId, { mode: "chat", channel: bot.chatId, botId: bot.id }).catch(() => undefined);
+      removeToph(projectId, bot.id);
     }
   }
 
@@ -149,7 +149,7 @@ export default function BotConfig({ projectId, projectRoot, bot, mode }: Props) 
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap justify-end gap-1">
-          {mode === "solo" ? <span className="rounded-full bg-accent-500/15 px-2 py-0.5 text-caption-2-semibold text-accent-600">Individual</span> : null}
+          <span className="rounded-full bg-background-tertiary-default px-2 py-0.5 text-caption-2-semibold text-text-secondary">{bot.role}</span>
           {bot.coordinator && <span className="rounded-full bg-accent-500/15 px-2 py-0.5 text-caption-2-semibold text-accent-600">Coordena</span>}
         </div>
       </div>
@@ -197,13 +197,18 @@ export default function BotConfig({ projectId, projectRoot, bot, mode }: Props) 
           </label>
           <label className="flex flex-col gap-1">
             <span className="text-caption-1-medium text-text-secondary">Personalidade</span>
-            <Textarea value={bot.personality} onChange={(value) => update({ personality: value })} rows={3} aria-label="Personalidade do bot" placeholder="Como este bot pensa e responde?" />
+            <Textarea value={bot.personality} onChange={(value) => update({ personality: value })} rows={3} aria-label="Personalidade do Toph" placeholder="Como este Toph pensa e responde?" />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="text-caption-1-medium text-text-secondary">Prompt do Toph</span>
+            <Textarea value={bot.prompt} onChange={(value) => update({ prompt: value })} rows={5} aria-label="Prompt do Toph" placeholder="Instruções permanentes deste Toph. Se vazio, o papel e a personalidade acima são usados." />
+            <span className="text-caption-2-regular text-text-tertiary">Este prompt é enviado junto com o histórico do chat.</span>
           </label>
           <label className="flex flex-col gap-1">
             <span className="text-caption-1-medium text-text-secondary">Idioma</span>
             <Select
               selectedKey={bot.language}
-              onSelectionChange={(key) => update({ language: String(key) as MiniBot["language"] })}
+              onSelectionChange={(key) => update({ language: String(key) as ChatToph["language"] })}
               aria-label="Idioma do bot"
               className="w-full"
             >
@@ -234,13 +239,13 @@ export default function BotConfig({ projectId, projectRoot, bot, mode }: Props) 
             </div>
           </div>
           <div className="grid gap-2 sm:grid-cols-2">
-            {mode !== "solo" ? <div className="flex items-center justify-between gap-2 rounded-xl border border-border-button-default px-2.5 py-2">
+            <div className="flex items-center justify-between gap-2 rounded-xl border border-border-button-default px-2.5 py-2">
               <span className="flex flex-col">
                 <span className="text-caption-1-medium text-text-primary">Coordenador</span>
                 <span className="text-caption-2-regular text-text-secondary">Distribui o trabalho.</span>
               </span>
               <Switch isSelected={bot.coordinator} onChange={(checked) => update({ coordinator: checked })} size="sm" />
-            </div> : null}
+            </div>
             <div className="flex items-center justify-between gap-2 rounded-xl border border-border-button-default px-2.5 py-2">
               <span className="flex flex-col">
                 <span className="text-caption-1-medium text-text-primary">Notificações</span>
@@ -380,11 +385,9 @@ export default function BotConfig({ projectId, projectRoot, bot, mode }: Props) 
         </div>
       ) : null}
 
-      {mode !== "solo" ? (
-        <Button type="button" variant="ghost" size="small" leadingIcon={Trash2} className="justify-start text-status-rose-text" onClick={() => void remove()}>
-          Remover bot
-        </Button>
-      ) : null}
+      <Button type="button" variant="ghost" size="small" leadingIcon={Trash2} className="justify-start text-status-rose-text" onClick={() => void remove()}>
+        Remover Toph do chat
+      </Button>
       <p className="flex items-center gap-1 text-caption-2-regular text-text-tertiary"><Bot size={11} /> As alterações são aplicadas nas próximas respostas.</p>
     </div>
   );
