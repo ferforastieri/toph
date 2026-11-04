@@ -24,7 +24,7 @@ const IMAGE_EXTENSION = /\.(?:png|jpe?g|webp|gif|avif|bmp|svg)(?:[?#].*)?$/i;
 const ANSI_ESCAPE = /\x1b\[[0-?]*[ -/]*[@-~]/g;
 
 function cleanArtifactPath(value: string): string {
-  return value.trim().replace(/^['"`(<]+|['"`)>.,;:]+$/g, "");
+  return value.trim().replace(/^['"`(<:]+|['"`)>.,;:]+$/g, "");
 }
 
 function parseJson(value: string): unknown | null {

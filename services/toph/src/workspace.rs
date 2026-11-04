@@ -632,7 +632,13 @@ fn resolve_existing(root: &Path, relative: &str) -> AppResult<PathBuf> {
     let root = root.canonicalize()?;
     let relative = safe_relative(relative)?;
     let path = root.join(relative);
-    let real = path.canonicalize()?;
+    let real = path.canonicalize().map_err(|error| {
+        if error.kind() == std::io::ErrorKind::NotFound {
+            AppError::NotFound
+        } else {
+            AppError::Io(error)
+        }
+    })?;
     if real != root && !real.starts_with(&root) {
         return Err(AppError::Forbidden);
     }

@@ -37,7 +37,7 @@ const markdownComponents: Components = {
   a: ({ href, children }) => <a href={href} className="text-accent-500 underline underline-offset-2 hover:text-accent-400" target="_blank" rel="noreferrer">{children}</a>,
   img: ({ src, alt }) => src ? (
     <a href={src} target="_blank" rel="noreferrer" className="my-2 block w-fit max-w-full">
-      <img src={src} alt={alt ?? "Imagem"} loading="lazy" className="max-h-[420px] max-w-full rounded-xl border border-border-button-default bg-background-secondary-default object-contain" />
+      <img src={src} alt={alt ?? "Imagem"} loading="lazy" onError={(event) => { const wrapper = event.currentTarget.closest("a"); if (wrapper instanceof HTMLElement) wrapper.style.display = "none"; }} className="max-h-[420px] max-w-full rounded-xl border border-border-button-default bg-background-secondary-default object-contain" />
     </a>
   ) : null,
   blockquote: ({ children }) => <blockquote className="my-2 border-l-2 border-accent-500/40 pl-3 text-text-secondary">{children}</blockquote>,
@@ -195,7 +195,7 @@ export function AgentImageGallery({ images, title }: { images: ResolvedAgentImag
         {images.map((image, index) => (
           <figure key={`${image.source}-${index}`} className="min-w-0 max-w-full">
             <a href={image.uri} target="_blank" rel="noreferrer" className="block min-w-0 max-w-full overflow-hidden rounded-lg bg-background-full">
-              <img src={image.uri} alt={imageLabel(image)} loading="lazy" className="max-h-[440px] w-full max-w-full object-contain" />
+              <img src={image.uri} alt={imageLabel(image)} loading="lazy" onError={(event) => { const figure = event.currentTarget.closest("figure"); if (figure instanceof HTMLElement) figure.style.display = "none"; }} className="max-h-[440px] w-full max-w-full object-contain" />
             </a>
             <figcaption className="mt-1 flex items-center justify-between gap-2 text-[10px] text-text-tertiary">
               <span className="min-w-0 truncate">{imageLabel(image)}</span>
@@ -276,7 +276,7 @@ function ToolOutput({ message, images }: { message: AiMessage; images: ResolvedA
   );
 }
 
-function ToolRow({ message, onPermission, onQuestion, defaultOpen = false, projectId, projectRoot }: { message: AiMessage; onPermission?: MessageProps["onPermission"]; onQuestion?: MessageProps["onQuestion"]; defaultOpen?: boolean; projectId?: string; projectRoot?: string }) {
+const ToolRow = memo(function ToolRow({ message, onPermission, onQuestion, defaultOpen = false, projectId, projectRoot }: { message: AiMessage; onPermission?: MessageProps["onPermission"]; onQuestion?: MessageProps["onQuestion"]; defaultOpen?: boolean; projectId?: string; projectRoot?: string }) {
   const [open, setOpen] = useState(defaultOpen);
   const questions = toolKind(message) === "question" ? parseAgentQuestions(message.text) : [];
   const images = useMemo(
@@ -321,9 +321,13 @@ function ToolRow({ message, onPermission, onQuestion, defaultOpen = false, proje
       <PermissionActions message={message} onPermission={onPermission} />
     </div>
   );
-}
+}, (prev, next) =>
+  prev.message === next.message
+  && prev.defaultOpen === next.defaultOpen
+  && prev.projectId === next.projectId
+  && prev.projectRoot === next.projectRoot);
 
-function ThoughtRow({ message, duration }: { message: AiMessage; duration?: string }) {
+const ThoughtRow = memo(function ThoughtRow({ message, duration }: { message: AiMessage; duration?: string }) {
   const [open, setOpen] = useState(false);
   return (
     <div className="py-0.5">
@@ -341,22 +345,22 @@ function ThoughtRow({ message, duration }: { message: AiMessage; duration?: stri
       {open && message.text ? <p className="ps-2 pt-1 text-[12px] leading-relaxed text-text-tertiary whitespace-pre-wrap break-words">{message.text}</p> : null}
     </div>
   );
-}
+}, (prev, next) => prev.message === next.message && prev.duration === next.duration);
 
 function ToolGroup({ messages, onPermission, onQuestion, defaultOpen = false, projectId, projectRoot }: { messages: AiMessage[]; onPermission?: MessageProps["onPermission"]; onQuestion?: MessageProps["onQuestion"]; defaultOpen?: boolean; projectId?: string; projectRoot?: string }) {
   const [open, setOpen] = useState(defaultOpen);
   const tools = messages.filter((message) => message.role === "tool");
   const thoughts = messages.filter((message) => message.role === "reasoning");
   const imageKey = tools.map((message) => `${message.id}:${message.text.length}:${message.detail?.length ?? 0}`).join("|");
-  const hasImage = useMemo(
-    () => agentImagesForMessages(tools, projectId, projectRoot).length > 0,
+  const images = useMemo(
+    () => agentImagesForMessages(tools, projectId, projectRoot),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [imageKey, projectId, projectRoot],
   );
   const count = tools.length || thoughts.length;
   useEffect(() => {
-    if (hasImage || defaultOpen) setOpen(true);
-  }, [hasImage, defaultOpen]);
+    if (defaultOpen) setOpen(true);
+  }, [defaultOpen]);
   const labels: string[] = [];
   for (const tool of tools) {
     const label = toolLabel(tool);
@@ -390,7 +394,7 @@ function ToolGroup({ messages, onPermission, onQuestion, defaultOpen = false, pr
         <span className="truncate">{labels.join(", ")}</span>
         <ChevronDown className={`size-3 shrink-0 transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${open ? "rotate-180" : "-rotate-90"}`} />
       </button>
-      {open ? rows : null}
+      {open ? rows : images.length > 0 ? <div className="ps-2 pt-1"><AgentImageGallery images={images} /></div> : null}
     </div>
   );
 }
@@ -447,7 +451,7 @@ const TranscriptMessage = memo(function TranscriptMessage({ message, showCaret, 
   && prev.projectRoot === next.projectRoot
   && prev.bubble === next.bubble);
 
-export default function AgentTranscript({ messages, streaming, onPermission, onQuestion, className, toolsExpanded = false, projectId, projectRoot, bubble = false }: Props) {
+function AgentTranscript({ messages, streaming, onPermission, onQuestion, className, toolsExpanded = false, projectId, projectRoot, bubble = false }: Props) {
   const nodes: Array<{ kind: "message"; message: AiMessage } | { kind: "group"; messages: AiMessage[] }> = [];
   let group: AiMessage[] = [];
   const flush = () => {
@@ -485,3 +489,18 @@ export default function AgentTranscript({ messages, streaming, onPermission, onQ
     </div>
   );
 }
+
+/**
+ * The parent rebuilds the `messages` array on each render, but the individual
+ * AiMessage objects are cached per ChatMessage. Comparing elements lets React
+ * skip the whole transcript when only unrelated state changed.
+ */
+export default memo(AgentTranscript, (prev, next) =>
+  prev.streaming === next.streaming
+  && prev.toolsExpanded === next.toolsExpanded
+  && prev.projectId === next.projectId
+  && prev.projectRoot === next.projectRoot
+  && prev.bubble === next.bubble
+  && prev.className === next.className
+  && prev.messages.length === next.messages.length
+  && prev.messages.every((message, index) => message === next.messages[index]));

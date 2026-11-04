@@ -23,6 +23,7 @@ use subtle::ConstantTimeEq;
 use tokio::net::TcpListener;
 use tokio::sync::{broadcast, oneshot};
 use tokio::task::JoinHandle;
+use tower_http::compression::CompressionLayer;
 use tower_http::trace::TraceLayer;
 
 use crate::ai::{AiService, CompleteInput, Message as AiMessage};
@@ -568,6 +569,7 @@ fn router(state: Arc<AppState>) -> Router {
         .fallback(static_handler)
         .layer(middleware::from_fn(security_headers))
         .layer(TraceLayer::new_for_http())
+        .layer(CompressionLayer::new())
         .with_state(state)
 }
 
