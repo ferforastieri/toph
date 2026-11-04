@@ -1522,33 +1522,32 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
               const groupStreaming = belongsToCurrentTurn && isLatestBotGroup && runningBots.has(bot.id);
               const footerBusy = belongsToCurrentTurn && isLatestBotGroup && (runningBots.has(bot.id) || group.messages.some((message) => message.status === "running"));
               return (
-                <section key={`bot-${group.botId}-${index}`} className="flex min-w-0 max-w-full flex-col gap-1.5 overflow-x-hidden">
-                  {mode === "team" ? (
-                    <header className="flex items-center gap-2">
-                      <BotAvatar bot={bot} size={28} />
-                      <div className="flex min-w-0 items-baseline gap-2">
-                        <strong className="truncate text-caption-1-semibold text-text-primary">{bot.name}</strong>
-                        <span className="truncate text-caption-2-regular text-text-tertiary">{bot.role}</span>
-                      </div>
+                <section key={`bot-${group.botId}-${index}`} className="flex min-w-0 max-w-full items-start gap-2.5 overflow-x-hidden">
+                  <BotAvatar bot={bot} size={32} className="mt-0.5" />
+                  <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+                    <header className="flex min-w-0 items-baseline gap-2">
+                      <strong className="truncate text-caption-1-semibold text-text-primary">{bot.name}</strong>
+                      <span className="truncate text-caption-2-regular text-text-tertiary">{bot.role || (mode === "team" ? "Especialista" : "Toph")}</span>
                     </header>
-                  ) : null}
-                  <AgentTranscript
-                    messages={group.messages.map(toAiMessage)}
-                    streaming={groupStreaming}
-                    onPermission={(messageId, permissionId, decision) => void replyPermission(bot, messageId, permissionId, decision)}
-                    onQuestion={(messageId, answer) => void answerToolQuestion(bot, messageId, answer)}
-                    projectId={project.id}
-                    projectRoot={project.root}
-                  />
-                  {mode === "solo" && !footerBusy && footerAssistant ? (
-                    <MessageInfo
-                      agentMode={bot.agentMode}
-                      model={modelDisplay(models.find((item) => item.id === (bot.model || activeModel)) ?? ((bot.model || activeModel) ? { id: bot.model || activeModel, label: (bot.model || activeModel).split("/").pop() ?? (bot.model || activeModel) } : undefined))}
-                      createdAt={footerAssistant.createdAt}
-                      content={footerAssistant.content}
-                      copyLabel="Copiar resposta"
+                    <AgentTranscript
+                      bubble
+                      messages={group.messages.map(toAiMessage)}
+                      streaming={groupStreaming}
+                      onPermission={(messageId, permissionId, decision) => void replyPermission(bot, messageId, permissionId, decision)}
+                      onQuestion={(messageId, answer) => void answerToolQuestion(bot, messageId, answer)}
+                      projectId={project.id}
+                      projectRoot={project.root}
                     />
-                  ) : null}
+                    {mode === "solo" && !footerBusy && footerAssistant ? (
+                      <MessageInfo
+                        agentMode={bot.agentMode}
+                        model={modelDisplay(models.find((item) => item.id === (bot.model || activeModel)) ?? ((bot.model || activeModel) ? { id: bot.model || activeModel, label: (bot.model || activeModel).split("/").pop() ?? (bot.model || activeModel) } : undefined))}
+                        createdAt={footerAssistant.createdAt}
+                        content={footerAssistant.content}
+                        copyLabel="Copiar resposta"
+                      />
+                    ) : null}
+                  </div>
                 </section>
               );
             })}
@@ -1559,9 +1558,15 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
                 const bot = bots.find((item) => item.id === botId);
                 if (!bot) return null;
                 return (
-                  <section key={`pending-${botId}`} className="flex flex-col gap-2">
-                    <header className="flex items-center gap-2"><BotAvatar bot={bot} size={28} /><strong className="truncate text-caption-1-semibold text-text-primary">{bot.name}</strong></header>
-                    <AgentTranscript messages={[]} streaming projectId={project.id} projectRoot={project.root} />
+                  <section key={`pending-${botId}`} className="flex min-w-0 max-w-full items-start gap-2.5">
+                    <BotAvatar bot={bot} size={32} className="mt-0.5" />
+                    <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+                      <header className="flex min-w-0 items-baseline gap-2">
+                        <strong className="truncate text-caption-1-semibold text-text-primary">{bot.name}</strong>
+                        <span className="truncate text-caption-2-regular text-text-tertiary">{bot.role || (mode === "team" ? "Especialista" : "Toph")}</span>
+                      </header>
+                      <AgentTranscript bubble messages={[]} streaming projectId={project.id} projectRoot={project.root} />
+                    </div>
                   </section>
                 );
               })}

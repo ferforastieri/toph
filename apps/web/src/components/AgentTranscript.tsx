@@ -19,6 +19,8 @@ interface Props {
   projectId?: string;
   projectRoot?: string;
   onQuestion?: (messageId: string, answer: string) => void | Promise<void>;
+  /** Renders assistant text inside a speech bubble, like a chat reply. */
+  bubble?: boolean;
 }
 
 const markdownComponents: Components = {
@@ -75,6 +77,7 @@ interface MessageProps {
   projectId?: string;
   projectRoot?: string;
   onQuestion?: (messageId: string, answer: string) => void | Promise<void>;
+  bubble?: boolean;
 }
 
 export interface ResolvedAgentImage extends AgentImageArtifact {
@@ -370,7 +373,7 @@ function ToolGroup({ messages, onPermission, onQuestion, defaultOpen = false, pr
   );
 }
 
-const TranscriptMessage = memo(function TranscriptMessage({ message, showCaret, onPermission, onQuestion, toolsExpanded, projectId, projectRoot }: MessageProps) {
+const TranscriptMessage = memo(function TranscriptMessage({ message, showCaret, onPermission, onQuestion, toolsExpanded, projectId, projectRoot, bubble }: MessageProps) {
   if (message.role === "error") {
     return <Chip color="rose" variant="subtle" className="justify-start gap-1.5 whitespace-normal px-2 py-1.5"><CircleAlert size={13} /> {message.text}</Chip>;
   }
@@ -393,8 +396,8 @@ const TranscriptMessage = memo(function TranscriptMessage({ message, showCaret, 
   if (message.role === "tool") {
     return <ToolRow message={message} onPermission={onPermission} onQuestion={onQuestion} defaultOpen={toolsExpanded} projectId={projectId} projectRoot={projectRoot} />;
   }
-  return (
-    <div className="min-w-0">
+  const body = (
+    <>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={markdownComponents}
@@ -405,15 +408,24 @@ const TranscriptMessage = memo(function TranscriptMessage({ message, showCaret, 
       {showCaret && (
         <span className="ml-0.5 inline-block h-3.5 w-[2px] animate-pulse bg-accent-500 align-middle" aria-hidden />
       )}
-    </div>
+    </>
   );
+  if (bubble) {
+    return (
+      <div data-transcript-bubble className="w-fit min-w-0 max-w-full overflow-hidden rounded-2xl rounded-tl-md border border-separator-border bg-background-secondary-default px-3.5 py-1.5 shadow-sm [&>ol:first-child]:mt-0 [&>p:first-child]:mt-0 [&>pre:first-child]:mt-0 [&>ul:first-child]:mt-0 [&>*:last-child]:mb-0">
+        {body}
+      </div>
+    );
+  }
+  return <div className="min-w-0">{body}</div>;
 }, (prev, next) => prev.message === next.message
   && prev.showCaret === next.showCaret
   && prev.toolsExpanded === next.toolsExpanded
   && prev.projectId === next.projectId
-  && prev.projectRoot === next.projectRoot);
+  && prev.projectRoot === next.projectRoot
+  && prev.bubble === next.bubble);
 
-export default function AgentTranscript({ messages, streaming, onPermission, onQuestion, className, toolsExpanded = false, projectId, projectRoot }: Props) {
+export default function AgentTranscript({ messages, streaming, onPermission, onQuestion, className, toolsExpanded = false, projectId, projectRoot, bubble = false }: Props) {
   const nodes: Array<{ kind: "message"; message: AiMessage } | { kind: "group"; messages: AiMessage[] }> = [];
   let group: AiMessage[] = [];
   const flush = () => {
@@ -445,6 +457,7 @@ export default function AgentTranscript({ messages, streaming, onPermission, onQ
           toolsExpanded={toolsExpanded}
           projectId={projectId}
           projectRoot={projectRoot}
+          bubble={bubble}
         />
       ))}
       {streaming && (

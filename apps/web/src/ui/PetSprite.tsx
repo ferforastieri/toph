@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Sparkles } from "@toph/icons";
 import { cx } from "@/boardui/utils/cx";
 import { petLevel, type PetKind } from "../pet";
+import { usePointerLook } from "./usePointerLook";
 
 const PET_BASE = `${import.meta.env.BASE_URL}tophs/`;
 const FALLBACK = `${PET_BASE}toph-core.png`;
@@ -11,22 +12,26 @@ export default function PetSprite({
   size = 44,
   commits = 0,
   animate = true,
+  look = true,
   className,
 }: {
   kind: PetKind;
   size?: number;
   commits?: number;
   animate?: boolean;
+  look?: boolean;
   className?: string;
 }) {
   const level = petLevel(commits);
   const source = `${PET_BASE}${kind}.png`;
   const [image, setImage] = useState(source);
+  const lookRef = usePointerLook<HTMLSpanElement>();
 
   useEffect(() => setImage(source), [source]);
 
   return (
     <span
+      ref={look ? lookRef : undefined}
       className={cx("relative inline-flex shrink-0 items-center justify-center", animate && "pet-bob", className)}
       style={{ width: size, height: size }}
       role="img"
@@ -42,6 +47,7 @@ export default function PetSprite({
         className="relative size-full select-none object-contain drop-shadow-[0_2px_2px_rgba(0,0,0,0.18)] transition-[scale,filter] duration-500"
         style={{
           scale: String(0.82 + level * 0.045),
+          transform: look ? "translate3d(var(--toph-look-x, 0px), var(--toph-look-y, 0px), 0) rotate(var(--toph-look-tilt, 0deg))" : undefined,
           filter: level >= 5 ? "saturate(1.16) brightness(1.06)" : level >= 3 ? "saturate(1.08)" : undefined,
         }}
       />
