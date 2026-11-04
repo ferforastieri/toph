@@ -15,12 +15,15 @@ const toph = {
 } as ChatToph;
 
 describe("TophRow", () => {
-  it("opens the Toph profile when the row is clicked", () => {
+  it("opens the Toph profile from the row and sessions from the side action", () => {
     const onOpen = vi.fn();
-    render(<TophRow toph={toph} onOpen={onOpen} />);
+    const onSessions = vi.fn();
+    render(<TophRow toph={toph} onOpen={onOpen} onSessions={onSessions} />);
 
     fireEvent.click(screen.getByRole("button", { name: /^Nova/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Sessões de Nova" }));
 
     expect(onOpen).toHaveBeenCalledTimes(1);
+    expect(onSessions).toHaveBeenCalledTimes(1);
   });
 });

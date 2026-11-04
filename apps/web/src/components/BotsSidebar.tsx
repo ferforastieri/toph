@@ -210,6 +210,7 @@ export default function BotsSidebar({ project, headerControl }: Props) {
                   key={toph.id}
                   toph={toph}
                   onOpen={() => fireTophAction("config", toph.id)}
+                  onSessions={() => fireTophAction("sessions", toph.id)}
                 />
               ))}
             </div>

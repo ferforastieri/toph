@@ -319,6 +319,7 @@ interface ChatStore {
   removeMessage: (projectId: string, messageId: string) => void;
   mergeMessages: (projectId: string, messages: ChatMessage[]) => void;
   replaceChatMessages: (projectId: string, chatId: string, messages: ChatMessage[]) => void;
+  replaceTophMessages: (projectId: string, tophId: string, messages: ChatMessage[]) => void;
   pendingMessageWrites: (projectId: string) => ChatMessage[];
   acknowledgeMessageWrites: (projectId: string, messages: ChatMessage[]) => void;
   discardMessageWrites: (projectId: string, chatId: string) => void;
@@ -672,6 +673,31 @@ export const useChats = create<ChatStore>((set, get) => ({
           },
         },
         messageWrites: removeWritesForChat(state.messageWrites, projectId, chatId),
+      };
+    }),
+
+  replaceTophMessages: (projectId, tophId, messages) =>
+    set((state) => {
+      const project = state.byProject[projectId];
+      if (!project) return state;
+      const removed = project.messages.filter((message) => message.tophId === tophId);
+      const removedIds = new Set(removed.map((message) => message.id));
+      const pending = Object.fromEntries(
+        Object.entries(state.messageWrites[projectId] ?? {}).filter(([id]) => !removedIds.has(id)),
+      );
+      const byId = new Map(project.messages.filter((message) => message.tophId !== tophId).map((message) => [message.id, message]));
+      for (const message of messages) byId.set(message.id, message);
+      let messageWrites = { ...state.messageWrites, [projectId]: pending };
+      for (const message of messages) messageWrites = queueWrite(messageWrites, projectId, message);
+      return {
+        byProject: {
+          ...state.byProject,
+          [projectId]: {
+            ...project,
+            messages: [...byId.values()].sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id)),
+          },
+        },
+        messageWrites,
       };
     }),
 
