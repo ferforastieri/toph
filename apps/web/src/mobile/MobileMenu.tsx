@@ -1,7 +1,7 @@
-import { Bot, Bug, Database, FileCode2, Files, GitBranch, Globe2, Moon, Sun, TerminalSquare } from "@toph/icons";
+import { Bot, Bug, Database, FileCode2, Files, GitBranch, Globe2, MessageSquare, TerminalSquare } from "@toph/icons";
 import type { User } from "../api";
 import { Button } from "@/boardui/base/buttons/button";
-import { useSettings } from "../settings";
+import { Badge } from "@/boardui/base/badges/badge";
 import { usePet } from "../pet";
 import PetSprite from "../ui/PetSprite";
 import { cx } from "@/boardui/utils/cx";
@@ -15,15 +15,18 @@ interface Props {
   user: User | null;
   projectName: string;
   branch: string;
+  unreadCount: number;
   onSelect: (screen: MobileScreen) => void;
+  onConversations: () => void;
   onBranch: () => void;
   onAccount: () => void;
+  onNotifications: () => void;
   onTerminal: () => void;
   onClose: () => void;
 }
 
 const screens: Array<{ id: MobileScreen; label: string; description: string; icon: ComponentType<{ className?: string }> }> = [
-  { id: "bots", label: "Tophs", description: "Sua equipe de agentes", icon: Bot },
+  { id: "bots", label: "Chat", description: "Sua conversa atual", icon: Bot },
   { id: "files", label: "Arquivos", description: "Explore o repositório", icon: Files },
   { id: "scm", label: "Git", description: "Mudanças, branches e commits", icon: GitBranch },
   { id: "db", label: "Bancos", description: "Conexões, schemas e queries", icon: Database },
@@ -38,14 +41,15 @@ export default function MobileMenu({
   user,
   projectName,
   branch,
+  unreadCount,
   onSelect,
+  onConversations,
   onBranch,
   onAccount,
+  onNotifications,
   onTerminal,
   onClose,
 }: Props) {
-  const theme = useSettings((state) => state.theme);
-  const setTheme = useSettings((state) => state.setTheme);
   const pet = usePet();
   return (
     <div className="fixed inset-0 z-[130]">
@@ -56,20 +60,44 @@ export default function MobileMenu({
         onClick={onClose}
       />
       <aside className="mobile-drawer-in absolute bottom-[calc(var(--safe-bottom)+0.5rem)] left-[calc(var(--safe-left)+0.5rem)] top-[calc(var(--safe-top)+0.5rem)] flex w-[min(calc(100vw-3rem-var(--safe-left)-var(--safe-right)),360px)] flex-col overflow-hidden rounded-3xl border border-border-button-white bg-background-primary-default shadow-sidebar">
-        <button
-          type="button"
-          className="flex w-full items-center gap-3 border-b border-separator-border p-3 text-start hover:bg-background-primary-hover"
-          onClick={onAccount}
-        >
-          <PetSprite kind={pet.kind} size={38} commits={pet.commits} />
-          <span className="flex min-w-0 flex-1 flex-col">
+        <div className="flex w-full items-center gap-2 border-b border-separator-border p-3">
+          <button
+            type="button"
+            aria-label={unreadCount > 0 ? `Notificações, ${unreadCount} não lidas` : "Notificações"}
+            title="Notificações"
+            onClick={onNotifications}
+            className={cx("relative shrink-0 rounded-full transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus-ring", unreadCount > 0 && "pet-notification")}
+          >
+            <PetSprite kind={pet.kind} size={38} commits={pet.commits} />
+            {unreadCount > 0 ? (
+              <Badge color="primary" className="pointer-events-none absolute -right-1 -top-1 min-w-4 px-1 text-[10px]">
+                {unreadCount > 9 ? "9+" : unreadCount}
+              </Badge>
+            ) : null}
+          </button>
+          <button
+            type="button"
+            title="Abrir conta"
+            onClick={onAccount}
+            className="flex min-w-0 flex-1 flex-col text-start focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus-ring"
+          >
             <span className="truncate text-body-medium text-text-primary">{user?.username ?? "Conta"}</span>
             <span className="truncate text-caption-1-regular text-text-secondary">{projectName}</span>
-          </span>
-        </button>
+          </button>
+        </div>
 
         <div className="no-scrollbar flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto p-2">
-          <div className="px-2 pb-1 pt-2 text-caption-2-semibold uppercase tracking-[0.16em] text-text-tertiary">Navegar</div>
+          <Button
+            variant="ghost"
+            leadingIcon={MessageSquare}
+            onClick={onConversations}
+            className="h-auto w-full justify-start gap-2 px-3 py-2.5 text-start"
+          >
+            <span className="flex min-w-0 flex-1 flex-col">
+              <span className="text-body-2-medium">Conversas</span>
+              <span className="text-caption-2-regular text-text-tertiary">Trocar de Toph ou equipe</span>
+            </span>
+          </Button>
           {screens.map((item) => {
             const disabled = item.id === "workspace" && !hasWorkspace;
             return (
@@ -88,17 +116,6 @@ export default function MobileMenu({
               </Button>
             );
           })}
-        </div>
-
-        <div className="flex shrink-0 flex-col gap-1 border-t border-separator-border p-2">
-          <button type="button" className="flex items-center gap-2 rounded-xl px-3 py-2 hover:bg-background-primary-hover" onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
-            <span className="relative flex size-6 items-center justify-center">
-              <Sun className={cx("absolute size-4 transition-all duration-300", theme === "light" ? "rotate-0 scale-100 opacity-100" : "-rotate-90 scale-50 opacity-0")} />
-              <Moon className={cx("absolute size-4 transition-all duration-300", theme === "dark" ? "rotate-0 scale-100 opacity-100" : "rotate-90 scale-50 opacity-0")} />
-            </span>
-            <span className="flex-1 text-start text-body-2-medium text-text-primary">Tema {theme === "dark" ? "escuro" : "claro"}</span>
-          </button>
-          <div className="px-2 pb-1 pt-1 text-caption-2-semibold uppercase tracking-[0.16em] text-text-tertiary">Projeto</div>
           <Button variant="ghost" leadingIcon={GitBranch} className="h-auto w-full justify-start gap-2 px-3 py-2.5" onClick={onBranch}>
             <span className="flex min-w-0 flex-1 flex-col text-start">
               <span className="text-body-2-medium">Branch</span>
@@ -106,7 +123,10 @@ export default function MobileMenu({
             </span>
           </Button>
           <Button variant="ghost" leadingIcon={TerminalSquare} className="h-auto w-full justify-start gap-2 px-3 py-2.5" onClick={onTerminal}>
-            <span className="flex-1 text-body-2-medium">Terminal</span>
+            <span className="flex min-w-0 flex-1 flex-col text-start">
+              <span className="text-body-2-medium">Terminal</span>
+              <span className="text-caption-2-regular text-text-tertiary">Shell do projeto</span>
+            </span>
           </Button>
         </div>
       </aside>

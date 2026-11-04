@@ -1,14 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { OpenCode } from "@opencode/client";
 import { connectClientMcp, type ClientMcpTool } from "@opencode/client/mcp";
-import { Bot, Check, ChevronDown, Copy, ListTree, LoaderCircle, MessageSquare, MessageSquarePlus, Monitor, Plus, UserRound } from "@toph/icons";
+import { Bot, Check, ChevronDown, Copy, ListTree, LoaderCircle, MessageSquare, MessageSquarePlus, Monitor } from "@toph/icons";
 import { api, ApiError, openCodeBase, type AIMessage, type AIMessageContentPart, type Project, type WorkspaceMessageCursor } from "../api";
 import { modelDisplay, useAI } from "../ai";
-import { TOPH_PRESETS, useBots, type BotMessage, type MiniBot } from "../bots";
+import { botMessageChannel, soloChannel, TOPH_PRESETS, useBots, type BotMessage, type MiniBot, type TophMode } from "../bots";
 import { notifyAiResponse } from "../aiNotifications";
 import { playBotResponseSound, unlockBotSound } from "../botSound";
 import BotAvatar from "../components/BotAvatar";
-import TophRow from "../components/TophRow";
 import BotConfig from "../components/BotConfig";
 import AgentTranscript, { AgentImageGallery, agentImagesForMessages } from "../components/AgentTranscript";
 import OpenCodeFormCard, { type OpenCodeForm, type OpenCodeFormAnswer } from "../components/OpenCodeFormCard";
@@ -30,9 +29,17 @@ import { answerOpenCodeQuestion } from "../opencodeQuestion";
 import { recoverBotReply } from "../botReply";
 import { restoredUserText } from "../botHistory";
 
+export interface TophActionRequest {
+  mode: TophMode;
+  botId: string;
+  action: "config" | "sessions";
+}
+
 interface Props {
   project: Project;
   mobile?: boolean;
+  externalAction?: TophActionRequest | null;
+  onExternalActionHandled?: () => void;
 }
 
 const CONVERSATION_PAGE_SIZE = 30;
@@ -326,7 +333,7 @@ function toAiMessage(message: BotMessage): AiMessage {
   };
 }
 
-export default function BotStudioTab({ project, mobile = false }: Props) {
+export default function BotStudioTab({ project, mobile = false, externalAction = null, onExternalActionHandled }: Props) {
   const workspace = useBots((state) => state.byProject[project.id]);
   const ensure = useBots((state) => state.ensure);
   const addBot = useBots((state) => state.addBot);
@@ -349,7 +356,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
   const [sending, setSending] = useState(false);
   const [configOpen, setConfigOpen] = useState(false);
   const [sessionsOpen, setSessionsOpen] = useState(false);
-  const [teamPickerOpen, setTeamPickerOpen] = useState(false);
+  const [conversationPickerOpen, setConversationPickerOpen] = useState(false);
   const [connectionEpoch, setConnectionEpoch] = useState(0);
   const sendingRef = useRef(false);
   const runToken = useRef(0);
@@ -516,11 +523,14 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
   const activeBot = bots.find((bot) => bot.id === workspace?.activeBotId) ?? bots[0] ?? null;
   const coordinator = bots.find((bot) => bot.coordinator) ?? bots[0] ?? null;
   const activeWorker = mode === "team" && activeBot && activeBot.id !== coordinator?.id ? activeBot : null;
+  const conversationBot = activeWorker ?? activeBot;
   const modeMessages = messages.filter((message) => message.mode === mode);
   const displayMessages = mode === "solo"
-    ? modeMessages.filter((message) => !message.channel || message.channel === "solo")
+    ? activeBot
+      ? modeMessages.filter((message) => botMessageChannel(message) === soloChannel(activeBot))
+      : []
     : activeWorker
-      ? modeMessages.filter((message) => message.channel === `worker:${activeWorker.id}` || (!message.channel && message.botId === activeWorker.id))
+      ? modeMessages.filter((message) => botMessageChannel(message) === `worker:${activeWorker.id}`)
       : modeMessages;
   const conversationMessages = mobile
     ? displayMessages
@@ -552,7 +562,9 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
     project.id,
     project.root,
   ).slice(-ASSISTANT_IMAGE_RENDER_LIMIT);
-  const historyChannel = threadMode === "solo" ? "solo" : activeWorker ? `worker:${activeWorker.id}` : undefined;
+  const historyChannel = threadMode === "solo"
+    ? activeBot ? soloChannel(activeBot) : undefined
+    : activeWorker ? `worker:${activeWorker.id}` : undefined;
   const historyKey = `${project.id}:${threadMode}:${historyChannel ?? "all"}`;
   const draftKey = `${project.id}:${mode}:${activeBot?.id ?? "none"}:${activeBot?.sessionId ?? "new"}`;
   const savedDraft = useTophDrafts((state) => state.drafts[draftKey] ?? "");
@@ -625,6 +637,23 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
     window.addEventListener("toph:tophs-action", handler);
     return () => window.removeEventListener("toph:tophs-action", handler);
   }, [project.id, mode, activeBot?.id]);
+
+  useEffect(() => {
+    if (!externalAction) return;
+    const state = useBots.getState();
+    if ((state.byProject[project.id]?.mode ?? "solo") !== externalAction.mode) {
+      setMode(project.id, externalAction.mode);
+    }
+    setActiveBot(project.id, externalAction.botId);
+    if (externalAction.action === "config") {
+      setSessionsOpen(false);
+      setConfigOpen(true);
+    } else {
+      setConfigOpen(false);
+      setSessionsOpen(true);
+    }
+    onExternalActionHandled?.();
+  }, [externalAction, project.id]);
 
   useEffect(() => {
     setInput(savedDraft);
@@ -746,10 +775,11 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
           if (!bot) continue;
           const assistantID = String(data.assistantMessageID ?? "");
           const messageID = (kind: string, id = assistantID) => `bot-${botId}-${kind}-${id || Date.now()}`;
-          const eventChannel = state.byProject[project.id]?.mode === "solo" ? "solo" : bot.coordinator ? "team" : `worker:${botId}`;
+          const eventMode = state.byProject[project.id]?.mode === "solo" ? "solo" : "team";
+          const eventChannel = eventMode === "solo" ? soloChannel(bot) : bot.coordinator ? "team" : `worker:${botId}`;
           const ensure = (message: BotMessage) => {
             const list = useBots.getState().byProject[project.id]?.messages ?? [];
-            if (!list.some((item) => item.id === message.id)) state.addMessage(project.id, { ...message, mode: state.byProject[project.id]?.mode === "solo" ? "solo" : "team", channel: message.channel ?? eventChannel });
+            if (!list.some((item) => item.id === message.id)) state.addMessage(project.id, { ...message, mode: eventMode, channel: message.channel ?? eventChannel });
           };
           switch (event.type) {
             case "session.text.started":
@@ -844,7 +874,8 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
                 permissionId: String(data.id),
                 permissionAction: String(data.action ?? ""),
                 sessionId,
-                mode: state.byProject[project.id]?.mode === "solo" ? "solo" : "team",
+                mode: eventMode,
+                channel: eventChannel,
                 createdAt: Date.now(),
               });
               break;
@@ -1038,10 +1069,12 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
   async function respondAsBot(bot: MiniBot, userText: string, options: { attachments?: AgentAttachment[]; audience?: "user" | "coordinator"; channel?: string; token?: number } = {}): Promise<string | null> {
     const workspaceNow = useBots.getState().byProject[project.id];
     const allHistory = (workspaceNow?.messages ?? []).filter((message) => message.mode === threadMode);
-    const channel = options.channel ?? (bot.coordinator || mode === "solo" ? (mode === "solo" ? "solo" : "team") : `worker:${bot.id}`);
-    const history = bot.coordinator || mode === "solo"
-      ? allHistory.filter((message) => !message.channel || message.channel === channel)
-      : allHistory.filter((message) => message.channel === channel && (message.role === "user" || message.botId === bot.id));
+    const channel = options.channel ?? (threadMode === "solo" ? soloChannel(bot) : bot.coordinator ? "team" : `worker:${bot.id}`);
+    const history = threadMode === "solo"
+      ? allHistory.filter((message) => botMessageChannel(message) === channel)
+      : bot.coordinator
+        ? allHistory.filter((message) => botMessageChannel(message) === "team")
+        : allHistory.filter((message) => botMessageChannel(message) === channel && (message.role === "user" || message.botId === bot.id));
     const startedAt = Date.now();
     setRunningBots((current) => new Set(current).add(bot.id));
     try {
@@ -1209,7 +1242,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
   }
 
   function channelForBot(bot: MiniBot): string {
-    return mode === "solo" ? "solo" : bot.coordinator ? "team" : `worker:${bot.id}`;
+    return threadMode === "solo" ? soloChannel(bot) : bot.coordinator ? "team" : `worker:${bot.id}`;
   }
 
   function cancelActiveTurn() {
@@ -1325,7 +1358,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
         // in flight. Never let the old response overwrite the new thread.
         if (!currentBot || currentBot.sessionId !== bot.sessionId) continue;
         const currentMode = workspaceNow?.mode === "solo" ? "solo" : "team";
-        const channel = currentMode === "solo" ? "solo" : bot.coordinator ? "team" : `worker:${bot.id}`;
+        const channel = currentMode === "solo" ? soloChannel(currentBot) : bot.coordinator ? "team" : `worker:${bot.id}`;
         const restored = visibleHistoryWindow(restoreBotMessages(context, bot.id, channel, currentMode));
         replaceChannelMessages(project.id, channel, restored);
       }
@@ -1353,7 +1386,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
     const direct = mentionedBots(bots, text);
     const activeWorker = mode === "team" && activeBot && activeBot.id !== coordinator?.id ? activeBot : null;
     const targetWorker = activeWorker;
-    const channel = targetWorker ? `worker:${targetWorker.id}` : mode === "solo" ? "solo" : "team";
+    const channel = targetWorker ? `worker:${targetWorker.id}` : threadMode === "solo" ? (activeBot ? soloChannel(activeBot) : "solo") : "team";
     const userMessageId = `bot-user-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
     addMessage(project.id, {
       id: userMessageId,
@@ -1372,13 +1405,15 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
     clearDraft(draftKey);
     setSending(true);
     try {
-      const firstWave = targetWorker
-        ? [targetWorker]
-        : direct.length > 0
-          ? direct
-          : coordinator
-            ? [coordinator]
-            : bots.slice(0, 1);
+      const firstWave = threadMode === "solo"
+        ? activeBot ? [activeBot] : []
+        : targetWorker
+          ? [targetWorker]
+          : direct.length > 0
+            ? direct
+            : coordinator
+              ? [coordinator]
+              : bots.slice(0, 1);
       const firstReplies = await Promise.all(firstWave.map(async (bot) => {
         if (token !== runToken.current) return null;
         const reply = await respondAsBot(bot, text, { attachments, channel, token });
@@ -1427,116 +1462,65 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
     setActiveBot(project.id, botId);
   }
 
-  function openBotSettings(botId: string, action: "config" | "sessions") {
+  function openSoloBot(botId: string) {
+    if (mode !== "solo") setMode(project.id, "solo");
     setActiveBot(project.id, botId);
-    if (action === "config") setConfigOpen(true);
-    else setSessionsOpen(true);
-  }
-
-  function selectConversation(next: "solo" | "team") {
-    if (mode !== next) setMode(project.id, next);
-    if (next === "solo") createSolo(project.id);
   }
 
   return (
     <div className="flex h-full min-h-0 w-full flex-1 gap-0 overflow-hidden" onPointerDown={unlockBotSound}>
       <section className="flex min-w-0 flex-1 flex-col overflow-hidden bg-background-full max-[900px]:rounded-none max-[900px]:border-0 max-[900px]:shadow-none min-[901px]:rounded-3xl min-[901px]:border min-[901px]:border-border-button-white min-[901px]:shadow-sidebar">
-        {mobile ? (
-          <div className="shrink-0 border-b border-separator-border bg-background-secondary-default/60">
-            <div className="flex items-center gap-1 p-1.5">
-              <Button variant={mode === "solo" ? "secondary" : "ghost"} size="small" leadingIcon={UserRound} className="flex-1" onClick={() => selectConversation("solo")}>Individual</Button>
-              <Button variant={mode === "team" ? "secondary" : "ghost"} size="small" leadingIcon={Bot} className="flex-1" onClick={() => selectConversation("team")}>Equipe</Button>
-              {mode === "team" ? <Button variant="ghost" size="small" iconOnly leadingIcon={Plus} aria-label="Adicionar Toph" title="Adicionar Toph" onClick={newBot} className="size-8 shrink-0" /> : null}
-            </div>
-            <div className="no-scrollbar flex max-h-44 flex-col gap-0.5 overflow-y-auto px-1.5 pb-1.5">
-              {mode === "team" && bots.length > 0 ? (
-                <button
-                  type="button"
-                  onClick={openTeamGeneral}
-                  aria-current={!activeWorker ? "true" : undefined}
-                  className={cx(
-                    "flex w-full items-center gap-2.5 rounded-xl px-2 py-1.5 text-start transition-colors",
-                    !activeWorker ? "bg-background-tertiary-default" : "hover:bg-background-primary-hover",
-                  )}
-                >
-                  <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-accent-500/10 text-accent-500"><MessageSquare size={14} /></span>
-                  <span className="flex min-w-0 flex-1 flex-col">
-                    <span className="truncate text-caption-1-medium text-text-primary">Conversa da equipe</span>
-                    <span className="truncate text-caption-2-regular text-text-secondary">Todos os Tophs colaborando</span>
-                  </span>
-                  {!activeWorker ? <Check size={14} className="shrink-0 text-accent-500" /> : null}
-                </button>
-              ) : null}
-              {bots.map((bot) => (
-                <TophRow
-                  key={bot.id}
-                  bot={bot}
-                  compact
-                  active={mode === "solo" ? activeBot?.id === bot.id : activeWorker?.id === bot.id}
-                  onSelect={() => {
-                    if (mode === "team") openTeamBot(bot.id);
-                    else setActiveBot(project.id, bot.id);
-                  }}
-                  onConfig={() => openBotSettings(bot.id, "config")}
-                  onSessions={() => openBotSettings(bot.id, "sessions")}
-                />
-              ))}
-              {mode === "team" && bots.length === 0 ? (
-                <button
-                  type="button"
-                  onClick={newBot}
-                  className="flex w-full items-center gap-2.5 rounded-xl border border-dashed border-border-button-default px-2.5 py-2 text-start text-caption-1-medium text-text-secondary transition-colors hover:bg-background-primary-hover hover:text-text-primary"
-                >
-                  <span className="flex size-7 items-center justify-center rounded-full bg-background-secondary-default"><Plus size={14} /></span>
-                  Adicionar primeiro Toph
-                </button>
-              ) : null}
-            </div>
-          </div>
-        ) : mode === "team" && bots.length > 0 ? (
+        {!mobile && bots.length > 0 ? (
           <div className="flex h-12 shrink-0 items-center gap-2 border-b border-separator-border bg-background-secondary-default px-2.5">
-            <Dropdown isOpen={teamPickerOpen} onOpenChange={setTeamPickerOpen}>
+            <Dropdown isOpen={conversationPickerOpen} onOpenChange={setConversationPickerOpen}>
               <DropdownTrigger
-                aria-label="Selecionar conversa da equipe"
+                aria-label={mode === "team" ? "Selecionar conversa da equipe" : "Selecionar Toph individual"}
                 className="flex min-w-0 max-w-[420px] flex-1 items-center gap-2 rounded-xl px-1.5 py-1 text-start transition-colors hover:bg-background-primary-hover"
               >
-                {activeWorker ? (
-                  <BotAvatar bot={activeWorker} size={28} />
-                ) : (
+                {mode === "team" && !activeWorker ? (
                   <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-accent-500/10 text-accent-500"><MessageSquare size={14} /></span>
-                )}
+                ) : conversationBot ? (
+                  <BotAvatar bot={conversationBot} size={28} />
+                ) : null}
                 <span className="flex min-w-0 flex-1 flex-col">
-                  <strong className="truncate text-caption-1-semibold text-text-primary">{activeWorker ? activeWorker.name : "Conversa da equipe"}</strong>
-                  <span className="truncate text-caption-2-regular text-text-tertiary">{activeWorker ? activeWorker.role || "Especialista" : "Todos os Tophs colaborando"}</span>
+                  <strong className="truncate text-caption-1-semibold text-text-primary">{mode === "team" && !activeWorker ? "Conversa da equipe" : conversationBot?.name ?? "Toph"}</strong>
+                  <span className="truncate text-caption-2-regular text-text-tertiary">{mode === "team" && !activeWorker ? "Todos os Tophs colaborando" : conversationBot?.role || (mode === "team" ? "Especialista" : "Toph")}</span>
                 </span>
-                <ChevronDown size={14} className={cx("shrink-0 text-text-tertiary transition-transform", teamPickerOpen && "rotate-180")} />
+                <ChevronDown size={14} className={cx("shrink-0 text-text-tertiary transition-transform", conversationPickerOpen && "rotate-180")} />
               </DropdownTrigger>
-              <DropdownPopover aria-label="Conversa da equipe" placement="bottom start" className="w-[340px] p-2.5" dialogClassName="gap-1">
-                <DropdownItem selected={!activeWorker} onSelect={() => { openTeamGeneral(); setTeamPickerOpen(false); }}>
-                  <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-accent-500/10 text-accent-500"><MessageSquare size={14} /></span>
-                  <span className="flex min-w-0 flex-1 flex-col">
-                    <span className="truncate text-caption-1-semibold">Conversa da equipe</span>
-                    <span className="truncate text-caption-2-regular text-text-tertiary">Todos os Tophs colaborando</span>
-                  </span>
-                  {!activeWorker ? <Check size={14} className="shrink-0 text-accent-500" /> : null}
-                </DropdownItem>
-                <DropdownDivider />
-                {bots.map((bot) => (
-                  <DropdownItem key={bot.id} selected={activeWorker?.id === bot.id} onSelect={() => { openTeamBot(bot.id); setTeamPickerOpen(false); }}>
-                    <BotAvatar bot={bot} size={28} />
-                    <span className="flex min-w-0 flex-1 flex-col">
-                      <span className="flex items-center gap-1.5">
-                        <span className="truncate text-caption-1-semibold">{bot.name}</span>
-                        {bot.coordinator ? <span className="shrink-0 rounded-full bg-accent-500/15 px-1 text-[9px] font-medium text-accent-600">coord.</span> : null}
+              <DropdownPopover aria-label={mode === "team" ? "Conversa da equipe" : "Conversas individuais"} placement="bottom start" className="w-[340px] p-2.5" dialogClassName="gap-1">
+                {mode === "team" ? (
+                  <>
+                    <DropdownItem selected={!activeWorker} onSelect={() => { openTeamGeneral(); setConversationPickerOpen(false); }}>
+                      <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-accent-500/10 text-accent-500"><MessageSquare size={14} /></span>
+                      <span className="flex min-w-0 flex-1 flex-col">
+                        <span className="truncate text-caption-1-semibold">Conversa da equipe</span>
+                        <span className="truncate text-caption-2-regular text-text-tertiary">Todos os Tophs colaborando</span>
                       </span>
-                      <span className="truncate text-caption-2-regular text-text-tertiary">{bot.role || "Especialista"}</span>
-                    </span>
-                    {activeWorker?.id === bot.id ? <Check size={14} className="shrink-0 text-accent-500" /> : null}
-                  </DropdownItem>
-                ))}
+                      {!activeWorker ? <Check size={14} className="shrink-0 text-accent-500" /> : null}
+                    </DropdownItem>
+                    <DropdownDivider />
+                  </>
+                ) : null}
+                {bots.map((bot) => {
+                  const selected = mode === "team" ? activeWorker?.id === bot.id : activeBot?.id === bot.id;
+                  return (
+                    <DropdownItem key={bot.id} selected={selected} onSelect={() => { if (mode === "team") openTeamBot(bot.id); else openSoloBot(bot.id); setConversationPickerOpen(false); }}>
+                      <BotAvatar bot={bot} size={28} />
+                      <span className="flex min-w-0 flex-1 flex-col">
+                        <span className="flex items-center gap-1.5">
+                          <span className="truncate text-caption-1-semibold">{bot.name}</span>
+                          {bot.coordinator ? <span className="shrink-0 rounded-full bg-accent-500/15 px-1 text-[9px] font-medium text-accent-600">coord.</span> : null}
+                        </span>
+                        <span className="truncate text-caption-2-regular text-text-tertiary">{bot.role || (mode === "team" ? "Especialista" : "Toph")}</span>
+                      </span>
+                      {selected ? <Check size={14} className="shrink-0 text-accent-500" /> : null}
+                    </DropdownItem>
+                  );
+                })}
               </DropdownPopover>
             </Dropdown>
-            {activeWorker ? <Button variant="ghost" size="small" leadingIcon={MessageSquare} className="shrink-0" onClick={openTeamGeneral}>Chat geral</Button> : null}
+            {mode === "team" && activeWorker ? <Button variant="ghost" size="small" leadingIcon={MessageSquare} className="shrink-0" onClick={openTeamGeneral}>Chat geral</Button> : null}
           </div>
         ) : null}
         <div
@@ -1577,7 +1561,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
                   <>
                     <span className="flex size-12 items-center justify-center rounded-2xl bg-accent-500/10 text-accent-500"><Bot size={22} /></span>
                     <strong className="text-title-3-medium text-text-primary">Sua equipe começa aqui.</strong>
-                    <p className="max-w-sm text-caption-1-regular leading-relaxed text-text-secondary">Adicione um Toph pela coluna da esquerda. A conversa e o acompanhamento continuarão sempre nesta mesma tela.</p>
+                    <p className="max-w-sm text-caption-1-regular leading-relaxed text-text-secondary">{mobile ? "Adicione um Toph pelo menu Conversas. A conversa continuará sempre nesta mesma tela." : "Adicione um Toph pela coluna da esquerda. A conversa e o acompanhamento continuarão sempre nesta mesma tela."}</p>
                     <Button variant="secondary" size="small" leadingIcon={MessageSquarePlus} onClick={newBot}>Adicionar primeiro Toph</Button>
                   </>
                 ) : (

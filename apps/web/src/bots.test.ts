@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { BOT_AVATARS, TOPH_PRESETS, botThread, useBots, type BotMessage, type BotWorkspace, type MiniBot } from "./bots";
+import { BOT_AVATARS, TOPH_PRESETS, botThread, soloChannel, useBots, type BotMessage, type BotWorkspace, type MiniBot } from "./bots";
 
 function bot(id: string, overrides: Partial<MiniBot> = {}): MiniBot {
   return {
@@ -78,6 +78,41 @@ describe("Toph workspace sessions", () => {
       bots: [bot("bot-1", { avatar: "logo-smile" as MiniBot["avatar"] })],
     });
     expect(useBots.getState().byProject.p.bots[0].avatar).toBe("toph-core");
+  });
+
+  it("gives each individual Toph its own conversation channel", () => {
+    useBots.getState().load("p", { ...workspace([]), bots: [], activeBotId: null });
+    const first = useBots.getState().addBot("p", { name: "Toph" });
+    const second = useBots.getState().addBot("p", { name: "Nova" });
+
+    expect(first.channel).toBe("solo");
+    expect(second.channel).toBe(`solo:${second.id}`);
+    expect(soloChannel(first)).toBe("solo");
+    expect(soloChannel(second)).toBe(`solo:${second.id}`);
+  });
+
+  it("removes only the conversation of a deleted individual", () => {
+    useBots.getState().load("p", {
+      version: 4,
+      mode: "solo",
+      modeExplicit: true,
+      bots: [
+        bot("bot-1", { channel: "solo" }),
+        bot("bot-2", { name: "Nova", channel: "solo:bot-2" }),
+      ],
+      activeBotId: "bot-2",
+      messages: [
+        { id: "first-user", role: "user", content: "oi", channel: "solo", mode: "solo", createdAt: 1 },
+        { id: "second-user", role: "user", content: "oi", channel: "solo:bot-2", mode: "solo", createdAt: 2 },
+        { id: "second-reply", role: "assistant", content: "olá", botId: "bot-2", channel: "solo:bot-2", mode: "solo", createdAt: 3 },
+      ],
+    });
+
+    useBots.getState().removeBot("p", "bot-2");
+    const state = useBots.getState().byProject.p;
+    expect(state.bots.map((item) => item.id)).toEqual(["bot-1"]);
+    expect(state.activeBotId).toBe("bot-1");
+    expect(state.messages.map((item) => item.id)).toEqual(["first-user"]);
   });
 
   it("keeps individual and team conversations available at the same time", () => {

@@ -3,7 +3,7 @@ import { Bot, ChevronDown, ChevronRight, FolderPlus, GitBranch, PanelLeftClose, 
 import { api, getApiBase, type Project, type Repository, type SchemaTable, type WebTarget } from "../api";
 import { basename, expandGitPattern, quoteIdentifier, sanitizeBranchName } from "../lib";
 import { useApp, type AppNotification, type Sidebar, type Tab } from "../store";
-import { useBots, type BotWorkspace, botSessionIds } from "../bots";
+import { botThread, useBots, type BotWorkspace, botSessionIds } from "../bots";
 import { useAI } from "../ai";
 import { PROJECT_EVENT, type ProjectEvent } from "../projectEvents";
 import ActivityBar from "./ActivityBar";
@@ -97,6 +97,7 @@ export default function Workbench() {
   const notify = useApp((state) => state.notify);
   const markNotificationRead = useApp((state) => state.markNotificationRead);
   const botMode = useBots((state) => activeProjectId ? state.byProject[activeProjectId]?.mode : undefined);
+  const botWorkspaceHydrated = useBots((state) => activeProjectId ? state.byProject[activeProjectId]?.hydrated === true : false);
   const pendingBotSelection = useRef<{ projectId: string; botId: string } | null>(null);
   const savedMode = useRef<string | null>(null);
   const loadBots = useBots((state) => state.load);
@@ -467,9 +468,13 @@ export default function Workbench() {
         const notification = state.notifications.find((item) => item.notificationId === payload.notificationId);
         if (notification) state.markNotificationRead(notification.id);
       }
+      const switchingProject = state.activeProjectId !== payload.projectId;
       state.setActiveProject(payload.projectId);
       forceTophsOnLoad.current = true;
-      if (payload.botId) selectBot(payload.projectId, payload.botId);
+      if (payload.botId) {
+        if (switchingProject) pendingBotSelection.current = { projectId: payload.projectId, botId: payload.botId };
+        else selectBot(payload.projectId, payload.botId);
+      }
       state.setSidebar("bots");
     };
     window.addEventListener("toph:open-bot", onOpenBot as EventListener);
@@ -479,15 +484,22 @@ export default function Workbench() {
   useEffect(() => {
     const pending = pendingBotSelection.current;
     if (!pending || pending.projectId !== activeProjectId || !botMode) return;
-    const workspace = useBots.getState().byProject[activeProjectId];
-    if (!workspace) return;
-    if (!workspace.bots.some((bot) => bot.id === pending.botId)) {
+    const state = useBots.getState();
+    const workspace = state.byProject[activeProjectId];
+    if (!workspace?.hydrated) return;
+    const targetMode = botThread(workspace, "solo").bots.some((bot) => bot.id === pending.botId)
+      ? "solo"
+      : botThread(workspace, "team").bots.some((bot) => bot.id === pending.botId)
+        ? "team"
+        : null;
+    if (!targetMode) {
       pendingBotSelection.current = null;
       return;
     }
-    useBots.getState().setActiveBot(pending.projectId, pending.botId);
+    if ((workspace.mode ?? "solo") !== targetMode) state.setMode(pending.projectId, targetMode);
+    state.setActiveBot(pending.projectId, pending.botId);
     pendingBotSelection.current = null;
-  }, [activeProjectId, botMode]);
+  }, [activeProjectId, botMode, botWorkspaceHydrated]);
 
 
   useEffect(() => {
@@ -926,23 +938,41 @@ export default function Workbench() {
   }
 
   function selectBot(projectId: string, botId: string) {
-    pendingBotSelection.current = { projectId, botId };
-    const workspace = useBots.getState().byProject[projectId];
-    if (workspace?.bots.some((bot) => bot.id === botId)) {
-      useBots.getState().setActiveBot(projectId, botId);
-      pendingBotSelection.current = null;
+    const state = useBots.getState();
+    const workspace = state.byProject[projectId];
+    const targetMode = workspace
+      ? botThread(workspace, "solo").bots.some((bot) => bot.id === botId)
+        ? "solo"
+        : botThread(workspace, "team").bots.some((bot) => bot.id === botId)
+          ? "team"
+          : null
+      : null;
+    if (!workspace?.hydrated) {
+      pendingBotSelection.current = { projectId, botId };
+      return;
     }
+    if (!targetMode) {
+      pendingBotSelection.current = null;
+      return;
+    }
+    if ((workspace.mode ?? "solo") !== targetMode) state.setMode(projectId, targetMode);
+    state.setActiveBot(projectId, botId);
+    pendingBotSelection.current = null;
   }
 
   function openNotification(notification: AppNotification) {
     if (!notification.projectId) return;
     setBranchMenuOpen(false);
     markNotificationRead(notification.id);
-    if (notification.projectId !== activeProjectId) {
+    const switchingProject = notification.projectId !== activeProjectId;
+    if (switchingProject) {
       forceTophsOnLoad.current = true;
       setActiveProject(notification.projectId);
     }
-    if (notification.botId) selectBot(notification.projectId, notification.botId);
+    if (notification.botId) {
+      if (switchingProject) pendingBotSelection.current = { projectId: notification.projectId, botId: notification.botId };
+      else selectBot(notification.projectId, notification.botId);
+    }
     setSidebar("bots");
     setTerminalOpen(false);
   }

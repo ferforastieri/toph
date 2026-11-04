@@ -34,6 +34,8 @@ export interface MiniBot {
   avatar: BotAvatar;
   notifications: boolean;
   coordinator: boolean;
+  /** Conversation channel. Individual Tophs get their own channel. */
+  channel?: string;
   sessionId?: string;
   sessionPrimed?: boolean;
   createdAt: number;
@@ -174,6 +176,11 @@ export function botThread(workspace: BotWorkspace | undefined, mode: TophMode): 
   return (mode === "solo" ? workspace.savedSolo : workspace.savedTeam) ?? EMPTY_THREAD;
 }
 
+/** Conversation channel for an individual Toph. Legacy Tophs used the shared "solo" channel. */
+export function soloChannel(bot: Pick<MiniBot, "channel">): string {
+  return bot.channel || "solo";
+}
+
 export function slugifyBot(value: string): string {
   return value
     .normalize("NFD")
@@ -233,16 +240,17 @@ function sanitizeBots(input: MiniBot[] | undefined): MiniBot[] {
       notifications: bot.notifications !== false,
       sessionPrimed: bot.sessionPrimed === true,
       coordinator: bot.coordinator === true,
+      channel: typeof bot.channel === "string" && bot.channel ? bot.channel : undefined,
       createdAt: bot.createdAt ?? Date.now(),
     }));
 }
 
-function messageChannel(message: BotMessage): string {
+export function botMessageChannel(message: BotMessage): string {
   return message.channel ?? (message.mode === "solo" ? "solo" : "team");
 }
 
 function messageKey(message: BotMessage): string {
-  return `${message.mode ?? "team"}\u0000${messageChannel(message)}\u0000${message.id}`;
+  return `${message.mode ?? "team"}\u0000${botMessageChannel(message)}\u0000${message.id}`;
 }
 
 function sanitizeMessages(input: BotMessage[] | undefined): BotMessage[] {
@@ -252,7 +260,7 @@ function sanitizeMessages(input: BotMessage[] | undefined): BotMessage[] {
       ...message,
       role: (["user", "assistant", "reasoning", "tool", "system", "error"].includes(message.role) ? message.role : "system") as BotMessage["role"],
       content: message.content ?? "",
-      channel: message.channel ?? "team",
+      channel: message.channel ?? (message.mode === "solo" ? "solo" : "team"),
       audience: (message.audience === "coordinator" ? "coordinator" : "user") as BotMessage["audience"],
       mode: message.mode === "solo" || message.mode === "team" ? message.mode : undefined,
       pending: false,
@@ -393,7 +401,7 @@ export const useBots = create<BotStore>((set, get) => ({
           ...state.byProject,
           [projectId]: {
             ...workspace,
-            messages: [...byId.values()].sort((a, b) => a.createdAt - b.createdAt || messageChannel(a).localeCompare(messageChannel(b)) || a.id.localeCompare(b.id)),
+            messages: [...byId.values()].sort((a, b) => a.createdAt - b.createdAt || botMessageChannel(a).localeCompare(botMessageChannel(b)) || a.id.localeCompare(b.id)),
           },
         },
       };
@@ -415,7 +423,7 @@ export const useBots = create<BotStore>((set, get) => ({
     set((state) => {
       const pending = Object.fromEntries(
         Object.entries(state.messageWrites[projectId] ?? {}).filter(([, message]) =>
-          message.mode !== mode || messageChannel(message) !== channel),
+          message.mode !== mode || botMessageChannel(message) !== channel),
       );
       return { messageWrites: { ...state.messageWrites, [projectId]: pending } };
     }),
@@ -491,8 +499,13 @@ export const useBots = create<BotStore>((set, get) => ({
   addBot: (projectId, patch = {}) => {
     const workspace = get().ensure(projectId);
     const name = patch.name?.trim() || "Novo bot";
+    const id = newId("bot");
+    const individual = (workspace.mode ?? "solo") === "solo";
+    const channel = patch.channel ?? (individual
+      ? workspace.bots.length === 0 ? "solo" : `solo:${id}`
+      : undefined);
     const bot: MiniBot = {
-      id: newId("bot"),
+      id,
       name,
       handle: uniqueHandle(workspace.bots, patch.handle || name),
       role: patch.role ?? "Especialista",
@@ -509,6 +522,7 @@ export const useBots = create<BotStore>((set, get) => ({
       avatar: patch.avatar ?? "toph-mochi",
       notifications: patch.notifications !== false,
       coordinator: patch.coordinator === true,
+      channel,
       sessionId: patch.sessionId,
       sessionPrimed: patch.sessionPrimed ?? false,
       createdAt: Date.now(),
@@ -554,6 +568,12 @@ export const useBots = create<BotStore>((set, get) => ({
     set((state) => {
       const workspace = state.byProject[projectId];
       if (!workspace) return state;
+      const removed = workspace.bots.find((bot) => bot.id === botId);
+      const removedChannel = removed
+        ? (workspace.mode ?? "solo") === "solo"
+          ? soloChannel(removed)
+          : removed.coordinator ? null : `worker:${botId}`
+        : null;
       const bots = workspace.bots.filter((bot) => bot.id !== botId);
       return {
         byProject: {
@@ -562,7 +582,8 @@ export const useBots = create<BotStore>((set, get) => ({
             ...workspace,
             bots,
             activeBotId: workspace.activeBotId === botId ? (bots[0]?.id ?? null) : workspace.activeBotId,
-            messages: workspace.messages.filter((message) => message.botId !== botId),
+            messages: workspace.messages.filter((message) => message.botId !== botId
+              && (!removedChannel || botMessageChannel(message) !== removedChannel)),
           },
         },
       };
@@ -652,7 +673,7 @@ export const useBots = create<BotStore>((set, get) => ({
           [projectId]: {
             ...workspace,
             messages: [
-              ...workspace.messages.filter((message) => messageChannel(message) !== channel),
+              ...workspace.messages.filter((message) => botMessageChannel(message) !== channel),
               ...messages,
             ].sort((a, b) => a.createdAt - b.createdAt),
           },
@@ -668,7 +689,7 @@ export const useBots = create<BotStore>((set, get) => ({
       const messages = options.channel === undefined
         ? workspace.messages
         : [
-            ...workspace.messages.filter((message) => messageChannel(message) !== options.channel),
+            ...workspace.messages.filter((message) => botMessageChannel(message) !== options.channel),
             ...(options.messages ?? []),
           ].sort((a, b) => a.createdAt - b.createdAt);
       return {
