@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { OpenCodeClient, SessionStatsInfo } from "@opencode/client";
-import { ProgressBar, ProgressCircle } from "@/boardui/base/progress/progress";
+import { ProgressBar } from "@/boardui/base/progress/progress";
 import { api, type AIUsageWindow } from "../api";
 import { modelGroup, providerLabel, useAI } from "../ai";
 import ProviderIcon from "../components/ProviderIcon";
@@ -134,23 +134,17 @@ export default function AiUsageMeter({ client, refreshKey }: Props) {
   const weekly = usage?.usage?.weekly;
   const weeklyRemaining = weekly ? remainingPercent(weekly) : null;
   const triggerLabel = weeklyRemaining !== null ? `${Math.round(weeklyRemaining)}%` : "Uso";
+  const triggerCritical = weeklyRemaining !== null && weeklyRemaining <= 20;
 
   return (
     <ComposerMenu
       label="Uso da IA"
       trigger={(
         <>
-          <span className="relative inline-flex size-5 shrink-0 items-center justify-center">
-            <ProgressCircle
-              value={weeklyRemaining ?? 0}
-              maxValue={100}
-              size="sm"
-              className="absolute inset-0"
-              aria-label={weekly ? `Uso semanal: ${Math.round(remainingPercent(weekly))}% restante` : "Uso da IA"}
-            />
-            <ProviderIcon provider={provider} className="relative size-3 text-text-primary" />
+          <span className="inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-background-secondary-default">
+            <ProviderIcon provider={provider} className="size-3 text-text-primary" />
           </span>
-          <span className="tabular-nums">{triggerLabel}</span>
+          <span className={triggerCritical ? "tabular-nums text-status-rose-text" : "tabular-nums"}>{triggerLabel}</span>
         </>
       )}
       popoverClassName="w-[340px] p-0"
