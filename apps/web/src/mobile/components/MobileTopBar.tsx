@@ -30,7 +30,7 @@ export default function MobileTopBar({ title, subtitle, projectName, unreadCount
       <div className="relative flex w-full min-w-0 items-center gap-2">
         <button
           type="button"
-          aria-label={unreadCount > 0 ? `Abrir menu, ${unreadCount} notificações não lidas` : "Abrir menu"}
+          aria-label="Abrir menu"
           title="Abrir menu"
           onClick={onMenu}
           className={cx(
@@ -46,11 +46,6 @@ export default function MobileTopBar({ title, subtitle, projectName, unreadCount
               <LayoutPanelLeft className="size-2" />
             </span>
           ) : null}
-          {unreadCount > 0 ? (
-            <Badge color="primary" className="pointer-events-none absolute -right-1 -top-1 min-w-4 px-1 text-[10px]">
-              {unreadCount > 9 ? "9+" : unreadCount}
-            </Badge>
-          ) : null}
         </button>
         {!floating && !hideTitle ? (
           <div className="flex min-w-0 flex-1 flex-col gap-0">
@@ -65,12 +60,17 @@ export default function MobileTopBar({ title, subtitle, projectName, unreadCount
             variant="ghost"
             size="small"
             leadingIcon={FolderGit2}
-            aria-label={`Projeto ${projectName}. Selecionar projeto`}
+            aria-label={`Projeto ${projectName}. Selecionar projeto${unreadCount > 0 ? `, ${unreadCount} notificações não lidas` : ""}`}
             title="Selecionar projeto"
             onClick={onProjects}
-            className={cx("shrink-0 gap-1 rounded-full", floating ? "h-8 px-1" : "h-9 px-1 [&_svg]:size-4")}
+            className={cx("relative shrink-0 gap-1 rounded-full", floating ? "h-8 px-1" : "h-9 px-1 [&_svg]:size-4")}
           >
             <span className="min-w-0 max-w-24 truncate text-caption-2-medium">{projectName}</span>
+            {unreadCount > 0 ? (
+              <Badge color="primary" className="pointer-events-none absolute -right-1 -top-1 min-w-4 px-1 text-[10px]">
+                {unreadCount > 9 ? "9+" : unreadCount}
+              </Badge>
+            ) : null}
           </Button>
           {onConversations ? (
             <Button

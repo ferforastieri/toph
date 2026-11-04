@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Bot, Bug, Database, FileCode2, Files, FolderPlus, GitBranch, Globe2, TerminalSquare } from "@toph/icons";
 import { api, type Project, type Repository, type SchemaTable, type WebTarget } from "../api";
-import { useApp, type AppNotification } from "../store";
+import { useApp } from "../store";
 import { useIsMobile } from "../ui/useIsMobile";
 import { nativePushToken, requestMobileNotificationPermission } from "../notifications";
 import { basename, quoteIdentifier } from "../lib";
@@ -29,7 +29,6 @@ import MobileTopBar from "./components/MobileTopBar";
 import { chatSessionIds, useChats } from "../chats";
 import { useTophDrafts } from "../tophDrafts";
 import MobileBranchSheet from "./MobileBranchSheet";
-import MobileNotificationsSheet from "./MobileNotificationsSheet";
 import MobileAccountSheet from "./MobileAccountSheet";
 import MobileConversationsSheet from "./MobileConversationsSheet";
 
@@ -44,7 +43,6 @@ export default function MobileApp() {
   const notify = useApp((state) => state.notify);
   const user = useApp((state) => state.user);
   const notifications = useApp((state) => state.notifications);
-  const markNotificationRead = useApp((state) => state.markNotificationRead);
   const closeProjectTab = useApp((state) => state.closeProjectTab);
   const mobile = useIsMobile();
   const project = projects.find((item) => item.id === activeProjectId) ?? null;
@@ -62,7 +60,6 @@ export default function MobileApp() {
   const [closeError, setCloseError] = useState("");
   const [repoPickerOpen, setRepoPickerOpen] = useState(false);
   const [branchOpen, setBranchOpen] = useState(false);
-  const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const [conversationsOpen, setConversationsOpen] = useState(false);
   const [pendingTophAction, setPendingTophAction] = useState<TophActionRequest | null>(null);
@@ -91,18 +88,6 @@ export default function MobileApp() {
   useEffect(() => {
     refreshBranch();
   }, [project?.id]);
-
-  function openNotification(notification: AppNotification) {
-    if (notification.projectId) {
-      window.dispatchEvent(new CustomEvent("toph:open-bot", {
-        detail: { projectId: notification.projectId, botId: notification.botId },
-      }));
-    }
-    markNotificationRead(notification.id);
-    setScreen("bots");
-    setTerminalOpen(false);
-    setNotificationsOpen(false);
-  }
 
   useEffect(() => {
     if (!mobile) return;
@@ -162,14 +147,6 @@ export default function MobileApp() {
     setMenuOpen(false);
     setTerminalOpen(false);
     setConversationsOpen(true);
-  }
-
-  function openNotifications() {
-    setMenuOpen(false);
-    setAccountOpen(false);
-    setConversationsOpen(false);
-    setTerminalOpen(false);
-    window.setTimeout(() => setNotificationsOpen(true), 0);
   }
 
   function selectConversationScreen() {
@@ -446,11 +423,9 @@ export default function MobileApp() {
           user={user}
           projectName={project.name}
           branch={currentBranch}
-          unreadCount={unreadCount}
           onSelect={selectScreen}
           onBranch={() => { setMenuOpen(false); setTerminalOpen(false); setBranchOpen(true); }}
           onAccount={() => { setMenuOpen(false); setTerminalOpen(false); setAccountOpen(true); }}
-          onNotifications={openNotifications}
           onTerminal={() => { setMenuOpen(false); setTerminalOpen(true); }}
           onClose={() => setMenuOpen(false)}
         />
@@ -501,11 +476,6 @@ export default function MobileApp() {
         onClose={() => setConversationsOpen(false)}
         onSelected={selectConversationScreen}
         onAction={openTophAction}
-      />
-      <MobileNotificationsSheet
-        open={notificationsOpen}
-        onClose={() => setNotificationsOpen(false)}
-        onOpenNotification={openNotification}
       />
       <MobileAccountSheet open={accountOpen} user={user} onClose={() => setAccountOpen(false)} />
       <CloseProjectModal

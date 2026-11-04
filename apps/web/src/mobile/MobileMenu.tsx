@@ -1,7 +1,6 @@
 import { Bot, Bug, Database, FileCode2, Files, GitBranch, Globe2, Moon, Sun, TerminalSquare } from "@toph/icons";
 import type { User } from "../api";
 import { Button } from "@/boardui/base/buttons/button";
-import { Badge } from "@/boardui/base/badges/badge";
 import { useSettings } from "../settings";
 import { usePet } from "../pet";
 import PetSprite from "../ui/PetSprite";
@@ -16,11 +15,9 @@ interface Props {
   user: User | null;
   projectName: string;
   branch: string;
-  unreadCount: number;
   onSelect: (screen: MobileScreen) => void;
   onBranch: () => void;
   onAccount: () => void;
-  onNotifications: () => void;
   onTerminal: () => void;
   onClose: () => void;
 }
@@ -60,11 +57,9 @@ export default function MobileMenu({
   user,
   projectName,
   branch,
-  unreadCount,
   onSelect,
   onBranch,
   onAccount,
-  onNotifications,
   onTerminal,
   onClose,
 }: Props) {
@@ -124,17 +119,12 @@ export default function MobileMenu({
         <div className="flex shrink-0 items-center justify-between gap-2 border-t border-separator-border p-2">
           <button
             type="button"
-            aria-label={unreadCount > 0 ? `Notificações, ${unreadCount} não lidas` : "Notificações"}
-            title="Notificações"
-            onClick={onNotifications}
-            className={cx("relative shrink-0 rounded-full transition-[transform,color,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] hover:scale-105 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus-ring", unreadCount > 0 && "pet-notification")}
+            aria-label="Abrir conta"
+            title="Conta"
+            onClick={onAccount}
+            className="relative shrink-0 rounded-full transition-[transform,color,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] hover:scale-105 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus-ring"
           >
             <PetSprite kind={pet.kind} size={38} commits={pet.commits} />
-            {unreadCount > 0 ? (
-              <Badge color="primary" className="pointer-events-none absolute -right-1 -top-1 min-w-4 px-1 text-[10px]">
-                {unreadCount > 9 ? "9+" : unreadCount}
-              </Badge>
-            ) : null}
           </button>
           <ThemeToggle />
         </div>

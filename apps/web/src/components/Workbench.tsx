@@ -2,7 +2,7 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState, type FormEvent, t
 import { Bot, ChevronDown, ChevronRight, FolderPlus, GitBranch, PanelLeftClose, PanelLeftOpen } from "@toph/icons";
 import { api, getApiBase, type Project, type Repository, type SchemaTable, type WebTarget } from "../api";
 import { basename, expandGitPattern, quoteIdentifier, sanitizeBranchName } from "../lib";
-import { useApp, type AppNotification, type Sidebar, type Tab } from "../store";
+import { useApp, type Sidebar, type Tab } from "../store";
 import { chatSessionIds, useChats, type ProjectChats } from "../chats";
 import { useAI } from "../ai";
 import { PROJECT_EVENT, type ProjectEvent } from "../projectEvents";
@@ -95,7 +95,6 @@ export default function Workbench() {
   const terminalOpen = useApp((state) => state.terminalOpen);
   const setTerminalOpen = useApp((state) => state.setTerminalOpen);
   const notify = useApp((state) => state.notify);
-  const markNotificationRead = useApp((state) => state.markNotificationRead);
   const chatsHydrated = useChats((state) => activeProjectId ? state.byProject[activeProjectId]?.hydrated === true : false);
   const pendingTophSelection = useRef<{ projectId: string; tophId: string } | null>(null);
   const loadChats = useChats((state) => state.load);
@@ -915,24 +914,6 @@ export default function Workbench() {
     pendingTophSelection.current = null;
   }
 
-  function openNotification(notification: AppNotification) {
-    if (!notification.projectId) return;
-    setBranchMenuOpen(false);
-    markNotificationRead(notification.id);
-    const switchingProject = notification.projectId !== activeProjectId;
-    if (switchingProject) {
-      forceTophsOnLoad.current = true;
-      setActiveProject(notification.projectId);
-    }
-    if (notification.botId) {
-      if (switchingProject) pendingTophSelection.current = { projectId: notification.projectId, tophId: notification.botId };
-      else selectToph(notification.projectId, notification.botId);
-    }
-    setSidebar("bots");
-    setTerminalOpen(false);
-  }
-
-
   function openWeb(target: WebTarget) {
     if (!project || !featureIsEnabled("webApps")) return;
     openTab({
@@ -1154,7 +1135,7 @@ export default function Workbench() {
         {activityVisible ? <div className="overflow-visible rounded-s-3xl">
           <ActivityBar
             projectControl={activityProjectControl}
-            settingsControl={<TophSettings user={user} projectRoot={project.root} onOpenNotification={openNotification} />}
+            settingsControl={<TophSettings user={user} projectRoot={project.root} />}
             onQuickOpen={() => setQuickOpenToken((current) => current + 1)}
           />
         </div> : null}
