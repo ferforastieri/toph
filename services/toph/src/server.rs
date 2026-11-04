@@ -1577,8 +1577,8 @@ async fn get_workspace_messages(
     let mode = query
         .mode
         .as_deref()
-        .filter(|mode| matches!(*mode, "solo" | "team"))
-        .ok_or_else(|| AppError::BadRequest("mode must be solo or team".into()))?;
+        .filter(|mode| matches!(*mode, "chat"))
+        .ok_or_else(|| AppError::BadRequest("mode must be chat".into()))?;
     let scope = query.scope.as_deref().unwrap_or("all");
     if !matches!(scope, "all" | "conversation" | "activity") {
         return Err(AppError::BadRequest(
@@ -1630,9 +1630,9 @@ async fn save_workspace_messages(
     Json(input): Json<WorkspaceMessagesInput>,
 ) -> AppResult<Json<Value>> {
     if let Some(replace) = input.replace {
-        if !matches!(replace.mode.as_str(), "solo" | "team") || replace.channel.is_empty() {
+        if replace.mode != "chat" || replace.channel.is_empty() {
             return Err(AppError::BadRequest(
-                "replace requires a valid mode and channel".into(),
+                "replace requires mode chat and a chatId".into(),
             ));
         }
         state
@@ -1668,9 +1668,9 @@ async fn delete_workspace_messages(
     if query
         .mode
         .as_deref()
-        .is_some_and(|mode| !matches!(mode, "solo" | "team"))
+        .is_some_and(|mode| !matches!(mode, "chat"))
     {
-        return Err(AppError::BadRequest("mode must be solo or team".into()));
+        return Err(AppError::BadRequest("mode must be chat".into()));
     }
     let deleted = state
         .store

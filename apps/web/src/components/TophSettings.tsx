@@ -272,7 +272,7 @@ export default function TophSettings({ user, projectRoot, onOpenNotification }: 
                   <FeatureToggle label="Bancos de dados" checked={workspaceFeatures.databases} onChange={(value) => setFeature("databases", value)} />
                   <FeatureToggle label="Aplicativos web" checked={workspaceFeatures.webApps} onChange={(value) => setFeature("webApps", value)} />
                   <FeatureToggle label="Debug" checked={workspaceFeatures.debug} onChange={(value) => setFeature("debug", value)} />
-                  <FeatureToggle label="Tophs" checked disabled onChange={() => undefined} />
+                  <FeatureToggle label="Toph" checked disabled onChange={() => undefined} />
                 </SettingsGroup>
               </div>
             ) : section === "ai" ? (

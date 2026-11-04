@@ -82,7 +82,7 @@ async fn store_persists_projects_and_profiles() {
 }
 
 #[tokio::test]
-async fn bot_history_is_migrated_and_paginated_by_scope() {
+async fn chat_history_is_paginated_by_scope() {
     let dir = tempfile::tempdir().unwrap();
     let store = Store::open(&dir.path().join("toph.db")).await.unwrap();
     let user = store
@@ -101,62 +101,20 @@ async fn bot_history_is_migrated_and_paginated_by_scope() {
         .await
         .unwrap();
 
-    let mut messages = Vec::new();
-    for index in 0..55 {
-        messages.push(serde_json::json!({
-            "id": format!("conversation-{index:02}"),
-            "role": "assistant",
-            "content": format!("answer {index}"),
-            "mode": "solo",
-            "channel": "solo",
-            "createdAt": index * 2,
-        }));
-        messages.push(serde_json::json!({
-            "id": format!("activity-{index:02}"),
-            "role": "tool",
-            "content": "{}",
-            "detail": format!("output {index}"),
-            "mode": "solo",
-            "channel": "solo",
-            "createdAt": index * 2 + 1,
-        }));
-    }
-    messages.push(serde_json::json!({
-        "id": "cross-thread",
-        "role": "assistant",
-        "content": "solo copy",
-        "mode": "solo",
-        "channel": "solo",
-        "createdAt": -2,
-    }));
     let layout = serde_json::json!({
         "tabs": [],
         "activeTabId": null,
-        "bots": {
-            "version": 4,
-            "mode": "solo",
-            "bots": [],
-            "activeBotId": null,
-            "messages": messages,
-            "savedTeam": {
-                "bots": [],
-                "activeBotId": null,
-                "messages": [{
-                    "id": "cross-thread",
-                    "role": "assistant",
-                    "content": "team copy",
-                    "mode": "team",
-                    "channel": "team",
-                    "createdAt": -1,
-                }, {
-                    "id": "cross-thread",
-                    "role": "assistant",
-                    "content": "worker copy",
-                    "mode": "team",
-                    "channel": "worker:one",
-                    "createdAt": -1,
-                }]
-            }
+        "chats": {
+            "version": 1,
+            "chats": [{
+                "id": "chat-one",
+                "name": "checkout",
+                "description": "pagamentos",
+                "createdAt": 1,
+                "updatedAt": 1
+            }],
+            "tophs": [],
+            "activeChatId": "chat-one"
         }
     });
     store
@@ -164,21 +122,44 @@ async fn bot_history_is_migrated_and_paginated_by_scope() {
         .await
         .unwrap();
 
-    let compact: serde_json::Value = serde_json::from_str(
+    let saved: serde_json::Value = serde_json::from_str(
         &store
             .workspace_layout(user.id, "history-project")
             .await
             .unwrap(),
     )
     .unwrap();
-    assert!(compact["bots"].get("messages").is_none());
+    assert_eq!(saved["chats"]["chats"][0]["name"], "checkout");
+
+    let mut messages = Vec::new();
+    for index in 0..55 {
+        messages.push(serde_json::json!({
+            "id": format!("conversation-{index:02}"),
+            "chatId": "chat-one",
+            "role": "assistant",
+            "content": format!("answer {index}"),
+            "createdAt": index * 2,
+        }));
+        messages.push(serde_json::json!({
+            "id": format!("activity-{index:02}"),
+            "chatId": "chat-one",
+            "role": "tool",
+            "content": "{}",
+            "detail": format!("output {index}"),
+            "createdAt": index * 2 + 1,
+        }));
+    }
+    store
+        .save_workspace_messages(user.id, "history-project", messages)
+        .await
+        .unwrap();
 
     let first = store
         .workspace_messages(
             user.id,
             "history-project",
-            "solo",
-            Some("solo"),
+            "chat",
+            Some("chat-one"),
             "conversation",
             None,
             20,
@@ -194,8 +175,8 @@ async fn bot_history_is_migrated_and_paginated_by_scope() {
         .workspace_messages(
             user.id,
             "history-project",
-            "solo",
-            Some("solo"),
+            "chat",
+            Some("chat-one"),
             "conversation",
             first.next_cursor.as_ref(),
             20,
@@ -209,8 +190,8 @@ async fn bot_history_is_migrated_and_paginated_by_scope() {
         .workspace_messages(
             user.id,
             "history-project",
-            "solo",
-            Some("solo"),
+            "chat",
+            Some("chat-one"),
             "activity",
             None,
             10,
@@ -223,47 +204,29 @@ async fn bot_history_is_migrated_and_paginated_by_scope() {
         .iter()
         .all(|message| message["role"] == "tool"));
 
-    let team = store
-        .workspace_messages(
+    let deleted = store
+        .delete_workspace_messages(
             user.id,
             "history-project",
-            "team",
-            Some("team"),
-            "conversation",
+            Some("chat"),
+            Some("chat-one"),
             None,
-            10,
         )
         .await
         .unwrap();
-    assert_eq!(team.items.len(), 1);
-    assert_eq!(team.items[0]["content"], "team copy");
+    assert_eq!(deleted, 110);
 
-    let first_team_channel = store
+    let empty = store
         .workspace_messages(
             user.id,
             "history-project",
-            "team",
-            None,
+            "chat",
+            Some("chat-one"),
             "conversation",
             None,
-            1,
+            20,
         )
         .await
         .unwrap();
-    let second_team_channel = store
-        .workspace_messages(
-            user.id,
-            "history-project",
-            "team",
-            None,
-            "conversation",
-            first_team_channel.next_cursor.as_ref(),
-            1,
-        )
-        .await
-        .unwrap();
-    assert_ne!(
-        first_team_channel.items[0]["channel"],
-        second_team_channel.items[0]["channel"]
-    );
+    assert!(empty.items.is_empty());
 }

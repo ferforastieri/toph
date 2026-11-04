@@ -1,84 +1,101 @@
-import { useAI } from "../ai";
-import { botThread, TOPH_PRESETS, useBots, type TophMode, type TophPreset } from "../bots";
+import { Plus } from "@toph/icons";
+import { TOPH_PRESETS, chatTophs, useChats, type TophPreset } from "../chats";
 import BotAvatar from "./BotAvatar";
 import { Modal } from "@/boardui/base/modal/modal";
+import { cx } from "@/boardui/utils/cx";
 
 interface Props {
   open: boolean;
   projectId: string;
-  target: TophMode;
+  chatId: string | null;
   onClose: () => void;
-  onCreated?: (botId: string, target: TophMode) => void;
+  onCreated?: (tophId: string) => void;
 }
 
-function nextName(base: string, used: Set<string>): string {
-  let name = base;
-  let suffix = 2;
-  while (used.has(name)) {
-    name = `${base} ${suffix}`;
-    suffix += 1;
-  }
-  return name;
-}
+const CUSTOM_PRESET: TophPreset = {
+  name: "Novo Toph",
+  role: "Personalizado",
+  description: "",
+  personality: "",
+  prompt: "",
+  color: "#FFB547",
+  avatar: "toph-core",
+  agentMode: "build",
+  permissionMode: "yolo",
+  mcpServers: [],
+  emailAccountIds: [],
+  language: "auto",
+};
 
-/** Shared gallery used to add individual Tophs and team members. */
-export default function TophGallery({ open, projectId, target, onClose, onCreated }: Props) {
-  const config = useAI((state) => state.config);
-  const models = useAI((state) => state.models);
-  const workspace = useBots((state) => state.byProject[projectId]);
-  const addBot = useBots((state) => state.addBot);
-  const setActiveBot = useBots((state) => state.setActiveBot);
-  const setMode = useBots((state) => state.setMode);
-  const team = target === "team";
-  const existing = botThread(workspace, target).bots;
-  const usedNames = new Set(existing.map((bot) => bot.name));
+/** Adds a pre-made Toph or a blank custom Toph to the active chat. */
+export default function TophGallery({ open, projectId, chatId, onClose, onCreated }: Props) {
+  const project = useChats((state) => state.byProject[projectId]);
+  const addToph = useChats((state) => state.addToph);
+  const existing = chatTophs(project, chatId);
+  const usedNames = new Set(existing.map((toph) => toph.name.toLowerCase()));
+  const usedRoles = new Set(existing.map((toph) => toph.role.trim().toLowerCase()));
 
-  function addPreset(preset: TophPreset) {
-    const state = useBots.getState();
-    if ((state.byProject[projectId]?.mode ?? "solo") !== target) setMode(projectId, target);
-    const current = botThread(useBots.getState().byProject[projectId], target).bots;
-    const used = new Set(current.map((bot) => bot.name));
-    const name = nextName(preset.name, used);
-    const bot = addBot(projectId, {
-      name,
-      role: preset.role,
-      description: preset.description,
-      personality: preset.personality,
-      color: preset.color,
-      avatar: preset.avatar,
-      model: config?.model || models[0]?.id || "",
-      coordinator: team ? (current.length === 0 || preset.coordinator === true) : false,
-    });
-    setActiveBot(projectId, bot.id);
+  function add(preset: TophPreset) {
+    if (!chatId) return;
+    const toph = addToph(projectId, chatId, preset);
+    if (!toph) return;
     onClose();
-    onCreated?.(bot.id, target);
+    onCreated?.(toph.id);
+  }
+
+  function addCustom() {
+    let role = "Personalizado";
+    let index = 2;
+    while (usedRoles.has(role.toLowerCase())) {
+      role = `Personalizado ${index}`;
+      index += 1;
+    }
+    add({ ...CUSTOM_PRESET, role });
   }
 
   return (
     <Modal
       isOpen={open}
       onClose={onClose}
-      title={team ? "Adicionar Toph à equipe" : "Adicionar Toph individual"}
-      description={team ? "Visuais e cores únicas para cada membro." : "Cada individual tem conversa e sessão próprias."}
+      title="Adicionar Toph ao chat"
+      description="Tophs prontos com papel, prompt e ferramentas — ou crie um Toph livre."
       placement="bottom"
       size="lg"
       bodyClassName="p-3"
       swipeToClose
     >
       <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
-        {TOPH_PRESETS.filter((preset) => preset.name !== "Toph").map((preset) => {
-          const name = nextName(preset.name, usedNames);
+        <button
+          type="button"
+          onClick={addCustom}
+          className="flex min-w-0 items-center gap-2 rounded-2xl border border-dashed border-border-button-default bg-background-primary-default p-2 text-start transition-colors hover:border-accent-500/40 hover:bg-accent-500/5"
+        >
+          <span className="flex size-[34px] shrink-0 items-center justify-center rounded-full bg-background-secondary-default text-accent-500">
+            <Plus size={16} />
+          </span>
+          <span className="flex min-w-0 flex-col">
+            <strong className="truncate text-caption-1-semibold text-text-primary">Criar Toph livre</strong>
+            <span className="truncate text-caption-2-regular text-text-tertiary">Define papel, prompt e modelo</span>
+          </span>
+        </button>
+        {TOPH_PRESETS.map((preset) => {
+          const roleUsed = usedRoles.has(preset.role.trim().toLowerCase());
+          const name = !roleUsed && usedNames.has(preset.name.toLowerCase()) ? `${preset.name} 2` : preset.name;
           return (
             <button
               key={preset.name}
               type="button"
-              onClick={() => addPreset(preset)}
-              className="flex min-w-0 items-center gap-2 rounded-2xl border border-border-button-white bg-background-primary-default p-2 text-start transition-colors hover:border-accent-500/40 hover:bg-accent-500/5"
+              disabled={roleUsed}
+              onClick={() => add(preset)}
+              className={cx(
+                "flex min-w-0 items-center gap-2 rounded-2xl border border-border-button-white bg-background-primary-default p-2 text-start transition-colors",
+                roleUsed ? "cursor-not-allowed opacity-45" : "hover:border-accent-500/40 hover:bg-accent-500/5",
+              )}
             >
               <BotAvatar bot={{ name: preset.name, color: preset.color, avatar: preset.avatar }} size={34} />
               <span className="flex min-w-0 flex-col">
                 <strong className="truncate text-caption-1-semibold text-text-primary">{name}</strong>
-                <span className="truncate text-caption-2-regular text-text-tertiary">{preset.role}</span>
+                <span className="truncate text-caption-2-regular text-text-tertiary">{roleUsed ? `${preset.role} · já no chat` : preset.role}</span>
               </span>
             </button>
           );

@@ -3,7 +3,7 @@ import { Bot, ChevronDown, ChevronRight, FolderPlus, GitBranch, PanelLeftClose, 
 import { api, getApiBase, type Project, type Repository, type SchemaTable, type WebTarget } from "../api";
 import { basename, expandGitPattern, quoteIdentifier, sanitizeBranchName } from "../lib";
 import { useApp, type AppNotification, type Sidebar, type Tab } from "../store";
-import { botThread, useBots, type BotWorkspace, botSessionIds } from "../bots";
+import { chatSessionIds, useChats, type ProjectChats } from "../chats";
 import { useAI } from "../ai";
 import { PROJECT_EVENT, type ProjectEvent } from "../projectEvents";
 import ActivityBar from "./ActivityBar";
@@ -96,12 +96,10 @@ export default function Workbench() {
   const setTerminalOpen = useApp((state) => state.setTerminalOpen);
   const notify = useApp((state) => state.notify);
   const markNotificationRead = useApp((state) => state.markNotificationRead);
-  const botMode = useBots((state) => activeProjectId ? state.byProject[activeProjectId]?.mode : undefined);
-  const botWorkspaceHydrated = useBots((state) => activeProjectId ? state.byProject[activeProjectId]?.hydrated === true : false);
-  const pendingBotSelection = useRef<{ projectId: string; botId: string } | null>(null);
-  const savedMode = useRef<string | null>(null);
-  const loadBots = useBots((state) => state.load);
-  const snapshotBots = useBots((state) => state.snapshot);
+  const chatsHydrated = useChats((state) => activeProjectId ? state.byProject[activeProjectId]?.hydrated === true : false);
+  const pendingTophSelection = useRef<{ projectId: string; tophId: string } | null>(null);
+  const loadChats = useChats((state) => state.load);
+  const snapshotChats = useChats((state) => state.snapshot);
   const loadAI = useAI((state) => state.load);
   const loadModels = useAI((state) => state.loadModels);
   const branchPattern = useSettings((state) => state.gitBranchPattern);
@@ -472,8 +470,8 @@ export default function Workbench() {
       state.setActiveProject(payload.projectId);
       forceTophsOnLoad.current = true;
       if (payload.botId) {
-        if (switchingProject) pendingBotSelection.current = { projectId: payload.projectId, botId: payload.botId };
-        else selectBot(payload.projectId, payload.botId);
+        if (switchingProject) pendingTophSelection.current = { projectId: payload.projectId, tophId: payload.botId };
+        else selectToph(payload.projectId, payload.botId);
       }
       state.setSidebar("bots");
     };
@@ -482,24 +480,10 @@ export default function Workbench() {
   }, []);
 
   useEffect(() => {
-    const pending = pendingBotSelection.current;
-    if (!pending || pending.projectId !== activeProjectId || !botMode) return;
-    const state = useBots.getState();
-    const workspace = state.byProject[activeProjectId];
-    if (!workspace?.hydrated) return;
-    const targetMode = botThread(workspace, "solo").bots.some((bot) => bot.id === pending.botId)
-      ? "solo"
-      : botThread(workspace, "team").bots.some((bot) => bot.id === pending.botId)
-        ? "team"
-        : null;
-    if (!targetMode) {
-      pendingBotSelection.current = null;
-      return;
-    }
-    if ((workspace.mode ?? "solo") !== targetMode) state.setMode(pending.projectId, targetMode);
-    state.setActiveBot(pending.projectId, pending.botId);
-    pendingBotSelection.current = null;
-  }, [activeProjectId, botMode, botWorkspaceHydrated]);
+    const pending = pendingTophSelection.current;
+    if (!pending || pending.projectId !== activeProjectId || !chatsHydrated) return;
+    selectToph(pending.projectId, pending.tophId);
+  }, [activeProjectId, chatsHydrated]);
 
 
   useEffect(() => {
@@ -517,9 +501,8 @@ export default function Workbench() {
   useEffect(() => {
     if (!activeProjectId) return;
     let cancelled = false;
-    useBots.getState().unload(activeProjectId);
+    useChats.getState().unload(activeProjectId);
     loadedProject.current = null;
-    savedMode.current = null;
     setTabs([]);
     const initialFeatures = useSettings.getState().workspaceFeatures;
     const initialEnabled = (feature: WorkspaceFeature) => featureEnabled(initialFeatures, feature);
@@ -545,10 +528,7 @@ export default function Workbench() {
           restored.map((tab) => ({ ...tab, projectId: activeProjectId })),
           enabled("tabs") && typeof layout.activeTabId === "string" ? layout.activeTabId : null,
         );
-        loadBots(activeProjectId, layout.bots as BotWorkspace | null | undefined);
-        if (desktopClient && currentTopOnly) {
-          useBots.getState().createSolo(activeProjectId);
-        }
+        loadChats(activeProjectId, layout.chats as ProjectChats | null | undefined);
         if (currentTopOnly || forceTophsOnLoad.current) {
           forceTophsOnLoad.current = false;
           setSidebar("bots");
@@ -580,9 +560,9 @@ export default function Workbench() {
       });
     return () => {
       cancelled = true;
-      useBots.getState().unload(activeProjectId);
+      useChats.getState().unload(activeProjectId);
     };
-  }, [activeProjectId, desktopClient, loadBots, notify, setSidebar, setTabs, setTerminalOpen]);
+  }, [activeProjectId, desktopClient, loadChats, notify, setSidebar, setTabs, setTerminalOpen]);
 
   useEffect(() => {
     if (!activeProjectId || (!filesEnabled && !sourceControlEnabled)) {
@@ -611,19 +591,19 @@ export default function Workbench() {
           activeTabId,
           sidebar,
           terminalOpen,
-          bots: snapshotBots(activeProjectId),
+          chats: snapshotChats(activeProjectId),
         })
         .catch(() => undefined);
     }, 500);
     return () => window.clearTimeout(timer);
-  }, [activeProjectId, layoutTabs, terminalOpen, sidebar, activeTabId, projectEpoch, snapshotBots]);
+  }, [activeProjectId, layoutTabs, terminalOpen, sidebar, activeTabId, projectEpoch, snapshotChats]);
 
   // Subscribe outside the render tree so message/tool updates do not re-render
   // the whole workbench. The debounce still persists the latest bot history.
   useEffect(() => {
     if (!activeProjectId) return;
     let timer: number | undefined;
-    const unsubscribe = useBots.subscribe((state, previous) => {
+    const unsubscribe = useChats.subscribe((state, previous) => {
       if (state.byProject[activeProjectId] === previous.byProject[activeProjectId]) return;
       if (loadedProject.current !== activeProjectId) return;
       if (timer) window.clearTimeout(timer);
@@ -634,7 +614,7 @@ export default function Workbench() {
             activeTabId,
             sidebar,
             terminalOpen,
-            bots: useBots.getState().snapshot(activeProjectId),
+            chats: useChats.getState().snapshot(activeProjectId),
           })
           .catch(() => undefined);
       }, 500);
@@ -661,18 +641,18 @@ export default function Workbench() {
     };
 
     const flush = async (projectId: string) => {
-      const messages = useBots.getState().pendingMessageWrites(projectId);
+      const messages = useChats.getState().pendingMessageWrites(projectId);
       if (messages.length === 0 || inFlight.has(projectId)) return;
       inFlight.add(projectId);
       let retry = false;
       try {
-        await api.saveWorkspaceMessages(projectId, messages);
-        useBots.getState().acknowledgeMessageWrites(projectId, messages);
+        await api.saveChatMessages(projectId, messages);
+        useChats.getState().acknowledgeMessageWrites(projectId, messages);
       } catch {
         retry = true;
       } finally {
         inFlight.delete(projectId);
-        if (useBots.getState().pendingMessageWrites(projectId).length > 0) schedule(projectId, retry ? 2_000 : 350);
+        if (useChats.getState().pendingMessageWrites(projectId).length > 0) schedule(projectId, retry ? 2_000 : 350);
       }
     };
 
@@ -681,8 +661,8 @@ export default function Workbench() {
         if (Object.keys(messages).length > 0) schedule(projectId);
       }
     };
-    schedulePending(useBots.getState().messageWrites);
-    const unsubscribe = useBots.subscribe((state, previous) => {
+    schedulePending(useChats.getState().messageWrites);
+    const unsubscribe = useChats.subscribe((state, previous) => {
       if (state.messageWrites !== previous.messageWrites) schedulePending(state.messageWrites);
     });
     return () => {
@@ -690,24 +670,6 @@ export default function Workbench() {
       for (const timer of timers.values()) window.clearTimeout(timer);
     };
   }, []);
-
-  // Mode is a deliberate choice: persist it immediately so leaving and
-  // returning to Tophs does not fall back to the other thread.
-  useEffect(() => {
-    if (!activeProjectId || loadedProject.current !== activeProjectId) return;
-    const mode = botMode;
-    if (!mode || savedMode.current === mode) return;
-    savedMode.current = mode;
-    void api
-      .saveLayout(activeProjectId, {
-        tabs: layoutTabs,
-        activeTabId,
-        sidebar,
-        terminalOpen,
-        bots: snapshotBots(activeProjectId),
-      })
-      .catch(() => undefined);
-  }, [activeProjectId, botMode, layoutTabs, terminalOpen, sidebar, activeTabId, projectEpoch, snapshotBots]);
 
   function switchProject(next: string) {
     if (next === activeProjectId) return;
@@ -717,7 +679,7 @@ export default function Workbench() {
         activeTabId,
         sidebar,
         terminalOpen,
-        bots: snapshotBots(project.id),
+        chats: snapshotChats(project.id),
       });
     }
     forceTophsOnLoad.current = true;
@@ -937,27 +899,20 @@ export default function Workbench() {
     });
   }
 
-  function selectBot(projectId: string, botId: string) {
-    const state = useBots.getState();
-    const workspace = state.byProject[projectId];
-    const targetMode = workspace
-      ? botThread(workspace, "solo").bots.some((bot) => bot.id === botId)
-        ? "solo"
-        : botThread(workspace, "team").bots.some((bot) => bot.id === botId)
-          ? "team"
-          : null
-      : null;
-    if (!workspace?.hydrated) {
-      pendingBotSelection.current = { projectId, botId };
+  function selectToph(projectId: string, tophId: string) {
+    const state = useChats.getState();
+    const chats = state.byProject[projectId];
+    if (!chats?.hydrated) {
+      pendingTophSelection.current = { projectId, tophId };
       return;
     }
-    if (!targetMode) {
-      pendingBotSelection.current = null;
+    const toph = chats.tophs.find((item) => item.id === tophId);
+    if (!toph) {
+      pendingTophSelection.current = null;
       return;
     }
-    if ((workspace.mode ?? "solo") !== targetMode) state.setMode(projectId, targetMode);
-    state.setActiveBot(projectId, botId);
-    pendingBotSelection.current = null;
+    state.setActiveChat(projectId, toph.chatId);
+    pendingTophSelection.current = null;
   }
 
   function openNotification(notification: AppNotification) {
@@ -970,8 +925,8 @@ export default function Workbench() {
       setActiveProject(notification.projectId);
     }
     if (notification.botId) {
-      if (switchingProject) pendingBotSelection.current = { projectId: notification.projectId, botId: notification.botId };
-      else selectBot(notification.projectId, notification.botId);
+      if (switchingProject) pendingTophSelection.current = { projectId: notification.projectId, tophId: notification.botId };
+      else selectToph(notification.projectId, notification.botId);
     }
     setSidebar("bots");
     setTerminalOpen(false);
@@ -1018,7 +973,7 @@ export default function Workbench() {
     setCloseBusy(true);
     setCloseError("");
     try {
-      const sessions = botSessionIds(useBots.getState().byProject[id]);
+      const sessions = chatSessionIds(useChats.getState().byProject[id]);
       await Promise.all(sessions.map((sessionId) => api.interruptOpencodeSession(sessionId).catch(() => undefined)));
       if (activeProjectId === id && loadedProject.current === id) {
         await api
@@ -1027,12 +982,12 @@ export default function Workbench() {
             activeTabId,
             sidebar,
             terminalOpen,
-            bots: snapshotBots(id),
+            chats: snapshotChats(id),
           })
           .catch(() => undefined);
       }
       const result = await api.closeProject(id);
-      useBots.getState().forget(id);
+      useChats.getState().forget(id);
       useTophDrafts.getState().clearProject(id);
       if (activeProjectId === id) {
         forceTophsOnLoad.current = true;
@@ -1247,7 +1202,7 @@ export default function Workbench() {
                        <div className="flex flex-wrap items-center justify-center gap-2">
                          {featureIsEnabled("files") && <Button variant="secondary" size="small" onClick={() => selectSidebar("files")}>Explorer</Button>}
                          {featureIsEnabled("databases") && <Button variant="secondary" size="small" onClick={() => selectSidebar("db")}>Database</Button>}
-                         <Button variant="secondary" size="small" onClick={() => setSidebar("bots")}>Tophs</Button>
+                         <Button variant="secondary" size="small" onClick={() => setSidebar("bots")}>Toph</Button>
                        </div>
                     </div>
                   )}

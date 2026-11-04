@@ -1,11 +1,11 @@
 import { useEffect, useState, type CSSProperties } from "react";
-import type { MiniBot } from "../bots";
+import type { ChatToph } from "../chats";
 import { cx } from "@/boardui/utils/cx";
 import { usePointerLook } from "../ui/usePointerLook";
 import TophEyes, { TophColorOverlay } from "./TophEyes";
 
 interface Props {
-  bot: Pick<MiniBot, "name" | "color" | "avatar">;
+  bot: Pick<ChatToph, "name" | "color" | "avatar">;
   size?: number;
   className?: string;
   style?: CSSProperties;

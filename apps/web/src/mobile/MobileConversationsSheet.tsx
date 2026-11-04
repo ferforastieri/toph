@@ -1,163 +1,125 @@
 import { useEffect, useState } from "react";
-import { Bot, Check, MessageSquare, Plus, UserRound } from "@toph/icons";
+import { Bot, Plus } from "@toph/icons";
 import type { Project } from "../api";
-import { botThread, useBots, type TophMode } from "../bots";
+import { activeChat, chatTophs, useChats } from "../chats";
 import TophGallery from "../components/TophGallery";
 import TophRow from "../components/TophRow";
 import { Button } from "@/boardui/base/buttons/button";
 import { Modal } from "@/boardui/base/modal/modal";
+import { cx } from "@/boardui/utils/cx";
 
 interface Props {
   open: boolean;
   project: Project;
   onClose: () => void;
   onSelected: () => void;
-  onAction: (mode: TophMode, botId: string, action: "config" | "sessions") => void;
+  onAction: (tophId: string) => void;
 }
 
 export default function MobileConversationsSheet({ open, project, onClose, onSelected, onAction }: Props) {
-  const workspace = useBots((state) => state.byProject[project.id]);
-  const setActiveBot = useBots((state) => state.setActiveBot);
-  const setMode = useBots((state) => state.setMode);
-  const [tab, setTab] = useState<TophMode>("solo");
-  const [galleryTarget, setGalleryTarget] = useState<TophMode | null>(null);
-
-  const mode: TophMode = workspace?.mode === "team" ? "team" : "solo";
-  const soloBots = botThread(workspace, "solo").bots;
-  const teamBots = botThread(workspace, "team").bots;
-  const coordinator = teamBots.find((bot) => bot.coordinator) ?? teamBots[0] ?? null;
-  const activeId = workspace?.activeBotId;
-  const activeWorker = mode === "team" && activeId && activeId !== coordinator?.id ? activeId : null;
-  const teamGeneralActive = mode === "team" && !activeWorker;
+  const chats = useChats((state) => state.byProject[project.id]);
+  const ensure = useChats((state) => state.ensure);
+  const setActiveChat = useChats((state) => state.setActiveChat);
+  const createChat = useChats((state) => state.createChat);
+  const [galleryOpen, setGalleryOpen] = useState(false);
 
   useEffect(() => {
-    if (open) setTab(mode);
-    else setGalleryTarget(null);
-  }, [open, mode]);
+    ensure(project.id);
+  }, [ensure, project.id]);
 
-  function selectConversation(target: TophMode, botId?: string) {
-    if ((useBots.getState().byProject[project.id]?.mode ?? "solo") !== target) setMode(project.id, target);
-    const thread = botThread(useBots.getState().byProject[project.id], target);
-    if (thread.bots.length === 0) {
-      setGalleryTarget(target);
-      return;
-    }
-    const selected = botId && thread.bots.some((bot) => bot.id === botId)
-      ? botId
-      : thread.activeBotId ?? thread.bots.find((bot) => bot.coordinator)?.id ?? thread.bots[0]?.id ?? null;
-    setActiveBot(project.id, selected);
+  const chat = activeChat(chats);
+  const tophs = chatTophs(chats, chat?.id);
+
+  function selectChat(chatId: string) {
+    setActiveChat(project.id, chatId);
     onClose();
     onSelected();
-  }
-
-  function openTeamGeneral() {
-    selectConversation("team", coordinator?.id);
   }
 
   return (
     <>
       <Modal
-        isOpen={open && galleryTarget === null}
+        isOpen={open && !galleryOpen}
         onClose={onClose}
-        title="Conversas"
-        description="Escolha um Toph individual ou a conversa da equipe."
+        title="Toph"
+        description="Escolha um chat e veja os Tophs dele."
         placement="bottom"
         size="sm"
         bodyClassName="p-2"
         swipeToClose
       >
-        <div className="mb-2 flex items-center gap-1 rounded-2xl bg-background-secondary-default p-1">
-          <Button variant={tab === "solo" ? "secondary" : "ghost"} size="small" leadingIcon={UserRound} className="flex-1" onClick={() => setTab("solo")}>Individual</Button>
-          <Button variant={tab === "team" ? "secondary" : "ghost"} size="small" leadingIcon={Bot} className="flex-1" onClick={() => setTab("team")}>Equipe</Button>
-        </div>
-
-        {tab === "solo" ? (
-          <div className="flex max-h-[min(56dvh,460px)] flex-col gap-0.5 overflow-y-auto">
-            <div className="mb-1 flex items-center gap-2 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-tertiary">
-              <UserRound size={12} />
-              <span className="flex-1">Individuais</span>
-              <span>{soloBots.length}</span>
-              <Button variant="ghost" size="small" iconOnly leadingIcon={Plus} aria-label="Adicionar Toph individual" title="Adicionar Toph individual" onClick={() => setGalleryTarget("solo")} />
-            </div>
-            {soloBots.length === 0 ? (
-              <button
-                type="button"
-                onClick={() => setGalleryTarget("solo")}
-                className="flex w-full items-center gap-2.5 rounded-xl border border-dashed border-border-button-default px-2.5 py-2.5 text-start text-caption-1-medium text-text-secondary transition-[background-color,color,transform,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] hover:bg-background-primary-hover hover:text-text-primary active:scale-[0.99]"
-              >
-                <span className="flex size-8 items-center justify-center rounded-full bg-background-secondary-default"><Plus size={14} /></span>
-                Adicionar Toph individual
-              </button>
-            ) : soloBots.map((bot) => (
-              <TophRow
-                key={bot.id}
-                bot={bot}
-                compact
-                active={mode === "solo" && activeId === bot.id}
-                onSelect={() => selectConversation("solo", bot.id)}
-                onConfig={() => onAction("solo", bot.id, "config")}
-                onSessions={() => onAction("solo", bot.id, "sessions")}
-              />
-            ))}
+        <div className="flex max-h-[min(60dvh,500px)] flex-col gap-0.5 overflow-y-auto">
+          <div className="mb-1 flex items-center gap-2 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-tertiary">
+            <span className="text-sm leading-none">#</span>
+            <span className="flex-1">Canais</span>
+            <span>{chats?.chats.length ?? 0}</span>
+            <Button
+              variant="ghost"
+              size="small"
+              iconOnly
+              leadingIcon={Plus}
+              aria-label="Criar chat"
+              title="Criar chat"
+              onClick={() => {
+                const created = createChat(project.id, "Novo chat");
+                selectChat(created.id);
+              }}
+            />
           </div>
-        ) : (
-          <div className="flex max-h-[min(56dvh,460px)] flex-col gap-0.5 overflow-y-auto">
-            <div className="mb-1 flex items-center gap-2 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-tertiary">
-              <Bot size={12} />
-              <span className="flex-1">Equipe</span>
-              <span>{teamBots.length}</span>
-              <Button variant="ghost" size="small" iconOnly leadingIcon={Plus} aria-label="Adicionar Toph à equipe" title="Adicionar Toph à equipe" onClick={() => setGalleryTarget("team")} />
-            </div>
-            {teamBots.length === 0 ? (
+          {!chats || chats.chats.length === 0 ? (
+            <p className="rounded-xl border border-dashed border-border-button-default px-3 py-4 text-center text-caption-2-regular leading-relaxed text-text-tertiary">
+              Crie um chat no desktop para começar.
+            </p>
+          ) : chats.chats.map((item) => {
+            const selected = chat?.id === item.id;
+            return (
               <button
+                key={item.id}
                 type="button"
-                onClick={() => setGalleryTarget("team")}
-                className="flex w-full items-center gap-2.5 rounded-xl border border-dashed border-border-button-default px-2.5 py-2.5 text-start text-caption-1-medium text-text-secondary transition-[background-color,color,transform,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] hover:bg-background-primary-hover hover:text-text-primary active:scale-[0.99]"
+                onClick={() => selectChat(item.id)}
+                aria-current={selected ? "true" : undefined}
+                className={cx("flex w-full items-center gap-2.5 rounded-xl px-2 py-2 text-start transition-colors", selected ? "bg-background-tertiary-default" : "hover:bg-background-primary-hover")}
               >
-                <span className="flex size-8 items-center justify-center rounded-full bg-background-secondary-default"><Plus size={14} /></span>
-                Adicionar primeiro Toph
+                <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-background-secondary-default text-caption-1-semibold text-text-tertiary">#</span>
+                <span className="min-w-0 flex-1 truncate text-caption-1-medium text-text-primary">{item.name}</span>
               </button>
-            ) : (
-              <>
+            );
+          })}
+
+          {chat ? (
+            <>
+              <div className="mb-1 mt-3 flex items-center gap-2 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-tertiary">
+                <Bot size={12} />
+                <span className="flex-1">Agentes</span>
+                <span>{tophs.length}</span>
+                <Button variant="ghost" size="small" iconOnly leadingIcon={Plus} aria-label="Adicionar Toph ao chat" title="Adicionar Toph ao chat" onClick={() => setGalleryOpen(true)} />
+              </div>
+              {tophs.length === 0 ? (
                 <button
                   type="button"
-                  onClick={openTeamGeneral}
-                  aria-current={teamGeneralActive ? "true" : undefined}
-                  className={`flex w-full items-center gap-2.5 rounded-xl px-2 py-2 text-start transition-[background-color,color,transform,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] active:scale-[0.99] ${teamGeneralActive ? "bg-background-tertiary-default" : "hover:bg-background-primary-hover"}`}
+                  onClick={() => setGalleryOpen(true)}
+                  className="flex w-full items-center gap-2.5 rounded-xl border border-dashed border-border-button-default px-2.5 py-2.5 text-start text-caption-1-medium text-text-secondary transition-colors hover:bg-background-primary-hover hover:text-text-primary"
                 >
-                  <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-accent-500/10 text-accent-500"><MessageSquare size={14} /></span>
-                  <span className="flex min-w-0 flex-1 flex-col">
-                    <span className="truncate text-caption-1-medium text-text-primary">Conversa da equipe</span>
-                    <span className="truncate text-caption-2-regular text-text-secondary">Todos os Tophs colaborando</span>
-                  </span>
-                  {teamGeneralActive ? <Check size={14} className="shrink-0 text-accent-500" /> : null}
+                  <span className="flex size-8 items-center justify-center rounded-full bg-background-secondary-default"><Plus size={14} /></span>
+                  Adicionar primeiro Toph
                 </button>
-                {teamBots.map((bot) => (
-                  <TophRow
-                    key={bot.id}
-                    bot={bot}
-                    compact
-                    active={mode === "team" && activeWorker === bot.id}
-                    onSelect={() => selectConversation("team", bot.id)}
-                    onConfig={() => onAction("team", bot.id, "config")}
-                    onSessions={() => onAction("team", bot.id, "sessions")}
-                  />
-                ))}
-              </>
-            )}
-          </div>
-        )}
+              ) : tophs.map((toph) => (
+                <TophRow key={toph.id} toph={toph} compact onOpen={() => { onClose(); onAction(toph.id); }} />
+              ))}
+            </>
+          ) : null}
+        </div>
       </Modal>
 
       <TophGallery
-        open={galleryTarget !== null}
+        open={galleryOpen}
         projectId={project.id}
-        target={galleryTarget ?? "solo"}
-        onClose={() => setGalleryTarget(null)}
-        onCreated={() => {
-          setGalleryTarget(null);
+        chatId={chat?.id ?? null}
+        onClose={() => setGalleryOpen(false)}
+        onCreated={(tophId) => {
+          setGalleryOpen(false);
           onClose();
-          onSelected();
+          onAction(tophId);
         }}
       />
     </>

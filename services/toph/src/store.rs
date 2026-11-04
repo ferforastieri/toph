@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::path::Path;
 use std::str::FromStr;
 use std::time::Duration;
@@ -68,6 +67,51 @@ impl Store {
             sqlx::query("ALTER TABLE db_profiles ADD COLUMN project_root TEXT NOT NULL DEFAULT ''")
                 .execute(&pool)
                 .await;
+        // Clean break from the old team/individual Toph model. New chat
+        // messages use mode = 'chat' and are preserved.
+        let _ = sqlx::query("DELETE FROM bot_messages WHERE mode <> 'chat'")
+            .execute(&pool)
+            .await;
+        if let Ok(rows) = sqlx::query("SELECT user_id, project_id, layout FROM workspaces")
+            .fetch_all(&pool)
+            .await
+        {
+            for row in rows {
+                let user_id: i64 = row.get("user_id");
+                let project_id: String = row.get("project_id");
+                let raw: String = row.get("layout");
+                let Ok(mut layout) = serde_json::from_str::<Value>(&raw) else {
+                    continue;
+                };
+                let Some(object) = layout.as_object_mut() else {
+                    continue;
+                };
+                let mut changed = false;
+                for key in [
+                    "bots",
+                    "savedSolo",
+                    "savedTeam",
+                    "mode",
+                    "modeExplicit",
+                    "activeBotId",
+                ] {
+                    if object.remove(key).is_some() {
+                        changed = true;
+                    }
+                }
+                if changed {
+                    let _ = sqlx::query(
+                        "UPDATE workspaces SET layout = ?, updated_at = ? WHERE user_id = ? AND project_id = ?",
+                    )
+                    .bind(layout.to_string())
+                    .bind(now())
+                    .bind(user_id)
+                    .bind(&project_id)
+                    .execute(&pool)
+                    .await;
+                }
+            }
+        }
         Ok(Self { pool })
     }
 
@@ -299,17 +343,9 @@ impl Store {
             .bind(project_id)
             .fetch_optional(&self.pool)
             .await?;
-        let raw = row
+        Ok(row
             .map(|row| row.get::<String, _>("layout"))
-            .unwrap_or_else(|| "{}".into());
-        let mut layout: Value = serde_json::from_str(&raw)?;
-        let messages = take_workspace_messages(&mut layout)?;
-        let compact = layout.to_string();
-        if !messages.is_empty() {
-            self.persist_workspace(user_id, project_id, &compact, messages)
-                .await?;
-        }
-        Ok(compact)
+            .unwrap_or_else(|| "{}".into()))
     }
 
     pub async fn save_workspace_layout(
@@ -318,21 +354,6 @@ impl Store {
         project_id: &str,
         layout: &str,
     ) -> AppResult<()> {
-        let mut compact: Value = serde_json::from_str(layout)?;
-        let messages = take_workspace_messages(&mut compact)?;
-        self.persist_workspace(user_id, project_id, &compact.to_string(), messages)
-            .await
-    }
-
-    async fn persist_workspace(
-        &self,
-        user_id: i64,
-        project_id: &str,
-        layout: &str,
-        messages: Vec<StoredWorkspaceMessage>,
-    ) -> AppResult<()> {
-        let mut transaction = self.pool.begin().await?;
-        upsert_workspace_messages(&mut transaction, user_id, project_id, messages).await?;
         sqlx::query(
             "INSERT INTO workspaces (user_id, project_id, layout, updated_at) VALUES (?, ?, ?, ?)
              ON CONFLICT(user_id, project_id) DO UPDATE SET layout = excluded.layout, updated_at = excluded.updated_at",
@@ -341,9 +362,8 @@ impl Store {
         .bind(project_id)
         .bind(layout)
         .bind(now())
-        .execute(&mut *transaction)
+        .execute(&self.pool)
         .await?;
-        transaction.commit().await?;
         Ok(())
     }
 
@@ -355,7 +375,7 @@ impl Store {
     ) -> AppResult<()> {
         let mut records = Vec::with_capacity(messages.len());
         for message in messages {
-            if let Some(record) = stored_workspace_message(message, None)? {
+            if let Some(record) = stored_workspace_message(message)? {
                 records.push(record);
             }
         }
@@ -375,7 +395,7 @@ impl Store {
     ) -> AppResult<()> {
         let mut records = Vec::with_capacity(messages.len());
         for message in messages {
-            if let Some(record) = stored_workspace_message(message, Some(mode))? {
+            if let Some(record) = stored_workspace_message(message)? {
                 records.push(record);
             }
         }
@@ -685,54 +705,7 @@ fn now() -> String {
     Utc::now().to_rfc3339()
 }
 
-fn take_workspace_messages(layout: &mut Value) -> AppResult<Vec<StoredWorkspaceMessage>> {
-    let Some(bots) = layout.get_mut("bots").and_then(Value::as_object_mut) else {
-        return Ok(Vec::new());
-    };
-    let active_mode = bots
-        .get("mode")
-        .and_then(Value::as_str)
-        .filter(|mode| matches!(*mode, "solo" | "team"))
-        .unwrap_or("solo")
-        .to_string();
-    let mut by_id = HashMap::new();
-
-    take_thread_messages(bots, &active_mode, &mut by_id)?;
-    if let Some(thread) = bots.get_mut("savedSolo").and_then(Value::as_object_mut) {
-        take_thread_messages(thread, "solo", &mut by_id)?;
-    }
-    if let Some(thread) = bots.get_mut("savedTeam").and_then(Value::as_object_mut) {
-        take_thread_messages(thread, "team", &mut by_id)?;
-    }
-    Ok(by_id.into_values().collect())
-}
-
-fn take_thread_messages(
-    thread: &mut serde_json::Map<String, Value>,
-    mode_hint: &str,
-    by_id: &mut HashMap<String, StoredWorkspaceMessage>,
-) -> AppResult<()> {
-    let Some(messages) = thread
-        .remove("messages")
-        .and_then(|value| value.as_array().cloned())
-    else {
-        return Ok(());
-    };
-    for message in messages {
-        if let Some(record) = stored_workspace_message(message, Some(mode_hint))? {
-            by_id.insert(
-                format!("{}\u{0}{}\u{0}{}", record.mode, record.channel, record.id),
-                record,
-            );
-        }
-    }
-    Ok(())
-}
-
-fn stored_workspace_message(
-    mut message: Value,
-    mode_hint: Option<&str>,
-) -> AppResult<Option<StoredWorkspaceMessage>> {
+fn stored_workspace_message(mut message: Value) -> AppResult<Option<StoredWorkspaceMessage>> {
     let Some(object) = message.as_object_mut() else {
         return Ok(None);
     };
@@ -747,26 +720,21 @@ fn stored_workspace_message(
     else {
         return Ok(None);
     };
-    let mode = object
-        .get("mode")
+    let Some(chat_id) = object
+        .get("chatId")
         .and_then(Value::as_str)
-        .filter(|mode| matches!(*mode, "solo" | "team"))
-        .or(mode_hint)
-        .unwrap_or("solo")
-        .to_string();
-    let channel = object
-        .get("channel")
-        .and_then(Value::as_str)
-        .filter(|channel| !channel.is_empty())
-        .unwrap_or(if mode == "solo" { "solo" } else { "team" })
-        .to_string();
+        .filter(|chat_id| !chat_id.is_empty())
+        .map(str::to_string)
+    else {
+        return Ok(None);
+    };
     let role = object
         .get("role")
         .and_then(Value::as_str)
         .unwrap_or("system")
         .to_string();
     let bot_id = object
-        .get("botId")
+        .get("tophId")
         .and_then(Value::as_str)
         .filter(|id| !id.is_empty())
         .map(str::to_string);
@@ -774,13 +742,12 @@ fn stored_workspace_message(
         .get("createdAt")
         .and_then(Value::as_i64)
         .unwrap_or_else(|| Utc::now().timestamp_millis());
-    object.insert("mode".into(), Value::String(mode.clone()));
-    object.insert("channel".into(), Value::String(channel.clone()));
+    object.insert("chatId".into(), Value::String(chat_id.clone()));
     object.insert("createdAt".into(), json!(created_at));
     Ok(Some(StoredWorkspaceMessage {
         id,
-        mode,
-        channel,
+        mode: "chat".into(),
+        channel: chat_id,
         role,
         bot_id,
         created_at,
