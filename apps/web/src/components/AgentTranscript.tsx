@@ -34,7 +34,11 @@ const markdownComponents: Components = {
   li: ({ children }) => <li className="pl-0.5">{children}</li>,
   strong: ({ children }) => <strong className="font-semibold text-text-primary">{children}</strong>,
   em: ({ children }) => <em className="italic">{children}</em>,
-  a: ({ href, children }) => <a href={href} className="text-accent-500 underline underline-offset-2 hover:text-accent-400" target="_blank" rel="noreferrer">{children}</a>,
+  a: ({ href, children }) => href?.startsWith("mention:") ? (
+    <span className="mx-0.5 inline-flex items-center rounded-full bg-accent-500/12 px-1.5 py-0.5 align-baseline text-[12px] font-medium text-accent-600">{children}</span>
+  ) : (
+    <a href={href} className="text-accent-500 underline underline-offset-2 hover:text-accent-400" target="_blank" rel="noreferrer">{children}</a>
+  ),
   img: ({ src, alt }) => src ? (
     <a href={src} target="_blank" rel="noreferrer" className="my-2 block w-fit max-w-full">
       <img src={src} alt={alt ?? "Imagem"} loading="lazy" onError={(event) => { const wrapper = event.currentTarget.closest("a"); if (wrapper instanceof HTMLElement) wrapper.style.display = "none"; }} className="max-h-[420px] max-w-full rounded-xl border border-border-button-default bg-background-secondary-default object-contain" />
@@ -82,6 +86,14 @@ interface MessageProps {
 
 export interface ResolvedAgentImage extends AgentImageArtifact {
   uri: string;
+}
+
+const MENTION = /(^|[\s(])@([a-z0-9][a-z0-9-]*)/gi;
+
+/** Turns @handle into a markdown link so it can render as a chip. */
+export function linkMentions(text: string): string {
+  if (!text.includes("@")) return text;
+  return text.replace(MENTION, (_match, prefix: string, handle: string) => `${prefix}[@${handle}](mention:${handle})`);
 }
 
 function resolveImageSource(source: string, projectId?: string, projectRoot?: string): string {
@@ -435,7 +447,7 @@ const TranscriptMessage = memo(function TranscriptMessage({ message, showCaret, 
         components={markdownComponents}
         urlTransform={(url) => url.startsWith("data:image/") ? url : defaultUrlTransform(url)}
       >
-        {resolveMarkdownImages(message.text, projectId, projectRoot)}
+        {resolveMarkdownImages(linkMentions(message.text), projectId, projectRoot)}
       </ReactMarkdown>
       {showCaret && (
         <span className="ml-0.5 inline-block h-3.5 w-[2px] animate-pulse bg-accent-500 align-middle" aria-hidden />
