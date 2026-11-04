@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { OpenCode } from "@opencode/client";
 import { connectClientMcp, type ClientMcpTool } from "@opencode/client/mcp";
-import { Bot, ChevronDown, Copy, ListTree, LoaderCircle, MessageSquarePlus, Monitor, UserRound } from "@toph/icons";
+import { Bot, Check, ChevronDown, Copy, ListTree, LoaderCircle, MessageSquare, MessageSquarePlus, Monitor, Plus, UserRound } from "@toph/icons";
 import { api, ApiError, openCodeBase, type AIMessage, type AIMessageContentPart, type Project, type WorkspaceMessageCursor } from "../api";
 import { modelDisplay, useAI } from "../ai";
 import { TOPH_PRESETS, useBots, type BotMessage, type MiniBot } from "../bots";
 import { notifyAiResponse } from "../aiNotifications";
 import { playBotResponseSound, unlockBotSound } from "../botSound";
 import BotAvatar from "../components/BotAvatar";
+import TophRow from "../components/TophRow";
 import BotConfig from "../components/BotConfig";
 import AgentTranscript, { AgentImageGallery, agentImagesForMessages } from "../components/AgentTranscript";
 import OpenCodeFormCard, { type OpenCodeForm, type OpenCodeFormAnswer } from "../components/OpenCodeFormCard";
@@ -19,7 +20,7 @@ import { Modal } from "@/boardui/base/modal/modal";
 import { cx } from "@/boardui/utils/cx";
 import { useTophDrafts } from "../tophDrafts";
 import { AgentComposer, type AgentAttachment } from "../ui/AgentComposer";
-import { DropdownItem } from "@/boardui/base/dropdown/dropdown";
+import { Dropdown, DropdownDivider, DropdownItem, DropdownPopover, DropdownTrigger } from "@/boardui/base/dropdown/dropdown";
 import ComposerMenu from "../ui/ComposerMenu";
 import AiUsageMeter from "../ui/AiUsageMeter";
 import ResizeHandle from "../ui/resize";
@@ -348,6 +349,7 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
   const [sending, setSending] = useState(false);
   const [configOpen, setConfigOpen] = useState(false);
   const [sessionsOpen, setSessionsOpen] = useState(false);
+  const [teamPickerOpen, setTeamPickerOpen] = useState(false);
   const [connectionEpoch, setConnectionEpoch] = useState(0);
   const sendingRef = useRef(false);
   const runToken = useRef(0);
@@ -1415,6 +1417,22 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
     }
   }
 
+  function openTeamGeneral() {
+    if (mode !== "team") setMode(project.id, "team");
+    setActiveBot(project.id, coordinator?.id ?? bots[0]?.id ?? null);
+  }
+
+  function openTeamBot(botId: string) {
+    if (mode !== "team") setMode(project.id, "team");
+    setActiveBot(project.id, botId);
+  }
+
+  function openBotSettings(botId: string, action: "config" | "sessions") {
+    setActiveBot(project.id, botId);
+    if (action === "config") setConfigOpen(true);
+    else setSessionsOpen(true);
+  }
+
   function selectConversation(next: "solo" | "team") {
     if (mode !== next) setMode(project.id, next);
     if (next === "solo") createSolo(project.id);
@@ -1424,9 +1442,101 @@ export default function BotStudioTab({ project, mobile = false }: Props) {
     <div className="flex h-full min-h-0 w-full flex-1 gap-0 overflow-hidden" onPointerDown={unlockBotSound}>
       <section className="flex min-w-0 flex-1 flex-col overflow-hidden bg-background-full max-[900px]:rounded-none max-[900px]:border-0 max-[900px]:shadow-none min-[901px]:rounded-3xl min-[901px]:border min-[901px]:border-border-button-white min-[901px]:shadow-sidebar">
         {mobile ? (
-          <div className="grid shrink-0 grid-cols-2 gap-1 border-b border-separator-border bg-background-secondary-default p-1.5">
-            <Button variant={mode === "solo" ? "secondary" : "ghost"} size="small" leadingIcon={UserRound} onClick={() => selectConversation("solo")}>Individual</Button>
-            <Button variant={mode === "team" ? "secondary" : "ghost"} size="small" leadingIcon={Bot} onClick={() => selectConversation("team")}>Equipe</Button>
+          <div className="shrink-0 border-b border-separator-border bg-background-secondary-default/60">
+            <div className="flex items-center gap-1 p-1.5">
+              <Button variant={mode === "solo" ? "secondary" : "ghost"} size="small" leadingIcon={UserRound} className="flex-1" onClick={() => selectConversation("solo")}>Individual</Button>
+              <Button variant={mode === "team" ? "secondary" : "ghost"} size="small" leadingIcon={Bot} className="flex-1" onClick={() => selectConversation("team")}>Equipe</Button>
+              {mode === "team" ? <Button variant="ghost" size="small" iconOnly leadingIcon={Plus} aria-label="Adicionar Toph" title="Adicionar Toph" onClick={newBot} className="size-8 shrink-0" /> : null}
+            </div>
+            <div className="no-scrollbar flex max-h-44 flex-col gap-0.5 overflow-y-auto px-1.5 pb-1.5">
+              {mode === "team" && bots.length > 0 ? (
+                <button
+                  type="button"
+                  onClick={openTeamGeneral}
+                  aria-current={!activeWorker ? "true" : undefined}
+                  className={cx(
+                    "flex w-full items-center gap-2.5 rounded-xl px-2 py-1.5 text-start transition-colors",
+                    !activeWorker ? "bg-background-tertiary-default" : "hover:bg-background-primary-hover",
+                  )}
+                >
+                  <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-accent-500/10 text-accent-500"><MessageSquare size={14} /></span>
+                  <span className="flex min-w-0 flex-1 flex-col">
+                    <span className="truncate text-caption-1-medium text-text-primary">Conversa da equipe</span>
+                    <span className="truncate text-caption-2-regular text-text-secondary">Todos os Tophs colaborando</span>
+                  </span>
+                  {!activeWorker ? <Check size={14} className="shrink-0 text-accent-500" /> : null}
+                </button>
+              ) : null}
+              {bots.map((bot) => (
+                <TophRow
+                  key={bot.id}
+                  bot={bot}
+                  compact
+                  active={mode === "solo" ? activeBot?.id === bot.id : activeWorker?.id === bot.id}
+                  onSelect={() => {
+                    if (mode === "team") openTeamBot(bot.id);
+                    else setActiveBot(project.id, bot.id);
+                  }}
+                  onConfig={() => openBotSettings(bot.id, "config")}
+                  onSessions={() => openBotSettings(bot.id, "sessions")}
+                />
+              ))}
+              {mode === "team" && bots.length === 0 ? (
+                <button
+                  type="button"
+                  onClick={newBot}
+                  className="flex w-full items-center gap-2.5 rounded-xl border border-dashed border-border-button-default px-2.5 py-2 text-start text-caption-1-medium text-text-secondary transition-colors hover:bg-background-primary-hover hover:text-text-primary"
+                >
+                  <span className="flex size-7 items-center justify-center rounded-full bg-background-secondary-default"><Plus size={14} /></span>
+                  Adicionar primeiro Toph
+                </button>
+              ) : null}
+            </div>
+          </div>
+        ) : mode === "team" && bots.length > 0 ? (
+          <div className="flex h-12 shrink-0 items-center gap-2 border-b border-separator-border bg-background-secondary-default px-2.5">
+            <Dropdown isOpen={teamPickerOpen} onOpenChange={setTeamPickerOpen}>
+              <DropdownTrigger
+                aria-label="Selecionar conversa da equipe"
+                className="flex min-w-0 max-w-[420px] flex-1 items-center gap-2 rounded-xl px-1.5 py-1 text-start transition-colors hover:bg-background-primary-hover"
+              >
+                {activeWorker ? (
+                  <BotAvatar bot={activeWorker} size={28} />
+                ) : (
+                  <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-accent-500/10 text-accent-500"><MessageSquare size={14} /></span>
+                )}
+                <span className="flex min-w-0 flex-1 flex-col">
+                  <strong className="truncate text-caption-1-semibold text-text-primary">{activeWorker ? activeWorker.name : "Conversa da equipe"}</strong>
+                  <span className="truncate text-caption-2-regular text-text-tertiary">{activeWorker ? activeWorker.role || "Especialista" : "Todos os Tophs colaborando"}</span>
+                </span>
+                <ChevronDown size={14} className={cx("shrink-0 text-text-tertiary transition-transform", teamPickerOpen && "rotate-180")} />
+              </DropdownTrigger>
+              <DropdownPopover aria-label="Conversa da equipe" placement="bottom start" className="w-[340px] p-2.5" dialogClassName="gap-1">
+                <DropdownItem selected={!activeWorker} onSelect={() => { openTeamGeneral(); setTeamPickerOpen(false); }}>
+                  <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-accent-500/10 text-accent-500"><MessageSquare size={14} /></span>
+                  <span className="flex min-w-0 flex-1 flex-col">
+                    <span className="truncate text-caption-1-semibold">Conversa da equipe</span>
+                    <span className="truncate text-caption-2-regular text-text-tertiary">Todos os Tophs colaborando</span>
+                  </span>
+                  {!activeWorker ? <Check size={14} className="shrink-0 text-accent-500" /> : null}
+                </DropdownItem>
+                <DropdownDivider />
+                {bots.map((bot) => (
+                  <DropdownItem key={bot.id} selected={activeWorker?.id === bot.id} onSelect={() => { openTeamBot(bot.id); setTeamPickerOpen(false); }}>
+                    <BotAvatar bot={bot} size={28} />
+                    <span className="flex min-w-0 flex-1 flex-col">
+                      <span className="flex items-center gap-1.5">
+                        <span className="truncate text-caption-1-semibold">{bot.name}</span>
+                        {bot.coordinator ? <span className="shrink-0 rounded-full bg-accent-500/15 px-1 text-[9px] font-medium text-accent-600">coord.</span> : null}
+                      </span>
+                      <span className="truncate text-caption-2-regular text-text-tertiary">{bot.role || "Especialista"}</span>
+                    </span>
+                    {activeWorker?.id === bot.id ? <Check size={14} className="shrink-0 text-accent-500" /> : null}
+                  </DropdownItem>
+                ))}
+              </DropdownPopover>
+            </Dropdown>
+            {activeWorker ? <Button variant="ghost" size="small" leadingIcon={MessageSquare} className="shrink-0" onClick={openTeamGeneral}>Chat geral</Button> : null}
           </div>
         ) : null}
         <div
