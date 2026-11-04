@@ -2,6 +2,7 @@ import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import PetSprite from "./PetSprite";
 import { PET_OPTIONS } from "../pet";
+import { BOT_AVATARS } from "../bots";
 
 describe("PetSprite", () => {
   it("uses an existing generated Toph asset as the independent user avatar", () => {
@@ -10,8 +11,8 @@ describe("PetSprite", () => {
     expect(container.querySelector("svg")).not.toBeInTheDocument();
   });
 
-  it("offers all twenty Toph visuals without coupling them to agent instances", () => {
-    expect(PET_OPTIONS).toHaveLength(20);
-    expect(new Set(PET_OPTIONS.map((option) => option.kind)).size).toBe(20);
+  it("offers every Toph visual without coupling them to agent instances", () => {
+    expect(PET_OPTIONS).toHaveLength(BOT_AVATARS.length);
+    expect(new Set(PET_OPTIONS.map((option) => option.kind)).size).toBe(BOT_AVATARS.length);
   });
 });

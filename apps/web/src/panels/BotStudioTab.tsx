@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ComponentProps } from "react";
 import { OpenCode } from "@opencode/client";
 import { connectClientMcp, type ClientMcpTool } from "@opencode/client/mcp";
-import { Bot, ChevronDown, Copy, CornerDownRight, ListTree, LoaderCircle, MessageSquarePlus, Monitor, Plus } from "@toph/icons";
+import { Bot, ChevronDown, Copy, CornerDownRight, ListTree, LoaderCircle, MessageSquarePlus, Monitor, Plus, X } from "@toph/icons";
 import { api, ApiError, openCodeBase, type AIMessage, type AIMessageContentPart, type Project } from "../api";
 import { modelDisplay, useAI } from "../ai";
 import { activeChat, chatCoordinator, chatTophs, useChats, type ChatMessage, type ChatToph } from "../chats";
@@ -22,8 +22,6 @@ import { useTophDrafts } from "../tophDrafts";
 import { AgentComposer, type AgentAttachment } from "../ui/AgentComposer";
 import ComposerMenu from "../ui/ComposerMenu";
 import AiUsageMeter from "../ui/AiUsageMeter";
-import ResizeHandle from "../ui/resize";
-import { useSettings } from "../settings";
 import { DropdownItem } from "@/boardui/base/dropdown/dropdown";
 import { extractAgentFilePaths } from "../agentArtifacts";
 import { answerOpenCodeQuestion } from "../opencodeQuestion";
@@ -173,7 +171,7 @@ function tophHasTool(toph: ChatToph, tool: string): boolean {
   return tools.length === 0 || tools.includes(tool);
 }
 
-function tophPrompt(toph: ChatToph, tophs: ChatToph[], messages: ChatMessage[], userText: string, company: string, chatName: string): string {
+function tophPrompt(toph: ChatToph, tophs: ChatToph[], messages: ChatMessage[], userText: string, company: string, chatName: string, chatInfo = ""): string {
   const names = new Map(tophs.map((item) => [item.id, item.name]));
   const coordinator = tophs.find((item) => item.coordinator) ?? tophs[0];
   const history = messages
@@ -189,6 +187,7 @@ function tophPrompt(toph: ChatToph, tophs: ChatToph[], messages: ChatMessage[], 
     toph.description ? `Sua função: ${toph.description}` : "",
     toph.personality ? `Sua personalidade: ${toph.personality}` : "",
     chatRules,
+    chatInfo ? `Informações gerais da equipe: ${chatInfo}` : "",
     "Nunca execute comandos que ficam esperando indefinidamente (tail -f, watch, gh run watch, sleep longo). Para acompanhar pipelines, use timeout e consulte o status; depois responda.",
     `Tophs deste chat: ${tophs.map((item) => `@${item.handle} (${item.name}${item.coordinator ? ", coordenador" : ""})`).join(", ")}.`,
     `MCPs habilitados para você: ${toph.mcpServers.length ? toph.mcpServers.join(", ") : "nenhum"}.`,
@@ -479,21 +478,18 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
   const setTophSession = useChats((state) => state.setTophSession);
   const aiConfig = useAI((state) => state.config);
   const models = useAI((state) => state.models);
-  const activityWidth = useSettings((state) => state.aiPanelWidth);
-  const updateSettings = useSettings((state) => state.update);
   const [sending, setSending] = useState(false);
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [configTophId, setConfigTophId] = useState<string | null>(null);
   const [sessionsTophId, setSessionsTophId] = useState<string | null>(null);
-  const [activityFocus, setActivityFocus] = useState<{ tophId: string; from: number; to: number } | null>(null);
-  const [activityOpen, setActivityOpen] = useState(false);
+  const [expandedActivity, setExpandedActivity] = useState<{ tophId: string; from: number; to: number } | null>(null);
+  const [presentationOpen, setPresentationOpen] = useState(false);
   const sendingRef = useRef(false);
   const runToken = useRef(0);
   const [runningTophs, setRunningTophs] = useState<Set<string>>(new Set());
   const [forms, setForms] = useState<Array<{ form: OpenCodeForm; tophId: string }>>([]);
   const [formBusy, setFormBusy] = useState<string | null>(null);
   const [conversationPage, setConversationPage] = useState<HistoryPageState>(EMPTY_HISTORY_PAGE);
-  const [activityPage, setActivityPage] = useState<HistoryPageState>(EMPTY_HISTORY_PAGE);
   const [historyReloadToken, setHistoryReloadToken] = useState(0);
   const sessionTophMap = useRef(new Map<string, string>());
   const toolFileSnapshots = useRef(new Map<string, ToolFileSnapshot[]>());
@@ -545,16 +541,6 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
     [messages],
   );
   const groupedMessages = useMemo(() => groupChatMessages(conversationMessages), [conversationMessages]);
-  const visibleActivityMessages = useMemo(
-    () => activityFocus
-      ? activityMessages.filter((message) =>
-          message.tophId === activityFocus.tophId
-          && message.createdAt >= activityFocus.from
-          && message.createdAt <= activityFocus.to)
-      : activityMessages,
-    [activityMessages, activityFocus],
-  );
-  const activityGroups = useMemo(() => groupChatMessages(visibleActivityMessages), [visibleActivityMessages]);
   const latestUserAt = useMemo(
     () => [...conversationMessages].reverse().find((message) => message.role === "user")?.createdAt ?? 0,
     [conversationMessages],
@@ -573,26 +559,21 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
     });
     return map;
   }, [groupedMessages]);
-  const lastActivityGroupIndex = useMemo(() => {
-    const map = new Map<string, number>();
-    activityGroups.forEach((group, index) => {
-      if (group.kind === "toph") map.set(group.tophId, index);
-    });
-    return map;
-  }, [activityGroups]);
   const completedReplies = messages.filter((message) => message.role === "assistant" && !message.pending && message.status !== "running").length;
   const visibleRunningTophs = [...runningTophs].filter((tophId) => tophs.some((toph) => toph.id === tophId));
-  const panelRunningTophs = activityFocus ? visibleRunningTophs.filter((tophId) => tophId === activityFocus.tophId) : visibleRunningTophs;
-  const panelForms = activityFocus ? forms.filter(({ tophId }) => tophId === activityFocus.tophId) : forms;
+  const panelForms = forms;
   const visibleForms = forms.filter(({ tophId }) => tophs.some((toph) => toph.id === tophId));
+  useEffect(() => {
+    if (visibleForms.length > 0) setPresentationOpen(true);
+  }, [visibleForms.length]);
   const assistantImages = useMemo(() => agentImagesForMessages(
     messages
-      .filter((message) => message.role === "assistant" && (!activityFocus || message.tophId === activityFocus.tophId))
+      .filter((message) => message.role === "assistant")
       .slice(-ASSISTANT_IMAGE_SCAN_LIMIT)
       .map(toAiMessage),
     project.id,
     project.root,
-  ).slice(-ASSISTANT_IMAGE_RENDER_LIMIT), [messages, activityFocus, project.id, project.root]);
+  ).slice(-ASSISTANT_IMAGE_RENDER_LIMIT), [messages, project.id, project.root]);
   const composerHistory = useMemo(
     () => messages.filter((message) => message.role === "user").map((message) => message.content),
     [messages],
@@ -664,7 +645,7 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
   }, [ensure, project.id]);
 
   useEffect(() => {
-    setActivityFocus(null);
+    setExpandedActivity(null);
   }, [chat?.id]);
 
   useEffect(() => {
@@ -746,12 +727,10 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
   useEffect(() => {
     if (!projectChats?.hydrated || !chat) {
       setConversationPage(EMPTY_HISTORY_PAGE);
-      setActivityPage(EMPTY_HISTORY_PAGE);
       return;
     }
     let cancelled = false;
     setConversationPage({ ...EMPTY_HISTORY_PAGE, loading: true });
-    setActivityPage({ ...EMPTY_HISTORY_PAGE, loading: true });
     const base = { mode: "chat" as const, channel: chat.id };
     void Promise.all([
       api.workspaceMessages<ChatMessage>(project.id, { ...base, scope: "conversation", limit: CONVERSATION_PAGE_SIZE }),
@@ -760,12 +739,10 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
       if (cancelled) return;
       mergeMessages(project.id, [...conversation.items, ...activity.items]);
       setConversationPage({ cursor: conversation.nextCursor, hasMore: conversation.hasMore, loading: false, ready: true, error: "" });
-      setActivityPage({ cursor: activity.nextCursor, hasMore: activity.hasMore, loading: false, ready: true, error: "" });
     }).catch((error) => {
       if (cancelled) return;
       const message = error instanceof Error ? error.message : "Não foi possível carregar o histórico.";
       setConversationPage({ ...EMPTY_HISTORY_PAGE, ready: true, error: message });
-      setActivityPage({ ...EMPTY_HISTORY_PAGE, ready: true, error: message });
     });
     return () => { cancelled = true; };
   }, [chat?.id, projectChats?.hydrated, historyReloadToken, mergeMessages, project.id]);
@@ -1118,7 +1095,7 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
     }
     await client.session.switchAgent({ sessionID: sessionId, agent: current.agentMode ?? "build" } as never).catch(() => undefined);
     if (token !== runToken.current) throw new Error("__stopped__");
-    const prompt = tophPrompt(current, tophsNow, history, userText, project.name, chatNow?.name ?? "chat");
+    const prompt = tophPrompt(current, tophsNow, history, userText, project.name, chatNow?.name ?? "chat", chatNow?.description ?? "");
     const beforeList = await client.message.list({ sessionID: sessionId, limit: 1, order: "desc", type: "assistant" } as never).catch(() => null);
     const before = lastAssistant(beforeList?.data ?? [])?.id ?? "";
     try {
@@ -1199,7 +1176,7 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
       currentContent = parts;
     }
     const messages: AIMessage[] = [
-      { role: "system", content: tophPrompt(toph, tophsNow, [], "", project.name, chat?.name ?? "chat") },
+      { role: "system", content: tophPrompt(toph, tophsNow, [], "", project.name, chat?.name ?? "chat", chat?.description ?? "") },
       ...history
         .filter((message) => !message.pending && (message.role === "user" || message.role === "assistant"))
         .slice(-14)
@@ -1419,13 +1396,10 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
       const reply = await respondAsToph(first, text, { attachments, token });
       if (!reply || token !== runToken.current) return;
       if (first.coordinator || tophHasTool(first, "delegate")) {
-        const direct = first.coordinator
-          ? mentionedTophs(tophs, text).filter((toph) => toph.id !== first.id)
-          : [];
         const delegated = tophHasTool(first, "delegate")
           ? mentionedTophs(tophs, reply).filter((toph) => toph.id !== first.id)
           : [];
-        const workers = [...new Map([...delegated, ...direct].map((toph) => [toph.id, toph])).values()];
+        const workers = [...delegated];
         if (workers.length > 0) {
           const reason = text.replace(/\s+/g, " ").trim().slice(0, 90);
           for (const worker of workers) {
@@ -1493,7 +1467,7 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
     // so a slow interrupt/delete can never leave the chat looking unchanged.
     replaceTophMessages(project.id, toph.id, []);
     setTophSession(project.id, toph.id, undefined, { sessionPrimed: false });
-    setActivityFocus(null);
+    setExpandedActivity(null);
     if (toph.sessionId) {
       const sessionId = toph.sessionId;
       sessionTophMap.current.delete(sessionId);
@@ -1504,15 +1478,11 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
   }
 
   function focusActivity(tophId: string, from: number, to: number) {
-    setActivityOpen(true);
-    setActivityFocus({ tophId, from, to });
-    window.requestAnimationFrame(() => {
-      activityScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
-    });
-  }
-
-  function openCreateChat() {
-    window.dispatchEvent(new CustomEvent("toph:create-chat"));
+    setExpandedActivity((current) =>
+      current && current.tophId === tophId && current.from === from && current.to === to
+        ? null
+        : { tophId, from, to },
+    );
   }
 
   return (
@@ -1523,7 +1493,7 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
             <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-background-tertiary-default text-caption-1-semibold text-text-tertiary">#</span>
             <div className="flex min-w-0 flex-1 flex-col">
               <strong className="truncate text-caption-1-semibold text-text-primary">{chat.name}</strong>
-              <span className="truncate text-caption-2-regular text-text-tertiary">{chat.description || "Chat dos Tophs"}</span>
+              <span className="truncate text-caption-2-regular text-text-tertiary">{chat.description || (chat.kind === "team" ? "Equipe de Tophs" : "Conversa individual")}</span>
             </div>
             <div className="flex shrink-0 items-center -space-x-2">
               {tophs.slice(0, 4).map((toph) => (
@@ -1540,11 +1510,6 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
             <Button variant="ghost" size="small" iconOnly={mobile} leadingIcon={mobile ? Plus : MessageSquarePlus} aria-label="Adicionar Toph" title="Adicionar Toph" onClick={() => setGalleryOpen(true)}>
               {mobile ? null : "Adicionar Toph"}
             </Button>
-            {!mobile ? (
-              <Button variant="ghost" size="small" leadingIcon={Monitor} aria-pressed={activityOpen} onClick={() => setActivityOpen((value) => !value)}>
-                {activityOpen ? "Ocultar" : "Acompanhamento"}
-              </Button>
-            ) : null}
           </div>
         ) : null}
         <div
@@ -1572,9 +1537,8 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
             ) : !chat ? (
               <div className="my-auto flex flex-col items-center gap-3 px-6 py-10 text-center">
                 <span className="flex size-12 items-center justify-center rounded-2xl bg-accent-500/10 text-accent-500"><Bot size={22} /></span>
-                <strong className="text-title-3-medium text-text-primary">Crie um chat para começar.</strong>
-                <p className="max-w-sm text-caption-1-regular leading-relaxed text-text-secondary">Cada chat tem os seus próprios Tophs, com papéis, prompts e ferramentas.</p>
-                <Button variant="secondary" size="small" leadingIcon={MessageSquarePlus} onClick={openCreateChat}>Criar chat</Button>
+                <strong className="text-title-3-medium text-text-primary">Escolha Individual ou Equipe.</strong>
+                <p className="max-w-sm text-caption-1-regular leading-relaxed text-text-secondary">Cada projeto tem um modo individual e uma equipe fixa.</p>
               </div>
             ) : tophs.length === 0 ? (
               <div className="my-auto flex flex-col items-center gap-3 px-6 py-10 text-center">
@@ -1589,7 +1553,7 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
                   {tophs.slice(0, 4).map((toph) => <BotAvatar key={toph.id} bot={toph} size={38} className="rounded-full bg-background-primary-default ring-2 ring-background-primary-default" />)}
                 </div>
                 <strong className="text-title-3-medium text-text-primary">O chat está pronto.</strong>
-                <p className="max-w-md text-caption-1-regular leading-relaxed text-text-secondary">Fale com o chat; o coordenador distribui o trabalho e consolida a resposta.</p>
+                <p className="max-w-md text-caption-1-regular leading-relaxed text-text-secondary">Fale com o coordenador; ele distribui o trabalho e consolida a resposta.</p>
               </div>
             ) : null}
 
@@ -1666,6 +1630,22 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
                         </button>
                       )
                     ) : null}
+                    {summary && expandedActivity && expandedActivity.tophId === toph.id && expandedActivity.from === summary.from && expandedActivity.to === summary.to ? (
+                      <div className="toph-view-in mt-1 rounded-2xl border border-border-button-default bg-background-secondary-default/60 p-2.5">
+                        <div className="mb-1.5 flex items-center justify-between gap-2 px-1">
+                          <span className="truncate text-[11px] font-medium text-text-secondary">O que {toph.name} fez</span>
+                          <button type="button" onClick={() => setExpandedActivity(null)} className="shrink-0 text-[11px] text-text-tertiary hover:text-text-secondary">Fechar</button>
+                        </div>
+                        <AgentTranscript
+                          messages={activityMessages
+                            .filter((message) => message.tophId === toph.id && message.createdAt >= summary.from && message.createdAt <= summary.to)
+                            .map(toAiMessage)}
+                          streaming={false}
+                          projectId={project.id}
+                          projectRoot={project.root}
+                        />
+                      </div>
+                    ) : null}
                     {footerAssistant ? (
                       <MessageInfo
                         agentMode={toph.agentMode}
@@ -1686,10 +1666,10 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
                 const toph = tophs.find((item) => item.id === tophId);
                 if (!toph) return null;
                 return (
-                  <section key={`pending-${tophId}`} className="flex flex-col items-center justify-center gap-2 py-6">
-                    <TophActivityAvatar bot={toph} state="thinking" size={40} />
-                    <div className="flex flex-col items-center gap-0.5">
-                      <strong className="text-caption-1-semibold text-text-primary">{toph.name}</strong>
+                  <section key={`pending-${tophId}`} className="flex items-start gap-2.5">
+                    <TophActivityAvatar bot={toph} state="thinking" size={32} className="mt-0.5" />
+                    <div className="flex min-w-0 flex-col gap-0.5 pt-0.5">
+                      <strong className="truncate text-caption-1-semibold text-text-primary">{toph.name}</strong>
                       <TophActivityStatus state="thinking" />
                     </div>
                   </section>
@@ -1762,132 +1742,33 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
         ) : null}
       </section>
 
-      {!mobile && activityOpen ? (
-        <>
-          <ResizeHandle
-            orientation="vertical"
-            value={activityWidth}
-            min={300}
-            max={620}
-            invert
-            label="Redimensionar acompanhamento"
-            onChange={(width) => document.documentElement.style.setProperty("--ai-panel-width", `${width}px`)}
-            onCommit={(width) => updateSettings({ aiPanelWidth: width })}
-          />
-          <aside className="toph-panel-in flex min-h-0 w-[clamp(300px,34vw,var(--ai-panel-width))] shrink-0 flex-col overflow-hidden rounded-3xl border border-border-button-white bg-background-primary-default shadow-sidebar">
-            <header className="flex h-12 shrink-0 items-center gap-2 border-b border-separator-border bg-background-secondary-default px-3">
-              <span className="flex size-8 items-center justify-center rounded-xl bg-accent-500/10 text-accent-500"><Monitor size={15} /></span>
-              <div className="flex min-w-0 flex-1 flex-col">
-                <strong className="truncate text-caption-1-semibold text-text-primary">Acompanhamento</strong>
-                <span className="truncate text-caption-2-regular text-text-tertiary">Arquivos, navegador, terminal e ferramentas</span>
-              </div>
-              {panelRunningTophs.length > 0 ? (
-                <span className="flex items-center gap-1.5 rounded-full bg-accent-500/10 px-2 py-1 text-[10px] font-medium text-accent-600"><LoaderCircle className="size-3 animate-spin" /> Ao vivo</span>
-              ) : visibleActivityMessages.length + assistantImages.length > 0 ? (
-                <span className="rounded-full bg-background-tertiary-default px-2 py-1 text-[10px] text-text-tertiary">{visibleActivityMessages.length + assistantImages.length}</span>
-              ) : null}
-            </header>
-            <div
-              ref={activityScrollRef}
-              className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto p-3"
-              onScroll={(event) => {
-                const element = event.currentTarget;
-                stickActivityToBottom.current = element.scrollHeight - element.scrollTop - element.clientHeight < 80;
-              }}
-            >
-              {activityFocus ? (
-                <div className="mb-2 flex items-center justify-between gap-2 rounded-xl bg-accent-500/10 px-2 py-1.5 text-caption-2-regular text-accent-600">
-                  <span className="truncate">Mostrando {tophs.find((toph) => toph.id === activityFocus.tophId)?.name ?? "Toph"}</span>
-                  <button type="button" onClick={() => setActivityFocus(null)} className="shrink-0 font-medium hover:underline">Ver tudo</button>
-                </div>
-              ) : null}
-              {!activityPage.ready && activityPage.loading ? (
-                <div className="flex items-center justify-center gap-2 py-8 text-caption-1-regular text-text-tertiary"><LoaderCircle className="size-4 animate-spin" /> Carregando atividades...</div>
-              ) : null}
-              {activityPage.error ? (
-                <div className="mb-3 flex flex-col items-center gap-2 text-center text-caption-2-regular text-status-rose-text">
-                  <p>{activityPage.error}</p>
-                  <Button variant="secondary" size="small" onClick={() => setHistoryReloadToken((value) => value + 1)}>Tentar novamente</Button>
-                </div>
-              ) : null}
-              {!chat || tophs.length === 0 ? (
-                <div className="flex h-full min-h-[220px] flex-col items-center justify-center gap-3 px-5 text-center">
-                  <ListTree className="size-6 text-text-tertiary" />
-                  <strong className="text-caption-1-semibold text-text-primary">Nenhuma atividade ainda</strong>
-                  <p className="max-w-xs text-caption-2-regular leading-relaxed text-text-tertiary">Quando um Toph começar a trabalhar, cada ação aparecerá aqui.</p>
-                </div>
-              ) : activityPage.ready && activityGroups.length === 0 && panelRunningTophs.length === 0 && panelForms.length === 0 && assistantImages.length === 0 ? (
-                <div className="flex h-full min-h-[220px] flex-col items-center justify-center gap-3 px-5 text-center">
-                  <ListTree className="size-6 text-text-tertiary" />
-                  <strong className="text-caption-1-semibold text-text-primary">{activityFocus ? "Nenhuma atividade nesta resposta" : "Pronto para acompanhar"}</strong>
-                  <p className="max-w-xs text-caption-2-regular leading-relaxed text-text-tertiary">{activityFocus ? "Use Ver tudo para ver o acompanhamento completo do chat." : "As leituras, edições, comandos e visualizações do navegador serão mostradas em tempo real."}</p>
-                </div>
-              ) : (
-                <div key={activityFocus ? `${activityFocus.tophId}:${activityFocus.from}` : chat?.id ?? "none"} className="toph-view-in flex min-w-0 flex-col gap-3">
-                  <AgentImageGallery images={assistantImages} title="Imagens da resposta" />
-                  {activityGroups.map((group, index) => {
-                    if (group.kind !== "toph") return null;
-                    const toph = tophs.find((item) => item.id === group.tophId);
-                    if (!toph) return null;
-                    const latest = lastActivityGroupIndex.get(toph.id) === index;
-                    const activityRunning = latest && runningTophs.has(toph.id);
-                    const activityState: TophActivityState | null = activityRunning
-                      ? group.messages.some((message) => (message.role === "tool" || message.role === "reasoning") && message.status === "running") ? "working" : "thinking"
-                      : null;
-                    return (
-                      <section key={`activity-${toph.id}-${index}`} className="min-w-0 border-b border-separator-border pb-3 last:border-b-0 [content-visibility:auto] [contain-intrinsic-size:auto_160px]">
-                        <header className="mb-1.5 flex items-center gap-2">
-                          <TophActivityAvatar bot={toph} state={activityState} size={26} />
-                          <div className="flex min-w-0 flex-1 flex-col">
-                            <strong className="truncate text-caption-1-semibold text-text-primary">{toph.name}</strong>
-                            <span className="truncate text-[10px] text-text-tertiary">{activityState ? <TophActivityStatus state={activityState} /> : toph.role || "Toph"}</span>
-                          </div>
-                        </header>
-                        <AgentTranscript
-                          messages={group.messages.map(toAiMessage)}
-                          streaming={latest && runningTophs.has(toph.id)}
-                          toolsExpanded={latest && runningTophs.has(toph.id)}
-                          className="flex min-w-0 flex-col gap-1"
-                          onPermission={(messageId, permissionId, decision) => void replyPermission(toph, messageId, permissionId, decision)}
-                          onQuestion={(messageId, answer) => void answerToolQuestion(toph, messageId, answer)}
-                          projectId={project.id}
-                          projectRoot={project.root}
-                        />
-                      </section>
-                    );
-                  })}
-
-                  {panelRunningTophs
-                    .filter((tophId) => !activityGroups.some((group) => group.kind === "toph" && group.tophId === tophId))
-                    .map((tophId) => {
-                      const toph = tophs.find((item) => item.id === tophId);
-                      if (!toph) return null;
-                      return (
-                        <section key={`activity-pending-${toph.id}`} className="flex flex-col items-center gap-2 border-b border-separator-border py-4 last:border-b-0">
-                          <TophActivityAvatar bot={toph} state="thinking" size={34} />
-                          <div className="flex flex-col items-center gap-0.5">
-                            <strong className="text-caption-1-semibold text-text-primary">{toph.name}</strong>
-                            <TophActivityStatus state="thinking" />
-                          </div>
-                        </section>
-                      );
-                    })}
-
-                  {panelForms.map(({ form, tophId }) => {
-                    const toph = tophs.find((item) => item.id === tophId);
-                    if (!toph) return null;
-                    return (
-                      <section key={`activity-form-${form.id}`} className="flex flex-col gap-2 border-b border-separator-border pb-3 last:border-b-0">
-                        <header className="flex items-center gap-2"><BotAvatar bot={toph} size={26} /><strong className="truncate text-caption-1-semibold text-text-primary">{toph.name}</strong></header>
-                        <OpenCodeFormCard form={form} busy={formBusy === form.id} onSubmit={(answer) => void answerForm(form, toph, answer)} onCancel={() => void cancelForm(form, toph)} />
-                      </section>
-                    );
-                  })}
-                </div>
-              )}
+      {!mobile && presentationOpen ? (
+        <aside className="toph-panel-in flex min-h-0 w-[clamp(300px,34vw,var(--ai-panel-width))] shrink-0 flex-col overflow-hidden rounded-3xl border border-border-button-white bg-background-primary-default shadow-sidebar">
+          <header className="flex h-12 shrink-0 items-center gap-2 border-b border-separator-border bg-background-secondary-default px-3">
+            <span className="flex size-8 items-center justify-center rounded-xl bg-accent-500/10 text-accent-500"><Monitor size={15} /></span>
+            <div className="flex min-w-0 flex-1 flex-col">
+              <strong className="truncate text-caption-1-semibold text-text-primary">Apresentação</strong>
+              <span className="truncate text-caption-2-regular text-text-tertiary">O que o agente quer mostrar</span>
             </div>
-          </aside>
-        </>
+            <Button variant="ghost" size="xs" iconOnly leadingIcon={X} aria-label="Fechar apresentação" title="Fechar" onClick={() => setPresentationOpen(false)} />
+          </header>
+          <div className="min-h-0 flex-1 overflow-y-auto p-3">
+            {panelForms.length === 0 && assistantImages.length === 0 ? (
+              <p className="py-8 text-center text-caption-2-regular text-text-tertiary">Nada para mostrar agora.</p>
+            ) : null}
+            {panelForms.map(({ form, tophId }) => {
+              const toph = tophs.find((item) => item.id === tophId);
+              if (!toph) return null;
+              return (
+                <section key={`presentation-form-${form.id}`} className="mb-3 flex flex-col gap-2">
+                  <header className="flex items-center gap-2"><BotAvatar bot={toph} size={26} /><strong className="truncate text-caption-1-semibold text-text-primary">{toph.name}</strong></header>
+                  <OpenCodeFormCard form={form} busy={formBusy === form.id} onSubmit={(answer) => void answerForm(form, toph, answer)} onCancel={() => void cancelForm(form, toph)} />
+                </section>
+              );
+            })}
+            <AgentImageGallery images={assistantImages} title="Imagens" />
+          </div>
+        </aside>
       ) : null}
 
       <Modal

@@ -37,6 +37,7 @@ export interface TophChat {
   id: string;
   name: string;
   description: string;
+  kind: "individual" | "team";
   createdAt: number;
   updatedAt: number;
 }
@@ -59,7 +60,7 @@ export interface ChatMessage {
 }
 
 export interface ProjectChats {
-  version: 1;
+  version: 2;
   chats: TophChat[];
   tophs: ChatToph[];
   messages: ChatMessage[];
@@ -244,23 +245,93 @@ function cappedMessage(message: ChatMessage): ChatMessage {
   };
 }
 
+function instantiatePreset(preset: TophPreset, chatId: string, coordinator: boolean, index = 0): ChatToph {
+  const name = preset.name;
+  const avatar = BOT_AVATARS.includes(preset.avatar) ? preset.avatar : generatedAvatarFor(name);
+  return {
+    id: newId("toph"),
+    chatId,
+    name,
+    handle: slugifyToph(name),
+    role: preset.role.trim() || "Toph",
+    description: preset.description ?? "",
+    personality: preset.personality ?? "",
+    prompt: preset.prompt ?? "",
+    model: preset.model ?? "",
+    effort: preset.effort ?? "",
+    agentMode: preset.agentMode === "plan" ? "plan" : "build",
+    permissionMode: preset.permissionMode === "ask" || preset.permissionMode === "deny" ? preset.permissionMode : "yolo",
+    mcpServers: [...(preset.mcpServers ?? [])],
+    emailAccountIds: [...(preset.emailAccountIds ?? [])],
+    tools: [...(preset.tools ?? ["generate_image", "delegate"])],
+    language: preset.language ?? "auto",
+    color: preset.color || DEFAULT_TOPH_COLOR,
+    avatar,
+    notifications: true,
+    coordinator,
+    createdAt: Date.now() + index,
+  };
+}
+
+/** Every project has exactly one fixed individual chat and one fixed team. */
+export function freshProject(hydrated = false): ProjectChats {
+  const now = Date.now();
+  const individual: TophChat = {
+    id: newId("chat"),
+    name: "Individual",
+    description: "",
+    kind: "individual",
+    createdAt: now,
+    updatedAt: now,
+  };
+  const team: TophChat = {
+    id: newId("chat"),
+    name: "Equipe",
+    description: "",
+    kind: "team",
+    createdAt: now + 1,
+    updatedAt: now + 1,
+  };
+  const soloPreset = TOPH_PRESETS.find((preset) => preset.name === "Toph") ?? TOPH_PRESETS[0];
+  const designPreset = TOPH_PRESETS.find((preset) => preset.name === "Pia") ?? TOPH_PRESETS[1] ?? TOPH_PRESETS[0];
+  const tophs = [
+    instantiatePreset(soloPreset, individual.id, true, 0),
+    instantiatePreset(soloPreset, team.id, true, 1),
+    instantiatePreset(designPreset, team.id, false, 2),
+  ];
+  return {
+    version: 2,
+    chats: [individual, team],
+    tophs,
+    messages: [],
+    activeChatId: individual.id,
+    hydrated,
+  };
+}
+
 function sanitizeProject(input: ProjectChats | null | undefined): ProjectChats {
-  if (!input) return { version: 1, chats: [], tophs: [], messages: [], activeChatId: null, hydrated: true };
+  // Version 1 was the multi-chat model. History is intentionally discarded.
+  if (!input || input.version !== 2) return freshProject(true);
   const chats = (Array.isArray(input.chats) ? input.chats : [])
     .filter((chat): chat is TophChat => Boolean(chat && typeof chat.id === "string" && chat.id))
     .map((chat) => ({
       id: chat.id,
-      name: chat.name?.trim() || "Novo chat",
+      name: chat.name?.trim() || (chat.kind === "team" ? "Equipe" : "Individual"),
       description: chat.description ?? "",
+      kind: chat.kind === "team" ? "team" as const : "individual" as const,
       createdAt: Number.isFinite(chat.createdAt) ? chat.createdAt : Date.now(),
       updatedAt: Number.isFinite(chat.updatedAt) ? chat.updatedAt : Date.now(),
     }));
-  const chatIds = new Set(chats.map((chat) => chat.id));
+  const individual = chats.find((chat) => chat.kind === "individual");
+  const team = chats.find((chat) => chat.kind === "team");
+  if (!individual || !team) return freshProject(true);
+  const fixedChats = [individual, team];
+  const chatIds = new Set(fixedChats.map((chat) => chat.id));
   const tophs = (Array.isArray(input.tophs) ? input.tophs : [])
     .filter((toph): toph is ChatToph => Boolean(toph && typeof toph.id === "string" && chatIds.has(toph.chatId)))
     .map((toph) => normalizeToph(toph, toph.chatId));
 
-  for (const chat of chats) {
+  for (const chat of fixedChats) {
     const members = tophs.filter((toph) => toph.chatId === chat.id);
     const handles = new Set<string>();
     for (const toph of members) {
@@ -284,15 +355,15 @@ function sanitizeProject(input: ProjectChats | null | undefined): ProjectChats {
     .map(normalizeMessage)
     .sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id));
 
-  const activeChatId = chats.some((chat) => chat.id === input.activeChatId)
+  const activeChatId = fixedChats.some((chat) => chat.id === input.activeChatId)
     ? input.activeChatId
-    : chats[0]?.id ?? null;
+    : individual.id;
 
-  return { version: 1, chats, tophs, messages, activeChatId, hydrated: true };
+  return { version: 2, chats: fixedChats, tophs, messages, activeChatId, hydrated: true };
 }
 
 function emptyProject(hydrated = false): ProjectChats {
-  return { version: 1, chats: [], tophs: [], messages: [], activeChatId: null, hydrated };
+  return freshProject(hydrated);
 }
 
 function queueWrite(
@@ -368,7 +439,7 @@ export const useChats = create<ChatStore>((set, get) => ({
     const project = get().byProject[projectId];
     if (!project) return null;
     return {
-      version: 1,
+      version: 2,
       chats: project.chats,
       tophs: project.tophs,
       activeChatId: project.activeChatId,
@@ -398,6 +469,7 @@ export const useChats = create<ChatStore>((set, get) => ({
       id: newId("chat"),
       name: name.trim() || "Novo chat",
       description: description.trim(),
+      kind: "team",
       createdAt: now,
       updatedAt: now,
     };
@@ -470,8 +542,11 @@ export const useChats = create<ChatStore>((set, get) => ({
 
   addToph: (projectId, chatId, preset) => {
     const project = get().ensure(projectId);
-    if (!project.chats.some((chat) => chat.id === chatId)) return null;
+    const chat = project.chats.find((item) => item.id === chatId);
+    if (!chat) return null;
     const members = project.tophs.filter((toph) => toph.chatId === chatId);
+    // The individual chat holds exactly one Toph.
+    if (chat.kind === "individual" && members.length > 0) return null;
     const role = preset.role.trim() || "Toph";
     if (members.some((toph) => toph.role.trim().toLowerCase() === role.toLowerCase())) return null;
     const names = new Set(members.map((toph) => toph.name.toLowerCase()));
