@@ -332,7 +332,6 @@ function TophActivityAvatar({ bot, state, size = 32, className }: { bot: ChatTop
     <span className={cx("relative inline-flex shrink-0 items-center justify-center", state && `toph-activity-${state}`, className)}>
       {state ? <span className="toph-activity-ring" aria-hidden /> : null}
       <BotAvatar bot={bot} size={size} className={cx("relative z-[1]", state && "toph-activity-avatar")} />
-      {state ? <span className="toph-activity-dots" aria-hidden><i /><i /><i /></span> : null}
     </span>
   );
 }
@@ -1401,13 +1400,11 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
                 const toph = tophs.find((item) => item.id === tophId);
                 if (!toph) return null;
                 return (
-                  <section key={`pending-${tophId}`} className="flex min-w-0 max-w-full items-start gap-2.5">
-                    <TophActivityAvatar bot={toph} state="thinking" size={32} className="mt-0.5" />
-                    <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-                      <header className="flex min-w-0 items-baseline gap-2">
-                        <strong className="truncate text-caption-1-semibold text-text-primary">{toph.name}</strong>
-                        <span className="truncate text-caption-2-regular text-text-tertiary"><TophActivityStatus state="thinking" /></span>
-                      </header>
+                  <section key={`pending-${tophId}`} className="flex flex-col items-center justify-center gap-2 py-6">
+                    <TophActivityAvatar bot={toph} state="thinking" size={40} />
+                    <div className="flex flex-col items-center gap-0.5">
+                      <strong className="text-caption-1-semibold text-text-primary">{toph.name}</strong>
+                      <TophActivityStatus state="thinking" />
                     </div>
                   </section>
                 );
@@ -1574,14 +1571,12 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
                       const toph = tophs.find((item) => item.id === tophId);
                       if (!toph) return null;
                       return (
-                        <section key={`activity-pending-${toph.id}`} className="border-b border-separator-border pb-3 last:border-b-0">
-                          <header className="mb-2 flex items-center gap-2">
-                            <TophActivityAvatar bot={toph} state="thinking" size={26} />
-                            <div className="flex min-w-0 flex-1 flex-col">
-                              <strong className="truncate text-caption-1-semibold text-text-primary">{toph.name}</strong>
-                              <span className="truncate text-[10px] text-text-tertiary"><TophActivityStatus state="thinking" /></span>
-                            </div>
-                          </header>
+                        <section key={`activity-pending-${toph.id}`} className="flex flex-col items-center gap-2 border-b border-separator-border py-4 last:border-b-0">
+                          <TophActivityAvatar bot={toph} state="thinking" size={34} />
+                          <div className="flex flex-col items-center gap-0.5">
+                            <strong className="text-caption-1-semibold text-text-primary">{toph.name}</strong>
+                            <TophActivityStatus state="thinking" />
+                          </div>
                         </section>
                       );
                     })}
