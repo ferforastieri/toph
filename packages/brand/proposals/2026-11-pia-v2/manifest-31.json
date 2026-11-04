@@ -1,0 +1,312 @@
+[
+  {
+    "name": "toph-logo",
+    "silhouette": "Logo original com olhos",
+    "color": "#FFB547",
+    "path": "originals/toph-logo.png",
+    "width": 1024,
+    "height": 1024,
+    "bytes": 552616,
+    "sha256": "49f5b5aea0310b18dc89e2aa3bf71bfabe59ebb6a5d474e9aeef737a19e2e9e9"
+  },
+  {
+    "name": "toph-01",
+    "silhouette": "Tulipa",
+    "color": "#FF7AB6",
+    "path": "originals/toph-01.png",
+    "width": 1024,
+    "height": 1024,
+    "bytes": 657255,
+    "sha256": "ec3ef4356e586d00fd86c5986af75e245e62c0d75b9cb3e8a50762c4928cbeb9"
+  },
+  {
+    "name": "toph-02",
+    "silhouette": "Cogumelo",
+    "color": "#F08C72",
+    "path": "originals/toph-02.png",
+    "width": 1024,
+    "height": 1024,
+    "bytes": 664763,
+    "sha256": "bb4702918f462e344ee5b6ba6d5456f1f8c7fe9fa97e27323a6436eaa25680a8"
+  },
+  {
+    "name": "toph-03",
+    "silhouette": "Borboleta",
+    "color": "#C7A3FF",
+    "path": "originals/toph-03.png",
+    "width": 1024,
+    "height": 1024,
+    "bytes": 702447,
+    "sha256": "932d59c141da6bb10b84faa10094df324faa0bc781d53fa2c8b3c6acd9725808"
+  },
+  {
+    "name": "toph-04",
+    "silhouette": "Coração",
+    "color": "#FDA4AF",
+    "path": "originals/toph-04.png",
+    "width": 1024,
+    "height": 1024,
+    "bytes": 622552,
+    "sha256": "f6923309b764daf11d582598fcf79ef343f5ecbb0ce6a31e603c7fea855e7103"
+  },
+  {
+    "name": "toph-05",
+    "silhouette": "Raio",
+    "color": "#FFD166",
+    "path": "originals/toph-05.png",
+    "width": 1024,
+    "height": 1024,
+    "bytes": 521184,
+    "sha256": "f7b59eb164eaa6534d8e958df8ef20d2a330f543694851c7ddc2440df06d8808"
+  },
+  {
+    "name": "toph-06",
+    "silhouette": "Cacto",
+    "color": "#7CE7B0",
+    "path": "originals/toph-06.png",
+    "width": 1024,
+    "height": 1024,
+    "bytes": 695632,
+    "sha256": "2425251ae5caa56b113091e95a9daa16ade571e60e9a3621f7a67f15f38cdc53"
+  },
+  {
+    "name": "toph-07",
+    "silhouette": "Concha",
+    "color": "#A8DDE8",
+    "path": "originals/toph-07.png",
+    "width": 1024,
+    "height": 1024,
+    "bytes": 736190,
+    "sha256": "9a14864c59905fff913118316e4213ae9588f7c7db4adc435f4f465d8859fdb0"
+  },
+  {
+    "name": "toph-08",
+    "silhouette": "Bolota",
+    "color": "#D7AC73",
+    "path": "originals/toph-08.png",
+    "width": 1024,
+    "height": 1024,
+    "bytes": 586902,
+    "sha256": "14ca2caf195b50e2343c7236914b70a4fab27f62513205fdf366818139cee48d"
+  },
+  {
+    "name": "toph-09",
+    "silhouette": "Folha",
+    "color": "#84E0C2",
+    "path": "originals/toph-09.png",
+    "width": 1024,
+    "height": 1024,
+    "bytes": 653103,
+    "sha256": "cd8f94bc4194859ebcab885bebada7e9ab981051267fb10edbdf2d0ff68b72d1"
+  },
+  {
+    "name": "toph-10",
+    "silhouette": "Chama",
+    "color": "#FF9866",
+    "path": "originals/toph-10.png",
+    "width": 1024,
+    "height": 1024,
+    "bytes": 752298,
+    "sha256": "6f8e964ab9fee87f79a0bacec468b7f3cf17674d97d16eefa40169b36bae551a"
+  },
+  {
+    "name": "toph-11",
+    "silhouette": "Floco de neve",
+    "color": "#93C5FD",
+    "path": "originals/toph-11.png",
+    "width": 1024,
+    "height": 1024,
+    "bytes": 773843,
+    "sha256": "056d7e6c1a924f99143ed463c38e6908ab91ddef1ee9ed8fa69934bc34fa98e6"
+  },
+  {
+    "name": "toph-12",
+    "silhouette": "Quebra-cabeça",
+    "color": "#B9DE7A",
+    "path": "originals/toph-12.png",
+    "width": 1024,
+    "height": 1024,
+    "bytes": 423997,
+    "sha256": "2bade85a2841e05fb25e41f1c3dee9e54466d84e85ba632b10a97889301a661b"
+  },
+  {
+    "name": "toph-13",
+    "silhouette": "Hexágono",
+    "color": "#67E8F9",
+    "path": "originals/toph-13.png",
+    "width": 1024,
+    "height": 1024,
+    "bytes": 407270,
+    "sha256": "a33eb6fd1694b2f62879b67cbbb5fa2946694892b3c8fe95c08ba070c69dffc9"
+  },
+  {
+    "name": "toph-14",
+    "silhouette": "Laço",
+    "color": "#D8B4FE",
+    "path": "originals/toph-14.png",
+    "width": 1024,
+    "height": 1024,
+    "bytes": 700716,
+    "sha256": "acccdee298aead4f54df0681e061bd3f0048bb34b639fb8a1f114ef9e9ceb8b6"
+  },
+  {
+    "name": "toph-15",
+    "silhouette": "Ampulheta",
+    "color": "#F7B267",
+    "path": "originals/toph-15.png",
+    "width": 1024,
+    "height": 1024,
+    "bytes": 640248,
+    "sha256": "d24e1b06029cd733274ee23b2626ce8106c4bdfcef5c34adebc62ce35c31cfb0"
+  },
+  {
+    "name": "toph-16",
+    "silhouette": "Avião de papel",
+    "color": "#8FB5F5",
+    "path": "originals/toph-16.png",
+    "width": 1024,
+    "height": 1024,
+    "bytes": 368692,
+    "sha256": "37ac2afce34378ac4ab914a8e7836aa64661043960d8ef17b1dd393d87b754ec"
+  },
+  {
+    "name": "toph-17",
+    "silhouette": "Barco de papel",
+    "color": "#6EE7B7",
+    "path": "originals/toph-17.png",
+    "width": 1024,
+    "height": 1024,
+    "bytes": 645693,
+    "sha256": "db1717bb47215be2f4b8105fc1af9b900301637f156669ea700477ebbf288857"
+  },
+  {
+    "name": "toph-18",
+    "silhouette": "Sino",
+    "color": "#FCD34D",
+    "path": "originals/toph-18.png",
+    "width": 1024,
+    "height": 1024,
+    "bytes": 665534,
+    "sha256": "cb7839d53bf287ce9debf765de35b9ff44fab9e972792e3c2f3df52d9893cb5b"
+  },
+  {
+    "name": "toph-19",
+    "silhouette": "Ferradura",
+    "color": "#C4B5FD",
+    "path": "originals/toph-19.png",
+    "width": 1024,
+    "height": 1024,
+    "bytes": 637376,
+    "sha256": "0b9ac940a137dd2ff13666babfbe94956202378863b08017a06b25b70218d09f"
+  },
+  {
+    "name": "toph-20",
+    "silhouette": "Coroa",
+    "color": "#FFB547",
+    "path": "originals/toph-20.png",
+    "width": 1024,
+    "height": 1024,
+    "bytes": 392384,
+    "sha256": "7890e4d3fc4b4ebffc0cea0111a8e7276b5a1a02ae9b8d9fbbf59c47d2f15d54"
+  },
+  {
+    "name": "toph-21",
+    "silhouette": "Pretzel",
+    "color": "#C9936B",
+    "path": "originals/toph-21.png",
+    "width": 1024,
+    "height": 1024,
+    "bytes": 756292,
+    "sha256": "65fc47dac3dc2513c354ed1b7c0647fb651b42f193e52e5bb013e77f3d99b3fa"
+  },
+  {
+    "name": "toph-22",
+    "silhouette": "Dupla hélice",
+    "color": "#72D8CF",
+    "path": "originals/toph-22.png",
+    "width": 1024,
+    "height": 1024,
+    "bytes": 706371,
+    "sha256": "456a5382a48258eda4411362688e960c6c42745bf86c8619bc7b7e9f4acf5bd4"
+  },
+  {
+    "name": "toph-23",
+    "silhouette": "Arraia",
+    "color": "#9CB9D9",
+    "path": "originals/toph-23.png",
+    "width": 1024,
+    "height": 1024,
+    "bytes": 348369,
+    "sha256": "addc63e76d4a7a1c8677192ca069b9ac222b7335086f67286811f29911c36408"
+  },
+  {
+    "name": "toph-24",
+    "silhouette": "Abóbora",
+    "color": "#FFAA72",
+    "path": "originals/toph-24.png",
+    "width": 1024,
+    "height": 1024,
+    "bytes": 704981,
+    "sha256": "a80cdfbb5820e4a3f8690c4e8276b47f6d887a039cc787b802473b002f248e50"
+  },
+  {
+    "name": "toph-25",
+    "silhouette": "Broto",
+    "color": "#8CD3B4",
+    "path": "originals/toph-25.png",
+    "width": 1024,
+    "height": 1024,
+    "bytes": 392670,
+    "sha256": "879c4979cbbea541022fab52c8d0b5521202f28f2171c11fc73bcb03322b08ae"
+  },
+  {
+    "name": "toph-26",
+    "silhouette": "Cristais",
+    "color": "#B88FEA",
+    "path": "originals/toph-26.png",
+    "width": 1024,
+    "height": 1024,
+    "bytes": 666262,
+    "sha256": "e183d97e6b6c388e693d35d5cc68e02b677e0f1c5fdd065ef7b339da63d59b83"
+  },
+  {
+    "name": "toph-27",
+    "silhouette": "Bumerangue",
+    "color": "#EF899C",
+    "path": "originals/toph-27.png",
+    "width": 1024,
+    "height": 1024,
+    "bytes": 470181,
+    "sha256": "325569030dec6ee56c615df44d0d12cd53501d25e5975059266b90c267494893"
+  },
+  {
+    "name": "toph-28",
+    "silhouette": "Bolha",
+    "color": "#80C6E8",
+    "path": "originals/toph-28.png",
+    "width": 1024,
+    "height": 1024,
+    "bytes": 625918,
+    "sha256": "440e4d56dce79fb6549bc34a62f26e82fb0497a55985e2373b7826df4f8e3323"
+  },
+  {
+    "name": "toph-29",
+    "silhouette": "Leque",
+    "color": "#F3B7D4",
+    "path": "originals/toph-29.png",
+    "width": 1024,
+    "height": 1024,
+    "bytes": 533887,
+    "sha256": "d2ac8b7a98ad30e8a193fbc8b191ef1f6d43f6ea29d62a6fe4836f54c1f7c447"
+  },
+  {
+    "name": "toph-30",
+    "silhouette": "Espiral",
+    "color": "#A5D987",
+    "path": "originals/toph-30.png",
+    "width": 1024,
+    "height": 1024,
+    "bytes": 724986,
+    "sha256": "85666eff0cae557b81c2c526f7468b297811feeb81fa303c66941407aba0fe5d"
+  }
+]
