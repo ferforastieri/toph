@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Sparkles } from "@toph/icons";
 import { cx } from "@/boardui/utils/cx";
 import { petLevel, type PetKind } from "../pet";
+import TophEyes from "../components/TophEyes";
 import { usePointerLook } from "./usePointerLook";
 
 const PET_BASE = `${import.meta.env.BASE_URL}tophs/`;
@@ -25,7 +26,10 @@ export default function PetSprite({
   const level = petLevel(commits);
   const source = `${PET_BASE}${kind}.png`;
   const [image, setImage] = useState(source);
-  const lookRef = usePointerLook<HTMLSpanElement>();
+  const lookRef = usePointerLook<HTMLSpanElement>({ disabled: !look });
+  const scale = 0.82 + level * 0.045;
+  const filter = level >= 5 ? "saturate(1.16) brightness(1.06)" : level >= 3 ? "saturate(1.08)" : undefined;
+  const activeAvatar = image === FALLBACK ? "toph-core" : kind;
 
   useEffect(() => setImage(source), [source]);
 
@@ -46,11 +50,18 @@ export default function PetSprite({
         onError={() => { if (image !== FALLBACK) setImage(FALLBACK); }}
         className="relative size-full select-none object-contain drop-shadow-[0_2px_2px_rgba(0,0,0,0.18)] transition-[scale,filter] duration-500"
         style={{
-          scale: String(0.82 + level * 0.045),
-          transform: look ? "translate3d(var(--toph-look-x, 0px), var(--toph-look-y, 0px), 0) rotate(var(--toph-look-tilt, 0deg))" : undefined,
-          filter: level >= 5 ? "saturate(1.16) brightness(1.06)" : level >= 3 ? "saturate(1.08)" : undefined,
+          scale: String(scale),
+          filter,
         }}
       />
+      {look ? (
+        <TophEyes
+          avatar={activeAvatar}
+          image={image}
+          imageStyle={{ filter }}
+          scale={scale}
+        />
+      ) : null}
       {level >= 3 ? <Sparkles className="absolute right-0 top-0 size-[22%] text-status-amber-text drop-shadow-sm" /> : null}
       {level >= 5 ? <Sparkles className="absolute bottom-[4%] left-0 size-[18%] text-accent-500 drop-shadow-sm" /> : null}
     </span>
