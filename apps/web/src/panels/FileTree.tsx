@@ -98,6 +98,8 @@ function TreeNode({ project, entry, depth, onOpenFile, statuses, revision, onSel
         type="button"
         role="treeitem"
         data-tree-item
+        data-path={entry.path}
+        data-dir={entry.dir ? "true" : "false"}
         aria-expanded={entry.dir ? open : undefined}
         aria-selected={selectedPath === entry.path}
         className={cn(
