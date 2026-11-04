@@ -447,13 +447,14 @@
   transform: none;
 }
 
-@keyframes toph-activity-spin {
-  to { transform: rotate(360deg); }
-}
-
 @keyframes toph-activity-bob {
   0%, 100% { transform: translateY(0) scale(1); }
   50% { transform: translateY(-2px) scale(1.04); }
+}
+
+@keyframes toph-activity-pulse {
+  0%, 100% { opacity: 0.45; transform: scale(0.97); }
+  50% { opacity: 1; transform: scale(1.04); }
 }
 
 @keyframes toph-activity-dot {
@@ -468,23 +469,16 @@
 
 .toph-activity-ring {
   position: absolute;
-  inset: -5px;
+  inset: -4px;
   border-radius: 9999px;
-  background: conic-gradient(
-    from 0deg,
-    transparent 0 20%,
-    color-mix(in srgb, var(--color-accent-400) 80%, transparent) 45%,
-    transparent 70% 100%
-  );
-  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 1px));
-  mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 1px));
-  animation: toph-activity-spin 2.4s linear infinite;
+  border: 2px solid color-mix(in srgb, var(--color-accent-400) 70%, transparent);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--color-accent-500) 35%, transparent);
+  animation: toph-activity-pulse 1.8s ease-in-out infinite;
   pointer-events: none;
 }
 
 .toph-activity-avatar {
   animation: toph-activity-bob 1.8s ease-in-out infinite;
-  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--color-accent-500) 35%, transparent));
 }
 
 .toph-activity-dots {
@@ -529,8 +523,7 @@
 .toph-activity-ellipsis i:nth-child(3) { animation-delay: 280ms; }
 
 .toph-activity-thinking .toph-activity-ring {
-  animation-duration: 3.2s;
-  opacity: 0.7;
+  animation-duration: 2.6s;
 }
 
 .toph-activity-working .toph-activity-ring {
@@ -542,7 +535,7 @@
 }
 
 .toph-activity-responding .toph-activity-ring {
-  animation-duration: 1.8s;
+  animation-duration: 1.6s;
 }
 
 .toph-activity-responding .toph-activity-avatar {
