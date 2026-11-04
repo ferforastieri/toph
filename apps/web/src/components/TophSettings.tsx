@@ -1,17 +1,15 @@
 import { useEffect, useState, type ComponentType, type FormEvent, type ReactNode } from "react";
-import { Bell, Bot, HardDrive, Info, LogOut, Mail, PlugZap, Settings2, Wrench } from "@toph/icons";
+import { Bot, HardDrive, Info, LogOut, Mail, PlugZap, Settings2, Wrench } from "@toph/icons";
 import { api, getApiBase, probeServer, setApiBase, type User } from "../api";
-import { useApp, type AppNotification } from "../store";
+import { useApp } from "../store";
 import { useSettings, type WorkspaceFeature } from "../settings";
 import { PET_OPTIONS, petLevel, petLevelProgress, usePet } from "../pet";
 import PetSprite from "../ui/PetSprite";
 import AiSettings from "../panels/AiSettings";
 import WorkspaceSettings from "../panels/WorkspaceSettings";
 import AiConnectionsPanel from "./AiConnectionsPanel";
-import ActivityPopover from "./ActivityPopover";
 import EmailPanel from "./EmailPanel";
 import McpPanel from "./McpPanel";
-import { Badge } from "@/boardui/base/badges/badge";
 import { Button } from "@/boardui/base/buttons/button";
 import { Checkbox } from "@/boardui/base/checkbox/checkbox";
 import { Input } from "@/boardui/base/input/input";
@@ -23,7 +21,6 @@ type Section = "general" | "companion" | "appearance" | "ai" | "connections" | "
 interface Props {
   user: User | null;
   projectRoot?: string;
-  onOpenNotification: (notification: AppNotification) => void;
 }
 
 interface SectionItem {
@@ -50,26 +47,13 @@ const sections: Array<{ label?: string; items: SectionItem[] }> = [
   ] },
 ];
 
-function timeAgo(timestamp: number): string {
-  const minutes = Math.max(0, Math.round((Date.now() - timestamp) / 60_000));
-  if (minutes < 1) return "agora";
-  if (minutes < 60) return `${minutes} min`;
-  const hours = Math.round(minutes / 60);
-  if (hours < 24) return `${hours} h`;
-  return `${Math.round(hours / 24)} d`;
-}
-
-export default function TophSettings({ user, projectRoot, onOpenNotification }: Props) {
+export default function TophSettings({ user, projectRoot }: Props) {
   const setUser = useApp((state) => state.setUser);
   const notify = useApp((state) => state.notify);
-  const notifications = useApp((state) => state.notifications);
-  const projects = useApp((state) => state.projects);
-  const markAllNotificationsRead = useApp((state) => state.markAllNotificationsRead);
   const workspaceFeatures = useSettings((state) => state.workspaceFeatures);
   const updateSettings = useSettings((state) => state.update);
   const pet = usePet();
   const [open, setOpen] = useState(false);
-  const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [section, setSection] = useState<Section>("general");
   const [busy, setBusy] = useState(false);
   const [serverBusy, setServerBusy] = useState(false);
@@ -78,25 +62,6 @@ export default function TophSettings({ user, projectRoot, onOpenNotification }: 
   const [buildId, setBuildId] = useState("");
   const level = petLevel(pet.commits);
   const petName = PET_OPTIONS.find((option) => option.kind === pet.kind)?.name ?? "Toph pet";
-  const sortedNotifications = [...notifications].sort((a, b) => b.createdAt - a.createdAt);
-  const unread = sortedNotifications.filter((notification) => !notification.read).length;
-
-  function openFromAvatar() {
-    if (notificationsOpen) {
-      setNotificationsOpen(false);
-      return;
-    }
-    if (sortedNotifications.length > 0) {
-      setOpen(false);
-      setNotificationsOpen(true);
-      markAllNotificationsRead();
-    } else {
-      setSection("general");
-      setNotificationsOpen(false);
-      setOpen(true);
-    }
-  }
-
   useEffect(() => {
     if (!open) return;
     setServerDraft(getApiBase() || window.location.origin);
@@ -141,43 +106,15 @@ export default function TophSettings({ user, projectRoot, onOpenNotification }: 
 
   return (
     <>
-      <ActivityPopover
-        open={notificationsOpen}
-        onOpenChange={setNotificationsOpen}
-        panelClassName="bottom-0 top-auto max-h-[calc(100dvh-16px)] w-[min(340px,calc(100vw-64px))] overflow-hidden"
-        trigger={
-          <button
-            type="button"
-            aria-label={unread > 0 ? `Abrir ${unread} notificações novas` : sortedNotifications.length > 0 ? "Abrir notificações" : "Abrir configurações"}
-            title={`${petName} · nível ${level}`}
-            onClick={openFromAvatar}
-            className={cx("relative flex size-10 items-center justify-center rounded-2xl outline-none transition-colors hover:bg-background-primary-hover focus-visible:ring-2 focus-visible:ring-border-focus-ring", unread > 0 && "pet-notification")}
-          >
-            <PetSprite kind={pet.kind} size={38} commits={pet.commits} />
-            {unread > 0 ? <Badge color="primary" className="pointer-events-none absolute -end-1 -top-1 min-w-4 px-1 text-[10px]">{unread > 9 ? "9+" : unread}</Badge> : null}
-          </button>
-        }
+      <button
+        type="button"
+        aria-label="Abrir configurações"
+        title={`${petName} · nível ${level}`}
+        onClick={() => { setSection("general"); setOpen(true); }}
+        className="relative flex size-10 items-center justify-center rounded-2xl outline-none transition-colors hover:bg-background-primary-hover focus-visible:ring-2 focus-visible:ring-border-focus-ring"
       >
-        <div className="flex max-h-[min(520px,calc(100dvh-24px))] flex-col">
-          <div className="flex shrink-0 items-center gap-2.5 border-b border-separator-border p-3">
-            <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-accent-500/15 text-accent-500"><Bell size={16} /></span>
-            <div className="min-w-0 flex-1"><strong className="text-body-2-medium text-text-primary">Notificações</strong><p className="truncate text-caption-2-regular text-text-tertiary">Atualizações dos seus Tophs e do sistema</p></div>
-            <Badge color="neutral">{sortedNotifications.length}</Badge>
-          </div>
-          <div className="min-h-0 flex-1 overflow-y-auto p-2">
-            {sortedNotifications.map((notification) => {
-              const projectName = projects.find((project) => project.id === notification.projectId)?.name;
-              return (
-                <button key={notification.id} type="button" onClick={() => { setNotificationsOpen(false); onOpenNotification(notification); }} className="flex w-full items-start gap-3 rounded-xl border border-transparent p-2.5 text-start transition-colors hover:border-accent-500/20 hover:bg-accent-500/[0.05]">
-                  <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-accent-500/10 text-accent-500"><Bell size={14} /></span>
-                  <span className="flex min-w-0 flex-1 flex-col gap-1"><span className="flex items-baseline justify-between gap-2"><strong className="truncate text-caption-1-semibold text-text-primary">{notification.title}</strong><span className="shrink-0 text-caption-2-regular text-text-tertiary">{timeAgo(notification.createdAt)}</span></span>{notification.botRole ? <span className="text-caption-2-regular text-accent-500">{notification.botRole}</span> : null}<span className="line-clamp-2 text-caption-1-regular leading-relaxed text-text-secondary">{notification.body}</span>{projectName ? <span className="truncate text-caption-2-regular text-text-tertiary">{projectName}</span> : null}</span>
-                </button>
-              );
-            })}
-          </div>
-          <div className="shrink-0 border-t border-separator-border p-2"><Button variant="ghost" size="small" className="w-full justify-center" onClick={() => { setNotificationsOpen(false); setSection("general"); setOpen(true); }}>Abrir configurações</Button></div>
-        </div>
-      </ActivityPopover>
+        <PetSprite kind={pet.kind} size={38} commits={pet.commits} />
+      </button>
 
       <Modal
         isOpen={open}
