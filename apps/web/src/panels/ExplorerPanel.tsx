@@ -91,6 +91,7 @@ export default function ExplorerPanel({
     error: string;
   } | null>(null);
   const [uploadProgress, setUploadProgress] = useState<{ label: string; value: number; valueLabel: string } | null>(null);
+  const [draggingFiles, setDraggingFiles] = useState(false);
   const [searchDialog, setSearchDialog] = useState<{
     title: string;
     results: SearchMatch[] | null;
@@ -298,11 +299,41 @@ export default function ExplorerPanel({
     return () => window.removeEventListener("toph:explorer-action", handler);
   }, [selected]);
 
+  function handleDragOver(event: React.DragEvent<HTMLDivElement>) {
+    if (!event.dataTransfer.types.includes("Files")) return;
+    event.preventDefault();
+    event.stopPropagation();
+    event.dataTransfer.dropEffect = "copy";
+    setDraggingFiles(true);
+  }
+
+  function handleDragLeave(event: React.DragEvent<HTMLDivElement>) {
+    if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
+    setDraggingFiles(false);
+  }
+
+  function handleDrop(event: React.DragEvent<HTMLDivElement>) {
+    if (!event.dataTransfer.files?.length) return;
+    event.preventDefault();
+    event.stopPropagation();
+    setDraggingFiles(false);
+    const item = (event.target as HTMLElement).closest<HTMLElement>("[data-tree-item]");
+    const path = item?.dataset.path;
+    const dir = item?.dataset.dir === "true";
+    const target = path
+      ? ({ path, dir, name: path.split("/").pop() ?? path } as FileEntry)
+      : selected;
+    void uploadFiles(event.dataTransfer.files, target);
+  }
+
   return (
     <>
     <div
       className="relative flex h-full min-h-0 flex-col"
       tabIndex={-1}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
       onContextMenu={(event) => {
         if ((event.target as HTMLElement).closest("[data-tree-item], .project-search, .explorer-changes")) return;
         event.preventDefault();
@@ -318,6 +349,11 @@ export default function ExplorerPanel({
       }}
     >
       <input ref={uploadRef} type="file" multiple hidden onChange={(event) => { if (event.target.files) void uploadFiles(event.target.files); event.target.value = ""; }} />
+      {draggingFiles ? (
+        <div className="pointer-events-none absolute inset-2 z-30 flex items-center justify-center rounded-2xl border-2 border-dashed border-accent-500/60 bg-background-primary-default/85 p-4 text-center text-caption-1-medium text-accent-600 backdrop-blur-sm">
+          Solte os arquivos para enviar
+        </div>
+      ) : null}
       <SidebarHeader control={headerControl} title="Explorer" actions={
         <div className="flex items-center gap-0.5">
           <Button variant={workspaceSettingsOpen ? "secondary" : "ghost"} size="xs" iconOnly className="max-[900px]:flex-1" leadingIcon={Settings2} aria-label="Configurações do workspace" title="Configurações do workspace" onClick={() => setWorkspaceSettingsOpen((value) => !value)} />
