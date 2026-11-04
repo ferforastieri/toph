@@ -73,6 +73,18 @@ describe("AgentTranscript artifacts", () => {
     expect(screen.queryByText("{}")).not.toBeInTheDocument();
   });
 
+  it("renders assistant replies as a speech bubble", () => {
+    const { container } = render(
+      <AgentTranscript
+        bubble
+        streaming={false}
+        messages={[{ id: "reply-1", role: "assistant", text: "Olá, eu sou o Toph.", createdAt: 1 }]}
+      />,
+    );
+
+    expect(container.querySelector("[data-transcript-bubble]")).toHaveTextContent("Olá, eu sou o Toph.");
+  });
+
   it("does not offer an answer for an interrupted question", () => {
     render(
       <AgentTranscript
