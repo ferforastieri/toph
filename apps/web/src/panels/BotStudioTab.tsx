@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { OpenCode } from "@opencode/client";
 import { connectClientMcp, type ClientMcpTool } from "@opencode/client/mcp";
-import { Bot, Copy, ListTree, LoaderCircle, MessageSquarePlus, Monitor, Plus } from "@toph/icons";
+import { Bot, ChevronDown, Copy, ListTree, LoaderCircle, MessageSquarePlus, Monitor, Plus } from "@toph/icons";
 import { api, ApiError, openCodeBase, type AIMessage, type AIMessageContentPart, type Project } from "../api";
 import { modelDisplay, useAI } from "../ai";
 import { activeChat, chatCoordinator, chatTophs, useChats, type ChatMessage, type ChatToph } from "../chats";
@@ -10,6 +10,8 @@ import { playBotResponseSound, unlockBotSound } from "../botSound";
 import BotAvatar from "../components/BotAvatar";
 import BotConfig from "../components/BotConfig";
 import TophGallery from "../components/TophGallery";
+import TophSessionsSheet from "../components/TophSessionsSheet";
+import type { OpenCodeSessionSummary } from "../opencodeSessions";
 import AgentTranscript, { AgentImageGallery, agentImagesForMessages } from "../components/AgentTranscript";
 import OpenCodeFormCard, { type OpenCodeForm, type OpenCodeFormAnswer } from "../components/OpenCodeFormCard";
 import type { AiMessage } from "../store";
@@ -18,16 +20,19 @@ import { Modal } from "@/boardui/base/modal/modal";
 import { cx } from "@/boardui/utils/cx";
 import { useTophDrafts } from "../tophDrafts";
 import { AgentComposer, type AgentAttachment } from "../ui/AgentComposer";
+import ComposerMenu from "../ui/ComposerMenu";
 import AiUsageMeter from "../ui/AiUsageMeter";
 import ResizeHandle from "../ui/resize";
 import { useSettings } from "../settings";
+import { DropdownItem } from "@/boardui/base/dropdown/dropdown";
 import { extractAgentFilePaths } from "../agentArtifacts";
 import { answerOpenCodeQuestion } from "../opencodeQuestion";
 import { recoverBotReply } from "../botReply";
+import { restoredUserText } from "../botHistory";
 
 export interface TophActionRequest {
   tophId: string;
-  action: "config";
+  action: "config" | "sessions";
 }
 
 interface Props {
@@ -211,6 +216,100 @@ function groupChatMessages(messages: ChatMessage[]): ChatGroup[] {
   return groups;
 }
 
+function partTime(part: Record<string, any>, fallback: number, index: number): number {
+  const time = part?.time ?? {};
+  const value = Number(time.created ?? time.start ?? time.ran ?? time.completed);
+  return Number.isFinite(value) && value > 0 ? value : fallback + index;
+}
+
+function partInput(part: Record<string, any>): unknown {
+  return part?.state?.input ?? part?.input ?? part?.inputText ?? null;
+}
+
+function partOutput(part: Record<string, any>): unknown {
+  return part?.state?.content ?? part?.content ?? part?.output ?? part?.state?.metadata ?? null;
+}
+
+function partStatus(part: Record<string, any>): "running" | "complete" | "error" {
+  const status = part?.state?.status ?? part?.status;
+  if (status === "error" || part?.state?.error) return "error";
+  if (status === "running" || status === "pending") return "running";
+  return "complete";
+}
+
+function restoreTophMessages(context: unknown, tophId: string, chatId: string): ChatMessage[] {
+  if (!Array.isArray(context)) return [];
+  const restored: ChatMessage[] = [];
+  for (const raw of context as Array<Record<string, any>>) {
+    const messageCreated = Number(raw.time?.created ?? Date.now());
+    if (raw.type === "user") {
+      const text = restoredUserText(String(raw.text ?? ""));
+      if (!text) continue;
+      restored.push({ id: `history-user-${raw.id}`, chatId, role: "user", content: text, createdAt: messageCreated });
+      continue;
+    }
+    if (raw.type !== "assistant") continue;
+    const parts = Array.isArray(raw.content) ? raw.content as Array<Record<string, any>> : [];
+    let textRun = "";
+    let textStartedAt = 0;
+    const flushText = () => {
+      if (!textRun.trim()) {
+        textRun = "";
+        return;
+      }
+      restored.push({
+        id: `history-assistant-${raw.id}-${restored.length}`,
+        chatId,
+        tophId,
+        role: "assistant",
+        content: textRun,
+        status: "complete",
+        createdAt: textStartedAt || messageCreated,
+      });
+      textRun = "";
+    };
+    parts.forEach((part, index) => {
+      const createdAt = partTime(part, messageCreated, index);
+      if (part.type === "text") {
+        if (!textRun) textStartedAt = createdAt;
+        textRun += String(part.text ?? "");
+        return;
+      }
+      flushText();
+      if (part.type === "reasoning") {
+        const completed = Number(part.time?.completed ?? 0);
+        const durationMs = completed > createdAt ? completed - createdAt : undefined;
+        restored.push({
+          id: `history-reasoning-${raw.id}-${index}`,
+          chatId,
+          tophId,
+          role: "reasoning",
+          title: "Thought",
+          content: String(part.text ?? ""),
+          status: "complete",
+          durationMs,
+          createdAt,
+        });
+        return;
+      }
+      if (part.type !== "tool") return;
+      restored.push({
+        id: `history-tool-${raw.id}-${index}`,
+        chatId,
+        tophId,
+        role: "tool",
+        title: `Tool · ${String(part.name ?? "call")}`,
+        content: toolContent(partInput(part)),
+        detail: toolContent(partOutput(part)),
+        status: partStatus(part),
+        createdAt,
+      });
+    });
+    flushText();
+  }
+  return restored;
+}
+
 function toAiMessage(message: ChatMessage): AiMessage {
   return {
     id: message.id,
@@ -255,6 +354,8 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
   const removeMessage = useChats((state) => state.removeMessage);
   const updateToph = useChats((state) => state.updateToph);
   const mergeMessages = useChats((state) => state.mergeMessages);
+  const replaceTophMessages = useChats((state) => state.replaceTophMessages);
+  const setTophSession = useChats((state) => state.setTophSession);
   const aiConfig = useAI((state) => state.config);
   const models = useAI((state) => state.models);
   const activityWidth = useSettings((state) => state.aiPanelWidth);
@@ -263,6 +364,7 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
   const [sending, setSending] = useState(false);
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [configTophId, setConfigTophId] = useState<string | null>(null);
+  const [sessionsTophId, setSessionsTophId] = useState<string | null>(null);
   const sendingRef = useRef(false);
   const runToken = useRef(0);
   const [runningTophs, setRunningTophs] = useState<Set<string>>(new Set());
@@ -317,7 +419,9 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
   const setDraft = useTophDrafts((state) => state.setDraft);
   const clearDraft = useTophDrafts((state) => state.clearDraft);
   const configToph = tophs.find((toph) => toph.id === configTophId) ?? null;
+  const sessionsToph = tophs.find((toph) => toph.id === sessionsTophId) ?? null;
   const activeModel = coordinator?.model || aiConfig?.model || models[0]?.id || "";
+  const activeEfforts = models.find((model) => model.id === activeModel)?.variants ?? [];
   const tophSessionKey = tophs.map((toph) => `${toph.id}:${toph.sessionId ?? ""}`).join("|");
 
   function relativeToolPath(value: string): string | null {
@@ -515,6 +619,7 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
     const handler = (event: Event) => {
       const detail = (event as CustomEvent<{ action?: string; tophId?: string }>).detail;
       if (detail?.action === "config" && detail.tophId) setConfigTophId(detail.tophId);
+      else if (detail?.action === "sessions" && detail.tophId) setSessionsTophId(detail.tophId);
       else if (detail?.action === "add") setGalleryOpen(true);
     };
     window.addEventListener("toph:toph-action", handler);
@@ -523,7 +628,8 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
 
   useEffect(() => {
     if (!externalAction) return;
-    setConfigTophId(externalAction.tophId);
+    if (externalAction.action === "sessions") setSessionsTophId(externalAction.tophId);
+    else setConfigTophId(externalAction.tophId);
     onExternalActionHandled?.();
   }, [externalAction, onExternalActionHandled]);
 
@@ -1103,6 +1209,41 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
     }
   }
 
+  async function restoreSession(session: OpenCodeSessionSummary) {
+    const toph = sessionsToph;
+    if (!toph) return;
+    setSessionsTophId(null);
+    const context = await client.session.context({ sessionID: session.id } as never).catch(() => null);
+    if (!context) return;
+    const existingUsers = new Set(
+      currentChat(toph).messages
+        .filter((message) => message.role === "user")
+        .map((message) => `${message.content}\u0000${message.createdAt}`),
+    );
+    const restored = restoreTophMessages(context, toph.id, toph.chatId)
+      .filter((message) => message.role !== "user" || !existingUsers.has(`${message.content}\u0000${message.createdAt}`));
+    if (toph.sessionId && toph.sessionId !== session.id) {
+      sessionTophMap.current.delete(toph.sessionId);
+    }
+    await api.deleteChatMessages(project.id, toph.chatId, toph.id).catch(() => undefined);
+    replaceTophMessages(project.id, toph.id, restored);
+    setTophSession(project.id, toph.id, session.id, { sessionPrimed: true });
+    sessionTophMap.current.set(session.id, toph.id);
+  }
+
+  async function newSession() {
+    const toph = sessionsToph;
+    if (!toph) return;
+    setSessionsTophId(null);
+    if (toph.sessionId) {
+      await client.session.interrupt({ sessionID: toph.sessionId } as never).catch(() => undefined);
+      sessionTophMap.current.delete(toph.sessionId);
+    }
+    await api.deleteChatMessages(project.id, toph.chatId, toph.id).catch(() => undefined);
+    replaceTophMessages(project.id, toph.id, []);
+    setTophSession(project.id, toph.id, undefined, { sessionPrimed: false });
+  }
+
   function openCreateChat() {
     window.dispatchEvent(new CustomEvent("toph:create-chat"));
   }
@@ -1293,8 +1434,40 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
               onSend={(value, attachments) => void send(value, attachments)}
               onStop={() => void stop()}
               busy={sending || runningTophs.size > 0}
+              models={models}
+              model={coordinator?.model || activeModel}
+              onModelChange={(value) => {
+                if (coordinator) updateToph(project.id, coordinator.id, { model: value });
+              }}
+              effort={coordinator?.effort ?? ""}
+              efforts={activeEfforts}
+              onEffortChange={(value) => {
+                if (coordinator) updateToph(project.id, coordinator.id, { effort: value });
+              }}
               placeholder={`Mensagem em #${chat.name}`}
-              modeControls={<AiUsageMeter client={client} refreshKey={`${chat.id}:${completedReplies}`} />}
+              modeControls={
+                <>
+                  <ComposerMenu
+                    label="Modo do agente"
+                    trigger={
+                      <>
+                        <span>{coordinator?.agentMode === "plan" ? "Plano" : "Build"}</span>
+                        <ChevronDown size={12} className="size-3 text-foreground-icon-tertiary" />
+                      </>
+                    }
+                    popoverClassName="w-[300px] p-0"
+                    contentClassName="flex flex-col gap-1 p-1.5"
+                  >
+                    {(close) => (
+                      <>
+                        <DropdownItem selected={coordinator?.agentMode !== "plan"} onSelect={() => { if (coordinator) updateToph(project.id, coordinator.id, { agentMode: "build" }); close(); }}>Build</DropdownItem>
+                        <DropdownItem selected={coordinator?.agentMode === "plan"} onSelect={() => { if (coordinator) updateToph(project.id, coordinator.id, { agentMode: "plan" }); close(); }}>Plano</DropdownItem>
+                      </>
+                    )}
+                  </ComposerMenu>
+                  <AiUsageMeter client={client} refreshKey={`${chat.id}:${completedReplies}`} />
+                </>
+              }
               history={messages.filter((message) => message.role === "user").map((message) => message.content)}
             />
           </div>
@@ -1442,6 +1615,16 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
       >
         {configToph ? <BotConfig projectId={project.id} projectRoot={project.root} bot={configToph} /> : null}
       </Modal>
+
+      <TophSessionsSheet
+        open={Boolean(sessionsToph)}
+        project={project}
+        toph={sessionsToph}
+        activeSessionId={sessionsToph?.sessionId}
+        onClose={() => setSessionsTophId(null)}
+        onSelect={(session) => void restoreSession(session)}
+        onNew={() => void newSession()}
+      />
 
       <TophGallery
         open={galleryOpen}

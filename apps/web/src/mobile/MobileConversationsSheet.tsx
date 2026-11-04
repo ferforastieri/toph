@@ -13,7 +13,7 @@ interface Props {
   project: Project;
   onClose: () => void;
   onSelected: () => void;
-  onAction: (tophId: string) => void;
+  onAction: (tophId: string, action: "config" | "sessions") => void;
 }
 
 export default function MobileConversationsSheet({ open, project, onClose, onSelected, onAction }: Props) {
@@ -104,7 +104,8 @@ export default function MobileConversationsSheet({ open, project, onClose, onSel
                   Adicionar primeiro Toph
                 </button>
               ) : tophs.map((toph) => (
-                <TophRow key={toph.id} toph={toph} compact onOpen={() => { onClose(); onAction(toph.id); }} />
+                <TophRow key={toph.id} toph={toph} compact onOpen={() => { onClose(); onAction(toph.id, "config"); }}
+                  onSessions={() => { onClose(); onAction(toph.id, "sessions"); }} />
               ))}
             </>
           ) : null}
@@ -119,7 +120,7 @@ export default function MobileConversationsSheet({ open, project, onClose, onSel
         onCreated={(tophId) => {
           setGalleryOpen(false);
           onClose();
-          onAction(tophId);
+          onAction(tophId, "config");
         }}
       />
     </>

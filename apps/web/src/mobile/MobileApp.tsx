@@ -178,8 +178,8 @@ export default function MobileApp() {
     setScreen("bots");
   }
 
-  function openTophAction(tophId: string) {
-    setPendingTophAction({ tophId, action: "config" });
+  function openTophAction(tophId: string, action: "config" | "sessions" = "config") {
+    setPendingTophAction({ tophId, action });
     selectConversationScreen();
   }
 
