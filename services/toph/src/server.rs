@@ -1992,6 +1992,10 @@ struct ChatRequest {
     effort: String,
     #[serde(default)]
     yolo: bool,
+    #[serde(default, rename = "projectId")]
+    project_id: String,
+    #[serde(default)]
+    tools: Vec<String>,
 }
 
 async fn chat_ai(
@@ -1999,12 +2003,23 @@ async fn chat_ai(
     Json(input): Json<ChatRequest>,
 ) -> AppResult<Json<Value>> {
     let _ = input.yolo;
+    let image = if input.project_id.trim().is_empty() {
+        None
+    } else {
+        let project = state.store.project(input.project_id.trim()).await?;
+        Some(crate::ai::ImageTool {
+            project_id: project.id,
+            project_root: std::path::PathBuf::from(project.root),
+        })
+    };
     let text = state
         .ai
         .chat(
             input.messages,
             (!input.model.is_empty()).then_some(input.model.as_str()),
             (!input.effort.is_empty()).then_some(input.effort.as_str()),
+            image,
+            input.tools,
         )
         .await?;
     state.emit_ai_response();

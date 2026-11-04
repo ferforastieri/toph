@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { Check, CircleAlert, PlugZap, Save, Bot } from "@toph/icons";
-import { api, type AIConfigInput } from "../api";
+import { Check, CircleAlert, PlugZap, Save, Bot, Image, Trash2 } from "@toph/icons";
+import { api, type AIConfigInput, type ImageProviderInput } from "../api";
 import { useAI } from "../ai";
 import { useApp } from "../store";
 import { Button } from "@/boardui/base/buttons/button";
@@ -22,6 +22,13 @@ const providers = [
   { id: "custom", label: "Custom", base: "" },
 ];
 
+const IMAGE_PRESETS = [
+  { kind: "openai", label: "OpenAI", base: "https://api.openai.com", model: "gpt-image-2" },
+  { kind: "gemini", label: "Google Gemini", base: "https://generativelanguage.googleapis.com", model: "gemini-2.5-flash-image" },
+  { kind: "stability", label: "Stability AI", base: "https://api.stability.ai", model: "core" },
+  { kind: "replicate", label: "Replicate", base: "https://api.replicate.com", model: "black-forest-labs/flux-1.1-pro" },
+] as const;
+
 const empty: AIConfigInput = {
   provider: "opencode",
   baseUrl: "",
@@ -34,6 +41,7 @@ const empty: AIConfigInput = {
   temperature: 0.2,
   autocomplete: true,
   systemPrompt: "",
+  imageProviders: [],
 };
 
 export default function AiSettings() {
@@ -64,6 +72,17 @@ export default function AiSettings() {
           temperature: next.temperature,
           autocomplete: next.autocomplete,
           systemPrompt: next.systemPrompt,
+          imageProviders: (next.imageProviders ?? []).map((provider) => ({
+            id: provider.id,
+            label: provider.label,
+            kind: provider.kind,
+            baseUrl: provider.baseUrl,
+            model: provider.model,
+            enabled: provider.enabled,
+            apiKey: "",
+            clearKey: false,
+            hasKey: provider.hasKey,
+          })),
           apiKey: "",
           clearKey: false,
         });
@@ -76,8 +95,7 @@ export default function AiSettings() {
     setTested(null);
   }
 
-  function chooseProvider(provider: string) {
-    const preset = providers.find((item) => item.id === provider);
+  function chooseProvider(provider: string) {    const preset = providers.find((item) => item.id === provider);
     patch({
       provider,
       baseUrl: provider === "custom" ? form.baseUrl : (preset?.base ?? ""),
@@ -95,7 +113,12 @@ export default function AiSettings() {
       const saved = await api.saveAIConfig(form);
       setConfig(saved);
       await loadModels();
-      setForm((current) => ({ ...current, apiKey: "", clearKey: false }));
+      setForm((current) => ({
+        ...current,
+        apiKey: "",
+        clearKey: false,
+        imageProviders: current.imageProviders.map((provider) => ({ ...provider, apiKey: "", clearKey: false })),
+      }));
       notify("success", "AI settings saved.");
       if (test) {
         await api.testAI();
@@ -111,6 +134,26 @@ export default function AiSettings() {
     } finally {
       setBusy(false);
     }
+  }
+
+  function addImageProvider(preset: (typeof IMAGE_PRESETS)[number]) {
+    const id = `${preset.kind}-${Date.now().toString(36)}`;
+    patch({
+      imageProviders: [
+        ...form.imageProviders,
+        { id, label: preset.label, kind: preset.kind, baseUrl: preset.base, model: preset.model, enabled: true, apiKey: "" },
+      ],
+    });
+  }
+
+  function updateImageProvider(id: string, next: Partial<ImageProviderInput>) {
+    patch({
+      imageProviders: form.imageProviders.map((provider) => provider.id === id ? { ...provider, ...next } : provider),
+    });
+  }
+
+  function removeImageProvider(id: string) {
+    patch({ imageProviders: form.imageProviders.filter((provider) => provider.id !== id) });
   }
 
   const isOpenCode = form.provider === "opencode";
@@ -213,6 +256,62 @@ export default function AiSettings() {
               </p>
             </div>
           )}
+        </div>
+
+        <div className="bg-background-secondary-default flex flex-col gap-3 rounded-lg border p-4">
+          <div>
+            <p className="flex items-center gap-2 text-body-medium text-text-primary"><Image size={15} /> Geradores de imagem</p>
+            <p className="mt-1 text-caption-1-regular text-text-secondary">
+              Provedores disponíveis para a ferramenta <code className="rounded bg-background-tertiary-default px-1 py-0.5">generate_image</code> dos Tophs. Adicione quantos quiser; o Toph escolhe pelo pedido.
+            </p>
+          </div>
+          {form.imageProviders.length === 0 ? (
+            <p className="text-caption-2-regular text-text-tertiary">Nenhum provedor configurado. Sem configuração, o Toph tenta o provider principal quando ele for OpenAI-compatível.</p>
+          ) : null}
+          {form.imageProviders.map((provider) => (
+            <div key={provider.id} className="flex flex-col gap-3 rounded-xl border border-border-button-default p-3">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-caption-1-medium text-text-primary">{provider.label || provider.kind}</span>
+                <Button type="button" variant="ghost" size="xs" iconOnly leadingIcon={Trash2} aria-label="Remover provedor" title="Remover provedor" onClick={() => removeImageProvider(provider.id)} />
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-caption-2-medium text-text-secondary">Tipo</span>
+                  <Select
+                    selectedKey={provider.kind}
+                    onSelectionChange={(key) => {
+                      const preset = IMAGE_PRESETS.find((item) => item.kind === key);
+                      updateImageProvider(provider.id, {
+                        kind: String(key),
+                        ...(preset ? { baseUrl: preset.base, model: preset.model, label: provider.label || preset.label } : {}),
+                      });
+                    }}
+                    aria-label="Tipo do provedor de imagem"
+                    className="w-full"
+                  >
+                    {IMAGE_PRESETS.map((preset) => <SelectItem key={preset.kind} id={preset.kind}>{preset.label}</SelectItem>)}
+                  </Select>
+                </div>
+                <Input label="Modelo" value={provider.model} onChange={(value) => updateImageProvider(provider.id, { model: value })} placeholder="gpt-image-2" />
+                <Input label="Base URL" value={provider.baseUrl} onChange={(value) => updateImageProvider(provider.id, { baseUrl: value })} placeholder="https://api.openai.com" />
+                <Input
+                  label={provider.hasKey ? "API key (salva)" : "API key"}
+                  type="password"
+                  value={provider.apiKey ?? ""}
+                  onChange={(value) => updateImageProvider(provider.id, { apiKey: value })}
+                  placeholder={provider.hasKey ? "Deixe em branco para manter" : "Chave do provedor"}
+                  autoComplete="off"
+                />
+              </div>
+            </div>
+          ))}
+          <div className="flex flex-wrap gap-2">
+            {IMAGE_PRESETS.map((preset) => (
+              <Button key={preset.kind} type="button" variant="secondary" size="xs" onClick={() => addImageProvider(preset)}>
+                + {preset.label}
+              </Button>
+            ))}
+          </div>
         </div>
 
         {error && <Chip color="rose" variant="subtle" className="justify-start gap-2 whitespace-normal px-2 py-1.5"><CircleAlert size={13} /> {error}</Chip>}

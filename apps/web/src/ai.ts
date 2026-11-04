@@ -31,6 +31,7 @@ export const useAI = create<AIState>((set) => ({
           temperature: config.temperature,
           autocomplete: true,
           systemPrompt: config.systemPrompt,
+          imageProviders: config.imageProviders ?? [],
           apiKey: "",
           clearKey: false,
         }).catch(() => config);

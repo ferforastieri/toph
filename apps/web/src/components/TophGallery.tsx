@@ -24,6 +24,7 @@ const CUSTOM_PRESET: TophPreset = {
   permissionMode: "yolo",
   mcpServers: [],
   emailAccountIds: [],
+  tools: ["generate_image", "delegate"],
   language: "auto",
 };
 
