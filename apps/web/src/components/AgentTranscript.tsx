@@ -1,9 +1,9 @@
-import { memo, useEffect, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import type { Components } from "react-markdown";
 import ReactMarkdown, { defaultUrlTransform } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Check, ChevronDown, CircleAlert, Copy, Image, LoaderCircle, X } from "@toph/icons";
-import { api } from "../api";
+import { api, getApiBase } from "../api";
 import type { AiMessage } from "../store";
 import { extractAgentDiffs, extractAgentImages, parsedToolRecord, type AgentDiffArtifact, type AgentImageArtifact } from "../agentArtifacts";
 import { Button } from "@/boardui/base/buttons/button";
@@ -85,7 +85,8 @@ export interface ResolvedAgentImage extends AgentImageArtifact {
 }
 
 function resolveImageSource(source: string, projectId?: string, projectRoot?: string): string {
-  if (/^(?:data:|https?:|blob:)/i.test(source) || source.startsWith("/api/")) return source;
+  if (/^(?:data:|https?:|blob:)/i.test(source)) return source;
+  if (source.startsWith("/api/")) return `${getApiBase()}${source}`;
   if (!projectId) return source;
   let path = source.replace(/^file:\/\//i, "").replace(/\\/g, "/");
   const root = projectRoot?.replace(/\\/g, "/").replace(/\/+$/, "") ?? "";
@@ -93,6 +94,18 @@ function resolveImageSource(source: string, projectId?: string, projectRoot?: st
   else if (/^(?:[a-z]:\/|\/)/i.test(path)) return source;
   path = path.replace(/^\.\//, "");
   return path ? api.rawUrl(projectId, path) : source;
+}
+
+const MARKDOWN_IMAGE = /!\[([^\]]*)\]\(([^)\s]+)(\s+"[^"]*")?\)/g;
+
+/** Rewrite image targets inside markdown so relative project paths and
+ * `/api/...` URLs work in both the web app and the desktop webview. */
+export function resolveMarkdownImages(text: string, projectId?: string, projectRoot?: string): string {
+  if (!text.includes("![")) return text;
+  return text.replace(MARKDOWN_IMAGE, (match, alt: string, source: string, title: string | undefined) => {
+    const resolved = resolveImageSource(source, projectId, projectRoot);
+    return resolved === source ? match : `![${alt}](${resolved}${title ?? ""})`;
+  });
 }
 
 export function agentImagesForMessages(messages: AiMessage[], projectId?: string, projectRoot?: string): ResolvedAgentImage[] {
@@ -265,7 +278,10 @@ function ToolOutput({ message, images }: { message: AiMessage; images: ResolvedA
 function ToolRow({ message, onPermission, onQuestion, defaultOpen = false, projectId, projectRoot }: { message: AiMessage; onPermission?: MessageProps["onPermission"]; onQuestion?: MessageProps["onQuestion"]; defaultOpen?: boolean; projectId?: string; projectRoot?: string }) {
   const [open, setOpen] = useState(defaultOpen);
   const questions = toolKind(message) === "question" ? parseAgentQuestions(message.text) : [];
-  const images = agentImagesForMessages([message], projectId, projectRoot);
+  const images = useMemo(
+    () => agentImagesForMessages([message], projectId, projectRoot),
+    [message, projectId, projectRoot],
+  );
   const hasImage = images.length > 0;
   const label = toolLabel(message);
   const subtitle = toolSubtitle(message);
@@ -330,7 +346,12 @@ function ToolGroup({ messages, onPermission, onQuestion, defaultOpen = false, pr
   const [open, setOpen] = useState(defaultOpen);
   const tools = messages.filter((message) => message.role === "tool");
   const thoughts = messages.filter((message) => message.role === "reasoning");
-  const hasImage = agentImagesForMessages(tools, projectId, projectRoot).length > 0;
+  const imageKey = tools.map((message) => `${message.id}:${message.text.length}:${message.detail?.length ?? 0}`).join("|");
+  const hasImage = useMemo(
+    () => agentImagesForMessages(tools, projectId, projectRoot).length > 0,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [imageKey, projectId, projectRoot],
+  );
   const count = tools.length || thoughts.length;
   useEffect(() => {
     if (hasImage || defaultOpen) setOpen(true);
@@ -403,7 +424,7 @@ const TranscriptMessage = memo(function TranscriptMessage({ message, showCaret, 
         components={markdownComponents}
         urlTransform={(url) => url.startsWith("data:image/") ? url : defaultUrlTransform(url)}
       >
-        {message.text}
+        {resolveMarkdownImages(message.text, projectId, projectRoot)}
       </ReactMarkdown>
       {showCaret && (
         <span className="ml-0.5 inline-block h-3.5 w-[2px] animate-pulse bg-accent-500 align-middle" aria-hidden />

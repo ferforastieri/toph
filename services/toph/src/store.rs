@@ -744,6 +744,22 @@ fn stored_workspace_message(mut message: Value) -> AppResult<Option<StoredWorksp
         .unwrap_or_else(|| Utc::now().timestamp_millis());
     object.insert("chatId".into(), Value::String(chat_id.clone()));
     object.insert("createdAt".into(), json!(created_at));
+    // Guard the database and older clients against multi-megabyte tool
+    // payloads (inline base64 images, huge command output).
+    const MAX_MESSAGE_TEXT: usize = 200_000;
+    for key in ["content", "detail"] {
+        if let Some(Value::String(text)) = object.get_mut(key) {
+            if text.len() > MAX_MESSAGE_TEXT {
+                let mut end = MAX_MESSAGE_TEXT;
+                while !text.is_char_boundary(end) {
+                    end -= 1;
+                }
+                let removed = text.len() - end;
+                text.truncate(end);
+                text.push_str(&format!("\n… ({removed} caracteres omitidos)"));
+            }
+        }
+    }
     Ok(Some(StoredWorkspaceMessage {
         id,
         mode: "chat".into(),

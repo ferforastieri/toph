@@ -220,9 +220,27 @@ function normalizeToph(toph: ChatToph, chatId: string): ChatToph {
 function normalizeMessage(message: ChatMessage): ChatMessage {
   return {
     ...message,
-    content: typeof message.content === "string" ? message.content : "",
+    content: capMessageText(typeof message.content === "string" ? message.content : ""),
+    detail: typeof message.detail === "string" ? capMessageText(message.detail) : message.detail,
     createdAt: Number.isFinite(message.createdAt) ? message.createdAt : Date.now(),
     pending: message.pending === true,
+  };
+}
+
+const MAX_MESSAGE_TEXT = 200_000;
+
+/** Keep huge tool payloads (base64 images, minified files) from freezing the
+ * UI and bloating the persisted history. */
+function capMessageText(value: string): string {
+  if (value.length <= MAX_MESSAGE_TEXT) return value;
+  return `${value.slice(0, MAX_MESSAGE_TEXT)}\n… (${value.length - MAX_MESSAGE_TEXT} caracteres omitidos)`;
+}
+
+function cappedMessage(message: ChatMessage): ChatMessage {
+  return {
+    ...message,
+    content: capMessageText(message.content),
+    detail: typeof message.detail === "string" ? capMessageText(message.detail) : message.detail,
   };
 }
 
@@ -590,12 +608,13 @@ export const useChats = create<ChatStore>((set, get) => ({
     set((state) => {
       const project = state.byProject[projectId];
       if (!project || project.messages.some((item) => item.id === message.id)) return state;
+      const next = cappedMessage(message);
       return {
         byProject: {
           ...state.byProject,
-          [projectId]: { ...project, messages: [...project.messages, message].sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id)) },
+          [projectId]: { ...project, messages: [...project.messages, next].sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id)) },
         },
-        messageWrites: queueWrite(state.messageWrites, projectId, message),
+        messageWrites: queueWrite(state.messageWrites, projectId, next),
       };
     }),
 
@@ -606,7 +625,7 @@ export const useChats = create<ChatStore>((set, get) => ({
       let changed: ChatMessage | null = null;
       const messages = project.messages.map((message) => {
         if (message.id !== messageId) return message;
-        changed = { ...message, content: `${message.content}${text}` };
+        changed = cappedMessage({ ...message, content: `${message.content}${text}` });
         return changed;
       });
       return {
@@ -622,7 +641,7 @@ export const useChats = create<ChatStore>((set, get) => ({
       let changed: ChatMessage | null = null;
       const messages = project.messages.map((message) => {
         if (message.id !== messageId) return message;
-        changed = { ...message, ...patch };
+        changed = cappedMessage({ ...message, ...patch });
         return changed;
       });
       return {
