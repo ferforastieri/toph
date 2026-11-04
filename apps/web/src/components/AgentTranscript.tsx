@@ -91,7 +91,7 @@ function resolveImageSource(source: string, projectId?: string, projectRoot?: st
   let path = source.replace(/^file:\/\//i, "").replace(/\\/g, "/");
   const root = projectRoot?.replace(/\\/g, "/").replace(/\/+$/, "") ?? "";
   if (root && path.startsWith(`${root}/`)) path = path.slice(root.length + 1);
-  else if (/^(?:[a-z]:\/|\/)/i.test(path)) return source;
+  else if (/^(?:[a-z]:\/|\/)/i.test(path)) return "";
   path = path.replace(/^\.\//, "");
   return path ? api.rawUrl(projectId, path) : source;
 }
@@ -110,7 +110,8 @@ export function resolveMarkdownImages(text: string, projectId?: string, projectR
 
 export function agentImagesForMessages(messages: AiMessage[], projectId?: string, projectRoot?: string): ResolvedAgentImage[] {
   return extractAgentImages(...messages.flatMap((message) => [message.text, message.detail]))
-    .map((image) => ({ ...image, uri: resolveImageSource(image.source, projectId, projectRoot) }));
+    .map((image) => ({ ...image, uri: resolveImageSource(image.source, projectId, projectRoot) }))
+    .filter((image) => Boolean(image.uri));
 }
 
 function imageLabel(image: AgentImageArtifact): string {

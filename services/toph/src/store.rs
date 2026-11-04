@@ -415,6 +415,43 @@ impl Store {
         Ok(())
     }
 
+    pub async fn inline_image_messages(
+        &self,
+    ) -> AppResult<Vec<(i64, String, String, String, String)>> {
+        let rows = sqlx::query_as::<_, (i64, String, String, String, String)>(
+            "SELECT user_id, project_id, channel, message_id, payload
+             FROM bot_messages
+             WHERE mode = 'chat' AND payload LIKE '%data:image%'",
+        )
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows)
+    }
+
+    pub async fn update_message_payload(
+        &self,
+        user_id: i64,
+        project_id: &str,
+        channel: &str,
+        message_id: &str,
+        payload: &str,
+    ) -> AppResult<()> {
+        sqlx::query(
+            "UPDATE bot_messages
+             SET payload = ?, updated_at = ?
+             WHERE user_id = ? AND project_id = ? AND mode = 'chat' AND channel = ? AND message_id = ?",
+        )
+        .bind(payload)
+        .bind(now())
+        .bind(user_id)
+        .bind(project_id)
+        .bind(channel)
+        .bind(message_id)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
     pub async fn workspace_messages(
         &self,
         user_id: i64,
