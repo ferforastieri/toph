@@ -1,5 +1,5 @@
 export default function BrandMark({ size = "small", className = "" }: { size?: "small" | "large" | ""; className?: string }) {
-  const src = `${import.meta.env.BASE_URL}brand/toph-mark.png?v=2`;
+  const src = `${import.meta.env.BASE_URL}brand/toph-mark.png?v=3`;
   const pixels = size === "large" ? 56 : size === "small" ? 28 : undefined;
   return (
     <span

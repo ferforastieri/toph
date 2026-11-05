@@ -13,7 +13,7 @@ interface Props {
 }
 
 const AVATAR_BASE = `${import.meta.env.BASE_URL}tophs/`;
-const AVATAR_VERSION = "?v=2";
+const AVATAR_VERSION = "?v=3";
 const CORE_AVATAR = `${AVATAR_BASE}toph-core.png${AVATAR_VERSION}`;
 
 export default function BotAvatar({ bot, size = 36, className, style, look = true }: Props) {
