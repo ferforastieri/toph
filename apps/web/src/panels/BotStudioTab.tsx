@@ -658,6 +658,21 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
     setExpandedActivity(null);
   }, [chat?.id]);
 
+  // When the app returns from the background, pull the latest messages and the
+  // live session state instead of waiting for a reconnect that may never come.
+  useEffect(() => {
+    if (!chat) return;
+    const reload = () => {
+      if (document.visibilityState === "visible") setHistoryReloadToken((value) => value + 1);
+    };
+    document.addEventListener("visibilitychange", reload);
+    window.addEventListener("focus", reload);
+    return () => {
+      document.removeEventListener("visibilitychange", reload);
+      window.removeEventListener("focus", reload);
+    };
+  }, [chat?.id]);
+
   useEffect(() => {
     if (aiConfig?.provider !== "opencode") return;
     const toolResult = (data: unknown) => ({ content: [{ type: "text" as const, text: JSON.stringify(data) }] });
