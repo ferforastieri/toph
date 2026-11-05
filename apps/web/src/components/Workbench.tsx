@@ -6,7 +6,6 @@ import { useApp, type Sidebar, type Tab } from "../store";
 import { chatSessionIds, useChats, type ProjectChats } from "../chats";
 import { useAI } from "../ai";
 import { PROJECT_EVENT, type ProjectEvent } from "../projectEvents";
-import ActivityBar from "./ActivityBar";
 import BotStudioTab from "../panels/BotStudioTab";
 import { featureEnabled, isDesktopClient, isTophOnly, sidebarFeature, useSettings, type WorkspaceFeature } from "../settings";
 import Tabs from "./Tabs";
@@ -116,7 +115,6 @@ export default function Workbench() {
   const [quickOpenToken, setQuickOpenToken] = useState(0);
   const [layoutOpen, setLayoutOpen] = useState(false);
   const sidebarVisible = workspaceFeatures.primarySidebar;
-  const activityVisible = workspaceFeatures.activityBar;
   const tabsVisible = workspaceFeatures.tabs;
   const panelAlignment = useSettings((state) => state.panelAlignment);
   const [branchInfo, setBranchInfo] = useState<{ current: string; branches: string[] } | null>(null);
@@ -1029,12 +1027,12 @@ export default function Workbench() {
 
   const activityHeaderControl = (
     <IconButton
-      icon={activityVisible ? PanelLeftClose : PanelLeftOpen}
+      icon={sidebarVisible ? PanelLeftClose : PanelLeftOpen}
       size="xs"
       className="border-transparent bg-transparent shadow-none"
-      aria-label={activityVisible ? "Ocultar barra vertical" : "Mostrar barra vertical"}
-      title={activityVisible ? "Ocultar barra vertical" : "Mostrar barra vertical"}
-      onClick={() => setWorkspaceFeature("activityBar", !activityVisible)}
+      aria-label={sidebarVisible ? "Ocultar barra lateral" : "Mostrar barra lateral"}
+      title={sidebarVisible ? "Ocultar barra lateral" : "Mostrar barra lateral"}
+      onClick={() => setWorkspaceFeature("primarySidebar", !sidebarVisible)}
     />
   );
 
@@ -1092,13 +1090,8 @@ export default function Workbench() {
   const primarySidebar = (
     <Suspense fallback={null}>
       <div className="relative z-40 flex min-h-0 shrink-0 overflow-visible rounded-3xl border border-border-button-white bg-background-primary-default shadow-sidebar">
-        {activityVisible ? <div className="overflow-visible rounded-s-3xl">
-          <ActivityBar
-            onQuickOpen={() => setQuickOpenToken((current) => current + 1)}
-          />
-        </div> : null}
         {effectiveSidebarVisible ? (
-          <aside className={cx("relative flex min-h-0 shrink-0 flex-col overflow-hidden bg-background-primary-default", activityVisible ? "rounded-e-[22px]" : "rounded-[22px]", botsView ? "w-[clamp(220px,22vw,var(--sidebar-width))]" : "w-[var(--sidebar-width)]")}>
+          <aside className={cx("relative flex min-h-0 shrink-0 flex-col overflow-hidden rounded-[22px] bg-background-primary-default", botsView ? "w-[clamp(220px,22vw,var(--sidebar-width))]" : "w-[var(--sidebar-width)]")}>
             {sidebarContent}
           </aside>
         ) : null}
@@ -1113,7 +1106,7 @@ export default function Workbench() {
 
   return (
     <div className="relative flex h-dvh flex-col overflow-hidden bg-background-full">
-      <TopBar onOpenProject={switchProject} onCloseProject={requestCloseProject} onGoHome={() => setSidebar("bots")} tophControl={<TophSettings user={user} projectRoot={project.root} />} />
+      <TopBar onOpenProject={switchProject} onCloseProject={requestCloseProject} onGoHome={() => setSidebar("bots")} onQuickOpen={() => setQuickOpenToken((current) => current + 1)} tophControl={<TophSettings user={user} projectRoot={project.root} />} />
       <div className="pointer-events-none absolute inset-x-0 top-16 z-[100] flex justify-center px-12">
         <div className="pointer-events-auto w-full max-w-xl"><QuickOpen project={project} focusToken={quickOpenToken} onOpenFile={openFile} floating /></div>
       </div>

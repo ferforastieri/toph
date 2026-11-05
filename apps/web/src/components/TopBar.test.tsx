@@ -36,13 +36,13 @@ afterEach(cleanup);
 describe("TopBar", () => {
   it("lists open projects and marks their notifications as read", () => {
     const open = vi.fn();
-    render(<TopBar onOpenProject={open} onCloseProject={() => undefined} onGoHome={() => undefined} />);
+    render(<TopBar onOpenProject={open} onCloseProject={() => undefined} onGoHome={() => undefined} onQuickOpen={() => undefined} />);
 
     expect(screen.getByText("Alpha")).toBeInTheDocument();
     expect(screen.queryByText("Beta")).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /Marcar 1 notificações de Alpha/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Marcar 1 notificações como lidas/ }));
     expect(useApp.getState().notifications[0].read).toBe(true);
-    expect(screen.queryByRole("button", { name: /Marcar 1 notificações/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Marcar 1 notificações como lidas/ })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Alpha" }));
     expect(open).toHaveBeenCalledWith("a");
@@ -50,7 +50,7 @@ describe("TopBar", () => {
 
   it("opens the project picker with only projects that are not open", () => {
     const open = vi.fn();
-    render(<TopBar onOpenProject={open} onCloseProject={() => undefined} onGoHome={() => undefined} />);
+    render(<TopBar onOpenProject={open} onCloseProject={() => undefined} onGoHome={() => undefined} onQuickOpen={() => undefined} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Abrir projeto" }));
     const dialog = screen.getByRole("dialog");
@@ -63,10 +63,20 @@ describe("TopBar", () => {
   });
 
   it("toggles the theme next to the Toph mark", () => {
-    render(<TopBar onOpenProject={() => undefined} onCloseProject={() => undefined} onGoHome={() => undefined} />);
+    render(<TopBar onOpenProject={() => undefined} onCloseProject={() => undefined} onGoHome={() => undefined} onQuickOpen={() => undefined} />);
     const toggle = screen.getByRole("button", { name: "Ativar modo claro" });
     fireEvent.click(toggle);
     expect(useSettings.getState().theme).toBe("light");
     expect(screen.getByRole("button", { name: "Ir para o Toph" })).toBeInTheDocument();
+  });
+
+  it("keeps the workspace actions in the header", () => {
+    const quickOpen = vi.fn();
+    render(<TopBar onOpenProject={() => undefined} onCloseProject={() => undefined} onGoHome={() => undefined} onQuickOpen={quickOpen} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Databases" }));
+    expect(useApp.getState().sidebar).toBe("db");
+    fireEvent.click(screen.getByRole("button", { name: "Busca rápida" }));
+    expect(quickOpen).toHaveBeenCalled();
   });
 });

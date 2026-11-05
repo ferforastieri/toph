@@ -198,7 +198,6 @@ export default function TophSettings({ user, projectRoot }: Props) {
               <div className="flex flex-col gap-5">
                 <SettingsHeading title="Layout e ferramentas" description="Escolha diretamente o que aparece e é inicializado no workspace." />
                 <SettingsGroup title="Layout">
-                  <FeatureToggle label="Barra vertical" checked={workspaceFeatures.activityBar} onChange={(value) => setFeature("activityBar", value)} />
                   <FeatureToggle label="Painel lateral" checked={workspaceFeatures.primarySidebar} onChange={(value) => setFeature("primarySidebar", value)} />
                   <FeatureToggle label="Abas e conteúdo" checked={workspaceFeatures.tabs} onChange={(value) => setFeature("tabs", value)} />
                   <FeatureToggle label="Terminal e painel" checked={workspaceFeatures.terminal} onChange={(value) => setFeature("terminal", value)} />
