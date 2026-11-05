@@ -40,9 +40,9 @@ describe("TopBar", () => {
 
     expect(screen.getByText("Alpha")).toBeInTheDocument();
     expect(screen.queryByText("Beta")).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /Marcar 1 notificações como lidas/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Marcar 1 notificações de Alpha como lidas/ }));
     expect(useApp.getState().notifications[0].read).toBe(true);
-    expect(screen.queryByRole("button", { name: /Marcar 1 notificações como lidas/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Marcar 1 notificações/ })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Alpha" }));
     expect(open).toHaveBeenCalledWith("a");

@@ -1178,14 +1178,15 @@ export default function Workbench() {
         </div>
 
         {projectBar === "left" && projectRailCollapsed ? (
-          <IconButton
-            icon={PanelLeftOpen}
-            size="small"
-            className="absolute start-3 top-3 z-50"
-            aria-label="Mostrar barra de projetos"
-            title="Mostrar barra de projetos"
-            onClick={() => setProjectRailCollapsed(false)}
-          />
+          <div className="flex w-8 shrink-0 flex-col items-center pt-1">
+            <IconButton
+              icon={PanelLeftOpen}
+              size="small"
+              aria-label="Mostrar barra de projetos"
+              title="Mostrar barra de projetos"
+              onClick={() => setProjectRailCollapsed(false)}
+            />
+          </div>
         ) : null}
       </div>
 
