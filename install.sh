@@ -154,7 +154,7 @@ TMP="$(mktemp)"
 trap 'rm -f "$TMP"' EXIT
 
 echo "Downloading Toph ${VERSION} (${ARCH})..."
-curl -fL --retry 3 --retry-delay 2 "$URL" -o "$TMP"
+curl -fL --retry 6 --retry-all-errors --retry-delay 3 "$URL" -o "$TMP"
 
 EXISTING=0
 if [ -f "$SERVICE" ] || [ -f "$ENV_FILE" ]; then
@@ -311,7 +311,7 @@ fi
 INSTALLER="\$(mktemp)"
 trap 'rm -f "\$INSTALLER"' EXIT
 write_state running "\$TAG"
-if ! curl -fL --retry 3 --retry-delay 2 "https://github.com/\${REPO}/releases/download/\${TAG}/install.sh" -o "\$INSTALLER"; then
+if ! curl -fL --retry 6 --retry-all-errors --retry-delay 3 "https://github.com/\${REPO}/releases/download/\${TAG}/install.sh" -o "\$INSTALLER"; then
   write_state error "\$TAG"
   exit 1
 fi
@@ -356,7 +356,7 @@ rollback() {
   if [ -n "$ROLLBACK_VERSION" ]; then
     OLD_TMP="$(mktemp)"
     OLD_URL="https://github.com/${REPO}/releases/download/v${ROLLBACK_VERSION}/${ASSET}"
-    if curl -fL --retry 2 "$OLD_URL" -o "$OLD_TMP"; then
+    if curl -fL --retry 6 --retry-all-errors --retry-delay 3 "$OLD_URL" -o "$OLD_TMP"; then
       install -m 0755 "$OLD_TMP" /usr/local/bin/toph
       if [ -f "$ENV_FILE" ]; then
         sed -i "s|^TOPH_BUILD_ID=.*|TOPH_BUILD_ID=${ROLLBACK_VERSION}-$(date +%s)|" "$ENV_FILE"
