@@ -1,18 +1,28 @@
 import { useMemo, useState, type ReactNode } from "react";
-import { Moon, Plus, Sun, X } from "@toph/icons";
+import { Bell, Bot, Bug, Database, Files, GitBranch, Globe2, Moon, Plus, Search, Sun, TerminalSquare, X } from "@toph/icons";
 import BrandMark from "@toph/brand";
-import { useApp } from "../store";
-import { useSettings } from "../settings";
+import { useApp, type Sidebar } from "../store";
+import { featureEnabled, useSettings, type WorkspaceFeature } from "../settings";
 import NotificationBadge from "./NotificationBadge";
 import ProjectSwitcher from "./ProjectSwitcher";
 import { Button } from "@/boardui/base/buttons/button";
 import { Modal } from "@/boardui/base/modal/modal";
 import { cx } from "@/boardui/utils/cx";
 
+const activityItems: Array<{ id: Sidebar; feature: WorkspaceFeature; label: string; icon: typeof Files }> = [
+  { id: "files", feature: "files", label: "Explorer", icon: Files },
+  { id: "scm", feature: "sourceControl", label: "Source Control", icon: GitBranch },
+  { id: "db", feature: "databases", label: "Databases", icon: Database },
+  { id: "bots", feature: "bots", label: "Toph", icon: Bot },
+  { id: "debug", feature: "debug", label: "Debug", icon: Bug },
+  { id: "web", feature: "webApps", label: "Web apps", icon: Globe2 },
+];
+
 interface Props {
   onOpenProject: (projectId: string) => void;
   onCloseProject: (projectId: string) => void;
   onGoHome: () => void;
+  onQuickOpen: () => void;
   tophControl?: ReactNode;
 }
 
@@ -35,13 +45,19 @@ function ThemeToggle() {
   );
 }
 
-/** Fixed workspace bar: open projects on the left, theme and Toph on the right. */
-export default function TopBar({ onOpenProject, onCloseProject, onGoHome, tophControl }: Props) {
+/** Fixed workspace bar: open projects on the left, actions and Toph on the right. */
+export default function TopBar({ onOpenProject, onCloseProject, onGoHome, onQuickOpen, tophControl }: Props) {
   const projects = useApp((state) => state.projects);
   const openProjectIds = useApp((state) => state.openProjectIds);
   const activeProjectId = useApp((state) => state.activeProjectId);
   const notifications = useApp((state) => state.notifications);
   const markProjectNotificationsRead = useApp((state) => state.markProjectNotificationsRead);
+  const markAllNotificationsRead = useApp((state) => state.markAllNotificationsRead);
+  const sidebar = useApp((state) => state.sidebar);
+  const setSidebar = useApp((state) => state.setSidebar);
+  const toggleTerminal = useApp((state) => state.toggleTerminal);
+  const terminalOpen = useApp((state) => state.terminalOpen);
+  const workspaceFeatures = useSettings((state) => state.workspaceFeatures);
   const [pickerOpen, setPickerOpen] = useState(false);
 
   const openProjects = useMemo(
@@ -50,10 +66,7 @@ export default function TopBar({ onOpenProject, onCloseProject, onGoHome, tophCo
       .filter((project): project is NonNullable<typeof project> => Boolean(project)),
     [openProjectIds, projects],
   );
-
-  function unreadFor(projectId: string): number {
-    return notifications.filter((notification) => !notification.read && notification.projectId === projectId).length;
-  }
+  const unreadTotal = notifications.filter((notification) => !notification.read).length;
 
   function openProject(projectId: string): void {
     markProjectNotificationsRead(projectId);
@@ -62,7 +75,7 @@ export default function TopBar({ onOpenProject, onCloseProject, onGoHome, tophCo
 
   return (
     <>
-      <header className="relative z-50 mx-1 mt-1 flex h-12 shrink-0 items-center gap-1.5 rounded-2xl border border-border-button-white bg-background-primary-default px-2 shadow-sidebar">
+      <header className="relative z-50 mx-1 mt-1 flex h-12 shrink-0 items-center gap-1.5 rounded-3xl border border-border-button-white bg-background-primary-default px-2.5 shadow-sidebar">
         <button
           type="button"
           onClick={() => {
@@ -93,22 +106,20 @@ export default function TopBar({ onOpenProject, onCloseProject, onGoHome, tophCo
           ) : null}
           {openProjects.map((project) => {
             const active = project.id === activeProjectId;
-            const unread = unreadFor(project.id);
             return (
               <div
                 key={project.id}
                 className={cx(
-                  "group relative flex h-8 shrink-0 items-center rounded-xl border transition-colors",
+                  "group relative flex h-8 shrink-0 items-center rounded-xl border pe-7 transition-colors",
                   active
                     ? "border-accent-500/35 bg-accent-500/10 text-text-primary"
                     : "border-transparent text-text-secondary hover:bg-background-primary-hover hover:text-text-primary",
-                  "pe-7",
                 )}
               >
                 <button
                   type="button"
                   onClick={() => openProject(project.id)}
-                  className="flex h-full min-w-0 flex-1 items-center gap-1.5 ps-1.5 text-start text-caption-1-medium"
+                  className="flex h-full min-w-0 flex-1 items-center gap-1.5 ps-1.5 pe-1.5 text-start text-caption-1-medium"
                   title={`${project.name}\n${project.root}`}
                   aria-current={active ? "page" : undefined}
                 >
@@ -121,27 +132,13 @@ export default function TopBar({ onOpenProject, onCloseProject, onGoHome, tophCo
                   </span>
                   <span className="max-w-[160px] truncate">{project.name}</span>
                 </button>
-                {unread > 0 ? (
-                  <button
-                    type="button"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      markProjectNotificationsRead(project.id);
-                    }}
-                    className="absolute end-0 top-0 flex size-4 items-center justify-center rounded-full transition-transform hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus-ring"
-                    aria-label={`Marcar ${unread} notificações de ${project.name} como lidas`}
-                    title={`${unread} notificações — clique para marcar como lidas`}
-                  >
-                    <NotificationBadge count={unread} size={14} />
-                  </button>
-                ) : null}
                 <button
                   type="button"
                   onClick={(event) => {
                     event.stopPropagation();
                     onCloseProject(project.id);
                   }}
-                  className="absolute bottom-0.5 end-0.5 flex size-3.5 items-center justify-center rounded-full text-text-tertiary opacity-0 transition-opacity hover:bg-background-primary-hover hover:text-text-primary focus-visible:opacity-100 focus-visible:outline-none group-hover:opacity-100"
+                  className="absolute end-1 top-1/2 flex size-4 -translate-y-1/2 items-center justify-center rounded-full text-text-tertiary opacity-0 transition-opacity hover:bg-background-primary-hover hover:text-text-primary focus-visible:opacity-100 focus-visible:outline-none group-hover:opacity-100"
                   aria-label={`Fechar ${project.name}`}
                   title={`Fechar ${project.name}`}
                 >
@@ -154,6 +151,62 @@ export default function TopBar({ onOpenProject, onCloseProject, onGoHome, tophCo
 
         <div className="flex shrink-0 items-center gap-1">
           <ThemeToggle />
+          <span className="mx-1 h-5 w-px shrink-0 bg-separator-border" aria-hidden="true" />
+          <div className="flex items-center gap-0.5">
+            {activityItems
+              .filter((item) => featureEnabled(workspaceFeatures, item.feature))
+              .map((item) => {
+                const active = sidebar === item.id;
+                return (
+                  <Button
+                    key={item.id}
+                    variant={active ? "secondary" : "ghost"}
+                    size="small"
+                    iconOnly
+                    leadingIcon={item.icon}
+                    className={cx("size-8", active && "text-accent-500")}
+                    aria-label={item.label}
+                    aria-pressed={active}
+                    title={item.label}
+                    onClick={() => setSidebar(item.id)}
+                  />
+                );
+              })}
+            {featureEnabled(workspaceFeatures, "files") ? (
+              <Button
+                variant="ghost"
+                size="small"
+                iconOnly
+                leadingIcon={Search}
+                className="size-8"
+                aria-label="Busca rápida"
+                title="Busca rápida"
+                onClick={onQuickOpen}
+              />
+            ) : null}
+            {featureEnabled(workspaceFeatures, "terminal") ? (
+              <Button
+                variant={terminalOpen ? "secondary" : "ghost"}
+                size="small"
+                iconOnly
+                leadingIcon={TerminalSquare}
+                className={cx("size-8", terminalOpen && "text-accent-500")}
+                aria-label="Terminal"
+                aria-pressed={terminalOpen}
+                title="Terminal"
+                onClick={toggleTerminal}
+              />
+            ) : null}
+          </div>
+          <button
+            type="button"
+            onClick={() => markAllNotificationsRead()}
+            className="relative flex size-8 shrink-0 items-center justify-center rounded-full text-foreground-icon-secondary transition-colors hover:bg-background-primary-hover hover:text-foreground-icon-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus-ring"
+            aria-label={unreadTotal > 0 ? `Marcar ${unreadTotal} notificações como lidas` : "Notificações"}
+            title={unreadTotal > 0 ? `${unreadTotal} notificações — clique para marcar como lidas` : "Notificações"}
+          >
+            {unreadTotal > 0 ? <NotificationBadge count={unreadTotal} size={17} /> : <Bell size={17} />}
+          </button>
           {tophControl}
         </div>
       </header>
