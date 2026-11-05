@@ -153,6 +153,7 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
   const [agent, setAgent] = useState("build");
   const scrollRef = useRef<HTMLDivElement>(null);
   const stickToBottom = useRef(true);
+  const lastScrollTop = useRef(0);
   const pendingDeltas = useRef(new Map<string, string>());
   const flushTimer = useRef<number | null>(null);
   const sendInFlight = useRef(false);
@@ -912,9 +913,15 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
       <div
         ref={scrollRef}
         className="min-h-0 flex-1 overflow-y-auto"
+        onWheel={(event) => {
+          if (event.deltaY < 0) stickToBottom.current = false;
+        }}
         onScroll={(event) => {
           const element = event.currentTarget;
-          stickToBottom.current = element.scrollHeight - element.scrollTop - element.clientHeight < 80;
+          const movedUp = element.scrollTop < lastScrollTop.current - 1;
+          lastScrollTop.current = element.scrollTop;
+          const following = element.scrollHeight - element.scrollTop - element.clientHeight < 80;
+          stickToBottom.current = following && !movedUp;
         }}
       >
         <div className="flex min-h-full flex-col gap-4 p-3">

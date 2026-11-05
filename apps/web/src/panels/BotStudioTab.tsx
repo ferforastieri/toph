@@ -523,6 +523,7 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
   const activityScrollRef = useRef<HTMLDivElement>(null);
   const stickToBottom = useRef(true);
   const stickActivityToBottom = useRef(true);
+  const lastScrollTop = useRef(0);
   const [atBottom, setAtBottom] = useState(true);
   const client = useMemo(() => {
     const csrf = document.cookie.match(/(?:^|;\s*)toph_csrf=([^;]+)/)?.[1] ?? "";
@@ -840,6 +841,14 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
     const content = contentRef.current;
     if (!scroller || !content || typeof ResizeObserver === "undefined") return;
     let frame = 0;
+    const release = () => {
+      stickToBottom.current = false;
+      setAtBottom(false);
+      if (frame) {
+        window.cancelAnimationFrame(frame);
+        frame = 0;
+      }
+    };
     const pin = () => {
       if (!stickToBottom.current) return;
       if (frame) window.cancelAnimationFrame(frame);
@@ -850,9 +859,29 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
     };
     const observer = new ResizeObserver(pin);
     observer.observe(content);
+    // Unpin on the first sign of intent to read history, before the next
+    // streamed token can pull the view back down.
+    const onWheel = (event: WheelEvent) => {
+      if (event.deltaY < 0) release();
+    };
+    let touchY = 0;
+    const onTouchStart = (event: TouchEvent) => {
+      touchY = event.touches[0]?.clientY ?? 0;
+    };
+    const onTouchMove = (event: TouchEvent) => {
+      const y = event.touches[0]?.clientY ?? 0;
+      if (y > touchY) release();
+      touchY = y;
+    };
+    scroller.addEventListener("wheel", onWheel, { passive: true });
+    scroller.addEventListener("touchstart", onTouchStart, { passive: true });
+    scroller.addEventListener("touchmove", onTouchMove, { passive: true });
     pin();
     return () => {
       observer.disconnect();
+      scroller.removeEventListener("wheel", onWheel);
+      scroller.removeEventListener("touchstart", onTouchStart);
+      scroller.removeEventListener("touchmove", onTouchMove);
       if (frame) window.cancelAnimationFrame(frame);
     };
   }, [chat?.id]);
@@ -1808,9 +1837,13 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
           className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-x-none"
           onScroll={(event) => {
             const element = event.currentTarget;
+            // Any upward movement means the reader wants history, even if it
+            // is only a few pixels away from the live edge.
+            const movedUp = element.scrollTop < lastScrollTop.current - 1;
+            lastScrollTop.current = element.scrollTop;
             const following = element.scrollHeight - element.scrollTop - element.clientHeight < 80;
-            stickToBottom.current = following;
-            setAtBottom(following);
+            stickToBottom.current = following && !movedUp;
+            setAtBottom(stickToBottom.current);
           }}
         >
           <div ref={contentRef} key={chat?.id ?? "none"} className="toph-view-in mx-auto flex min-h-full w-full min-w-0 max-w-[760px] flex-col gap-4 overflow-x-hidden p-4 [&_img]:max-w-full [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_table]:block [&_table]:max-w-full [&_table]:overflow-x-auto">
