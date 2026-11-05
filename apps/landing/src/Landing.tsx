@@ -47,7 +47,7 @@ export default function Landing() {
     <main className="landing">
       <nav className="landing-nav">
         <a className="landing-brand" href="/">
-          <img className="landing-logo" src={`${import.meta.env.BASE_URL}brand/toph-logo-horizontal.png`} alt="Toph" />
+          <img className="landing-logo" src={`${import.meta.env.BASE_URL}brand/toph-logo-horizontal.png?v=2`} alt="Toph" />
         </a>
         <div className="landing-links">
           <a href="#features">Features</a>

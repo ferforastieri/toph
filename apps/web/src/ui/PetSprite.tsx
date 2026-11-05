@@ -6,7 +6,8 @@ import TophEyes from "../components/TophEyes";
 import { usePointerLook } from "./usePointerLook";
 
 const PET_BASE = `${import.meta.env.BASE_URL}tophs/`;
-const FALLBACK = `${PET_BASE}toph-core.png`;
+const PET_VERSION = "?v=2";
+const FALLBACK = `${PET_BASE}toph-core.png${PET_VERSION}`;
 
 export default function PetSprite({
   kind,
@@ -24,7 +25,7 @@ export default function PetSprite({
   className?: string;
 }) {
   const level = petLevel(commits);
-  const source = `${PET_BASE}${kind}.png`;
+  const source = `${PET_BASE}${kind}.png${PET_VERSION}`;
   const [image, setImage] = useState(source);
   const lookRef = usePointerLook<HTMLSpanElement>({ disabled: !look });
   const scale = 0.82 + level * 0.045;

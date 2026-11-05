@@ -13,10 +13,11 @@ interface Props {
 }
 
 const AVATAR_BASE = `${import.meta.env.BASE_URL}tophs/`;
-const CORE_AVATAR = `${AVATAR_BASE}toph-core.png`;
+const AVATAR_VERSION = "?v=2";
+const CORE_AVATAR = `${AVATAR_BASE}toph-core.png${AVATAR_VERSION}`;
 
 export default function BotAvatar({ bot, size = 36, className, style, look = true }: Props) {
-  const source = `${AVATAR_BASE}${bot.avatar}.png`;
+  const source = `${AVATAR_BASE}${bot.avatar}.png${AVATAR_VERSION}`;
   const [image, setImage] = useState(source);
   const lookRef = usePointerLook<HTMLSpanElement>({ disabled: !look });
   const activeAvatar = image === CORE_AVATAR ? "toph-core" : bot.avatar;

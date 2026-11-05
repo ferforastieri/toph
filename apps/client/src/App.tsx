@@ -266,7 +266,7 @@ export default function App() {
         <div className="ambient ambient-one" />
         <div className="ambient ambient-two" />
         <section className="boot-card">
-          <img src="/toph-app-icon.png" alt="" />
+          <img src="/toph-app-icon.png?v=2" alt="" />
           <h1>Toph</h1>
           <p>Conectando ao servidor...</p>
           <span className="boot-pulse" />
@@ -281,7 +281,7 @@ export default function App() {
       <div className="ambient ambient-two" />
       <section className="launcher">
         <header className="brand">
-          <img src="/toph-app-icon.png" alt="" />
+          <img src="/toph-app-icon.png?v=2" alt="" />
           <div>
             <h1>Toph</h1>
             <p>{mobile ? "Seu workbench, no seu servidor." : "Seu workbench, no servidor ou neste computador."}</p>
