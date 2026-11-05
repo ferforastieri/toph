@@ -18,8 +18,8 @@ interface Props {
   onContextMenu?: (entry: FileEntry, event: React.MouseEvent) => void;
 }
 
-function hasTransferType(types: DataTransfer["types"], type: string): boolean {
-  return Array.from(types).includes(type);
+function hasTransferType(types: DataTransfer["types"] | undefined, type: string): boolean {
+  return types ? Array.from(types).includes(type) : false;
 }
 
 function expansionKey(projectId: string): string {
