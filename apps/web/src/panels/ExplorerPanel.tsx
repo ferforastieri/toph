@@ -479,7 +479,7 @@ export default function ExplorerPanel({
       <input ref={uploadRef} type="file" multiple hidden onChange={(event) => { if (event.target.files) void uploadFiles(event.target.files); event.target.value = ""; }} />
       {draggingFiles ? (
         <div className="pointer-events-none absolute inset-2 z-30 flex items-center justify-center rounded-2xl border-2 border-dashed border-accent-500/60 bg-background-primary-default/85 p-4 text-center text-caption-1-medium text-accent-600 backdrop-blur-sm">
-          Solte os arquivos para enviar
+          Solte os arquivos ou pastas para enviar
         </div>
       ) : null}
       <SidebarHeader control={headerControl} title="Explorer" actions={
