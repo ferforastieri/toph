@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Bot, Bug, Database, Files, GitBranch, Globe2, Moon, Search, Sun, TerminalSquare } from "@toph/icons";
+import { Bot, Bug, Database, Files, GitBranch, Globe2, Search, TerminalSquare } from "@toph/icons";
 import { useApp, type Sidebar } from "../store";
 import { featureEnabled, useSettings, type WorkspaceFeature } from "../settings";
 import { Button } from "@/boardui/base/buttons/button";
@@ -17,33 +17,11 @@ const items: Array<{ id: Sidebar; feature: WorkspaceFeature; label: string; icon
 ];
 
 interface Props {
-  projectControl?: ReactNode;
   settingsControl?: ReactNode;
   onQuickOpen: () => void;
 }
 
-function ThemeToggle() {
-  const theme = useSettings((state) => state.theme);
-  const setTheme = useSettings((state) => state.setTheme);
-  const light = theme === "light";
-  return (
-    <TooltipTrigger delay={400}>
-      <button
-        type="button"
-        aria-label={light ? "Ativar modo escuro" : "Ativar modo claro"}
-        aria-pressed={light}
-        onClick={() => setTheme(light ? "dark" : "light")}
-        className="relative flex size-8 items-center justify-center overflow-hidden rounded-full text-foreground-icon-secondary transition-colors hover:bg-background-primary-hover hover:text-foreground-icon-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus-ring"
-      >
-        <Sun className={cx("absolute size-4 transition-all duration-300", light ? "rotate-0 scale-100 opacity-100" : "-rotate-90 scale-50 opacity-0")} />
-        <Moon className={cx("absolute size-4 transition-all duration-300", light ? "rotate-90 scale-50 opacity-0" : "rotate-0 scale-100 opacity-100")} />
-      </button>
-      <Tooltip>{light ? "Modo escuro" : "Modo claro"}</Tooltip>
-    </TooltipTrigger>
-  );
-}
-
-export default function ActivityBar({ projectControl, settingsControl, onQuickOpen }: Props) {
+export default function ActivityBar({ settingsControl, onQuickOpen }: Props) {
   const sidebar = useApp((state) => state.sidebar);
   const setSidebar = useApp((state) => state.setSidebar);
   const toggleTerminal = useApp((state) => state.toggleTerminal);
@@ -53,8 +31,6 @@ export default function ActivityBar({ projectControl, settingsControl, onQuickOp
   return (
     <nav className="flex h-full w-12 shrink-0 flex-col items-center rounded-s-[22px] border-e border-separator-border bg-background-primary-default py-2" aria-label="Navegação principal">
       <div className="flex flex-col items-center gap-1">
-        {projectControl}
-        <Divider className="my-1 w-6" />
         {items.filter((item) => featureEnabled(workspaceFeatures, item.feature)).map((item) => {
           const active = sidebar === item.id;
           return (
@@ -96,7 +72,6 @@ export default function ActivityBar({ projectControl, settingsControl, onQuickOp
         ) : null}
       </div>
       <div className="mt-auto flex flex-col items-center gap-2">
-        <ThemeToggle />
         <Divider className="w-6" />
         {settingsControl}
       </div>

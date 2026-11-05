@@ -13,8 +13,7 @@ import Tabs from "./Tabs";
 import Toasts from "./Toasts";
 import CloseProjectModal from "./CloseProjectModal";
 import BranchPicker from "./BranchPicker";
-import ProjectSwitcher from "./ProjectSwitcher";
-import NotificationBadge from "./NotificationBadge";
+import TopBar from "./TopBar";
 import QuickOpen from "./QuickOpen";
 import ActivityPopover from "./ActivityPopover";
 import TophSettings from "./TophSettings";
@@ -120,7 +119,6 @@ export default function Workbench() {
   const activityVisible = workspaceFeatures.activityBar;
   const tabsVisible = workspaceFeatures.tabs;
   const panelAlignment = useSettings((state) => state.panelAlignment);
-  const [projectsMenuOpen, setProjectsMenuOpen] = useState(false);
   const [branchInfo, setBranchInfo] = useState<{ current: string; branches: string[] } | null>(null);
   const [branchBusy, setBranchBusy] = useState("");
   const [newBranchName, setNewBranchName] = useState("");
@@ -132,8 +130,6 @@ export default function Workbench() {
   const mobile = useIsMobile();
 
   const project = projects.find((item) => item.id === activeProjectId) ?? null;
-  const notifications = useApp((state) => state.notifications);
-  const unreadCount = project ? notifications.filter((item) => !item.read && item.projectId === project.id).length : 0;
   const branch = gitStatus.split("\n")[0]?.replace(/^##\s*/, "").split("...")[0] ?? "";
   const activeTab = tabs.find((tab) => tab.id === activeTabId) ?? null;
   const botsView = sidebar === "bots";
@@ -1061,31 +1057,13 @@ export default function Workbench() {
       />
     );
   }
-  const activityProjectControl = (
-    <ActivityPopover
-      open={projectsMenuOpen}
-      onOpenChange={(next) => { setProjectsMenuOpen(next); setBranchMenuOpen(false); }}
-      panelClassName="w-[min(320px,calc(100vw-64px))] p-2.5"
-      trigger={
-        <button type="button" className="relative mx-auto my-1 flex size-11 items-center justify-center rounded-2xl bg-transparent transition-colors hover:bg-background-primary-hover focus-visible:ring-2 focus-visible:ring-border-focus-ring" aria-label={`Trocar projeto. Projeto atual: ${project.name}. ${unreadCount} notificações.`} title={`${project.name} · trocar projeto`} onClick={() => setProjectsMenuOpen((open) => !open)}>
-          <BrandMark size="small" className="size-8" />
-          {unreadCount > 0 ? <NotificationBadge count={unreadCount} size={19} tone="light" className="absolute bottom-0 end-0 z-10" /> : null}
-        </button>
-      }
-    >
-      <ProjectSwitcher
-        onSelect={(id) => { setProjectsMenuOpen(false); switchProject(id); }}
-        onCloseProject={(id) => { setProjectsMenuOpen(false); requestCloseProject(id); }}
-      />
-    </ActivityPopover>
-  );
   const activityBranchControl = sourceControlEnabled ? (
     <ActivityPopover
       open={branchMenuOpen}
-      onOpenChange={(next) => { setBranchMenuOpen(next); setProjectsMenuOpen(false); if (next) openBranchMenu(); }}
+      onOpenChange={(next) => { setBranchMenuOpen(next); if (next) openBranchMenu(); }}
       panelClassName="w-[min(460px,calc(100vw-64px))]"
       trigger={
-        <Button variant={branchMenuOpen ? "secondary" : "ghost"} size="small" leadingIcon={GitBranch} className="w-full justify-start" aria-label={`Branch ${branch || "detached"}`} title={branch || "detached"} onClick={() => { const next = !branchMenuOpen; setBranchMenuOpen(next); setProjectsMenuOpen(false); if (next) openBranchMenu(); }}>
+        <Button variant={branchMenuOpen ? "secondary" : "ghost"} size="small" leadingIcon={GitBranch} className="w-full justify-start" aria-label={`Branch ${branch || "detached"}`} title={branch || "detached"} onClick={() => { const next = !branchMenuOpen; setBranchMenuOpen(next); if (next) openBranchMenu(); }}>
           <span className="min-w-0 flex-1 truncate text-start">{branch || "detached"}</span>
           <ChevronDown size={12} className="shrink-0" />
         </Button>
@@ -1116,7 +1094,6 @@ export default function Workbench() {
       <div className="relative z-40 flex min-h-0 shrink-0 overflow-visible rounded-3xl border border-border-button-white bg-background-primary-default shadow-sidebar">
         {activityVisible ? <div className="overflow-visible rounded-s-3xl">
           <ActivityBar
-            projectControl={activityProjectControl}
             settingsControl={<TophSettings user={user} projectRoot={project.root} />}
             onQuickOpen={() => setQuickOpenToken((current) => current + 1)}
           />
@@ -1137,7 +1114,8 @@ export default function Workbench() {
 
   return (
     <div className="relative flex h-dvh flex-col overflow-hidden bg-background-full">
-      <div className="pointer-events-none absolute inset-x-0 top-2 z-[100] flex justify-center px-12">
+      <TopBar onOpenProject={switchProject} onCloseProject={requestCloseProject} onGoHome={() => setSidebar("bots")} />
+      <div className="pointer-events-none absolute inset-x-0 top-16 z-[100] flex justify-center px-12">
         <div className="pointer-events-auto w-full max-w-xl"><QuickOpen project={project} focusToken={quickOpenToken} onOpenFile={openFile} floating /></div>
       </div>
       <div className="flex min-h-0 flex-1 gap-0 p-1">
