@@ -1085,7 +1085,7 @@ export default function Workbench() {
       trigger={
         <button type="button" className="relative mx-auto my-1 me-2 flex size-10 items-center justify-center rounded-2xl border border-border-button-default bg-background-secondary-default shadow-xs transition-colors hover:border-accent-500/40 hover:bg-background-primary-hover focus-visible:ring-2 focus-visible:ring-border-focus-ring" aria-label={`Trocar projeto. Projeto atual: ${project.name}. ${unreadCount} notificações.`} title={`${project.name} · trocar projeto`} onClick={() => setProjectsMenuOpen((open) => !open)}>
           <BrandMark size="small" className="size-6" />
-          {unreadCount > 0 ? <NotificationBadge count={unreadCount} size={18} className="absolute -end-1.5 -top-1.5" /> : null}
+          {unreadCount > 0 ? <NotificationBadge count={unreadCount} size={18} className="absolute end-0 top-0 z-10" /> : null}
           <span className="absolute bottom-0 end-0 flex size-4 items-center justify-center rounded-full border border-background-primary-default bg-background-tertiary-default text-text-secondary"><ChevronDown size={9} /></span>
         </button>
       }

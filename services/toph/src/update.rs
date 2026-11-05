@@ -24,6 +24,7 @@ struct UpdateCache {
     checked: Option<Instant>,
     latest: String,
     assets: Vec<UpdateInstaller>,
+    apk_url: String,
     error: String,
 }
 
@@ -117,14 +118,11 @@ impl UpdateManager {
         {
             error = "A última atualização não foi concluída.".into();
         }
-        let apk_url = if latest.is_empty() {
-            String::new()
-        } else {
-            format!(
-                "https://github.com/{}/releases/download/{}/toph-{}.apk",
-                self.repo, latest, latest
-            )
-        };
+        let apk_url = self
+            .cache
+            .lock()
+            .map(|cache| cache.apk_url.clone())
+            .unwrap_or_default();
         let installers = self.current_installers();
         Ok(UpdateStatus {
             current_version: VERSION.trim_start_matches('v').to_string(),
@@ -212,6 +210,12 @@ impl UpdateManager {
             if parse_version(&release.tag_name).is_none() {
                 return Err("A release mais recente tem uma versão inválida.".into());
             }
+            let apk_url = release
+                .assets
+                .iter()
+                .find(|asset| asset.name.to_lowercase().ends_with(".apk"))
+                .map(|asset| asset.browser_download_url.clone())
+                .unwrap_or_default();
             let assets = release
                 .assets
                 .into_iter()
@@ -242,20 +246,56 @@ impl UpdateManager {
                     })
                 })
                 .collect();
-            Ok((release.tag_name, assets))
+            let apk_url = if apk_url.is_empty() {
+                self.latest_apk_url().await.unwrap_or_default()
+            } else {
+                apk_url
+            };
+            Ok((release.tag_name, assets, apk_url))
         }
         .await;
-        let (latest, assets, error) = match result {
-            Ok((latest, assets)) => (latest, assets, String::new()),
-            Err(error) => (String::new(), Vec::new(), error),
+        let (latest, assets, apk_url, error) = match result {
+            Ok((latest, assets, apk_url)) => (latest, assets, apk_url, String::new()),
+            Err(error) => (String::new(), Vec::new(), String::new(), error),
         };
         if let Ok(mut cache) = self.cache.lock() {
             cache.checked = Some(Instant::now());
             cache.latest = latest.clone();
             cache.assets = assets;
+            cache.apk_url = apk_url;
             cache.error = error.clone();
         }
         (latest, error)
+    }
+
+    async fn latest_apk_url(&self) -> Option<String> {
+        let url = format!(
+            "https://api.github.com/repos/{}/releases?per_page=20",
+            self.repo
+        );
+        let releases: Vec<GithubRelease> = self
+            .client
+            .get(url)
+            .header("Accept", "application/vnd.github+json")
+            .header("User-Agent", format!("toph-update-check/{VERSION}"))
+            .send()
+            .await
+            .ok()?
+            .error_for_status()
+            .ok()?
+            .json()
+            .await
+            .ok()?;
+        releases
+            .into_iter()
+            .filter(|release| !release.draft && !release.prerelease)
+            .find_map(|release| {
+                release
+                    .assets
+                    .into_iter()
+                    .find(|asset| asset.name.to_lowercase().ends_with(".apk"))
+                    .map(|asset| asset.browser_download_url)
+            })
     }
 
     fn current_installers(&self) -> Vec<UpdateInstaller> {

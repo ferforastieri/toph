@@ -68,7 +68,7 @@ export default function MobileTopBar({ title, subtitle, projectName, unreadCount
             className={cx("relative shrink-0 rounded-full", floating ? "size-9 p-1.5" : "size-10 p-2")}
           >
             <BrandMark size="small" className="size-6" />
-            {unreadCount > 0 ? <NotificationBadge count={unreadCount} size={17} className="absolute -end-1 -top-1" /> : null}
+            {unreadCount > 0 ? <NotificationBadge count={unreadCount} size={17} className="absolute end-0 top-0 z-10" /> : null}
           </Button>
           {onConversations ? (
             <Button
