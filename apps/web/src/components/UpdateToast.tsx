@@ -175,31 +175,44 @@ export default function UpdateToast() {
       return;
     }
 
+    const startedAt = Date.now();
     try {
-      await api.startUpdate();
+      const start = await api.startUpdate();
+      if (start.status === "current") {
+        setStatus((current) => current ? {
+          ...current,
+          available: false,
+          currentVersion: start.version,
+          latestVersion: start.version,
+        } : current);
+        setPhase("idle");
+        return;
+      }
     } catch (err) {
-      if (err instanceof ApiError) {
+      // 409 means another update request is already in flight. Keep polling
+      // it instead of showing a dead-end error.
+      if (!(err instanceof ApiError && err.status === 409)) {
         setPhase("error");
-        setError(err.message);
+        setError(err instanceof Error ? err.message : "Não foi possível iniciar a atualização.");
         return;
       }
     }
 
-    const startedAt = Date.now();
     const deadline = startedAt + 180_000;
     while (Date.now() < deadline) {
       await wait(2_000);
       try {
-        const health = await api.health();
-        if (health.version === target) {
-          await clearClientCaches();
-          window.location.reload();
-          return;
-        }
         const update = await api.updateStatus();
-        if (Date.now() - startedAt > 10_000 && update.error && !update.busy) {
+        const elapsed = Date.now() - startedAt;
+        if (!update.busy && update.error && elapsed > 5_000) {
           setPhase("error");
           setError(update.error);
+          return;
+        }
+        const health = await api.health();
+        if (health.version === target || update.currentVersion === target) {
+          await clearClientCaches();
+          window.location.reload();
           return;
         }
       } catch {
@@ -207,7 +220,7 @@ export default function UpdateToast() {
       }
     }
     setPhase("error");
-    setError("The server did not finish updating. Check the service health and try again.");
+    setError("A atualização não terminou a tempo. Verifique o serviço e tente novamente.");
   }
 
   const visible = status?.supported && status.available && dismissed.current !== status.latestVersion;
@@ -222,8 +235,12 @@ export default function UpdateToast() {
     >
       <Notification
         compact
-        title={updating ? "Atualizando o Toph..." : failed ? "Falha na atualização" : `Toph v${status?.latestVersion ?? ""} disponível`}
-        description={updating ? <ProgressBar size="sm" isIndeterminate label="Atualizando o servidor..." /> : undefined}
+        title={updating ? "Atualizando Toph" : failed ? "Falha na atualização" : `Toph v${status?.latestVersion ?? ""} disponível`}
+        description={updating
+          ? <ProgressBar size="sm" isIndeterminate aria-label="Atualizando Toph" />
+          : failed && error
+            ? error
+            : undefined}
         status={failed ? "error" : "information"}
         autoDismissDuration={updating || failed ? undefined : 5000}
         dismissible={!updating}
