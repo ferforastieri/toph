@@ -16,10 +16,11 @@ interface Props {
   onProjects: () => void;
   hideTitle?: boolean;
   floating?: boolean;
+  brandIcon?: boolean;
 }
 
 /** Compact version of the mobile hero header, with the app controls on the right. */
-export default function MobileTopBar({ title, subtitle, projectName, unreadCount, icon: Icon, onMenu, onConversations, onProjects, hideTitle = false, floating = false }: Props) {
+export default function MobileTopBar({ title, subtitle, projectName, unreadCount, icon: Icon, onMenu, onConversations, onProjects, hideTitle = false, floating = false, brandIcon = false }: Props) {
   const secondary = subtitle === undefined ? projectName : subtitle;
   return (
     <header className={cx(
@@ -41,7 +42,7 @@ export default function MobileTopBar({ title, subtitle, projectName, unreadCount
               : "size-9 rounded-xl border border-accent-500/20 bg-accent-500/10 text-accent-500 shadow-xs hover:bg-accent-500/15",
           )}
         >
-          {floating ? <Menu className="size-5" /> : <Icon className="size-4" />}
+          {floating ? <Menu className="size-5" /> : brandIcon ? <BrandMark size="small" className="size-5" /> : <Icon className="size-4" />}
           {!floating ? (
             <span className="absolute -bottom-0.5 -right-0.5 flex size-3.5 items-center justify-center rounded-full border border-border-button-default bg-background-primary-default text-foreground-icon-secondary shadow-xs">
               <LayoutPanelLeft className="size-2" />
