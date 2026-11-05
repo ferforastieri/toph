@@ -225,7 +225,6 @@ export default function TophSettings({ user, projectRoot }: Props) {
                   </div>
                 </SettingsGroup>
                 <SettingsGroup title="Layout">
-                  <FeatureToggle label="Painel lateral" checked={workspaceFeatures.primarySidebar} onChange={(value) => setFeature("primarySidebar", value)} />
                   <FeatureToggle label="Abas e conteúdo" checked={workspaceFeatures.tabs} onChange={(value) => setFeature("tabs", value)} />
                   <FeatureToggle label="Terminal e painel" checked={workspaceFeatures.terminal} onChange={(value) => setFeature("terminal", value)} />
                 </SettingsGroup>
