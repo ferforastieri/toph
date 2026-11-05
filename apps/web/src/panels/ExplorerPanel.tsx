@@ -55,8 +55,8 @@ async function fileToBase64(file: File): Promise<string> {
   });
 }
 
-function hasTransferType(types: DataTransfer["types"], type: string): boolean {
-  return Array.from(types).includes(type);
+function hasTransferType(types: DataTransfer["types"] | undefined, type: string): boolean {
+  return types ? Array.from(types).includes(type) : false;
 }
 
 interface DroppedFile {
