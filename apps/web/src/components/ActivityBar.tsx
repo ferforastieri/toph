@@ -3,6 +3,7 @@ import { Bot, Bug, Database, Files, GitBranch, Globe2, Moon, Search, Sun, Termin
 import { useApp, type Sidebar } from "../store";
 import { featureEnabled, useSettings, type WorkspaceFeature } from "../settings";
 import { Button } from "@/boardui/base/buttons/button";
+import BrandMark from "@toph/brand";
 import { Divider } from "@/boardui/base/divider/divider";
 import { Tooltip, TooltipTrigger } from "@/boardui/base/tooltip/tooltip";
 import { cx } from "@/boardui/utils/cx";
@@ -53,6 +54,9 @@ export default function ActivityBar({ projectControl, settingsControl, onQuickOp
   return (
     <nav className="flex h-full w-12 shrink-0 flex-col items-center rounded-s-[22px] border-e border-separator-border bg-background-primary-default py-2" aria-label="Navegação principal">
       <div className="flex flex-col items-center gap-1">
+        <div className="flex size-8 items-center justify-center" aria-hidden="true">
+          <BrandMark size="small" className="size-7" />
+        </div>
         {projectControl}
         <Divider className="my-1 w-6" />
         {items.filter((item) => featureEnabled(workspaceFeatures, item.feature)).map((item) => {

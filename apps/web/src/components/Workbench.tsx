@@ -1042,22 +1042,6 @@ export default function Workbench() {
     />
   );
 
-  const SidebarContent = () => (
-    <>
-      {project && sidebar === "files" && featureIsEnabled("files") && <ExplorerPanel project={project} headerControl={activityHeaderControl} onOpenFile={openFile} onStatusChange={setGitStatus} />}
-      {project && sidebar === "db" && featureIsEnabled("databases") && <DatabasesPanel project={project} headerControl={activityHeaderControl} onOpenQuery={openQuery} onOpenTable={openTable} />}
-      {project && sidebar === "scm" && featureIsEnabled("sourceControl") && <SourceControlPanel project={project} view="scm" headerControl={activityHeaderControl} branchControl={activityBranchControl} onOpenDiff={openDiff} onStatusChange={setGitStatus} />}
-      {project && sidebar === "web" && featureIsEnabled("webApps") && <WebSidebar headerControl={activityHeaderControl} onOpenWeb={openWeb} />}
-      {project && sidebar === "bots" && <BotsSidebar project={project} headerControl={activityHeaderControl} />}
-      {project && sidebar === "debug" && featureIsEnabled("debug") && (
-        <div className="flex h-full min-h-0 flex-col">
-          <SidebarHeader control={activityHeaderControl} title="Debug" />
-          <p className="p-3 text-caption-1-regular leading-relaxed text-text-tertiary">A execução e as ferramentas de depuração aparecem no painel principal.</p>
-        </div>
-      )}
-    </>
-  );
-
   function branchPickerBody() {
     return (
       <BranchPicker
@@ -1083,10 +1067,11 @@ export default function Workbench() {
       onOpenChange={(next) => { setProjectsMenuOpen(next); setBranchMenuOpen(false); }}
       panelClassName="w-[min(320px,calc(100vw-64px))] p-2.5"
       trigger={
-        <button type="button" className="relative mx-auto my-1 me-2 flex size-10 items-center justify-center rounded-2xl border border-border-button-default bg-background-secondary-default shadow-xs transition-colors hover:border-accent-500/40 hover:bg-background-primary-hover focus-visible:ring-2 focus-visible:ring-border-focus-ring" aria-label={`Trocar projeto. Projeto atual: ${project.name}. ${unreadCount} notificações.`} title={`${project.name} · trocar projeto`} onClick={() => setProjectsMenuOpen((open) => !open)}>
-          <BrandMark size="small" className="size-6" />
-          {unreadCount > 0 ? <NotificationBadge count={unreadCount} size={18} className="absolute end-0 top-0 z-10" /> : null}
-          <span className="absolute bottom-0 end-0 flex size-4 items-center justify-center rounded-full border border-background-primary-default bg-background-tertiary-default text-text-secondary"><ChevronDown size={9} /></span>
+        <button type="button" className="relative mx-auto my-1 flex size-10 items-center justify-center rounded-2xl bg-transparent transition-colors hover:bg-background-primary-hover focus-visible:ring-2 focus-visible:ring-border-focus-ring" aria-label={`Trocar projeto. Projeto atual: ${project.name}. ${unreadCount} notificações.`} title={`${project.name} · trocar projeto`} onClick={() => setProjectsMenuOpen((open) => !open)}>
+          <span className="relative flex items-center justify-center" aria-hidden="true">
+            <Avatar size="sm" initials={(project.name.trim().slice(0, 1) || "T").toUpperCase()} className="bg-accent-500/15 text-caption-2-semibold text-accent-500" />
+            {unreadCount > 0 ? <NotificationBadge count={unreadCount} size={16} className="absolute -end-1.5 -top-1.5 z-10" /> : null}
+          </span>
         </button>
       }
     >
@@ -1112,6 +1097,22 @@ export default function Workbench() {
     </ActivityPopover>
   ) : null;
 
+  const sidebarContent = (
+    <>
+      {project && sidebar === "files" && featureIsEnabled("files") && <ExplorerPanel project={project} headerControl={activityHeaderControl} onOpenFile={openFile} onStatusChange={setGitStatus} />}
+      {project && sidebar === "db" && featureIsEnabled("databases") && <DatabasesPanel project={project} headerControl={activityHeaderControl} onOpenQuery={openQuery} onOpenTable={openTable} />}
+      {project && sidebar === "scm" && featureIsEnabled("sourceControl") && <SourceControlPanel project={project} view="scm" headerControl={activityHeaderControl} branchControl={activityBranchControl} onOpenDiff={openDiff} onStatusChange={setGitStatus} />}
+      {project && sidebar === "web" && featureIsEnabled("webApps") && <WebSidebar headerControl={activityHeaderControl} onOpenWeb={openWeb} />}
+      {project && sidebar === "bots" && <BotsSidebar project={project} headerControl={activityHeaderControl} />}
+      {project && sidebar === "debug" && featureIsEnabled("debug") && (
+        <div className="flex h-full min-h-0 flex-col">
+          <SidebarHeader control={activityHeaderControl} title="Debug" />
+          <p className="p-3 text-caption-1-regular leading-relaxed text-text-tertiary">A execução e as ferramentas de depuração aparecem no painel principal.</p>
+        </div>
+      )}
+    </>
+  );
+
   const primarySidebar = (
     <Suspense fallback={null}>
       <div className="relative z-40 flex min-h-0 shrink-0 overflow-visible rounded-3xl border border-border-button-white bg-background-primary-default shadow-sidebar">
@@ -1124,7 +1125,7 @@ export default function Workbench() {
         </div> : null}
         {effectiveSidebarVisible ? (
           <aside className={cx("relative flex min-h-0 shrink-0 flex-col overflow-hidden bg-background-primary-default", activityVisible ? "rounded-e-[22px]" : "rounded-[22px]", botsView ? "w-[clamp(220px,22vw,var(--sidebar-width))]" : "w-[var(--sidebar-width)]")}>
-            <SidebarContent />
+            {sidebarContent}
           </aside>
         ) : null}
       </div>

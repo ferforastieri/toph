@@ -3,7 +3,7 @@ import { ChevronDown, FilePlus2, FolderPlus, RefreshCw, Settings2, Upload } from
 import { api, type Project } from "../../api";
 import { useApp } from "../../store";
 import ProjectSearch from "../../components/ProjectSearch";
-import FileTree from "../../panels/FileTree";
+import FileTree, { clearTreeExpansion } from "../../panels/FileTree";
 import WorkspaceSettings from "../../panels/WorkspaceSettings";
 import { Button } from "@/boardui/base/buttons/button";
 import { Input } from "@/boardui/base/input/input";
@@ -37,6 +37,11 @@ export default function FilesScreen({ project, onOpenFile }: Props) {
   function refresh() {
     setTreeKey((value) => value + 1);
     notify("info", "Arquivos atualizados.");
+  }
+
+  function collapseAll() {
+    clearTreeExpansion(project.id);
+    setTreeKey((value) => value + 1);
   }
 
   async function create() {
@@ -108,7 +113,7 @@ export default function FilesScreen({ project, onOpenFile }: Props) {
           Repositório
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto rounded-3xl border border-border-button-white bg-background-primary-default p-1 shadow-xs [&_[role=treeitem]]:h-11 [&_[role=treeitem]]:rounded-2xl [&_[role=treeitem]]:px-2">
-          <FileTree key={treeKey} project={project} onOpenFile={onOpenFile} embedded />
+          <FileTree key={`${project.id}:${treeKey}`} project={project} onOpenFile={onOpenFile} embedded />
         </div>
       </div>
 
@@ -118,7 +123,7 @@ export default function FilesScreen({ project, onOpenFile }: Props) {
           <Button variant="ghost" className="h-11 w-full justify-start" leadingIcon={FolderPlus} onClick={() => openCreate("folder")}>Nova pasta</Button>
           <Button variant="ghost" className="h-11 w-full justify-start" leadingIcon={Upload} disabled={busy} onClick={() => { setOptionsOpen(false); uploadRef.current?.click(); }}>Enviar arquivos</Button>
           <Button variant="ghost" className="h-11 w-full justify-start" leadingIcon={RefreshCw} onClick={() => { setOptionsOpen(false); refresh(); }}>Atualizar</Button>
-          <Button variant="ghost" className="h-11 w-full justify-start" leadingIcon={ChevronDown} onClick={() => { setOptionsOpen(false); refresh(); }}>Recolher tudo</Button>
+          <Button variant="ghost" className="h-11 w-full justify-start" leadingIcon={ChevronDown} onClick={() => { setOptionsOpen(false); collapseAll(); }}>Recolher tudo</Button>
           <Button variant="ghost" className="h-11 w-full justify-start" leadingIcon={Settings2} onClick={() => { setOptionsOpen(false); setSettingsOpen(true); }}>Configurações do workspace</Button>
         </div>
       </Modal>

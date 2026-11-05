@@ -9,7 +9,7 @@ import { changeStatusByPath } from "../gitStatus";
 import WorkspaceSettings from "./WorkspaceSettings";
 import { useApp } from "../store";
 import { PROJECT_EVENT } from "../projectEvents";
-import FileTree from "./FileTree";
+import FileTree, { clearTreeExpansion } from "./FileTree";
 import FileIcon from "../ui/FileIcon";
 import { basename, dirname } from "../lib";
 import LoadingState from "../components/LoadingState";
@@ -53,6 +53,57 @@ async function fileToBase64(file: File): Promise<string> {
     reader.onerror = () => reject(reader.error);
     reader.readAsDataURL(file);
   });
+}
+
+function hasTransferType(types: DataTransfer["types"], type: string): boolean {
+  return Array.from(types).includes(type);
+}
+
+interface DroppedFile {
+  file: File;
+  path: string;
+}
+
+function fileFromEntry(entry: FileSystemFileEntry): Promise<File> {
+  return new Promise((resolve, reject) => entry.file(resolve, reject));
+}
+
+function readDirectoryEntries(directory: FileSystemDirectoryEntry): Promise<FileSystemEntry[]> {
+  return new Promise((resolve, reject) => {
+    const reader = directory.createReader();
+    const entries: FileSystemEntry[] = [];
+    const read = () => {
+      reader.readEntries((batch) => {
+        if (batch.length === 0) {
+          resolve(entries);
+          return;
+        }
+        entries.push(...batch);
+        read();
+      }, reject);
+    };
+    read();
+  });
+}
+
+async function walkDroppedEntry(
+  entry: FileSystemEntry,
+  prefix: string,
+  files: DroppedFile[],
+  folders: string[],
+): Promise<void> {
+  if (entry.isFile) {
+    const file = await fileFromEntry(entry as FileSystemFileEntry);
+    files.push({ file, path: `${prefix}${file.name}` });
+    return;
+  }
+  if (!entry.isDirectory) return;
+  const folder = `${prefix}${entry.name}`;
+  folders.push(folder);
+  const children = await readDirectoryEntries(entry as FileSystemDirectoryEntry);
+  for (const child of children) {
+    await walkDroppedEntry(child, `${folder}/`, files, folders);
+  }
 }
 
 function ActionItem({ label, shortcut, disabled, onSelect }: { label: string; shortcut?: string; disabled?: boolean; onSelect: () => void }) {
@@ -186,6 +237,77 @@ export default function ExplorerPanel({
     }
   }
 
+  async function uploadDropped(dataTransfer: DataTransfer, target: FileEntry | null) {
+    const dir = targetDirectory(target);
+    const files: DroppedFile[] = [];
+    const folders: string[] = [];
+
+    // Read the entries synchronously before the first await; DataTransfer items
+    // are invalidated as soon as the drop handler returns.
+    const items = Array.from(dataTransfer.items ?? []);
+    const entries = items
+      .filter((item) => item.kind === "file")
+      .map((item) => item.webkitGetAsEntry())
+      .filter((entry): entry is FileSystemEntry => Boolean(entry));
+
+    if (entries.length > 0) {
+      for (const entry of entries) await walkDroppedEntry(entry, "", files, folders);
+    } else {
+      for (const file of Array.from(dataTransfer.files ?? [])) {
+        files.push({ file, path: file.name });
+      }
+    }
+
+    const uniqueFolders = [...new Set(folders)].sort(
+      (a, b) => a.split("/").length - b.split("/").length,
+    );
+
+    if (files.length === 0 && uniqueFolders.length === 0) return;
+
+    try {
+      setUploadProgress({
+        label: "Enviando arquivos...",
+        value: 0,
+        valueLabel: `${files.length} arquivo${files.length === 1 ? "" : "s"}`,
+      });
+
+      for (const folder of uniqueFolders) {
+        try {
+          await api.makeDir(project.id, joinPath(dir, folder));
+        } catch (error) {
+          // Re-dropping a folder should merge into the existing directory.
+          if (!(error instanceof Error) || !/exist|já existe/i.test(error.message)) throw error;
+        }
+      }
+
+      for (const [index, item] of files.entries()) {
+        setUploadProgress({
+          label: `Enviando ${item.file.name}`,
+          value: Math.round((index / files.length) * 100),
+          valueLabel: `${index} de ${files.length}`,
+        });
+        const data = await fileToBase64(item.file);
+        await api.uploadFile(project.id, joinPath(dir, item.path), data);
+        setUploadProgress({
+          label: "Enviando arquivos...",
+          value: Math.round(((index + 1) / files.length) * 100),
+          valueLabel: `${index + 1} de ${files.length}`,
+        });
+      }
+
+      publishFiles();
+      const parts = [
+        files.length > 0 ? `${files.length} arquivo${files.length === 1 ? "" : "s"}` : "",
+        uniqueFolders.length > 0 ? `${uniqueFolders.length} pasta${uniqueFolders.length === 1 ? "" : "s"}` : "",
+      ].filter(Boolean);
+      notify("success", `${parts.join(" e ")} adicionado${parts.length === 1 && files.length + uniqueFolders.length === 1 ? "" : "s"}.`);
+    } catch (error) {
+      notify("error", error instanceof Error ? error.message : "Falha no upload.");
+    } finally {
+      setUploadProgress(null);
+    }
+  }
+
   async function pasteImage(target = selected) {
     try {
       if (!navigator.clipboard?.read) throw new Error("A área de transferência não está disponível.");
@@ -300,7 +422,10 @@ export default function ExplorerPanel({
   }, [selected]);
 
   function handleDragOver(event: React.DragEvent<HTMLDivElement>) {
-    if (!event.dataTransfer.types.includes("Files")) return;
+    const hasFiles =
+      hasTransferType(event.dataTransfer.types, "Files")
+      || Array.from(event.dataTransfer.items ?? []).some((item) => item.kind === "file");
+    if (!hasFiles) return;
     event.preventDefault();
     event.stopPropagation();
     event.dataTransfer.dropEffect = "copy";
@@ -313,7 +438,9 @@ export default function ExplorerPanel({
   }
 
   function handleDrop(event: React.DragEvent<HTMLDivElement>) {
-    if (!event.dataTransfer.files?.length) return;
+    const items = Array.from(event.dataTransfer.items ?? []);
+    const hasFiles = (event.dataTransfer.files?.length ?? 0) > 0 || items.some((item) => item.kind === "file");
+    if (!hasFiles) return;
     event.preventDefault();
     event.stopPropagation();
     setDraggingFiles(false);
@@ -323,7 +450,7 @@ export default function ExplorerPanel({
     const target = path
       ? ({ path, dir, name: path.split("/").pop() ?? path } as FileEntry)
       : selected;
-    void uploadFiles(event.dataTransfer.files, target);
+    void uploadDropped(event.dataTransfer, target);
   }
 
   return (
@@ -332,6 +459,7 @@ export default function ExplorerPanel({
       className="relative flex h-full min-h-0 flex-col"
       tabIndex={-1}
       onDragOver={handleDragOver}
+      onDragEnter={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
       onContextMenu={(event) => {
@@ -360,7 +488,7 @@ export default function ExplorerPanel({
           <Button variant="ghost" size="xs" iconOnly className="max-[900px]:flex-1" leadingIcon={FilePlus2} aria-label="Novo arquivo" title="Novo arquivo" onClick={() => void newFile(rootEntry)} />
           <Button variant="ghost" size="xs" iconOnly className="max-[900px]:flex-1" leadingIcon={FolderPlus} aria-label="Nova pasta" title="Nova pasta" onClick={() => void newFolder(rootEntry)} />
           <Button variant="ghost" size="xs" iconOnly className="max-[900px]:flex-1" leadingIcon={RefreshCw} aria-label="Atualizar" title="Atualizar" onClick={() => { setTreeKey((value) => value + 1); notify("info", "Explorer atualizado."); }} />
-          <Button variant="ghost" size="xs" iconOnly className="max-[900px]:flex-1" leadingIcon={ChevronDown} aria-label="Recolher tudo" title="Recolher tudo" onClick={() => setTreeKey((value) => value + 1)} />
+          <Button variant="ghost" size="xs" iconOnly className="max-[900px]:flex-1" leadingIcon={ChevronDown} aria-label="Recolher tudo" title="Recolher tudo" onClick={() => { clearTreeExpansion(project.id); setTreeKey((value) => value + 1); }} />
         </div>
       } />
       {uploadProgress && (
@@ -384,7 +512,7 @@ export default function ExplorerPanel({
             triggerClassName="h-6 gap-1.5 px-2.5 py-0 text-caption-1-regular"
             contentClassName="p-0"
           >
-            <FileTree key={treeKey} project={project} onOpenFile={onOpenFile} embedded statuses={statuses} onSelect={setSelected} onContextMenu={openContextMenu} />
+            <FileTree key={`${project.id}:${treeKey}`} project={project} onOpenFile={onOpenFile} embedded statuses={statuses} onSelect={setSelected} onContextMenu={openContextMenu} />
           </AccordionItem>
         </Accordion>
       </div>
