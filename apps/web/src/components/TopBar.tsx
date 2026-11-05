@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { Moon, Plus, Sun, X } from "@toph/icons";
 import BrandMark from "@toph/brand";
 import { useApp } from "../store";
@@ -13,6 +13,7 @@ interface Props {
   onOpenProject: (projectId: string) => void;
   onCloseProject: (projectId: string) => void;
   onGoHome: () => void;
+  tophControl?: ReactNode;
 }
 
 function ThemeToggle() {
@@ -35,7 +36,7 @@ function ThemeToggle() {
 }
 
 /** Fixed workspace bar: open projects on the left, theme and Toph on the right. */
-export default function TopBar({ onOpenProject, onCloseProject, onGoHome }: Props) {
+export default function TopBar({ onOpenProject, onCloseProject, onGoHome, tophControl }: Props) {
   const projects = useApp((state) => state.projects);
   const openProjectIds = useApp((state) => state.openProjectIds);
   const activeProjectId = useApp((state) => state.activeProjectId);
@@ -62,6 +63,19 @@ export default function TopBar({ onOpenProject, onCloseProject, onGoHome }: Prop
   return (
     <>
       <header className="relative z-50 mx-1 mt-1 flex h-12 shrink-0 items-center gap-1.5 rounded-2xl border border-border-button-white bg-background-primary-default px-2 shadow-sidebar">
+        <button
+          type="button"
+          onClick={() => {
+            if (activeProjectId) onGoHome();
+            else setPickerOpen(true);
+          }}
+          className="flex size-9 shrink-0 items-center justify-center rounded-xl transition-colors hover:bg-background-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus-ring"
+          aria-label="Ir para o Toph"
+          title="Ir para o Toph"
+        >
+          <BrandMark size="small" className="size-7" />
+        </button>
+
         <Button
           variant="ghost"
           size="small"
@@ -94,11 +108,18 @@ export default function TopBar({ onOpenProject, onCloseProject, onGoHome }: Prop
                 <button
                   type="button"
                   onClick={() => openProject(project.id)}
-                  className="flex h-full min-w-0 flex-1 items-center ps-2.5 text-start text-caption-1-medium"
+                  className="flex h-full min-w-0 flex-1 items-center gap-1.5 ps-1.5 text-start text-caption-1-medium"
                   title={`${project.name}\n${project.root}`}
                   aria-current={active ? "page" : undefined}
                 >
-                  <span className="max-w-[180px] truncate">{project.name}</span>
+                  <span
+                    className="flex size-5 shrink-0 items-center justify-center rounded-md text-[9px] font-semibold"
+                    style={{ backgroundColor: `${project.color || "#FFB547"}22`, color: project.color || "#FFB547" }}
+                    aria-hidden="true"
+                  >
+                    {project.name.slice(0, 1).toUpperCase()}
+                  </span>
+                  <span className="max-w-[160px] truncate">{project.name}</span>
                 </button>
                 {unread > 0 ? (
                   <button
@@ -133,18 +154,7 @@ export default function TopBar({ onOpenProject, onCloseProject, onGoHome }: Prop
 
         <div className="flex shrink-0 items-center gap-1">
           <ThemeToggle />
-          <button
-            type="button"
-            onClick={() => {
-              if (activeProjectId) onGoHome();
-              else setPickerOpen(true);
-            }}
-            className="flex size-9 items-center justify-center rounded-xl transition-colors hover:bg-background-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus-ring"
-            aria-label="Ir para o Toph"
-            title="Ir para o Toph"
-          >
-            <BrandMark size="small" className="size-7" />
-          </button>
+          {tophControl}
         </div>
       </header>
 
