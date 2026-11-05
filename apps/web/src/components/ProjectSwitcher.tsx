@@ -9,10 +9,12 @@ import NotificationBadge from "./NotificationBadge";
 interface Props {
   onSelect: (id: string) => void;
   onCloseProject?: (id: string) => void;
+  /** Only list projects that are not already open in the workspace. */
+  onlyClosed?: boolean;
 }
 
 /** The project switcher: one search field and the available repositories. */
-export default function ProjectSwitcher({ onSelect, onCloseProject }: Props) {
+export default function ProjectSwitcher({ onSelect, onCloseProject, onlyClosed = false }: Props) {
   const projects = useApp((state) => state.projects);
   const openProjectIds = useApp((state) => state.openProjectIds);
   const notifications = useApp((state) => state.notifications);
@@ -20,6 +22,7 @@ export default function ProjectSwitcher({ onSelect, onCloseProject }: Props) {
 
   const normalized = query.trim().toLowerCase();
   const visible = projects
+    .filter((project) => !onlyClosed || !openProjectIds.includes(project.id))
     .filter((project) =>
       !normalized
       || project.name.toLowerCase().includes(normalized)
@@ -52,7 +55,9 @@ export default function ProjectSwitcher({ onSelect, onCloseProject }: Props) {
       </div>
       <div className="flex max-h-[min(420px,50vh)] flex-col gap-0.5 overflow-y-auto">
         {visible.length === 0 ? (
-          <p className="px-2 py-6 text-center text-caption-2-regular text-text-tertiary">Nenhum repositório encontrado.</p>
+          <p className="px-2 py-6 text-center text-caption-2-regular text-text-tertiary">
+            {onlyClosed ? "Todos os projetos já estão abertos." : "Nenhum repositório encontrado."}
+          </p>
         ) : null}
         {visible.map((item) => {
           const open = openProjectIds.includes(item.id);
