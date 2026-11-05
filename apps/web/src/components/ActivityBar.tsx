@@ -1,9 +1,7 @@
-import type { ReactNode } from "react";
 import { Bot, Bug, Database, Files, GitBranch, Globe2, Search, TerminalSquare } from "@toph/icons";
 import { useApp, type Sidebar } from "../store";
 import { featureEnabled, useSettings, type WorkspaceFeature } from "../settings";
 import { Button } from "@/boardui/base/buttons/button";
-import { Divider } from "@/boardui/base/divider/divider";
 import { Tooltip, TooltipTrigger } from "@/boardui/base/tooltip/tooltip";
 import { cx } from "@/boardui/utils/cx";
 
@@ -17,11 +15,10 @@ const items: Array<{ id: Sidebar; feature: WorkspaceFeature; label: string; icon
 ];
 
 interface Props {
-  settingsControl?: ReactNode;
   onQuickOpen: () => void;
 }
 
-export default function ActivityBar({ settingsControl, onQuickOpen }: Props) {
+export default function ActivityBar({ onQuickOpen }: Props) {
   const sidebar = useApp((state) => state.sidebar);
   const setSidebar = useApp((state) => state.setSidebar);
   const toggleTerminal = useApp((state) => state.toggleTerminal);
@@ -70,10 +67,6 @@ export default function ActivityBar({ settingsControl, onQuickOpen }: Props) {
             <Tooltip>Terminal</Tooltip>
           </TooltipTrigger>
         ) : null}
-      </div>
-      <div className="mt-auto flex flex-col items-center gap-2">
-        <Divider className="w-6" />
-        {settingsControl}
       </div>
     </nav>
   );

@@ -1094,7 +1094,6 @@ export default function Workbench() {
       <div className="relative z-40 flex min-h-0 shrink-0 overflow-visible rounded-3xl border border-border-button-white bg-background-primary-default shadow-sidebar">
         {activityVisible ? <div className="overflow-visible rounded-s-3xl">
           <ActivityBar
-            settingsControl={<TophSettings user={user} projectRoot={project.root} />}
             onQuickOpen={() => setQuickOpenToken((current) => current + 1)}
           />
         </div> : null}
@@ -1114,7 +1113,7 @@ export default function Workbench() {
 
   return (
     <div className="relative flex h-dvh flex-col overflow-hidden bg-background-full">
-      <TopBar onOpenProject={switchProject} onCloseProject={requestCloseProject} onGoHome={() => setSidebar("bots")} />
+      <TopBar onOpenProject={switchProject} onCloseProject={requestCloseProject} onGoHome={() => setSidebar("bots")} tophControl={<TophSettings user={user} projectRoot={project.root} />} />
       <div className="pointer-events-none absolute inset-x-0 top-16 z-[100] flex justify-center px-12">
         <div className="pointer-events-auto w-full max-w-xl"><QuickOpen project={project} focusToken={quickOpenToken} onOpenFile={openFile} floating /></div>
       </div>
