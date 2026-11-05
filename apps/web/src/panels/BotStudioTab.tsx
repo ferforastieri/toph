@@ -867,6 +867,14 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
           })
           .map((toph) => toph.id),
       );
+      for (const toph of current) {
+        if (running.has(toph.id)) continue;
+        for (const message of chatMessages) {
+          if (message.tophId === toph.id && message.status === "running" && (message.role === "reasoning" || message.role === "tool")) {
+            state.updateMessage(project.id, message.id, { status: "complete" });
+          }
+        }
+      }
       setRunningTophs((current) => {
         if (current.size === running.size && [...running].every((id) => current.has(id))) return current;
         return running;
@@ -1810,7 +1818,7 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
               );
             })}
 
-            {liveThought ? (
+            {liveThought && (sending || runningTophs.size > 0) ? (
               <section className="toph-view-in flex items-start gap-2.5">
                 <BotAvatar bot={tophs.find((item) => item.id === liveThought.tophId) ?? tophs[0]} size={28} className="mt-0.5" />
                 <div className="min-w-0 flex-1 rounded-2xl border border-border-button-default bg-background-secondary-default/50 px-3 py-2">

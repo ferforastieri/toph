@@ -49,7 +49,7 @@ const client = anyPrefix(
   ["package.json", "package-lock.json"].includes(file),
 );
 
-const android = client;
+const android = client || web;
 const desktop = client;
 const landing = anyPrefix("landing-page/");
 const installer = files.includes("install.sh");

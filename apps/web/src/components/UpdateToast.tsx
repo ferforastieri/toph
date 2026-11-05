@@ -160,8 +160,6 @@ export default function UpdateToast() {
     try {
       if (mobileClient && status.apkUrl) {
         downloadApk(status.apkUrl, target);
-        setPhase("idle");
-        return;
       } else if (installer) {
         await downloadInstaller(installer);
       }
