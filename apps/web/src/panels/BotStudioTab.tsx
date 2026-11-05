@@ -1610,9 +1610,11 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
                 </span>
               ) : null}
             </div>
-            <Button variant="ghost" size="small" iconOnly={mobile} leadingIcon={mobile ? Plus : MessageSquarePlus} aria-label="Adicionar Toph" title="Adicionar Toph" onClick={() => setGalleryOpen(true)}>
-              {mobile ? null : "Adicionar Toph"}
-            </Button>
+            {chat.kind === "team" ? (
+              <Button variant="ghost" size="small" iconOnly={mobile} leadingIcon={mobile ? Plus : MessageSquarePlus} aria-label="Adicionar Toph" title="Adicionar Toph" onClick={() => setGalleryOpen(true)}>
+                {mobile ? null : "Adicionar Toph"}
+              </Button>
+            ) : null}
           </div>
         ) : null}
         <div
@@ -1648,7 +1650,7 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
                 <span className="flex size-12 items-center justify-center rounded-2xl bg-accent-500/10 text-accent-500"><Bot size={22} /></span>
                 <strong className="text-title-3-medium text-text-primary">Adicione o primeiro Toph.</strong>
                 <p className="max-w-sm text-caption-1-regular leading-relaxed text-text-secondary">Escolha um Toph pronto ou crie um livre com o papel que você precisar.</p>
-                <Button variant="secondary" size="small" leadingIcon={MessageSquarePlus} onClick={() => setGalleryOpen(true)}>Adicionar Toph</Button>
+                <Button variant="secondary" size="small" leadingIcon={MessageSquarePlus} onClick={() => setGalleryOpen(true)}>Escolher Toph</Button>
               </div>
             ) : conversationPage.ready && conversationMessages.length === 0 ? (
               <div className="my-auto flex flex-col items-center gap-3 px-6 py-10 text-center">
