@@ -5,7 +5,7 @@ import BotAvatar from "./BotAvatar";
 describe("BotAvatar", () => {
   it("uses the generated image asset for the selected Toph", () => {
     const { container } = render(<BotAvatar bot={{ name: "Toph Prisma", color: "#7FD4E8", avatar: "toph-prism" }} size={40} />);
-    expect(container.querySelector("img")).toHaveAttribute("src", `${import.meta.env.BASE_URL}tophs/toph-prism.png?v=2`);
+    expect(container.querySelector("img")).toHaveAttribute("src", `${import.meta.env.BASE_URL}tophs/toph-prism.png?v=3`);
     expect(container.querySelector("[data-avatar-color]")).toHaveStyle({ backgroundColor: "#7FD4E8" });
   });
 

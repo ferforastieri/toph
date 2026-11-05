@@ -6,7 +6,7 @@ import TophEyes from "../components/TophEyes";
 import { usePointerLook } from "./usePointerLook";
 
 const PET_BASE = `${import.meta.env.BASE_URL}tophs/`;
-const PET_VERSION = "?v=2";
+const PET_VERSION = "?v=3";
 const FALLBACK = `${PET_BASE}toph-core.png${PET_VERSION}`;
 
 export default function PetSprite({
