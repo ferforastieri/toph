@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useRef, useState, type ComponentProps } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentProps } from "react";
 import { OpenCode } from "@opencode/client";
 import { connectClientMcp, type ClientMcpTool } from "@opencode/client/mcp";
-import { Bot, ChevronDown, Copy, CornerDownRight, ListTree, LoaderCircle, MessageSquarePlus, Monitor, Plus, X } from "@toph/icons";
+import { ArrowDown, Bot, ChevronDown, Copy, CornerDownRight, ListTree, LoaderCircle, MessageSquarePlus, Monitor, Plus, X } from "@toph/icons";
 import { api, ApiError, openCodeBase, type AIMessage, type AIMessageContentPart, type Project } from "../api";
 import { modelDisplay, useAI } from "../ai";
 import { activeChat, chatCoordinator, chatTophs, messagesForChat, messagesForToph, useChats, type ChatMessage, type ChatToph } from "../chats";
@@ -43,6 +43,8 @@ interface Props {
 
 const CONVERSATION_PAGE_SIZE = 400;
 const ACTIVITY_PAGE_SIZE = 400;
+const OLDER_PAGE_SIZE = 200;
+const LOAD_OLDER_THRESHOLD = 160;
 const ASSISTANT_IMAGE_SCAN_LIMIT = 12;
 const ASSISTANT_IMAGE_RENDER_LIMIT = 8;
 
@@ -524,6 +526,10 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
   const stickToBottom = useRef(true);
   const stickActivityToBottom = useRef(true);
   const lastScrollTop = useRef(0);
+  const loadingOlder = useRef(false);
+  const pendingScrollRestore = useRef<{ height: number; top: number } | null>(null);
+  const [olderPage, setOlderPage] = useState<HistoryPageState>(EMPTY_HISTORY_PAGE);
+  const [historyTick, setHistoryTick] = useState(0);
   const [atBottom, setAtBottom] = useState(true);
   const client = useMemo(() => {
     const csrf = document.cookie.match(/(?:^|;\s*)toph_csrf=([^;]+)/)?.[1] ?? "";
@@ -764,18 +770,32 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
   useEffect(() => {
     if (!projectChats?.hydrated || !chat) {
       setConversationPage(EMPTY_HISTORY_PAGE);
+      setOlderPage(EMPTY_HISTORY_PAGE);
       return;
     }
     let cancelled = false;
     setConversationPage({ ...EMPTY_HISTORY_PAGE, loading: true });
+    setOlderPage(EMPTY_HISTORY_PAGE);
     const base = { mode: "chat" as const, channel: chat.id };
     void Promise.all([
       api.workspaceMessages<ChatMessage>(project.id, { ...base, scope: "conversation", limit: CONVERSATION_PAGE_SIZE }),
       api.workspaceMessages<ChatMessage>(project.id, { ...base, scope: "activity", limit: ACTIVITY_PAGE_SIZE }),
     ]).then(([conversation, activity]) => {
       if (cancelled) return;
-      mergeMessages(project.id, [...conversation.items, ...activity.items]);
+      const loaded = [...conversation.items, ...activity.items];
+      mergeMessages(project.id, loaded);
       setConversationPage({ cursor: conversation.nextCursor, hasMore: conversation.hasMore, loading: false, ready: true, error: "" });
+      const oldest = loaded.reduce<ChatMessage | null>(
+        (current, message) => (!current || message.createdAt < current.createdAt ? message : current),
+        null,
+      );
+      setOlderPage({
+        cursor: oldest ? { createdAt: oldest.createdAt, channel: oldest.chatId || chat.id, id: oldest.id } : null,
+        hasMore: conversation.hasMore || activity.hasMore,
+        loading: false,
+        ready: true,
+        error: "",
+      });
       const members = chatTophs(useChats.getState().byProject[project.id], chat.id);
       for (const member of members) void reconcileSessionMessages(member);
     }).catch((error) => {
@@ -885,6 +905,54 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
       if (frame) window.cancelAnimationFrame(frame);
     };
   }, [chat?.id]);
+
+  // Older pages use a single cursor over all roles: the initial load already
+  // merged the newest conversation and activity pages, so everything before
+  // the oldest loaded message is contiguous history.
+  async function loadOlderMessages(): Promise<void> {
+    if (!chat || loadingOlder.current || !olderPage.hasMore || !olderPage.cursor) return;
+    loadingOlder.current = true;
+    const scroller = scrollRef.current;
+    const previous = scroller ? { height: scroller.scrollHeight, top: scroller.scrollTop } : null;
+    setOlderPage((current) => ({ ...current, loading: true, error: "" }));
+    try {
+      const page = await api.workspaceMessages<ChatMessage>(project.id, {
+        mode: "chat",
+        channel: chat.id,
+        scope: "all",
+        before: olderPage.cursor,
+        limit: OLDER_PAGE_SIZE,
+      });
+      if (page.items.length > 0) {
+        if (previous) pendingScrollRestore.current = previous;
+        mergeMessages(project.id, page.items);
+        setHistoryTick((value) => value + 1);
+      }
+      setOlderPage({
+        cursor: page.nextCursor,
+        hasMore: page.hasMore && page.items.length > 0,
+        loading: false,
+        ready: true,
+        error: "",
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Não foi possível carregar mensagens antigas.";
+      setOlderPage((current) => ({ ...current, loading: false, error: message }));
+    } finally {
+      loadingOlder.current = false;
+    }
+  }
+
+  // Prepending messages changes the height above the viewport. Keep the
+  // reader on the same content instead of jumping to the new top.
+  useLayoutEffect(() => {
+    const pending = pendingScrollRestore.current;
+    const scroller = scrollRef.current;
+    pendingScrollRestore.current = null;
+    if (!pending || !scroller) return;
+    scroller.scrollTop = pending.top + (scroller.scrollHeight - pending.height);
+    lastScrollTop.current = scroller.scrollTop;
+  }, [conversationMessages.length, historyTick]);
 
   useEffect(() => {
     const element = activityScrollRef.current;
@@ -1832,6 +1900,7 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
             ) : null}
           </div>
         ) : null}
+        <div className="relative flex min-h-0 flex-1 flex-col">
         <div
           ref={scrollRef}
           className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-x-none"
@@ -1844,9 +1913,24 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
             const following = element.scrollHeight - element.scrollTop - element.clientHeight < 80;
             stickToBottom.current = following && !movedUp;
             setAtBottom(stickToBottom.current);
+            if (element.scrollTop <= LOAD_OLDER_THRESHOLD && !olderPage.error) void loadOlderMessages();
           }}
         >
           <div ref={contentRef} key={chat?.id ?? "none"} className="toph-view-in mx-auto flex min-h-full w-full min-w-0 max-w-[760px] flex-col gap-4 overflow-x-hidden p-4 [&_img]:max-w-full [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_table]:block [&_table]:max-w-full [&_table]:overflow-x-auto">
+            {olderPage.loading ? (
+              <div className="flex items-center justify-center gap-2 py-2 text-caption-2-regular text-text-tertiary">
+                <LoaderCircle className="size-3.5 animate-spin" /> Carregando mensagens antigas...
+              </div>
+            ) : null}
+            {olderPage.error ? (
+              <div className="flex flex-col items-center gap-1 py-1 text-center text-caption-2-regular text-status-rose-text">
+                <p>{olderPage.error}</p>
+                <Button variant="secondary" size="small" onClick={() => void loadOlderMessages()}>Tentar novamente</Button>
+              </div>
+            ) : null}
+            {olderPage.ready && !olderPage.hasMore && !olderPage.loading && conversationMessages.length > 0 ? (
+              <p className="py-1 text-center text-[11px] text-text-tertiary">Início da conversa</p>
+            ) : null}
             {!conversationPage.ready && conversationPage.loading ? (
               <div className="my-auto flex items-center justify-center gap-2 py-8 text-caption-1-regular text-text-tertiary"><LoaderCircle className="size-4 animate-spin" /> Carregando conversa...</div>
             ) : null}
@@ -2039,6 +2123,23 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
             ) : null}
           </div>
         </div>
+          {chat && tophs.length > 0 && !atBottom ? (
+            <button
+              type="button"
+              onClick={() => {
+                stickToBottom.current = true;
+                setAtBottom(true);
+                const element = scrollRef.current;
+                if (element) element.scrollTo({ top: element.scrollHeight, behavior: "smooth" });
+              }}
+              className="absolute bottom-3 end-3 z-10 flex size-8 items-center justify-center rounded-full border border-border-button-default bg-background-secondary-default text-text-secondary shadow-sidebar transition-colors hover:border-accent-500/40 hover:text-accent-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus-ring"
+              aria-label="Ir para o fim da conversa"
+              title="Ir para o fim"
+            >
+              <ArrowDown size={15} />
+            </button>
+          ) : null}
+        </div>
 
         {chat && tophs.length > 0 ? (
           <div className="shrink-0">
@@ -2084,20 +2185,6 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
               history={composerHistory}
             />
           </div>
-        ) : null}
-        {chat && tophs.length > 0 && !atBottom ? (
-          <button
-            type="button"
-            onClick={() => {
-              stickToBottom.current = true;
-              setAtBottom(true);
-              const element = scrollRef.current;
-              if (element) element.scrollTo({ top: element.scrollHeight, behavior: "smooth" });
-            }}
-            className="absolute bottom-24 left-1/2 z-10 -translate-x-1/2 rounded-full border border-border-button-default bg-background-secondary-default px-3 py-1.5 text-caption-2-medium text-text-secondary shadow-sidebar transition-colors hover:border-accent-500/40 hover:text-accent-600"
-          >
-            Ir para o fim
-          </button>
         ) : null}
       </section>
 
