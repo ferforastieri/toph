@@ -30,6 +30,11 @@ export interface ChatToph {
   coordinator: boolean;
   sessionId?: string;
   sessionPrimed?: boolean;
+  /**
+   * When the user starts a new session, messages older than this timestamp
+   * belong to the previous session and must not leak into the new one.
+   */
+  sessionClearedAt?: number;
   createdAt: number;
 }
 
@@ -245,6 +250,9 @@ function normalizeToph(toph: ChatToph, chatId: string): ChatToph {
     coordinator: toph.coordinator === true,
     sessionId: typeof toph.sessionId === "string" && toph.sessionId ? toph.sessionId : undefined,
     sessionPrimed: toph.sessionPrimed === true,
+    sessionClearedAt: Number.isFinite(toph.sessionClearedAt) && Number(toph.sessionClearedAt) > 0
+      ? Number(toph.sessionClearedAt)
+      : undefined,
     createdAt: Number.isFinite(toph.createdAt) ? toph.createdAt : Date.now(),
   };
 }
@@ -411,8 +419,14 @@ interface ChatStore {
     projectId: string,
     tophId: string,
     sessionId: string | undefined,
-    options?: { sessionPrimed?: boolean; messages?: ChatMessage[] },
+    options?: { sessionPrimed?: boolean; messages?: ChatMessage[]; sessionClearedAt?: number | null },
   ) => void;
+  /**
+   * Starts a fresh OpenCode session for one Toph. Individual chats are
+   * cleared entirely because user messages do not carry a Toph id; team
+   * chats keep the shared conversation and only drop that member's rows.
+   */
+  resetTophSession: (projectId: string, tophId: string) => { chatId: string; clearChat: boolean; cutoff: number } | null;
   addMessage: (projectId: string, message: ChatMessage) => void;
   appendMessage: (projectId: string, messageId: string, text: string) => void;
   updateMessage: (projectId: string, messageId: string, patch: Partial<ChatMessage>) => void;
@@ -670,7 +684,16 @@ export const useChats = create<ChatStore>((set, get) => ({
       if (!target) return state;
       const tophs = project.tophs.map((toph) =>
         toph.id === tophId
-          ? { ...toph, sessionId, sessionPrimed: options?.sessionPrimed ?? toph.sessionPrimed }
+          ? {
+              ...toph,
+              sessionId,
+              sessionPrimed: options?.sessionPrimed ?? toph.sessionPrimed,
+              sessionClearedAt: options?.sessionClearedAt === undefined
+                ? toph.sessionClearedAt
+                : options.sessionClearedAt && options.sessionClearedAt > 0
+                  ? options.sessionClearedAt
+                  : undefined,
+            }
           : toph,
       );
       let messages = project.messages;
@@ -683,6 +706,45 @@ export const useChats = create<ChatStore>((set, get) => ({
       }
       return { byProject: { ...state.byProject, [projectId]: { ...project, tophs, messages } } };
     }),
+
+  resetTophSession: (projectId, tophId) => {
+    const project = get().byProject[projectId];
+    if (!project) return null;
+    const target = project.tophs.find((toph) => toph.id === tophId);
+    if (!target) return null;
+    const chat = project.chats.find((item) => item.id === target.chatId);
+    if (!chat) return null;
+    const cutoff = Date.now();
+    const clearChat = chat.kind === "individual";
+    set((state) => {
+      const current = state.byProject[projectId];
+      if (!current) return state;
+      const removedIds = new Set(
+        current.messages
+          .filter((message) => message.chatId === chat.id && (clearChat || message.tophId === tophId))
+          .map((message) => message.id),
+      );
+      const pending = Object.fromEntries(
+        Object.entries(state.messageWrites[projectId] ?? {}).filter(([id]) => !removedIds.has(id)),
+      );
+      return {
+        byProject: {
+          ...state.byProject,
+          [projectId]: {
+            ...current,
+            tophs: current.tophs.map((toph) =>
+              toph.id === tophId
+                ? { ...toph, sessionId: undefined, sessionPrimed: false, sessionClearedAt: cutoff }
+                : toph,
+            ),
+            messages: current.messages.filter((message) => !removedIds.has(message.id)),
+          },
+        },
+        messageWrites: { ...state.messageWrites, [projectId]: pending },
+      };
+    });
+    return { chatId: chat.id, clearChat, cutoff };
+  },
 
   addMessage: (projectId, message) =>
     set((state) => {
@@ -833,6 +895,43 @@ export function chatSessionIds(project: ProjectChats | undefined): string[] {
 export function chatTophs(project: ProjectChats | undefined, chatId: string | null | undefined): ChatToph[] {
   if (!project || !chatId) return [];
   return project.tophs.filter((toph) => toph.chatId === chatId);
+}
+
+/**
+ * Messages that belong to the current session of a chat. A Toph's
+ * `sessionClearedAt` marks the boundary between its old and new OpenCode
+ * session. In an individual chat the boundary applies to user messages too,
+ * because they carry no Toph id.
+ */
+export function messagesForChat(project: ProjectChats | undefined, chatId: string | null | undefined): ChatMessage[] {
+  if (!project || !chatId) return [];
+  const chat = project.chats.find((item) => item.id === chatId);
+  const tophs = new Map(project.tophs.map((toph) => [toph.id, toph]));
+  const wholeChatCutoff = chat?.kind === "individual"
+    ? project.tophs
+        .filter((toph) => toph.chatId === chatId)
+        .reduce((max, toph) => Math.max(max, toph.sessionClearedAt ?? 0), 0)
+    : 0;
+  return project.messages.filter((message) => {
+    if (message.chatId !== chatId) return false;
+    if (message.createdAt < wholeChatCutoff) return false;
+    if (message.tophId) {
+      const cutoff = tophs.get(message.tophId)?.sessionClearedAt ?? 0;
+      if (message.createdAt < cutoff) return false;
+    }
+    return true;
+  });
+}
+
+/**
+ * Full context for one Toph after its latest session reset. Unlike
+ * `messagesForChat`, this also hides old user messages from the prompt sent
+ * to the new session, so a fresh session really starts fresh.
+ */
+export function messagesForToph(project: ProjectChats | undefined, chatId: string | null | undefined, tophId: string | null | undefined): ChatMessage[] {
+  if (!project || !chatId || !tophId) return [];
+  const cutoff = project.tophs.find((toph) => toph.id === tophId)?.sessionClearedAt ?? 0;
+  return project.messages.filter((message) => message.chatId === chatId && message.createdAt >= cutoff);
 }
 
 export function activeChat(project: ProjectChats | undefined): TophChat | null {

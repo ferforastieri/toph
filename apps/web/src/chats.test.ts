@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { activeChat, chatCoordinator, chatTophs, useChats, type ChatMessage, type TophPreset } from "./chats";
+import { activeChat, chatCoordinator, chatTophs, messagesForChat, messagesForToph, useChats, type ChatMessage, type TophPreset } from "./chats";
 
 const preset = (name: string, role: string): TophPreset => ({
   name,
@@ -88,5 +88,45 @@ describe("useChats", () => {
     const members = chatTophs(useChats.getState().byProject.p, team.id);
     expect(members.length).toBeGreaterThan(0);
     expect(members.filter((member) => member.coordinator)).toHaveLength(1);
+  });
+
+  it("clears user messages and hides stale history after a new individual session", () => {
+    const project = useChats.getState().ensure("p");
+    const individual = project.chats.find((chat) => chat.kind === "individual")!;
+    const toph = useChats.getState().addToph("p", individual.id, preset("Leo", "Dev"))!;
+    const oldAt = Date.now() - 5_000;
+    useChats.getState().addMessage("p", { id: "u1", chatId: individual.id, role: "user", content: "pergunta antiga", createdAt: oldAt });
+    useChats.getState().addMessage("p", { id: "a1", chatId: individual.id, tophId: toph.id, role: "assistant", content: "resposta antiga", createdAt: oldAt + 1 });
+
+    const reset = useChats.getState().resetTophSession("p", toph.id)!;
+    expect(reset.clearChat).toBe(true);
+    expect(messagesForChat(useChats.getState().byProject.p, individual.id)).toHaveLength(0);
+
+    // A late history load (or a slow server delete) must not leak rows from
+    // the previous session back into the fresh conversation.
+    useChats.getState().mergeMessages("p", [
+      { id: "u1", chatId: individual.id, role: "user", content: "pergunta antiga", createdAt: oldAt },
+      { id: "a1", chatId: individual.id, tophId: toph.id, role: "assistant", content: "resposta antiga", createdAt: oldAt + 1 },
+    ]);
+    expect(messagesForChat(useChats.getState().byProject.p, individual.id)).toHaveLength(0);
+
+    useChats.getState().addMessage("p", { id: "u2", chatId: individual.id, role: "user", content: "pergunta nova", createdAt: Date.now() });
+    expect(messagesForChat(useChats.getState().byProject.p, individual.id).map((message) => message.id)).toEqual(["u2"]);
+  });
+
+  it("keeps shared team messages but gives the reset Toph a clean prompt", () => {
+    const project = useChats.getState().ensure("p");
+    const team = project.chats.find((chat) => chat.kind === "team")!;
+    const first = useChats.getState().addToph("p", team.id, preset("Leo", "Dev"))!;
+    const second = useChats.getState().addToph("p", team.id, preset("Nico", "Revisor"))!;
+    const oldAt = Date.now() - 5_000;
+    useChats.getState().addMessage("p", { id: "u1", chatId: team.id, role: "user", content: "contexto compartilhado", createdAt: oldAt });
+    useChats.getState().addMessage("p", { id: "a1", chatId: team.id, tophId: first.id, role: "assistant", content: "resposta do primeiro", createdAt: oldAt + 1 });
+    useChats.getState().addMessage("p", { id: "a2", chatId: team.id, tophId: second.id, role: "assistant", content: "resposta do segundo", createdAt: oldAt + 2 });
+
+    const reset = useChats.getState().resetTophSession("p", first.id)!;
+    expect(reset.clearChat).toBe(false);
+    expect(messagesForChat(useChats.getState().byProject.p, team.id).map((message) => message.id)).toEqual(["u1", "a2"]);
+    expect(messagesForToph(useChats.getState().byProject.p, team.id, first.id)).toHaveLength(0);
   });
 });

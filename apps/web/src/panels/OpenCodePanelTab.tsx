@@ -430,7 +430,9 @@ export default function OpenCodePanelTab({ tab, project, onClose }: Props) {
           const subagentTitle = isSubagent ? subagents.current.get(sid) ?? "subagent" : "";
           const prefix = isSubagent ? `sub-${sid.slice(0, 8)}-` : "";
           const assistantID = String(data.assistantMessageID ?? "");
-          const messageID = (kind: string, id = assistantID) => `${prefix}${kind}-${id || Date.now()}`;
+          const ordinal = String(data.ordinal ?? "0");
+          const textKey = `${assistantID || "assistant"}:${ordinal}`;
+          const messageID = (kind: string, id = textKey) => `${prefix}${kind}-${id || "unknown"}`;
 
           switch (event.type) {
             case "session.text.started": {

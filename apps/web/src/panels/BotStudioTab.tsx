@@ -4,10 +4,11 @@ import { connectClientMcp, type ClientMcpTool } from "@opencode/client/mcp";
 import { Bot, ChevronDown, Copy, CornerDownRight, ListTree, LoaderCircle, MessageSquarePlus, Monitor, Plus, X } from "@toph/icons";
 import { api, ApiError, openCodeBase, type AIMessage, type AIMessageContentPart, type Project } from "../api";
 import { modelDisplay, useAI } from "../ai";
-import { activeChat, chatCoordinator, chatTophs, useChats, type ChatMessage, type ChatToph } from "../chats";
+import { activeChat, chatCoordinator, chatTophs, messagesForChat, messagesForToph, useChats, type ChatMessage, type ChatToph } from "../chats";
 import { notifyAiResponse } from "../aiNotifications";
 import { playBotResponseSound, unlockBotSound } from "../botSound";
 import BotAvatar from "../components/BotAvatar";
+import AgentActivity from "../components/AgentActivity";
 import BotConfig from "../components/BotConfig";
 import TophGallery from "../components/TophGallery";
 import TophSessionsSheet from "../components/TophSessionsSheet";
@@ -478,6 +479,7 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
   const replaceChatMessages = useChats((state) => state.replaceChatMessages);
   const notify = useApp((state) => state.notify);
   const setTophSession = useChats((state) => state.setTophSession);
+  const resetTophSession = useChats((state) => state.resetTophSession);
   const aiConfig = useAI((state) => state.config);
   const models = useAI((state) => state.models);
   const [sending, setSending] = useState(false);
@@ -488,6 +490,7 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
   const [presentationOpen, setPresentationOpen] = useState(false);
   const sendingRef = useRef(false);
   const runToken = useRef(0);
+  const tophRunEpochs = useRef(new Map<string, number>());
   const [runningTophs, setRunningTophs] = useState<Set<string>>(new Set());
   const [forms, setForms] = useState<Array<{ form: OpenCodeForm; tophId: string }>>([]);
   const [formBusy, setFormBusy] = useState<string | null>(null);
@@ -516,9 +519,11 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
     return next;
   }
   const scrollRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
   const activityScrollRef = useRef<HTMLDivElement>(null);
   const stickToBottom = useRef(true);
   const stickActivityToBottom = useRef(true);
+  const [atBottom, setAtBottom] = useState(true);
   const client = useMemo(() => {
     const csrf = document.cookie.match(/(?:^|;\s*)toph_csrf=([^;]+)/)?.[1] ?? "";
     return OpenCode.make({
@@ -531,13 +536,10 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
   const tophs = chatTophs(projectChats, chat?.id);
   const coordinator = chatCoordinator(tophs);
   const messages = useMemo(
-    () => projectChats?.messages.filter((message) => message.chatId === chat?.id) ?? [],
-    [projectChats?.messages, chat?.id],
+    () => messagesForChat(projectChats, chat?.id),
+    [projectChats, chat?.id],
   );
-  const conversationMessages = useMemo(
-    () => mobile ? messages : messages.filter((message) => message.role !== "tool" && message.role !== "reasoning"),
-    [messages, mobile],
-  );
+  const conversationMessages = messages;
   const activityMessages = useMemo(
     () => messages.filter((message) => message.role === "tool" || message.role === "reasoning"),
     [messages],
@@ -547,14 +549,6 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
     () => [...conversationMessages].reverse().find((message) => message.role === "user")?.createdAt ?? 0,
     [conversationMessages],
   );
-  const liveThought = useMemo(() => {
-    const running = activityMessages.filter((message) =>
-      message.role === "reasoning"
-      && message.status === "running"
-      && (latestUserAt === 0 || message.createdAt >= latestUserAt),
-    );
-    return running[running.length - 1] ?? null;
-  }, [activityMessages, latestUserAt]);
   const turnSummary = useMemo(() => {
     if (!latestUserAt) return null;
     const replies = messages.filter((message) => message.role === "assistant" && !message.pending && message.createdAt >= latestUserAt);
@@ -755,7 +749,9 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
     if (active?.[toph.sessionId]) return;
     const page = await client.message.list({ sessionID: toph.sessionId, limit: 80, order: "desc" } as never).catch(() => null);
     if (!page?.data?.length) return;
+    const cutoff = toph.sessionClearedAt ?? 0;
     const restored = restoreTophMessages([...page.data].reverse(), toph.id, toph.chatId)
+      .filter((message) => message.createdAt >= cutoff)
       .filter((message) => message.role === "assistant" && message.content.trim());
     if (restored.length === 0) return;
     const current = useChats.getState().byProject[project.id]?.messages ?? [];
@@ -836,6 +832,31 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
     element.scrollTop = element.scrollHeight;
   }, [conversationMessages.length, visibleRunningTophs.length, forms.length]);
 
+  // Streaming changes the height of the last message without changing the
+  // number of messages. ResizeObserver keeps the live edge pinned while the
+  // reader is following it, but never yanks the view when they scroll up.
+  useEffect(() => {
+    const scroller = scrollRef.current;
+    const content = contentRef.current;
+    if (!scroller || !content || typeof ResizeObserver === "undefined") return;
+    let frame = 0;
+    const pin = () => {
+      if (!stickToBottom.current) return;
+      if (frame) window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(() => {
+        scroller.scrollTop = scroller.scrollHeight;
+        frame = 0;
+      });
+    };
+    const observer = new ResizeObserver(pin);
+    observer.observe(content);
+    pin();
+    return () => {
+      observer.disconnect();
+      if (frame) window.cancelAnimationFrame(frame);
+    };
+  }, [chat?.id]);
+
   useEffect(() => {
     const element = activityScrollRef.current;
     if (!element || !stickActivityToBottom.current) return;
@@ -907,8 +928,11 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
       if (appendTimer === undefined) appendTimer = window.setTimeout(flushAppends, 80);
     };
     (async () => {
-      try {
-        for await (const event of client.event.subscribe({ signal: controller.signal })) {
+      let attempt = 0;
+      while (!controller.signal.aborted) {
+        try {
+          for await (const event of client.event.subscribe({ signal: controller.signal })) {
+            attempt = 0;
           const data = (event as { data?: Record<string, unknown> }).data;
           if (!data) continue;
           if (event.type === "form.created") {
@@ -931,36 +955,44 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
           if (!toph) continue;
           const chatId = toph.chatId;
           const assistantID = String(data.assistantMessageID ?? "");
-          const messageID = (kind: string, id = assistantID) => `bot-${tophId}-${kind}-${id || Date.now()}`;
+          const ordinal = String(data.ordinal ?? "0");
+          const textKey = `${assistantID || "assistant"}:${ordinal}`;
+          const messageID = (kind: string, id: string) => `bot-${tophId}-${kind}-${id || "unknown"}`;
+          const textMessageID = (kind: "assistant" | "reasoning") => messageID(kind, textKey);
           const ensure = (message: ChatMessage) => {
             const list = state.byProject[project.id]?.messages ?? [];
             if (!list.some((item) => item.id === message.id)) state.addMessage(project.id, message);
           };
           switch (event.type) {
             case "session.text.started":
-              ensure({ id: messageID("assistant"), chatId, tophId, role: "assistant", content: "", status: "running", createdAt: Date.now() });
+              ensure({ id: textMessageID("assistant"), chatId, tophId, role: "assistant", content: "", status: "running", createdAt: Date.now() });
               break;
             case "session.text.delta": {
-              const id = messageID("assistant");
+              const id = textMessageID("assistant");
               ensure({ id, chatId, tophId, role: "assistant", content: "", status: "running", createdAt: Date.now() });
               queueAppend(project.id, id, String(data.delta ?? ""));
               break;
             }
-            case "session.text.ended":
+            case "session.text.ended": {
               flushAppends();
-              state.updateMessage(project.id, messageID("assistant"), { content: String(data.text ?? ""), status: "complete" });
+              const id = textMessageID("assistant");
+              ensure({ id, chatId, tophId, role: "assistant", content: "", status: "running", createdAt: Date.now() });
+              state.updateMessage(project.id, id, { content: String(data.text ?? ""), status: "complete" });
               break;
+            }
             case "session.reasoning.started":
-              ensure({ id: messageID("reasoning"), chatId, tophId, role: "reasoning", title: "Thought", content: "", status: "running", createdAt: Date.now() });
+              ensure({ id: textMessageID("reasoning"), chatId, tophId, role: "reasoning", title: "Thought", content: "", status: "running", createdAt: Date.now() });
               break;
             case "session.reasoning.delta": {
-              const id = messageID("reasoning");
+              const id = textMessageID("reasoning");
               ensure({ id, chatId, tophId, role: "reasoning", title: "Thought", content: "", status: "running", createdAt: Date.now() });
               queueAppend(project.id, id, String(data.delta ?? ""));
               break;
             }
             case "session.reasoning.ended": {
-              const reasoningId = messageID("reasoning");
+              flushAppends();
+              const reasoningId = textMessageID("reasoning");
+              ensure({ id: reasoningId, chatId, tophId, role: "reasoning", title: "Thought", content: "", status: "running", createdAt: Date.now() });
               const startedAt = state.byProject[project.id]?.messages.find((item) => item.id === reasoningId)?.createdAt;
               state.updateMessage(project.id, reasoningId, {
                 content: String(data.text ?? ""),
@@ -999,6 +1031,14 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
               ensure({ id, chatId, tophId, role: "tool", title: `Tool · ${name}`, content: inputText, detail: "", status: "running", createdAt: Date.now() });
               state.updateMessage(project.id, id, { title: `Tool · ${name}`, content: inputText, status: "running" });
               startToolFileSnapshot(sessionId, toolId, name, inputText);
+              break;
+            }
+            case "session.tool.progress": {
+              const toolId = String(data.id ?? "");
+              state.updateMessage(project.id, messageID("tool", toolId), {
+                detail: toolContent(data.metadata),
+                status: "running",
+              });
               break;
             }
             case "session.tool.success": {
@@ -1045,16 +1085,50 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
               if (status === "idle") setRunningTophs((current) => { const next = new Set(current); next.delete(tophId); return next; });
               break;
             }
-            case "session.execution.succeeded":
-            case "session.execution.failed":
+            case "session.step.failed":
+            case "session.execution.failed": {
+              const text = toolContent(data.error) || String(data.message ?? "") || "O agente falhou antes de responder.";
+              ensure({
+                id: messageID("error", assistantID || "execution"),
+                chatId,
+                tophId,
+                role: "error",
+                content: text,
+                status: "error",
+                createdAt: Date.now(),
+              });
+              setRunningTophs((current) => { const next = new Set(current); next.delete(tophId); return next; });
+              break;
+            }
             case "session.execution.interrupted":
+            case "session.execution.succeeded":
             case "session.idle":
               setRunningTophs((current) => { const next = new Set(current); next.delete(tophId); return next; });
               break;
           }
+          }
+        } catch {
+          // The final response fallback still works if the event stream is
+          // unavailable. Reconnect with backoff instead of leaving the chat
+          // stuck on "Pensando" forever.
         }
-      } catch {
-        // The final response fallback still works if the event stream is unavailable.
+        if (controller.signal.aborted) break;
+        flushAppends();
+        const delay = Math.min(15_000, 500 * 2 ** Math.min(attempt, 5));
+        attempt += 1;
+        await new Promise<void>((resolve) => {
+          const timer = window.setTimeout(resolve, delay);
+          controller.signal.addEventListener("abort", () => {
+            window.clearTimeout(timer);
+            resolve();
+          }, { once: true });
+        });
+        if (!controller.signal.aborted) {
+          const members = Object.values(useChats.getState().byProject[project.id]?.tophs ?? {});
+          for (const member of members) {
+            if (member.sessionId) void reconcileSessionMessages(member);
+          }
+        }
       }
     })();
     return () => {
@@ -1070,18 +1144,27 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
       .find((item) => item.id === toph.id) ?? toph;
   }
 
+  function tophRunEpoch(tophId: string): number {
+    return tophRunEpochs.current.get(tophId) ?? 0;
+  }
+
+  function bumpTophRunEpoch(tophId: string): void {
+    tophRunEpochs.current.set(tophId, tophRunEpoch(tophId) + 1);
+  }
+
   function currentChat(toph: ChatToph): { chat: ReturnType<typeof activeChat>; tophs: ChatToph[]; messages: ChatMessage[] } {
     const state = useChats.getState().byProject[project.id];
     const chatNow = state?.chats.find((item) => item.id === toph.chatId) ?? null;
     return {
       chat: chatNow,
       tophs: state?.tophs.filter((item) => item.chatId === toph.chatId) ?? [],
-      messages: state?.messages.filter((item) => item.chatId === toph.chatId) ?? [],
+      messages: messagesForToph(state, toph.chatId, toph.id),
     };
   }
 
   function completedStoredReply(tophId: string, chatId: string, since: number): ChatMessage | null {
-    const messages = useChats.getState().byProject[project.id]?.messages ?? [];
+    const projectState = useChats.getState().byProject[project.id];
+    const messages = messagesForToph(projectState, chatId, tophId);
     return [...messages].reverse().find((message) =>
       message.role === "assistant"
       && message.tophId === tophId
@@ -1177,16 +1260,15 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
     }
     // Wait for the agent for as long as it needs. The only thing that stops this
     // loop is the user pressing stop (runToken changes); there is no deadline.
-    // If the session goes idle without a reply we stop polling instead of
-    // spinning forever and leaving the composer stuck.
+    // A text block can finish in the middle of a turn (commentary before a tool
+    // call), so the session must be idle for a few consecutive polls before we
+    // treat the latest assistant message as the final answer.
     let latest = "";
     let idlePolls = 0;
     let seenActive = false;
     while (token === runToken.current) {
-      await new Promise((resolve) => window.setTimeout(resolve, 400));
+      await new Promise((resolve) => window.setTimeout(resolve, 500));
       if (token !== runToken.current) throw new Error("__stopped__");
-      const stored = completedStoredReply(current.id, current.chatId, since);
-      if (stored) return stored.content.trim();
       const active = await client.session.active().catch(() => null);
       if (active?.[sessionId]) {
         seenActive = true;
@@ -1194,16 +1276,17 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
         continue;
       }
       if (!seenActive) {
+        idlePolls += 1;
+        if (idlePolls < 3) continue;
         const early = await client.message.list({ sessionID: sessionId, limit: 1, order: "desc", type: "assistant" } as never).catch(() => null);
         const earlyAssistant = lastAssistant(early?.data ?? []);
-        if (earlyAssistant && earlyAssistant.id !== before && earlyAssistant.text) return earlyAssistant.text;
-        continue;
-      }
-      idlePolls += 1;
-      const latestList = await client.message.list({ sessionID: sessionId, limit: 1, order: "desc", type: "assistant" } as never).catch(() => null);
-      const assistant = lastAssistant(latestList?.data ?? []);
-      if (!assistant || assistant.id === before) {
-        if (idlePolls >= 8) {
+        if (earlyAssistant && earlyAssistant.id !== before) {
+          if (earlyAssistant.error) throw new Error(earlyAssistant.error);
+          if (earlyAssistant.text) return earlyAssistant.text;
+          if (idlePolls >= 120) throw new Error("O agente terminou sem produzir resposta.");
+          continue;
+        }
+        if (idlePolls >= 30) {
           const settled = completedStoredReply(current.id, current.chatId, since);
           if (settled) return settled.content.trim();
           if (latest) return latest;
@@ -1211,9 +1294,23 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
         }
         continue;
       }
-      idlePolls = 0;
-      latest = assistant.text || latest;
+      idlePolls += 1;
+      if (idlePolls < 3) continue;
+      const stored = completedStoredReply(current.id, current.chatId, since);
+      if (stored) return stored.content.trim();
+      const latestList = await client.message.list({ sessionID: sessionId, limit: 1, order: "desc", type: "assistant" } as never).catch(() => null);
+      const assistant = lastAssistant(latestList?.data ?? []);
+      if (!assistant || assistant.id === before) {
+        if (idlePolls >= 10) {
+          const settled = completedStoredReply(current.id, current.chatId, since);
+          if (settled) return settled.content.trim();
+          if (latest) return latest;
+          throw new Error("O agente terminou sem produzir resposta.");
+        }
+        continue;
+      }
       if (assistant.error) throw new Error(assistant.error);
+      latest = assistant.text || latest;
       if (latest) return latest;
     }
     const stored = completedStoredReply(current.id, current.chatId, since);
@@ -1263,14 +1360,16 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
     const { tophs: tophsNow, messages: allHistory } = currentChat(toph);
     const history = promptHistory(allHistory, userText);
     const startedAt = Date.now();
+    const epoch = tophRunEpoch(toph.id);
     setRunningTophs((current) => new Set(current).add(toph.id));
     try {
       if (aiConfig?.provider === "opencode") {
         const current = storedToph(toph);
         const reply = await openCodeReply(current, userText, options.attachments, options.token, false, startedAt);
         if (options.token !== undefined && options.token !== runToken.current) return null;
+        if (epoch !== tophRunEpoch(toph.id)) return null;
         if (!current.sessionPrimed) updateToph(project.id, current.id, { sessionPrimed: true });
-        const currentMessages = useChats.getState().byProject[project.id]?.messages ?? [];
+        const currentMessages = messagesForToph(useChats.getState().byProject[project.id], toph.chatId, toph.id);
         const eventReplies = currentMessages
           .filter((message) => message.tophId === toph.id
             && message.chatId === toph.chatId
@@ -1279,11 +1378,12 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
           .sort((a, b) => a.createdAt - b.createdAt);
         const latestEventReply = eventReplies[eventReplies.length - 1];
         if (latestEventReply) {
-          updateMessage(project.id, latestEventReply.id, {
-            content: reply.trim(),
-            status: "complete",
-            pending: false,
-          });
+          // The event stream already rendered the text. Do not replace it with
+          // the concatenation of every text block: that duplicates commentary
+          // that arrived before a tool call and moves the final answer up.
+          updateMessage(project.id, latestEventReply.id, latestEventReply.content.trim()
+            ? { status: "complete", pending: false }
+            : { content: reply.trim(), status: "complete", pending: false });
         } else {
           addMessage(project.id, {
             id: `bot-reply-${toph.id}-${Date.now()}`,
@@ -1326,6 +1426,10 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
         removeMessage(project.id, pendingId);
         return null;
       }
+      if (epoch !== tophRunEpoch(toph.id)) {
+        removeMessage(project.id, pendingId);
+        return null;
+      }
       if (!reply.trim()) throw new Error("O Toph retornou uma resposta vazia.");
       updateMessage(project.id, pendingId, { content: reply.trim(), pending: false, status: "complete" });
       if (toph.notifications) {
@@ -1344,11 +1448,13 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
     } catch (error) {
       if (error instanceof Error && error.message === "__stopped__") return null;
       if (options.token !== undefined && options.token !== runToken.current) return null;
-      let recovered = recoverBotReply(useChats.getState().byProject[project.id]?.messages ?? [], toph.id, toph.chatId, startedAt);
+      if (epoch !== tophRunEpoch(toph.id)) return null;
+      let recovered = recoverBotReply(messagesForToph(useChats.getState().byProject[project.id], toph.chatId, toph.id), toph.id, toph.chatId, startedAt);
       if (!recovered) {
         await new Promise((resolve) => window.setTimeout(resolve, 1800));
         if (options.token !== undefined && options.token !== runToken.current) return null;
-        recovered = recoverBotReply(useChats.getState().byProject[project.id]?.messages ?? [], toph.id, toph.chatId, startedAt);
+        if (epoch !== tophRunEpoch(toph.id)) return null;
+        recovered = recoverBotReply(messagesForToph(useChats.getState().byProject[project.id], toph.chatId, toph.id), toph.id, toph.chatId, startedAt);
       }
       if (recovered) {
         updateMessage(project.id, recovered.id, { pending: false, status: "complete" });
@@ -1365,11 +1471,13 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
       });
       return null;
     } finally {
-      setRunningTophs((current) => {
-        const next = new Set(current);
-        next.delete(toph.id);
-        return next;
-      });
+      if (epoch === tophRunEpoch(toph.id)) {
+        setRunningTophs((current) => {
+          const next = new Set(current);
+          next.delete(toph.id);
+          return next;
+        });
+      }
     }
   }
 
@@ -1429,19 +1537,22 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
     setSending(false);
     setRunningTophs(new Set());
     for (const toph of tophs) {
+      bumpTophRunEpoch(toph.id);
       if (toph.sessionId) await client.session.interrupt({ sessionID: toph.sessionId } as never).catch(() => undefined);
     }
   }
 
   function clearChatSession() {
     if (!chat) return;
+    const cutoff = Date.now();
     for (const toph of tophs) {
+      bumpTophRunEpoch(toph.id);
       if (toph.sessionId) {
         const sessionId = toph.sessionId;
         sessionTophMap.current.delete(sessionId);
         void client.session.interrupt({ sessionID: sessionId } as never).catch(() => undefined);
       }
-      setTophSession(project.id, toph.id, undefined, { sessionPrimed: false });
+      setTophSession(project.id, toph.id, undefined, { sessionPrimed: false, sessionClearedAt: cutoff });
     }
     replaceChatMessages(project.id, chat.id, []);
     void api.deleteChatMessages(project.id, chat.id).catch(() => undefined);
@@ -1469,7 +1580,8 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
       }).join("\n\n");
       const summary = await respondAsToph(first, `Resuma a conversa abaixo em até 12 linhas, preservando decisões, arquivos e pendências. Responda só com o resumo.\n\n${text}`, { token });
       if (!summary || token !== runToken.current) return;
-      for (const toph of tophs) setTophSession(project.id, toph.id, undefined, { sessionPrimed: false });
+      const cutoff = Date.now();
+      for (const toph of tophs) setTophSession(project.id, toph.id, undefined, { sessionPrimed: false, sessionClearedAt: cutoff });
       replaceChatMessages(project.id, chat.id, []);
       void api.deleteChatMessages(project.id, chat.id).catch(() => undefined);
       addMessage(project.id, {
@@ -1531,6 +1643,7 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
     sendingRef.current = true;
     unlockBotSound();
     stickToBottom.current = true;
+    setAtBottom(true);
     const token = ++runToken.current;
     const userMessageId = `bot-user-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
     addMessage(project.id, {
@@ -1596,9 +1709,9 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
     const toph = sessionsToph;
     if (!toph) return;
     setSessionsTophId(null);
+    bumpTophRunEpoch(toph.id);
     const page = await client.message.list({ sessionID: session.id, limit: 80, order: "desc" } as never).catch(() => null);
-    if (!page?.data?.length) return;
-    const context = [...page.data].reverse();
+    const context = page?.data?.length ? [...page.data].reverse() : [];
     const existingUsers = new Set(
       currentChat(toph).messages
         .filter((message) => message.role === "user")
@@ -1608,10 +1721,11 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
       .filter((message) => message.role !== "user" || !existingUsers.has(`${message.content}\u0000${message.createdAt}`));
     if (toph.sessionId && toph.sessionId !== session.id) {
       sessionTophMap.current.delete(toph.sessionId);
+      void client.session.interrupt({ sessionID: toph.sessionId } as never).catch(() => undefined);
     }
     await api.deleteChatMessages(project.id, toph.chatId, toph.id).catch(() => undefined);
     replaceTophMessages(project.id, toph.id, restored);
-    setTophSession(project.id, toph.id, session.id, { sessionPrimed: true });
+    setTophSession(project.id, toph.id, session.id, { sessionPrimed: true, sessionClearedAt: null });
     sessionTophMap.current.set(session.id, toph.id);
   }
 
@@ -1619,17 +1733,36 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
     const toph = sessionsToph;
     if (!toph) return;
     setSessionsTophId(null);
-    // Update the UI immediately; the network cleanup happens in the background
-    // so a slow interrupt/delete can never leave the chat looking unchanged.
-    replaceTophMessages(project.id, toph.id, []);
-    setTophSession(project.id, toph.id, undefined, { sessionPrimed: false });
+    bumpTophRunEpoch(toph.id);
+    if (chat?.kind === "individual") {
+      // The individual sheet only has one Toph. Cut the current run loose so
+      // the composer is usable immediately instead of waiting for the old
+      // session to finish shutting down.
+      runToken.current += 1;
+      sendingRef.current = false;
+      setSending(false);
+    }
     setExpandedActivity(null);
+    setForms((current) => current.filter((item) => item.tophId !== toph.id));
+    setRunningTophs((current) => {
+      const next = new Set(current);
+      next.delete(toph.id);
+      return next;
+    });
+    const reset = resetTophSession(project.id, toph.id);
+    if (!reset) return;
+    stickToBottom.current = true;
+    setAtBottom(true);
     if (toph.sessionId) {
       const sessionId = toph.sessionId;
       sessionTophMap.current.delete(sessionId);
       void client.session.interrupt({ sessionID: sessionId } as never).catch(() => undefined);
     }
-    void api.deleteChatMessages(project.id, toph.chatId, toph.id).catch(() => undefined);
+    // In an individual chat the user messages have no Toph id, so deleting
+    // only this Toph's rows would leave the old conversation on screen. The
+    // store already filters by `sessionClearedAt`; this is the durable cleanup.
+    if (reset.clearChat) void api.deleteChatMessages(project.id, reset.chatId).catch(() => undefined);
+    else void api.deleteChatMessages(project.id, reset.chatId, toph.id).catch(() => undefined);
     window.requestAnimationFrame(() => scrollRef.current?.scrollTo({ top: 0 }));
   }
 
@@ -1643,7 +1776,7 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
 
   return (
     <div className="flex h-full min-h-0 w-full flex-1 gap-0 overflow-hidden" onPointerDown={unlockBotSound}>
-      <section className="flex min-w-0 flex-1 flex-col overflow-hidden bg-background-full max-[900px]:rounded-none max-[900px]:border-0 max-[900px]:shadow-none min-[901px]:rounded-3xl min-[901px]:border min-[901px]:border-border-button-white min-[901px]:shadow-sidebar">
+      <section className="relative flex min-w-0 flex-1 flex-col overflow-hidden bg-background-full max-[900px]:rounded-none max-[900px]:border-0 max-[900px]:shadow-none min-[901px]:rounded-3xl min-[901px]:border min-[901px]:border-border-button-white min-[901px]:shadow-sidebar">
         {chat ? (
           <div className="flex h-12 shrink-0 items-center gap-2 border-b border-separator-border bg-background-secondary-default px-2.5">
             <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-background-tertiary-default text-caption-1-semibold text-text-tertiary">#</span>
@@ -1675,10 +1808,12 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
           className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-x-none"
           onScroll={(event) => {
             const element = event.currentTarget;
-            stickToBottom.current = element.scrollHeight - element.scrollTop - element.clientHeight < 80;
+            const following = element.scrollHeight - element.scrollTop - element.clientHeight < 80;
+            stickToBottom.current = following;
+            setAtBottom(following);
           }}
         >
-          <div key={chat?.id ?? "none"} className="toph-view-in mx-auto flex min-h-full w-full min-w-0 max-w-[760px] flex-col gap-4 overflow-x-hidden p-4 [&_img]:max-w-full [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_table]:block [&_table]:max-w-full [&_table]:overflow-x-auto">
+          <div ref={contentRef} key={chat?.id ?? "none"} className="toph-view-in mx-auto flex min-h-full w-full min-w-0 max-w-[760px] flex-col gap-4 overflow-x-hidden p-4 [&_img]:max-w-full [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_table]:block [&_table]:max-w-full [&_table]:overflow-x-auto">
             {!conversationPage.ready && conversationPage.loading ? (
               <div className="my-auto flex items-center justify-center gap-2 py-8 text-caption-1-regular text-text-tertiary"><LoaderCircle className="size-4 animate-spin" /> Carregando conversa...</div>
             ) : null}
@@ -1747,16 +1882,22 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
               if (!toph) return null;
               const footerAssistant = [...group.messages].reverse().find((message) => message.role === "assistant" && !message.pending);
               const summary = activitySummaryForGroup(group, index, groupedMessages, activityMessages);
+              const turnActivity = activityMessages.filter((message) =>
+                message.tophId === toph.id && (latestUserAt === 0 || message.createdAt >= latestUserAt),
+              );
               const isLatestTophGroup = lastTophGroupIndex.get(toph.id) === index;
               const belongsToCurrentTurn = latestUserAt === 0 || group.messages.some((message) => message.createdAt >= latestUserAt);
               const groupStreaming = belongsToCurrentTurn && isLatestTophGroup && runningTophs.has(toph.id);
-              const hasRunningTool = group.messages.some((message) => (message.role === "tool" || message.role === "reasoning") && message.status === "running");
+              const hasRunningTool = turnActivity.some((message) => (message.role === "tool" || message.role === "reasoning") && message.status === "running");
               const hasAssistantText = group.messages.some((message) => message.role === "assistant" && message.content.trim().length > 0);
-              const activityState: TophActivityState | null = groupStreaming || group.messages.some((message) => message.status === "running")
+              const activityState: TophActivityState | null = groupStreaming || hasRunningTool || group.messages.some((message) => message.status === "running")
                 ? hasRunningTool ? "working" : hasAssistantText ? "responding" : "thinking"
                 : null;
               const tophModel = toph.model || activeModel;
               const tophModelLabel = modelDisplay(models.find((item) => item.id === tophModel) ?? (tophModel ? { id: tophModel, label: tophModel.split("/").pop() ?? tophModel } : undefined));
+              const transcriptMessages = mobile
+                ? group.messages
+                : group.messages.filter((message) => message.role !== "tool" && message.role !== "reasoning");
               return (
                 <section key={`toph-${group.tophId}-${index}`} className="flex min-w-0 max-w-full items-start gap-2.5 [content-visibility:auto] [contain-intrinsic-size:auto_200px]">
                   <TophActivityAvatar bot={toph} state={activityState} size={32} className="mt-0.5" />
@@ -1765,15 +1906,28 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
                       <strong className="truncate text-caption-1-semibold text-text-primary">{toph.name}</strong>
                       <span className="truncate text-caption-2-regular text-text-tertiary">{activityState ? <TophActivityStatus state={activityState} /> : tophModelLabel || toph.role || "Toph"}</span>
                     </header>
-                    <AgentTranscript
-                      messages={group.messages.map(toAiMessage)}
-                      streaming={groupStreaming}
-                      onPermission={(messageId, permissionId, decision) => void replyPermission(toph, messageId, permissionId, decision)}
-                      onQuestion={(messageId, answer) => void answerToolQuestion(toph, messageId, answer)}
-                      projectId={project.id}
-                      projectRoot={project.root}
-                    />
-                    {summary ? (
+                    {activityState ? (
+                      <AgentActivity
+                        messages={turnActivity.map(toAiMessage)}
+                        state={activityState}
+                        startedAt={latestUserAt || group.messages[0]?.createdAt || Date.now()}
+                        onPermission={(messageId, permissionId, decision) => void replyPermission(toph, messageId, permissionId, decision)}
+                        onQuestion={(messageId, answer) => void answerToolQuestion(toph, messageId, answer)}
+                        projectId={project.id}
+                        projectRoot={project.root}
+                      />
+                    ) : null}
+                    {transcriptMessages.length > 0 ? (
+                      <AgentTranscript
+                        messages={transcriptMessages.map(toAiMessage)}
+                        streaming={groupStreaming}
+                        onPermission={(messageId, permissionId, decision) => void replyPermission(toph, messageId, permissionId, decision)}
+                        onQuestion={(messageId, answer) => void answerToolQuestion(toph, messageId, answer)}
+                        projectId={project.id}
+                        projectRoot={project.root}
+                      />
+                    ) : null}
+                    {summary && !activityState ? (
                       mobile ? (
                         <span className="flex w-fit items-center gap-1.5 rounded-full border border-border-button-default bg-background-secondary-default px-2 py-1 text-[11px] text-text-tertiary">
                           <ListTree size={12} /> {summary.text}
@@ -1788,7 +1942,7 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
                         </button>
                       )
                     ) : null}
-                    {summary && expandedActivity && expandedActivity.tophId === toph.id && expandedActivity.from === summary.from && expandedActivity.to === summary.to ? (
+                    {summary && !activityState && expandedActivity && expandedActivity.tophId === toph.id && expandedActivity.from === summary.from && expandedActivity.to === summary.to ? (
                       <div className="toph-view-in mt-1 rounded-2xl border border-border-button-default bg-background-secondary-default/60 p-2.5">
                         <div className="mb-1.5 flex items-center justify-between gap-2 px-1">
                           <span className="truncate text-[11px] font-medium text-text-secondary">O que {toph.name} fez</span>
@@ -1818,21 +1972,8 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
               );
             })}
 
-            {liveThought && (sending || runningTophs.size > 0) ? (
-              <section className="toph-view-in flex items-start gap-2.5">
-                <BotAvatar bot={tophs.find((item) => item.id === liveThought.tophId) ?? tophs[0]} size={28} className="mt-0.5" />
-                <div className="min-w-0 flex-1 rounded-2xl border border-border-button-default bg-background-secondary-default/50 px-3 py-2">
-                  <div className="flex items-center gap-1.5 text-[11px] font-medium text-text-tertiary">
-                    <LoaderCircle className="size-3 animate-spin" />
-                    Pensando
-                  </div>
-                  <p className="mt-1 max-h-40 overflow-y-auto whitespace-pre-wrap break-words text-[12px] leading-relaxed text-text-secondary">{liveThought.content.slice(-1600)}</p>
-                </div>
-              </section>
-            ) : null}
-
             {visibleRunningTophs
-              .filter((tophId) => (!liveThought || liveThought.tophId !== tophId) && !groupedMessages.some((group) => group.kind === "toph" && group.tophId === tophId && (latestUserAt === 0 || group.messages.some((message) => message.createdAt >= latestUserAt))))
+              .filter((tophId) => !groupedMessages.some((group) => group.kind === "toph" && group.tophId === tophId && (latestUserAt === 0 || group.messages.some((message) => message.createdAt >= latestUserAt))))
               .map((tophId) => {
                 const toph = tophs.find((item) => item.id === tophId);
                 if (!toph) return null;
@@ -1910,6 +2051,20 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
               history={composerHistory}
             />
           </div>
+        ) : null}
+        {chat && tophs.length > 0 && !atBottom ? (
+          <button
+            type="button"
+            onClick={() => {
+              stickToBottom.current = true;
+              setAtBottom(true);
+              const element = scrollRef.current;
+              if (element) element.scrollTo({ top: element.scrollHeight, behavior: "smooth" });
+            }}
+            className="absolute bottom-24 left-1/2 z-10 -translate-x-1/2 rounded-full border border-border-button-default bg-background-secondary-default px-3 py-1.5 text-caption-2-medium text-text-secondary shadow-sidebar transition-colors hover:border-accent-500/40 hover:text-accent-600"
+          >
+            Ir para o fim
+          </button>
         ) : null}
       </section>
 

@@ -146,7 +146,7 @@ function toolShowsImages(message: AiMessage): boolean {
   return !/shell|bash|command|terminal|grep|glob|webfetch|http/.test(toolKind(message));
 }
 
-function toolLabel(message: AiMessage): string {
+export function toolLabel(message: AiMessage): string {
   const name = toolKind(message);
   if (/shell|bash|command|execute|terminal/.test(name)) return "Shell";
   if (/browser|navigate|screenshot|page/.test(name)) return "Browser";
@@ -163,7 +163,7 @@ function toolLabel(message: AiMessage): string {
   return raw.charAt(0).toUpperCase() + raw.slice(1);
 }
 
-function toolSubtitle(message: AiMessage): string {
+export function toolSubtitle(message: AiMessage): string {
   const input = parsedToolRecord(message.text);
   const name = toolKind(message);
   if (/shell|bash|command|execute|terminal/.test(name)) {
@@ -294,7 +294,7 @@ function ToolOutput({ message, images }: { message: AiMessage; images: ResolvedA
   );
 }
 
-const ToolRow = memo(function ToolRow({ message, onPermission, onQuestion, defaultOpen = false, projectId, projectRoot }: { message: AiMessage; onPermission?: MessageProps["onPermission"]; onQuestion?: MessageProps["onQuestion"]; defaultOpen?: boolean; projectId?: string; projectRoot?: string }) {
+export const ToolRow = memo(function ToolRow({ message, onPermission, onQuestion, defaultOpen = false, projectId, projectRoot }: { message: AiMessage; onPermission?: MessageProps["onPermission"]; onQuestion?: MessageProps["onQuestion"]; defaultOpen?: boolean; projectId?: string; projectRoot?: string }) {
   const [open, setOpen] = useState(defaultOpen);
   const questions = toolKind(message) === "question" ? parseAgentQuestions(message.text) : [];
   const images = useMemo(
@@ -345,7 +345,7 @@ const ToolRow = memo(function ToolRow({ message, onPermission, onQuestion, defau
   && prev.projectId === next.projectId
   && prev.projectRoot === next.projectRoot);
 
-const ThoughtRow = memo(function ThoughtRow({ message, duration }: { message: AiMessage; duration?: string }) {
+export const ThoughtRow = memo(function ThoughtRow({ message, duration }: { message: AiMessage; duration?: string }) {
   const [open, setOpen] = useState(false);
   return (
     <div className="py-0.5">
