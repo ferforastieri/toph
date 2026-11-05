@@ -318,10 +318,20 @@ function sanitizeProject(input: ProjectChats | null | undefined): ProjectChats {
       createdAt: Number.isFinite(chat.createdAt) ? chat.createdAt : Date.now(),
       updatedAt: Number.isFinite(chat.updatedAt) ? chat.updatedAt : Date.now(),
     }));
-  const individual = chats.find((chat) => chat.kind === "individual");
+  let individuals = chats.filter((chat) => chat.kind === "individual");
   const team = chats.find((chat) => chat.kind === "team");
-  if (!individual || !team) return freshProject(true);
-  const fixedChats = [individual, team];
+  if (!team) return freshProject(true);
+  if (individuals.length === 0) {
+    individuals = [{
+      id: newId("chat"),
+      name: "Individual",
+      description: "",
+      kind: "individual",
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    }];
+  }
+  const fixedChats = [...individuals, team];
   const chatIds = new Set(fixedChats.map((chat) => chat.id));
   const tophs = (Array.isArray(input.tophs) ? input.tophs : [])
     .filter((toph): toph is ChatToph => Boolean(toph && typeof toph.id === "string" && chatIds.has(toph.chatId)))
@@ -353,7 +363,7 @@ function sanitizeProject(input: ProjectChats | null | undefined): ProjectChats {
 
   const activeChatId = fixedChats.some((chat) => chat.id === input.activeChatId)
     ? input.activeChatId
-    : individual.id;
+    : individuals[0].id;
 
   return { version: 2, chats: fixedChats, tophs, messages, activeChatId, hydrated: true };
 }
@@ -463,9 +473,9 @@ export const useChats = create<ChatStore>((set, get) => ({
     const now = Date.now();
     const chat: TophChat = {
       id: newId("chat"),
-      name: name.trim() || "Novo chat",
+      name: name.trim() || "Individual",
       description: description.trim(),
-      kind: "team",
+      kind: "individual",
       createdAt: now,
       updatedAt: now,
     };

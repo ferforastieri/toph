@@ -38,7 +38,23 @@ export default function FileTree({ project, onOpenFile, embedded = false, status
     <div className={cn("flex flex-col gap-0.5", embedded ? "px-1 py-1" : "p-2")}>
       {!embedded && <div className="px-2 pb-1 text-caption-2-semibold uppercase tracking-wide text-text-tertiary">Explorer</div>}
       {error && <div className="rounded-lg bg-status-rose-background px-2 py-1 text-caption-1-regular text-status-rose-text">{error}</div>}
-      <div role="tree" aria-label="Project files">
+      <div
+        role="tree"
+        aria-label="Project files"
+        onDragOver={(event) => {
+          if (event.dataTransfer.types.includes("text/toph-path")) event.preventDefault();
+        }}
+        onDrop={(event) => {
+          const from = event.dataTransfer.getData("text/toph-path");
+          if (!from) return;
+          event.preventDefault();
+          const name = from.split("/").pop() ?? "";
+          if (!name) return;
+          void api.movePath(project.id, from, name)
+            .then(() => setRevision((value) => value + 1))
+            .catch((error) => useApp.getState().notify("error", error instanceof Error ? error.message : "Não foi possível mover."));
+        }}
+      >
         {entries.map((entry) => (
           <TreeNode
             key={entry.path}
@@ -51,6 +67,7 @@ export default function FileTree({ project, onOpenFile, embedded = false, status
             onSelect={(item) => { setSelectedPath(item.path); onSelect?.(item); }}
             onContextMenu={onContextMenu}
             selectedPath={selectedPath}
+            onMoved={() => setRevision((value) => value + 1)}
           />
         ))}
       </div>
@@ -58,7 +75,7 @@ export default function FileTree({ project, onOpenFile, embedded = false, status
   );
 }
 
-function TreeNode({ project, entry, depth, onOpenFile, statuses, revision, onSelect, onContextMenu, selectedPath }: {
+function TreeNode({ project, entry, depth, onOpenFile, statuses, revision, onSelect, onContextMenu, selectedPath, onMoved }: {
   project: Project;
   entry: FileEntry;
   depth: number;
@@ -68,8 +85,10 @@ function TreeNode({ project, entry, depth, onOpenFile, statuses, revision, onSel
   onSelect?: (entry: FileEntry) => void;
   onContextMenu?: (entry: FileEntry, event: React.MouseEvent) => void;
   selectedPath: string | null;
+  onMoved?: () => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
   const [children, setChildren] = useState<FileEntry[] | null>(null);
   const [loading, setLoading] = useState(false);
   const notify = useApp((state) => state.notify);
@@ -105,11 +124,39 @@ function TreeNode({ project, entry, depth, onOpenFile, statuses, revision, onSel
         className={cn(
           "flex h-6 w-full min-w-0 items-center gap-1 rounded-lg px-1.5 text-start text-caption-1-regular text-text-primary outline-none transition-colors hover:bg-background-secondary-hover focus-visible:ring-2 focus-visible:ring-border-focus-ring",
           selectedPath === entry.path && "bg-background-secondary-hover",
+          dragOver && "bg-accent-500/10 ring-1 ring-accent-500/40",
         )}
         style={{ paddingInlineStart: 4 + depth * 12 }}
         onClick={() => { onSelect?.(entry); void toggle(); }}
         onContextMenu={(event) => onContextMenu?.(entry, event)}
         title={entry.path}
+        draggable
+        onDragStart={(event) => {
+          event.dataTransfer.setData("text/toph-path", entry.path);
+          event.dataTransfer.effectAllowed = "move";
+        }}
+        onDragOver={(event) => {
+          if (!entry.dir || !event.dataTransfer.types.includes("text/toph-path")) return;
+          event.preventDefault();
+          event.dataTransfer.dropEffect = "move";
+          setDragOver(true);
+        }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={(event) => {
+          if (!entry.dir) return;
+          const from = event.dataTransfer.getData("text/toph-path");
+          if (!from || from === entry.path) return;
+          event.preventDefault();
+          event.stopPropagation();
+          setDragOver(false);
+          const name = from.split("/").pop() ?? "";
+          if (!name) return;
+          const to = `${entry.path}/${name}`;
+          if (to === from || entry.path.startsWith(`${from}/`)) return;
+          void api.movePath(project.id, from, to)
+            .then(() => onMoved?.())
+            .catch((error) => notify("error", error instanceof Error ? error.message : "Não foi possível mover."));
+        }}
       >
         <span className="flex size-3.5 shrink-0 items-center justify-center text-foreground-icon-tertiary">
           {entry.dir ? (

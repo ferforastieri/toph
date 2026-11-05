@@ -1,6 +1,6 @@
 import type { ComponentType } from "react";
 import { FolderGit2, LayoutPanelLeft, Menu, MessageSquare } from "@toph/icons";
-import { Badge } from "@/boardui/base/badges/badge";
+import NotificationBadge from "../../components/NotificationBadge";
 import { cx } from "@/boardui/utils/cx";
 import { Button } from "@/boardui/base/buttons/button";
 
@@ -66,11 +66,7 @@ export default function MobileTopBar({ title, subtitle, projectName, unreadCount
             className={cx("relative shrink-0 gap-1 rounded-full", floating ? "h-8 px-1" : "h-9 px-1 [&_svg]:size-4")}
           >
             <span className="min-w-0 max-w-24 truncate text-caption-2-medium">{projectName}</span>
-            {unreadCount > 0 ? (
-              <Badge color="primary" className="pointer-events-none absolute -right-1 -top-1 min-w-4 px-1 text-[10px]">
-                {unreadCount > 9 ? "9+" : unreadCount}
-              </Badge>
-            ) : null}
+            <NotificationBadge count={unreadCount} size={11} className="pointer-events-none absolute -right-1 -top-1 rounded-full bg-background-primary-default p-0.5 shadow-xs" />
           </Button>
           {onConversations ? (
             <Button

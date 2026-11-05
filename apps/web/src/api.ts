@@ -615,6 +615,13 @@ export const api = {
     });
   },
 
+  async movePath(projectId: string, from: string, to: string): Promise<void> {
+    await request(`/projects/${encodeURIComponent(projectId)}/move`, {
+      method: "POST",
+      ...json({ from, to }),
+    });
+  },
+
   async uploadFile(projectId: string, path: string, data: string): Promise<void> {
     await request(`/projects/${encodeURIComponent(projectId)}/upload`, {
       method: "POST",

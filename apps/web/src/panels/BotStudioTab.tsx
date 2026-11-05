@@ -14,7 +14,7 @@ import TophSessionsSheet from "../components/TophSessionsSheet";
 import type { OpenCodeSessionSummary } from "../opencodeSessions";
 import AgentTranscript, { AgentImageGallery, agentImagesForMessages } from "../components/AgentTranscript";
 import OpenCodeFormCard, { type OpenCodeForm, type OpenCodeFormAnswer } from "../components/OpenCodeFormCard";
-import type { AiMessage } from "../store";
+import { useApp, type AiMessage } from "../store";
 import { Button } from "@/boardui/base/buttons/button";
 import { Modal } from "@/boardui/base/modal/modal";
 import { cx } from "@/boardui/utils/cx";
@@ -475,6 +475,8 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
   const updateToph = useChats((state) => state.updateToph);
   const mergeMessages = useChats((state) => state.mergeMessages);
   const replaceTophMessages = useChats((state) => state.replaceTophMessages);
+  const replaceChatMessages = useChats((state) => state.replaceChatMessages);
+  const notify = useApp((state) => state.notify);
   const setTophSession = useChats((state) => state.setTophSession);
   const aiConfig = useAI((state) => state.config);
   const models = useAI((state) => state.models);
@@ -545,6 +547,14 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
     () => [...conversationMessages].reverse().find((message) => message.role === "user")?.createdAt ?? 0,
     [conversationMessages],
   );
+  const liveThought = useMemo(() => {
+    const running = activityMessages.filter((message) =>
+      message.role === "reasoning"
+      && message.status === "running"
+      && (latestUserAt === 0 || message.createdAt >= latestUserAt),
+    );
+    return running[running.length - 1] ?? null;
+  }, [activityMessages, latestUserAt]);
   const turnSummary = useMemo(() => {
     if (!latestUserAt) return null;
     const replies = messages.filter((message) => message.role === "assistant" && !message.pending && message.createdAt >= latestUserAt);
@@ -1370,8 +1380,101 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
     }
   }
 
+  function clearChatSession() {
+    if (!chat) return;
+    for (const toph of tophs) {
+      if (toph.sessionId) {
+        const sessionId = toph.sessionId;
+        sessionTophMap.current.delete(sessionId);
+        void client.session.interrupt({ sessionID: sessionId } as never).catch(() => undefined);
+      }
+      setTophSession(project.id, toph.id, undefined, { sessionPrimed: false });
+    }
+    replaceChatMessages(project.id, chat.id, []);
+    void api.deleteChatMessages(project.id, chat.id).catch(() => undefined);
+    notify("success", "Conversa limpa.");
+  }
+
+  async function compactChat() {
+    if (!chat) return;
+    const first = coordinator ?? tophs[0];
+    if (!first) return;
+    const source = messages
+      .filter((message) => (message.role === "user" || message.role === "assistant") && message.content.trim())
+      .slice(-40);
+    if (source.length === 0) {
+      notify("info", "Nada para compactar ainda.");
+      return;
+    }
+    sendingRef.current = true;
+    setSending(true);
+    const token = ++runToken.current;
+    try {
+      const text = source.map((message) => {
+        const name = message.role === "user" ? "Usuário" : (tophs.find((item) => item.id === message.tophId)?.name ?? "Toph");
+        return `${name}: ${message.content}`;
+      }).join("\n\n");
+      const summary = await respondAsToph(first, `Resuma a conversa abaixo em até 12 linhas, preservando decisões, arquivos e pendências. Responda só com o resumo.\n\n${text}`, { token });
+      if (!summary || token !== runToken.current) return;
+      for (const toph of tophs) setTophSession(project.id, toph.id, undefined, { sessionPrimed: false });
+      replaceChatMessages(project.id, chat.id, []);
+      void api.deleteChatMessages(project.id, chat.id).catch(() => undefined);
+      addMessage(project.id, {
+        id: `bot-compact-${Date.now()}`,
+        chatId: chat.id,
+        tophId: first.id,
+        role: "assistant",
+        content: `Resumo do contexto anterior:\n${summary.trim()}`,
+        status: "complete",
+        createdAt: Date.now(),
+      });
+      notify("success", "Contexto compactado.");
+    } catch (error) {
+      notify("error", error instanceof Error ? error.message : "Não foi possível compactar.");
+    } finally {
+      sendingRef.current = false;
+      setSending(false);
+    }
+  }
+
+  async function runSlashCommand(name: string, args: string) {
+    if (name === "clear") { clearChatSession(); return; }
+    if (name === "compact") { await compactChat(); return; }
+    if (aiConfig?.provider === "opencode") {
+      const first = coordinator ?? tophs[0];
+      if (!first) return;
+      sendingRef.current = true;
+      setSending(true);
+      try {
+        const current = storedToph(first);
+        const sessionId = await ensureSession(current);
+        const model = splitModel(current.model || aiConfig?.model || "");
+        await client.session.command({
+          sessionID: sessionId,
+          command: name,
+          arguments: args,
+          agent: current.agentMode ?? "build",
+          ...(model ? { model } : {}),
+        } as never);
+        notify("success", `Comando /${name} enviado.`);
+      } catch (error) {
+        notify("error", error instanceof Error ? error.message : `Comando /${name} indisponível.`);
+      } finally {
+        sendingRef.current = false;
+        setSending(false);
+      }
+      return;
+    }
+    notify("error", `Comando /${name} indisponível neste provider. Use /compact ou /clear.`);
+  }
+
   async function send(text: string, attachments: AgentAttachment[] = []) {
     if (!chat || tophs.length === 0 || (!text.trim() && attachments.length === 0) || sendingRef.current || sending) return;
+    const slash = /^\/([a-z0-9_-]+)(?:\s+([\s\S]*))?$/i.exec(text.trim());
+    if (slash && attachments.length === 0) {
+      await runSlashCommand(slash[1].toLowerCase(), slash[2] ?? "");
+      return;
+    }
     sendingRef.current = true;
     unlockBotSound();
     stickToBottom.current = true;
@@ -1660,8 +1763,21 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
               );
             })}
 
+            {liveThought ? (
+              <section className="toph-view-in flex items-start gap-2.5">
+                <BotAvatar bot={tophs.find((item) => item.id === liveThought.tophId) ?? tophs[0]} size={28} className="mt-0.5" />
+                <div className="min-w-0 flex-1 rounded-2xl border border-border-button-default bg-background-secondary-default/50 px-3 py-2">
+                  <div className="flex items-center gap-1.5 text-[11px] font-medium text-text-tertiary">
+                    <LoaderCircle className="size-3 animate-spin" />
+                    Pensando
+                  </div>
+                  <p className="mt-1 max-h-40 overflow-y-auto whitespace-pre-wrap break-words text-[12px] leading-relaxed text-text-secondary">{liveThought.content.slice(-1600)}</p>
+                </div>
+              </section>
+            ) : null}
+
             {visibleRunningTophs
-              .filter((tophId) => !groupedMessages.some((group) => group.kind === "toph" && group.tophId === tophId && (latestUserAt === 0 || group.messages.some((message) => message.createdAt >= latestUserAt))))
+              .filter((tophId) => (!liveThought || liveThought.tophId !== tophId) && !groupedMessages.some((group) => group.kind === "toph" && group.tophId === tophId && (latestUserAt === 0 || group.messages.some((message) => message.createdAt >= latestUserAt))))
               .map((tophId) => {
                 const toph = tophs.find((item) => item.id === tophId);
                 if (!toph) return null;

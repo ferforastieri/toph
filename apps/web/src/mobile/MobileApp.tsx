@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { Bot, Bug, Database, FileCode2, Files, FolderPlus, GitBranch, Globe2, TerminalSquare } from "@toph/icons";
-import { api, type Project, type Repository, type SchemaTable, type WebTarget } from "../api";
+import { Bot, Bug, Database, FileCode2, Files, GitBranch, Globe2, TerminalSquare } from "@toph/icons";
+import { api, type Project, type SchemaTable, type WebTarget } from "../api";
 import { useApp } from "../store";
 import { useIsMobile } from "../ui/useIsMobile";
 import { nativePushToken, requestMobileNotificationPermission } from "../notifications";
@@ -16,7 +16,6 @@ import DebugPanel from "../panels/DebugPanel";
 import WebPanelTab from "../panels/WebPanelTab";
 import Tabs from "../components/Tabs";
 import MobileMenu, { type MobileScreen } from "./MobileMenu";
-import RepoPicker from "../components/RepoPicker";
 import TerminalPanel from "../panels/TerminalPanel";
 import Toasts from "../components/Toasts";
 import FilesScreen from "./screens/FilesScreen";
@@ -35,7 +34,6 @@ import MobileConversationsSheet from "./MobileConversationsSheet";
 export default function MobileApp() {
   const projects = useApp((state) => state.projects);
   const activeProjectId = useApp((state) => state.activeProjectId);
-  const setProjects = useApp((state) => state.setProjects);
   const setActiveProject = useApp((state) => state.setActiveProject);
   const tabs = useApp((state) => state.tabs);
   const activeTabId = useApp((state) => state.activeTabId);
@@ -58,7 +56,6 @@ export default function MobileApp() {
   const [closeTarget, setCloseTarget] = useState<Project | null>(null);
   const [closeBusy, setCloseBusy] = useState(false);
   const [closeError, setCloseError] = useState("");
-  const [repoPickerOpen, setRepoPickerOpen] = useState(false);
   const [branchOpen, setBranchOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const [conversationsOpen, setConversationsOpen] = useState(false);
@@ -253,20 +250,6 @@ export default function MobileApp() {
     setMenuOpen(false);
   }
 
-  async function openRepo(repo: Repository) {
-    const existing = projects.find((item) => item.root === repo.path);
-    if (existing) {
-      setActiveProject(existing.id);
-      setRepoPickerOpen(false);
-      return;
-    }
-    const next = await api.createProject(repo.name, repo.path, "#FFB547");
-    setProjects([...projects, next]);
-    setActiveProject(next.id);
-    setRepoPickerOpen(false);
-    notify("success", `Opened ${next.name}.`);
-  }
-
   function requestCloseProject(id: string) {
     const target = projects.find((item) => item.id === id);
     if (!target) return;
@@ -310,13 +293,9 @@ export default function MobileApp() {
           <BrandMark size="large" />
           <h1 className="text-title-2-medium text-text-primary">Bem-vindo ao Toph</h1>
           <p className="text-body-regular text-text-secondary">
-            Abra um repositório Git para começar.
+            Crie um projeto pela interface para começar.
           </p>
-          <Button leadingIcon={FolderPlus} className="w-full" onClick={() => setRepoPickerOpen(true)}>
-            Abrir repositório
-          </Button>
         </section>
-      {repoPickerOpen && <RepoPicker onClose={() => setRepoPickerOpen(false)} onOpen={openRepo} />}
         <Toasts />
       </main>
     );
@@ -460,7 +439,6 @@ export default function MobileApp() {
         <ProjectSwitcher
           onSelect={(id) => { setActiveProject(id); setProjectsOpen(false); setScreen("bots"); }}
           onCloseProject={(id) => requestCloseProject(id)}
-          onOpenRepo={() => { setProjectsOpen(false); setRepoPickerOpen(true); }}
         />
       </Modal>
 
@@ -487,7 +465,6 @@ export default function MobileApp() {
         onClose={() => { if (!closeBusy) setCloseTarget(null); }}
         onConfirm={() => void confirmCloseProject()}
       />
-      {repoPickerOpen && <RepoPicker onClose={() => setRepoPickerOpen(false)} onOpen={openRepo} />}
       <Toasts />
     </div>
   );
