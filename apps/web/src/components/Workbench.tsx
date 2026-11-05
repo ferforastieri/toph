@@ -2,7 +2,7 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState, type FormEvent, t
 import { Bot, ChevronDown, ChevronRight, GitBranch, PanelLeftClose, PanelLeftOpen } from "@toph/icons";
 import { api, getApiBase, type Project, type SchemaTable, type WebTarget } from "../api";
 import { basename, expandGitPattern, quoteIdentifier, sanitizeBranchName } from "../lib";
-import { useApp, type Sidebar, type Tab } from "../store";
+import { useApp, MAX_OPEN_PROJECTS, type Sidebar, type Tab } from "../store";
 import { chatSessionIds, useChats, type ProjectChats } from "../chats";
 import { useAI } from "../ai";
 import { PROJECT_EVENT, type ProjectEvent } from "../projectEvents";
@@ -12,7 +12,7 @@ import Tabs from "./Tabs";
 import Toasts from "./Toasts";
 import CloseProjectModal from "./CloseProjectModal";
 import BranchPicker from "./BranchPicker";
-import TopBar from "./TopBar";
+import TopBar, { ProjectRail } from "./TopBar";
 import QuickOpen from "./QuickOpen";
 import ActivityPopover from "./ActivityPopover";
 import TophSettings from "./TophSettings";
@@ -117,6 +117,7 @@ export default function Workbench() {
   const sidebarVisible = workspaceFeatures.primarySidebar;
   const tabsVisible = workspaceFeatures.tabs;
   const panelAlignment = useSettings((state) => state.panelAlignment);
+  const projectBar = useSettings((state) => state.projectBar);
   const [branchInfo, setBranchInfo] = useState<{ current: string; branches: string[] } | null>(null);
   const [branchBusy, setBranchBusy] = useState("");
   const [newBranchName, setNewBranchName] = useState("");
@@ -666,6 +667,11 @@ export default function Workbench() {
 
   function switchProject(next: string) {
     if (next === activeProjectId) return;
+    const openIds = useApp.getState().openProjectIds;
+    if (!openIds.includes(next) && openIds.length >= MAX_OPEN_PROJECTS) {
+      useApp.getState().notify("info", `Máximo de ${MAX_OPEN_PROJECTS} projetos abertos. Feche um para abrir outro.`);
+      return;
+    }
     if (project && loadedProject.current === project.id) {
       void api.saveLayout(project.id, {
         tabs: layoutTabs,
@@ -1106,7 +1112,9 @@ export default function Workbench() {
 
   return (
     <div className="relative flex h-dvh flex-col overflow-hidden bg-background-full">
-      <TopBar onOpenProject={switchProject} onCloseProject={requestCloseProject} onGoHome={() => setSidebar("bots")} onQuickOpen={() => setQuickOpenToken((current) => current + 1)} tophControl={<TophSettings user={user} projectRoot={project.root} />} />
+      {projectBar === "header" ? (
+        <TopBar onOpenProject={switchProject} onCloseProject={requestCloseProject} onGoHome={() => setSidebar("bots")} onQuickOpen={() => setQuickOpenToken((current) => current + 1)} tophControl={<TophSettings user={user} projectRoot={project.root} />} />
+      ) : null}
       <div className="pointer-events-none absolute inset-x-0 top-16 z-[100] flex justify-center px-12">
         <div className="pointer-events-auto w-full max-w-xl"><QuickOpen project={project} focusToken={quickOpenToken} onOpenFile={openFile} floating /></div>
       </div>
@@ -1158,6 +1166,16 @@ export default function Workbench() {
             </Suspense>
           ) : null}
         </div>
+
+        {projectBar === "right" ? (
+          <ProjectRail
+            onOpenProject={switchProject}
+            onCloseProject={requestCloseProject}
+            onGoHome={() => setSidebar("bots")}
+            onQuickOpen={() => setQuickOpenToken((current) => current + 1)}
+            tophControl={<TophSettings user={user} projectRoot={project.root} />}
+          />
+        ) : null}
       </div>
 
       <Modal

@@ -70,6 +70,7 @@ const PROJECT_STATE_KEY = "toph_workbench_projects";
 const NOTIFICATIONS_KEY = "toph_notifications";
 const MAX_NOTIFICATIONS = 100;
 const LAYOUT_VISIBILITY_KEY = "toph_layout_visibility";
+export const MAX_OPEN_PROJECTS = 5;
 
 interface PersistedProjectState {
   activeProjectId: string | null;
@@ -84,7 +85,7 @@ function readProjectState(): PersistedProjectState {
     return {
       activeProjectId: typeof value.activeProjectId === "string" ? value.activeProjectId : null,
       openProjectIds: Array.isArray(value.openProjectIds)
-        ? value.openProjectIds.filter((id): id is string => typeof id === "string")
+        ? [...new Set(value.openProjectIds.filter((id): id is string => typeof id === "string"))].slice(0, MAX_OPEN_PROJECTS)
         : [],
     };
   } catch {
@@ -227,7 +228,7 @@ export const useApp = create<AppState>((set, get) => ({
       const openProjectIds = state.openProjectIds.filter((id) =>
         projects.some((project) => project.id === id),
       );
-      if (activeProjectId && !openProjectIds.includes(activeProjectId)) {
+      if (activeProjectId && !openProjectIds.includes(activeProjectId) && openProjectIds.length < MAX_OPEN_PROJECTS) {
         openProjectIds.push(activeProjectId);
       }
       persistProjectState(activeProjectId, openProjectIds);
@@ -235,10 +236,14 @@ export const useApp = create<AppState>((set, get) => ({
     }),
   setActiveProject: (activeProjectId) =>
     set((state) => {
+      const alreadyOpen = !activeProjectId || state.openProjectIds.includes(activeProjectId);
       const openProjectIds =
-        activeProjectId && !state.openProjectIds.includes(activeProjectId)
+        activeProjectId && !alreadyOpen && state.openProjectIds.length < MAX_OPEN_PROJECTS
           ? [...state.openProjectIds, activeProjectId]
           : state.openProjectIds;
+      if (activeProjectId && !openProjectIds.includes(activeProjectId)) {
+        return state;
+      }
       persistProjectState(activeProjectId, openProjectIds);
       return { activeProjectId, openProjectIds };
     }),
