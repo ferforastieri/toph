@@ -25,7 +25,7 @@ export default function MobileTopBar({ title, subtitle, projectName, unreadCount
     <header className={cx(
       floating
         ? "fixed inset-x-3 top-[calc(var(--safe-top)+0.5rem)] z-50 flex items-center justify-between gap-2"
-        : "relative shrink-0 overflow-hidden border-b border-separator-border bg-background-secondary-default px-3 pb-2 pt-2",
+        : "relative shrink-0 overflow-visible border-b border-separator-border bg-background-secondary-default px-3 pb-2 pt-2",
     )}>
       <div className="pointer-events-none absolute -right-10 -top-16 size-36 rounded-full bg-accent-500/10 blur-2xl" />
       <div className="relative flex w-full min-w-0 items-center gap-2">
@@ -65,10 +65,10 @@ export default function MobileTopBar({ title, subtitle, projectName, unreadCount
             aria-label={`Projeto ${projectName}. Selecionar projeto${unreadCount > 0 ? `, ${unreadCount} notificações não lidas` : ""}`}
             title={projectName}
             onClick={onProjects}
-            className={cx("shrink-0 gap-1 rounded-full", floating ? "h-8 px-1.5" : "h-9 px-1.5")}
+            className={cx("relative shrink-0 rounded-full", floating ? "size-9 p-1.5" : "size-10 p-2")}
           >
             <BrandMark size="small" className="size-6" />
-            <NotificationBadge count={unreadCount} size={12} />
+            {unreadCount > 0 ? <NotificationBadge count={unreadCount} size={17} className="absolute -end-1 -top-1" /> : null}
           </Button>
           {onConversations ? (
             <Button

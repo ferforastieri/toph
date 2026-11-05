@@ -27,14 +27,23 @@ function wait(milliseconds: number) {
 
 function downloadApk(url: string, version: string) {
   // Android WebView ignores anchor downloads. Use the native opener so the APK
-  // opens in the system browser/download manager.
+  // opens in the system browser/download manager. If the client is too old to
+  // have the opener plugin, fall back to navigating to the APK URL.
   const internals = (window as unknown as {
     __TAURI_INTERNALS__?: { invoke?: (command: string, args?: Record<string, unknown>) => Promise<unknown> };
   }).__TAURI_INTERNALS__;
   if (internals?.invoke) {
+    let settled = false;
+    const fallback = () => {
+      if (settled) return;
+      settled = true;
+      window.location.href = url;
+    };
+    const timer = window.setTimeout(fallback, 1500);
     void internals
       .invoke("plugin:opener|open_url", { url })
-      .catch(() => { window.location.href = url; });
+      .then(() => { settled = true; window.clearTimeout(timer); })
+      .catch(() => { window.clearTimeout(timer); fallback(); });
     return;
   }
   const link = document.createElement("a");
@@ -151,6 +160,8 @@ export default function UpdateToast() {
     try {
       if (mobileClient && status.apkUrl) {
         downloadApk(status.apkUrl, target);
+        setPhase("idle");
+        return;
       } else if (installer) {
         await downloadInstaller(installer);
       }

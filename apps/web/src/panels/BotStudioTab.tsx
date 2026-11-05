@@ -749,6 +749,21 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
     return () => { void connection.close(); };
   }, [aiConfig?.provider, project.root, project.id]);
 
+  async function reconcileSessionMessages(toph: ChatToph) {
+    if (!toph.sessionId) return;
+    const active = await client.session.active().catch(() => null);
+    if (active?.[toph.sessionId]) return;
+    const page = await client.message.list({ sessionID: toph.sessionId, limit: 80, order: "desc" } as never).catch(() => null);
+    if (!page?.data?.length) return;
+    const restored = restoreTophMessages([...page.data].reverse(), toph.id, toph.chatId)
+      .filter((message) => message.role === "assistant" && message.content.trim());
+    if (restored.length === 0) return;
+    const current = useChats.getState().byProject[project.id]?.messages ?? [];
+    const seen = new Set(current.map((message) => `${message.role}\u0000${message.content.slice(0, 300)}`));
+    const additions = restored.filter((message) => !seen.has(`${message.role}\u0000${message.content.slice(0, 300)}`));
+    if (additions.length > 0) mergeMessages(project.id, additions);
+  }
+
   useEffect(() => {
     if (!projectChats?.hydrated || !chat) {
       setConversationPage(EMPTY_HISTORY_PAGE);
@@ -764,6 +779,8 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
       if (cancelled) return;
       mergeMessages(project.id, [...conversation.items, ...activity.items]);
       setConversationPage({ cursor: conversation.nextCursor, hasMore: conversation.hasMore, loading: false, ready: true, error: "" });
+      const members = chatTophs(useChats.getState().byProject[project.id], chat.id);
+      for (const member of members) void reconcileSessionMessages(member);
     }).catch((error) => {
       if (cancelled) return;
       const message = error instanceof Error ? error.message : "Não foi possível carregar o histórico.";
@@ -771,6 +788,19 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
     });
     return () => { cancelled = true; };
   }, [chat?.id, projectChats?.hydrated, historyReloadToken, mergeMessages, project.id]);
+
+  useEffect(() => {
+    if (!chat) return;
+    let running = false;
+    const timer = window.setInterval(() => {
+      if (document.hidden || running) return;
+      running = true;
+      const members = chatTophs(useChats.getState().byProject[project.id], chat.id);
+      void Promise.all(members.filter((member) => member.sessionId).map(reconcileSessionMessages))
+        .finally(() => { running = false; });
+    }, 15_000);
+    return () => window.clearInterval(timer);
+  }, [chat?.id, project.id]);
 
 
   useEffect(() => {
