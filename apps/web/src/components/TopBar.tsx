@@ -1,9 +1,8 @@
 import { useMemo, useState, type ReactNode } from "react";
-import { Bell, Bot, Bug, Database, Files, GitBranch, Globe2, Moon, Plus, Search, Sun, TerminalSquare, X } from "@toph/icons";
+import { Bot, Bug, Database, Files, GitBranch, Globe2, Moon, Plus, Search, Sun, TerminalSquare, X } from "@toph/icons";
 import BrandMark from "@toph/brand";
 import { useApp, type Sidebar } from "../store";
 import { featureEnabled, useSettings, type WorkspaceFeature } from "../settings";
-import NotificationBadge from "./NotificationBadge";
 import ProjectSwitcher from "./ProjectSwitcher";
 import { Button } from "@/boardui/base/buttons/button";
 import { Modal } from "@/boardui/base/modal/modal";
@@ -101,38 +100,16 @@ function WorkspaceOptions({ vertical = false, onQuickOpen }: { vertical?: boolea
   );
 }
 
-function ProjectBell({ projectId, projectName, count }: { projectId: string; projectName: string; count: number }) {
-  const markProjectNotificationsRead = useApp((state) => state.markProjectNotificationsRead);
+/** Small unread marker attached to a project tile. */
+function UnreadBadge({ count }: { count: number }) {
+  if (count <= 0) return null;
   return (
-    <button
-      type="button"
-      onClick={(event) => {
-        event.stopPropagation();
-        markProjectNotificationsRead(projectId);
-      }}
-      className="flex size-5 shrink-0 items-center justify-center rounded-full text-text-tertiary transition-colors hover:bg-background-primary-hover hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus-ring"
-      aria-label={count > 0 ? `Marcar ${count} notificações de ${projectName} como lidas` : `Notificações de ${projectName}`}
-      title={count > 0 ? `${count} notificações — clique para marcar como lidas` : "Sem notificações"}
+    <span
+      className="absolute -end-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-accent-500 px-1 text-[9px] font-semibold leading-none tabular-nums text-[#1b1b1b] ring-2 ring-background-primary-default"
+      aria-hidden="true"
     >
-      {count > 0 ? <NotificationBadge count={count} size={13} /> : <Bell size={13} />}
-    </button>
-  );
-}
-
-function ProjectClose({ projectName, onClose }: { projectName: string; onClose: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={(event) => {
-        event.stopPropagation();
-        onClose();
-      }}
-      className="flex size-5 shrink-0 items-center justify-center rounded-full text-status-rose-text transition-colors hover:bg-status-rose-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus-ring"
-      aria-label={`Fechar ${projectName}`}
-      title={`Fechar ${projectName}`}
-    >
-      <X size={11} />
-    </button>
+      {count > 99 ? "99+" : count}
+    </span>
   );
 }
 
@@ -215,11 +192,12 @@ export default function TopBar({ onOpenProject, onCloseProject, onGoHome, onQuic
           ) : null}
           {openProjects.map((project) => {
             const active = project.id === activeProjectId;
+            const unread = unreadFor(project.id);
             return (
               <div
                 key={project.id}
                 className={cx(
-                  "flex h-8 shrink-0 items-center gap-0.5 rounded-xl border ps-1.5 pe-1 transition-colors",
+                  "group relative flex h-8 shrink-0 items-center rounded-xl border transition-colors",
                   active
                     ? "border-accent-500/35 bg-accent-500/10 text-text-primary"
                     : "border-transparent text-text-secondary hover:bg-background-primary-hover hover:text-text-primary",
@@ -228,7 +206,7 @@ export default function TopBar({ onOpenProject, onCloseProject, onGoHome, onQuic
                 <button
                   type="button"
                   onClick={() => openProject(project.id)}
-                  className="flex h-full min-w-0 items-center gap-1.5 pe-1 text-start text-caption-1-medium"
+                  className="relative flex h-full min-w-0 items-center gap-1.5 ps-1.5 pe-2.5 text-start text-caption-1-medium"
                   title={`${project.name}\n${project.root}`}
                   aria-current={active ? "page" : undefined}
                 >
@@ -240,9 +218,20 @@ export default function TopBar({ onOpenProject, onCloseProject, onGoHome, onQuic
                     {project.name.slice(0, 1).toUpperCase()}
                   </span>
                   <span className="max-w-[160px] truncate">{project.name}</span>
+                  <UnreadBadge count={unread} />
                 </button>
-                <ProjectBell projectId={project.id} projectName={project.name} count={unreadFor(project.id)} />
-                <ProjectClose projectName={project.name} onClose={() => onCloseProject(project.id)} />
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onCloseProject(project.id);
+                  }}
+                  className="pointer-events-none absolute end-1 top-1/2 flex size-4 -translate-y-1/2 items-center justify-center rounded-full text-status-rose-text opacity-0 transition-opacity hover:bg-status-rose-background focus-visible:pointer-events-auto focus-visible:opacity-100 focus-visible:outline-none group-hover:pointer-events-auto group-hover:opacity-100"
+                  aria-label={`Fechar ${project.name}`}
+                  title={`Fechar ${project.name}`}
+                >
+                  <X size={11} />
+                </button>
               </div>
             );
           })}
@@ -303,40 +292,51 @@ export function ProjectRail({ onOpenProject, onCloseProject, onGoHome, onQuickOp
         </button>
         <Button variant="ghost" size="small" iconOnly leadingIcon={Plus} aria-label="Abrir projeto" title="Abrir projeto" onClick={() => setPickerOpen(true)} />
         <span className="my-0.5 h-px w-8 shrink-0 bg-separator-border" aria-hidden="true" />
-        <div className="flex min-h-0 w-full flex-1 flex-col items-center gap-1 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="flex w-full flex-col items-center gap-1">
           {openProjects.map((project) => {
             const active = project.id === activeProjectId;
+            const unread = unreadFor(project.id);
             return (
-              <div
-                key={project.id}
-                className={cx(
-                  "flex w-full flex-col items-center gap-0.5 rounded-xl border p-0.5 transition-colors",
-                  active ? "border-accent-500/35 bg-accent-500/10" : "border-transparent hover:bg-background-primary-hover",
-                )}
-              >
+              <div key={project.id} className="group relative">
                 <button
                   type="button"
                   onClick={() => openProject(project.id)}
-                  className="flex size-8 items-center justify-center rounded-lg text-[10px] font-semibold transition-colors"
-                  style={{ color: project.color || "#FFB547" }}
+                  className={cx(
+                    "relative flex size-9 items-center justify-center rounded-xl border text-[11px] font-semibold transition-colors",
+                    active
+                      ? "border-accent-500/40 bg-accent-500/10 text-text-primary"
+                      : "border-transparent text-text-secondary hover:bg-background-primary-hover hover:text-text-primary",
+                  )}
+                  style={{ color: active ? project.color || "#FFB547" : undefined }}
                   aria-label={`Abrir ${project.name}`}
                   aria-current={active ? "page" : undefined}
                   title={`${project.name}\n${project.root}`}
                 >
                   {project.name.slice(0, 1).toUpperCase()}
+                  <UnreadBadge count={unread} />
                 </button>
-                <div className="flex items-center justify-center gap-0.5">
-                  <ProjectBell projectId={project.id} projectName={project.name} count={unreadFor(project.id)} />
-                  <ProjectClose projectName={project.name} onClose={() => onCloseProject(project.id)} />
-                </div>
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onCloseProject(project.id);
+                  }}
+                  className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-xl bg-background-primary-default/90 text-status-rose-text opacity-0 transition-opacity hover:bg-status-rose-background focus-visible:pointer-events-auto focus-visible:opacity-100 focus-visible:outline-none group-hover:pointer-events-auto group-hover:opacity-100"
+                  aria-label={`Fechar ${project.name}`}
+                  title={`Fechar ${project.name}`}
+                >
+                  <X size={13} />
+                </button>
               </div>
             );
           })}
         </div>
         <span className="my-0.5 h-px w-8 shrink-0 bg-separator-border" aria-hidden="true" />
         <WorkspaceOptions vertical onQuickOpen={onQuickOpen} />
-        <ThemeToggle />
-        {tophControl}
+        <div className="mt-auto flex flex-col items-center gap-1">
+          <ThemeToggle />
+          {tophControl}
+        </div>
       </aside>
 
       <ProjectPicker open={pickerOpen} onClose={() => setPickerOpen(false)} onSelect={openProject} />

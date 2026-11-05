@@ -114,8 +114,8 @@ export default function Workbench() {
   const [branchCreateOpen, setBranchCreateOpen] = useState(false);
   const [quickOpenToken, setQuickOpenToken] = useState(0);
   const [layoutOpen, setLayoutOpen] = useState(false);
-  const sidebarVisible = workspaceFeatures.primarySidebar;
   const tabsVisible = workspaceFeatures.tabs;
+  const effectiveSidebarVisible = true;
   const panelAlignment = useSettings((state) => state.panelAlignment);
   const projectBar = useSettings((state) => state.projectBar);
   const [projectRailCollapsed, setProjectRailCollapsed] = useState(false);
@@ -133,7 +133,6 @@ export default function Workbench() {
   const branch = gitStatus.split("\n")[0]?.replace(/^##\s*/, "").split("...")[0] ?? "";
   const activeTab = tabs.find((tab) => tab.id === activeTabId) ?? null;
   const botsView = sidebar === "bots";
-  const effectiveSidebarVisible = sidebarVisible;
   const desktopClient = isDesktopClient();
   const filesEnabled = featureEnabled(workspaceFeatures, "files");
   const sourceControlEnabled = featureEnabled(workspaceFeatures, "sourceControl");
@@ -247,11 +246,6 @@ export default function Workbench() {
       if ((event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey && event.key.toLowerCase() === "p") {
         event.preventDefault();
         setQuickOpenToken((current) => current + 1);
-        return;
-      }
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "b" && !event.altKey) {
-        event.preventDefault();
-        setWorkspaceFeature("primarySidebar", !useSettings.getState().workspaceFeatures.primarySidebar);
         return;
       }
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "j") {
@@ -1231,7 +1225,6 @@ export default function Workbench() {
       >
         <div className="flex flex-col gap-0.5">
           <div className="mb-1 px-2 text-caption-1-regular text-text-tertiary">Interface</div>
-          <LayoutRow label="Barra lateral" shortcut="Ctrl+B" checked={workspaceFeatures.primarySidebar} onChange={(value) => setWorkspaceFeature("primarySidebar", value)} />
           <LayoutRow label="Abas e conteúdo" checked={workspaceFeatures.tabs} onChange={(value) => setWorkspaceFeature("tabs", value)} />
           <LayoutRow
             label="Terminal e painel"
