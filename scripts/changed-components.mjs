@@ -25,7 +25,6 @@ const anyPrefix = (...prefixes) => has((file) => prefixes.some((prefix) => file.
 const web = anyPrefix(
   "apps/web/",
   "packages/",
-  "scripts/",
 ) || files.some((file) =>
   ["package.json", "package-lock.json", "tsconfig.json", "vite.config.ts"].includes(file),
 );
@@ -34,7 +33,6 @@ const backend = anyPrefix(
   "services/toph/",
   "apps/web/",
   "packages/",
-  "scripts/",
 ) || files.some((file) =>
   ["package.json", "package-lock.json"].includes(file),
 );
@@ -49,7 +47,9 @@ const client = anyPrefix(
   ["package.json", "package-lock.json"].includes(file),
 );
 
-const android = client || web;
+// The mobile and desktop clients are thin shells around the server web app.
+// They do not need a rebuild when only the web UI or backend changes.
+const android = client;
 const desktop = client;
 const landing = anyPrefix("landing-page/");
 const installer = files.includes("install.sh");

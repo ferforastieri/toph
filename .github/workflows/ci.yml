@@ -27,7 +27,6 @@ jobs:
             web:
               - 'apps/web/**'
               - 'packages/**'
-              - 'scripts/**'
               - 'package.json'
               - 'package-lock.json'
               - 'tsconfig.json'
@@ -36,7 +35,6 @@ jobs:
               - 'services/toph/**'
               - 'apps/web/**'
               - 'packages/**'
-              - 'scripts/**'
               - 'package.json'
               - 'package-lock.json'
             backend:
