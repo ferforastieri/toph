@@ -262,7 +262,13 @@ impl UpdateManager {
                 let previous = self
                     .cache
                     .lock()
-                    .map(|cache| (cache.latest.clone(), cache.assets.clone(), cache.apk_url.clone()))
+                    .map(|cache| {
+                        (
+                            cache.latest.clone(),
+                            cache.assets.clone(),
+                            cache.apk_url.clone(),
+                        )
+                    })
                     .unwrap_or_default();
                 (previous.0, previous.1, previous.2, error)
             }
