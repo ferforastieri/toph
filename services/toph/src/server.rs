@@ -435,6 +435,7 @@ fn router(state: Arc<AppState>) -> Router {
         )
         .route("/api/projects/{project_id}/files", get(files))
         .route("/api/projects/{project_id}/mkdir", post(make_dir))
+        .route("/api/projects/{project_id}/move", post(move_path))
         .route("/api/projects/{project_id}/upload", post(upload_file))
         .route("/api/projects/{project_id}/raw", get(raw_file))
         .route("/api/projects/{project_id}/search", post(search))
@@ -1268,6 +1269,26 @@ async fn upload_file(
         Json(json!({ "ok": true, "size": size })),
     )
         .into_response())
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct MovePathRequest {
+    from: String,
+    to: String,
+}
+
+async fn move_path(
+    State(state): State<Arc<AppState>>,
+    Path(project_id): Path<String>,
+    Json(input): Json<MovePathRequest>,
+) -> AppResult<Json<Value>> {
+    let project = state.store.project(&project_id).await?;
+    state
+        .workspace
+        .move_path(FsPath::new(&project.root), &input.from, &input.to)?;
+    state.events.publish(&project_id, "files", Some(input.to));
+    Ok(Json(json!({ "ok": true })))
 }
 
 async fn raw_file(

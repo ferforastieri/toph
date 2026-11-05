@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { Bot, Plus, Settings2, UserRound } from "@toph/icons";
-import type { Project } from "../api";
+import { Bot, MoreHorizontal, Pencil, Plus, Settings2, Trash2, UserRound } from "@toph/icons";
+import { api, type Project } from "../api";
 import { activeChat, chatTophs, useChats } from "../chats";
 import TophGallery from "./TophGallery";
 import TophRow from "./TophRow";
@@ -8,6 +8,7 @@ import { Button } from "@/boardui/base/buttons/button";
 import SidebarHeader from "./SidebarHeader";
 import { Textarea } from "@/boardui/base/textarea/textarea";
 import { Modal } from "@/boardui/base/modal/modal";
+import { Dropdown, DropdownItem, DropdownPopover, DropdownTrigger } from "@/boardui/base/dropdown/dropdown";
 import { cx } from "@/boardui/utils/cx";
 
 interface Props {
@@ -23,8 +24,11 @@ export default function BotsSidebar({ project, headerControl }: Props) {
   const chats = useChats((state) => state.byProject[project.id]);
   const ensure = useChats((state) => state.ensure);
   const setActiveChat = useChats((state) => state.setActiveChat);
+  const createChat = useChats((state) => state.createChat);
   const updateChat = useChats((state) => state.updateChat);
+  const deleteChat = useChats((state) => state.deleteChat);
   const [galleryOpen, setGalleryOpen] = useState(false);
+  const [galleryChatId, setGalleryChatId] = useState<string | null>(null);
   const [teamOpen, setTeamOpen] = useState(false);
   const [teamInfo, setTeamInfo] = useState("");
 
@@ -34,6 +38,7 @@ export default function BotsSidebar({ project, headerControl }: Props) {
 
   const chat = activeChat(chats);
   const tophs = chatTophs(chats, chat?.id);
+  const individuals = chats?.chats.filter((item) => item.kind === "individual") ?? [];
   const team = chats?.chats.find((item) => item.kind === "team") ?? null;
 
   function openTeam() {
@@ -48,6 +53,34 @@ export default function BotsSidebar({ project, headerControl }: Props) {
     setTeamOpen(false);
   }
 
+  function addIndividual() {
+    const created = createChat(project.id, "Individual");
+    setActiveChat(project.id, created.id);
+    setGalleryChatId(created.id);
+    setGalleryOpen(true);
+  }
+
+  function openGallery() {
+    setGalleryChatId(chat?.id ?? null);
+    setGalleryOpen(true);
+  }
+
+  function renameChat(id: string, current: string) {
+    const name = window.prompt("Nome da aba", current);
+    if (!name?.trim()) return;
+    updateChat(project.id, id, { name: name.trim() });
+  }
+
+  function removeChat(id: string, name: string) {
+    if (individuals.length <= 1) {
+      window.alert("Mantenha pelo menos uma aba individual.");
+      return;
+    }
+    if (!window.confirm(`Excluir a aba “${name}” e o histórico dela?`)) return;
+    void api.deleteChatMessages(project.id, id).catch(() => undefined);
+    deleteChat(project.id, id);
+  }
+
   return (
     <div className="flex h-full min-h-0 flex-col bg-background-primary-default">
       <SidebarHeader
@@ -55,7 +88,6 @@ export default function BotsSidebar({ project, headerControl }: Props) {
         icon={<Bot size={15} className="text-accent-500" />}
         title="Toph"
         count={<span className="rounded-full bg-background-tertiary-default px-1.5 text-caption-2-regular text-text-tertiary">{tophs.length}</span>}
-        actions={team ? <Button variant="ghost" size="xs" iconOnly leadingIcon={Settings2} aria-label="Configurar equipe" title="Configurar equipe" onClick={openTeam} /> : undefined}
       />
       <div className="min-h-0 flex-1 overflow-y-auto p-2.5">
         {!chats?.hydrated ? (
@@ -67,29 +99,55 @@ export default function BotsSidebar({ project, headerControl }: Props) {
         {chats?.hydrated ? (
           <>
             <div className="mb-1.5 flex items-center gap-2 px-1 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-tertiary">
-              <span className="flex-1">Modo</span>
-              <span>2</span>
+              <span className="flex-1">Individual</span>
+              <span>{individuals.length}</span>
+              <Button variant="ghost" size="small" iconOnly leadingIcon={Plus} aria-label="Nova aba individual" title="Nova aba individual" onClick={addIndividual} />
             </div>
             <div className="mb-4 flex flex-col gap-0.5">
-              {chats.chats.map((item) => {
+              {individuals.map((item) => {
                 const selected = chat?.id === item.id;
-                const Icon = item.kind === "team" ? Bot : UserRound;
                 return (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => setActiveChat(project.id, item.id)}
-                    className={cx("flex w-full items-center gap-2.5 rounded-xl px-2 py-2.5 text-start transition-colors", selected ? "bg-background-tertiary-default" : "hover:bg-background-primary-hover")}
-                  >
-                    <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-background-secondary-default text-text-tertiary"><Icon size={14} /></span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-caption-1-medium text-text-primary">{item.kind === "team" ? "Equipe" : "Individual"}</span>
-                      <span className="block truncate text-caption-2-regular text-text-tertiary">{item.kind === "team" ? "Coordenador + membros" : "Um Toph só"}</span>
-                    </span>
-                  </button>
+                  <div key={item.id} className={cx("group flex w-full items-center rounded-xl pe-1 transition-colors", selected ? "bg-background-tertiary-default" : "hover:bg-background-primary-hover")}>
+                    <button type="button" onClick={() => setActiveChat(project.id, item.id)} className="flex min-w-0 flex-1 items-center gap-2.5 px-2 py-2 text-start">
+                      <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-background-secondary-default text-text-tertiary"><UserRound size={14} /></span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-caption-1-medium text-text-primary">{item.name}</span>
+                        <span className="block truncate text-caption-2-regular text-text-tertiary">Um Toph só</span>
+                      </span>
+                    </button>
+                    <Dropdown>
+                      <DropdownTrigger aria-label={`Opções de ${item.name}`} className="flex size-7 items-center justify-center rounded-lg text-text-tertiary opacity-0 transition-opacity hover:bg-background-primary-hover hover:text-text-primary group-hover:opacity-100">
+                        <MoreHorizontal size={14} />
+                      </DropdownTrigger>
+                      <DropdownPopover aria-label={`Opções de ${item.name}`} placement="bottom end" className="w-40 p-1">
+                        <DropdownItem onSelect={() => renameChat(item.id, item.name)}><Pencil size={14} /> Renomear</DropdownItem>
+                        <DropdownItem onSelect={() => removeChat(item.id, item.name)}><Trash2 size={14} /> Excluir</DropdownItem>
+                      </DropdownPopover>
+                    </Dropdown>
+                  </div>
                 );
               })}
             </div>
+
+            {team ? (
+              <>
+                <div className="mb-1.5 flex items-center gap-2 px-1 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-tertiary">
+                  <span className="flex-1">Equipe</span>
+                </div>
+                <div className="mb-4 flex flex-col gap-0.5">
+                  <div className={cx("flex w-full items-center rounded-xl pe-1 transition-colors", chat?.id === team.id ? "bg-background-tertiary-default" : "hover:bg-background-primary-hover")}>
+                    <button type="button" onClick={() => setActiveChat(project.id, team.id)} className="flex min-w-0 flex-1 items-center gap-2.5 px-2 py-2 text-start">
+                      <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-background-secondary-default text-text-tertiary"><Bot size={14} /></span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-caption-1-medium text-text-primary">{team.name}</span>
+                        <span className="block truncate text-caption-2-regular text-text-tertiary">Coordenador + membros</span>
+                      </span>
+                    </button>
+                    <Button variant="ghost" size="xs" iconOnly leadingIcon={Settings2} aria-label="Configurar equipe" title="Configurar equipe" onClick={openTeam} />
+                  </div>
+                </div>
+              </>
+            ) : null}
 
             {chat ? (
               <>
@@ -98,18 +156,18 @@ export default function BotsSidebar({ project, headerControl }: Props) {
                   <span className="flex-1">Agentes</span>
                   <span>{tophs.length}</span>
                   {chat.kind === "team" ? (
-                    <Button variant="ghost" size="small" iconOnly leadingIcon={Plus} aria-label="Adicionar Toph à equipe" title="Adicionar Toph à equipe" onClick={() => setGalleryOpen(true)} />
+                    <Button variant="ghost" size="small" iconOnly leadingIcon={Plus} aria-label="Adicionar Toph à equipe" title="Adicionar Toph à equipe" onClick={openGallery} />
                   ) : null}
                 </div>
                 <div className="flex flex-col gap-0.5">
                   {tophs.length === 0 ? (
                     <button
                       type="button"
-                      onClick={() => setGalleryOpen(true)}
+                      onClick={openGallery}
                       className="flex w-full items-center gap-2.5 rounded-xl border border-dashed border-border-button-default px-2.5 py-2.5 text-start text-caption-1-medium text-text-secondary transition-colors hover:bg-background-primary-hover hover:text-text-primary"
                     >
                       <span className="flex size-8 items-center justify-center rounded-full bg-background-secondary-default"><Plus size={14} /></span>
-                      Adicionar Toph
+                      Escolher Toph
                     </button>
                   ) : tophs.map((toph) => (
                     <TophRow
@@ -153,9 +211,9 @@ export default function BotsSidebar({ project, headerControl }: Props) {
       <TophGallery
         open={galleryOpen}
         projectId={project.id}
-        chatId={chat?.id ?? null}
-        onClose={() => setGalleryOpen(false)}
-        onCreated={() => setGalleryOpen(false)}
+        chatId={galleryChatId ?? chat?.id ?? null}
+        onClose={() => { setGalleryOpen(false); setGalleryChatId(null); }}
+        onCreated={() => { setGalleryOpen(false); setGalleryChatId(null); }}
       />
     </div>
   );

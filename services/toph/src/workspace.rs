@@ -164,6 +164,24 @@ impl WorkspaceService {
         })
     }
 
+    pub fn move_path(&self, root: &Path, from: &str, to: &str) -> AppResult<()> {
+        let source = resolve_existing(root, from)?;
+        let destination = resolve_for_write(root, to)?;
+        if source == destination {
+            return Ok(());
+        }
+        if destination.exists() {
+            return Err(AppError::Conflict);
+        }
+        if source.is_dir() && destination.starts_with(&source) {
+            return Err(AppError::BadRequest(
+                "cannot move a folder into itself".into(),
+            ));
+        }
+        fs::rename(&source, &destination)?;
+        Ok(())
+    }
+
     pub fn write(
         &self,
         root: &Path,

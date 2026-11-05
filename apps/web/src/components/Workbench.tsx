@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { Bot, ChevronDown, ChevronRight, FolderPlus, GitBranch, PanelLeftClose, PanelLeftOpen } from "@toph/icons";
-import { api, getApiBase, type Project, type Repository, type SchemaTable, type WebTarget } from "../api";
+import { Bot, ChevronDown, ChevronRight, GitBranch, PanelLeftClose, PanelLeftOpen } from "@toph/icons";
+import { api, getApiBase, type Project, type SchemaTable, type WebTarget } from "../api";
 import { basename, expandGitPattern, quoteIdentifier, sanitizeBranchName } from "../lib";
 import { useApp, type Sidebar, type Tab } from "../store";
 import { chatSessionIds, useChats, type ProjectChats } from "../chats";
@@ -11,10 +11,10 @@ import BotStudioTab from "../panels/BotStudioTab";
 import { featureEnabled, isDesktopClient, isTophOnly, sidebarFeature, useSettings, type WorkspaceFeature } from "../settings";
 import Tabs from "./Tabs";
 import Toasts from "./Toasts";
-import RepoPicker from "./RepoPicker";
 import CloseProjectModal from "./CloseProjectModal";
 import BranchPicker from "./BranchPicker";
 import ProjectSwitcher from "./ProjectSwitcher";
+import NotificationBadge from "./NotificationBadge";
 import QuickOpen from "./QuickOpen";
 import ActivityPopover from "./ActivityPopover";
 import TophSettings from "./TophSettings";
@@ -108,7 +108,6 @@ export default function Workbench() {
   const workspaceFeatures = useSettings((state) => state.workspaceFeatures);
   const confirm = useConfirm();
 
-  const [showRepoPicker, setShowRepoPicker] = useState(false);
   const [closeTarget, setCloseTarget] = useState<Project | null>(null);
   const [closeBusy, setCloseBusy] = useState(false);
   const [closeError, setCloseError] = useState("");
@@ -133,6 +132,8 @@ export default function Workbench() {
   const mobile = useIsMobile();
 
   const project = projects.find((item) => item.id === activeProjectId) ?? null;
+  const notifications = useApp((state) => state.notifications);
+  const unreadCount = project ? notifications.filter((item) => !item.read && item.projectId === project.id).length : 0;
   const branch = gitStatus.split("\n")[0]?.replace(/^##\s*/, "").split("...")[0] ?? "";
   const activeTab = tabs.find((tab) => tab.id === activeTabId) ?? null;
   const botsView = sidebar === "bots";
@@ -490,7 +491,6 @@ export default function Workbench() {
       .projects()
       .then((items) => {
         setProjects(items);
-        if (items.length === 0) setShowRepoPicker(true);
       })
       .catch((error) => {
         notify("error", error instanceof Error ? error.message : "Could not load projects.");
@@ -925,21 +925,6 @@ export default function Workbench() {
     });
   }
 
-  async function openRepo(repo: Repository) {
-    const existing = projects.find((item) => item.root === repo.path);
-    if (existing) {
-      switchProject(existing.id);
-      setShowRepoPicker(false);
-      return;
-    }
-    const next = await api.createProject(repo.name, repo.path, "#FFB547");
-    forceTophsOnLoad.current = true;
-    setActiveProject(next.id);
-    setProjects([...projects, next]);
-    setShowRepoPicker(false);
-    notify("success", `Opened ${next.name}.`);
-  }
-
   function requestCloseProject(id: string) {
     const target = projects.find((item) => item.id === id);
     if (!target) return;
@@ -1037,11 +1022,9 @@ export default function Workbench() {
               <p className="text-caption-1-regular text-text-tertiary">
                 {hasProjects ? "Escolha um cartão para continuar." : "Código, dados e IA no seu próprio servidor."}
               </p>
-              <Button leadingIcon={FolderPlus} onClick={() => setShowRepoPicker(true)} className="w-full sm:w-auto">Abrir repositório</Button>
             </footer>
           </div>
         </section>
-        {showRepoPicker && <RepoPicker onClose={() => setShowRepoPicker(false)} onOpen={openRepo} />}
         <Toasts />
       </main>
     );
@@ -1100,16 +1083,16 @@ export default function Workbench() {
       onOpenChange={(next) => { setProjectsMenuOpen(next); setBranchMenuOpen(false); }}
       panelClassName="w-[min(320px,calc(100vw-64px))] p-2.5"
       trigger={
-        <button type="button" className="relative flex size-10 items-center justify-center rounded-full hover:bg-background-primary-hover focus-visible:ring-2 focus-visible:ring-border-focus-ring" aria-label={`Trocar projeto. Projeto atual: ${project.name}`} title={`${project.name} · trocar projeto`} onClick={() => setProjectsMenuOpen((open) => !open)}>
+        <button type="button" className="relative mx-auto my-1 flex size-10 items-center justify-center rounded-2xl border border-border-button-default bg-background-secondary-default shadow-xs transition-colors hover:border-accent-500/40 hover:bg-background-primary-hover focus-visible:ring-2 focus-visible:ring-border-focus-ring" aria-label={`Trocar projeto. Projeto atual: ${project.name}. ${unreadCount} notificações.`} title={`${project.name} · trocar projeto`} onClick={() => setProjectsMenuOpen((open) => !open)}>
           <BrandMark size="small" className="size-6" />
-          <span className="absolute -bottom-0.5 -end-0.5 flex size-3.5 items-center justify-center rounded-full border border-background-primary-default bg-background-tertiary-default text-text-secondary"><ChevronDown size={9} /></span>
+          {unreadCount > 0 ? <NotificationBadge count={unreadCount} size={11} className="absolute -top-1.5 -end-1.5 rounded-full bg-background-primary-default p-0.5 text-text-secondary shadow-xs" /> : null}
+          <span className="absolute -bottom-1 -end-1 flex size-4 items-center justify-center rounded-full border border-background-primary-default bg-background-tertiary-default text-text-secondary"><ChevronDown size={9} /></span>
         </button>
       }
     >
       <ProjectSwitcher
         onSelect={(id) => { setProjectsMenuOpen(false); switchProject(id); }}
         onCloseProject={(id) => { setProjectsMenuOpen(false); requestCloseProject(id); }}
-        onOpenRepo={() => { setProjectsMenuOpen(false); setShowRepoPicker(true); }}
       />
     </ActivityPopover>
   );
@@ -1282,7 +1265,6 @@ export default function Workbench() {
         </LayoutSection>
       </Modal>
 
-      {showRepoPicker && <RepoPicker onClose={() => setShowRepoPicker(false)} onOpen={openRepo} />}
       <CloseProjectModal
         open={Boolean(closeTarget)}
         project={closeTarget}
