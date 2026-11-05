@@ -26,10 +26,22 @@ function wait(milliseconds: number) {
 }
 
 function downloadApk(url: string, version: string) {
+  // Android WebView ignores anchor downloads. Use the native opener so the APK
+  // opens in the system browser/download manager.
+  const internals = (window as unknown as {
+    __TAURI_INTERNALS__?: { invoke?: (command: string, args?: Record<string, unknown>) => Promise<unknown> };
+  }).__TAURI_INTERNALS__;
+  if (internals?.invoke) {
+    void internals
+      .invoke("plugin:opener|open_url", { url })
+      .catch(() => { window.location.href = url; });
+    return;
+  }
   const link = document.createElement("a");
   link.href = url;
   link.download = `toph-v${version}.apk`;
   link.rel = "noopener";
+  link.target = "_blank";
   document.body.appendChild(link);
   link.click();
   link.remove();
