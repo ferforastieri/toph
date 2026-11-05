@@ -52,7 +52,7 @@ function WorkspaceOptions({ vertical = false, onQuickOpen }: { vertical?: boolea
   const terminalOpen = useApp((state) => state.terminalOpen);
   const workspaceFeatures = useSettings((state) => state.workspaceFeatures);
   return (
-    <div className={cx("flex items-center", vertical ? "flex-col gap-0.5" : "gap-0.5")}>
+    <div className={cx("flex items-center", vertical ? "flex-col" : "flex-row")}>
       {activityItems
         .filter((item) => featureEnabled(workspaceFeatures, item.feature))
         .map((item) => {
@@ -101,18 +101,37 @@ function WorkspaceOptions({ vertical = false, onQuickOpen }: { vertical?: boolea
   );
 }
 
-function NotificationButton() {
-  const unreadTotal = useApp((state) => state.notifications.filter((notification) => !notification.read).length);
-  const markAllNotificationsRead = useApp((state) => state.markAllNotificationsRead);
+function ProjectBell({ projectId, projectName, count }: { projectId: string; projectName: string; count: number }) {
+  const markProjectNotificationsRead = useApp((state) => state.markProjectNotificationsRead);
   return (
     <button
       type="button"
-      onClick={() => markAllNotificationsRead()}
-      className="relative flex size-8 shrink-0 items-center justify-center rounded-full text-foreground-icon-secondary transition-colors hover:bg-background-primary-hover hover:text-foreground-icon-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus-ring"
-      aria-label={unreadTotal > 0 ? `Marcar ${unreadTotal} notificações como lidas` : "Notificações"}
-      title={unreadTotal > 0 ? `${unreadTotal} notificações — clique para marcar como lidas` : "Notificações"}
+      onClick={(event) => {
+        event.stopPropagation();
+        markProjectNotificationsRead(projectId);
+      }}
+      className="flex size-5 shrink-0 items-center justify-center rounded-full text-text-tertiary transition-colors hover:bg-background-primary-hover hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus-ring"
+      aria-label={count > 0 ? `Marcar ${count} notificações de ${projectName} como lidas` : `Notificações de ${projectName}`}
+      title={count > 0 ? `${count} notificações — clique para marcar como lidas` : "Sem notificações"}
     >
-      {unreadTotal > 0 ? <NotificationBadge count={unreadTotal} size={17} /> : <Bell size={17} />}
+      {count > 0 ? <NotificationBadge count={count} size={13} /> : <Bell size={13} />}
+    </button>
+  );
+}
+
+function ProjectClose({ projectName, onClose }: { projectName: string; onClose: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={(event) => {
+        event.stopPropagation();
+        onClose();
+      }}
+      className="flex size-5 shrink-0 items-center justify-center rounded-full text-status-rose-text transition-colors hover:bg-status-rose-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus-ring"
+      aria-label={`Fechar ${projectName}`}
+      title={`Fechar ${projectName}`}
+    >
+      <X size={11} />
     </button>
   );
 }
@@ -143,6 +162,7 @@ export default function TopBar({ onOpenProject, onCloseProject, onGoHome, onQuic
   const projects = useApp((state) => state.projects);
   const openProjectIds = useApp((state) => state.openProjectIds);
   const activeProjectId = useApp((state) => state.activeProjectId);
+  const notifications = useApp((state) => state.notifications);
   const markProjectNotificationsRead = useApp((state) => state.markProjectNotificationsRead);
   const [pickerOpen, setPickerOpen] = useState(false);
 
@@ -152,6 +172,10 @@ export default function TopBar({ onOpenProject, onCloseProject, onGoHome, onQuic
       .filter((project): project is NonNullable<typeof project> => Boolean(project)),
     [openProjectIds, projects],
   );
+
+  function unreadFor(projectId: string): number {
+    return notifications.filter((notification) => !notification.read && notification.projectId === projectId).length;
+  }
 
   function openProject(projectId: string): void {
     markProjectNotificationsRead(projectId);
@@ -195,7 +219,7 @@ export default function TopBar({ onOpenProject, onCloseProject, onGoHome, onQuic
               <div
                 key={project.id}
                 className={cx(
-                  "group relative flex h-8 shrink-0 items-center rounded-xl border pe-7 transition-colors",
+                  "flex h-8 shrink-0 items-center gap-0.5 rounded-xl border ps-1.5 pe-1 transition-colors",
                   active
                     ? "border-accent-500/35 bg-accent-500/10 text-text-primary"
                     : "border-transparent text-text-secondary hover:bg-background-primary-hover hover:text-text-primary",
@@ -204,7 +228,7 @@ export default function TopBar({ onOpenProject, onCloseProject, onGoHome, onQuic
                 <button
                   type="button"
                   onClick={() => openProject(project.id)}
-                  className="flex h-full min-w-0 flex-1 items-center gap-1.5 ps-1.5 pe-1.5 text-start text-caption-1-medium"
+                  className="flex h-full min-w-0 items-center gap-1.5 pe-1 text-start text-caption-1-medium"
                   title={`${project.name}\n${project.root}`}
                   aria-current={active ? "page" : undefined}
                 >
@@ -217,27 +241,16 @@ export default function TopBar({ onOpenProject, onCloseProject, onGoHome, onQuic
                   </span>
                   <span className="max-w-[160px] truncate">{project.name}</span>
                 </button>
-                <button
-                  type="button"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onCloseProject(project.id);
-                  }}
-                  className="absolute end-1 top-1/2 flex size-4 -translate-y-1/2 items-center justify-center rounded-full text-text-tertiary opacity-0 transition-opacity hover:bg-background-primary-hover hover:text-text-primary focus-visible:opacity-100 focus-visible:outline-none group-hover:opacity-100"
-                  aria-label={`Fechar ${project.name}`}
-                  title={`Fechar ${project.name}`}
-                >
-                  <X size={10} />
-                </button>
+                <ProjectBell projectId={project.id} projectName={project.name} count={unreadFor(project.id)} />
+                <ProjectClose projectName={project.name} onClose={() => onCloseProject(project.id)} />
               </div>
             );
           })}
         </div>
 
         <div className="flex shrink-0 items-center gap-1">
-          <WorkspaceOptions onQuickOpen={onQuickOpen} />
-          <NotificationButton />
           <span className="mx-1 h-5 w-px shrink-0 bg-separator-border" aria-hidden="true" />
+          <WorkspaceOptions onQuickOpen={onQuickOpen} />
           <ThemeToggle />
           {tophControl}
         </div>
@@ -253,6 +266,7 @@ export function ProjectRail({ onOpenProject, onCloseProject, onGoHome, onQuickOp
   const projects = useApp((state) => state.projects);
   const openProjectIds = useApp((state) => state.openProjectIds);
   const activeProjectId = useApp((state) => state.activeProjectId);
+  const notifications = useApp((state) => state.notifications);
   const markProjectNotificationsRead = useApp((state) => state.markProjectNotificationsRead);
   const [pickerOpen, setPickerOpen] = useState(false);
 
@@ -263,6 +277,10 @@ export function ProjectRail({ onOpenProject, onCloseProject, onGoHome, onQuickOp
     [openProjectIds, projects],
   );
 
+  function unreadFor(projectId: string): number {
+    return notifications.filter((notification) => !notification.read && notification.projectId === projectId).length;
+  }
+
   function openProject(projectId: string): void {
     markProjectNotificationsRead(projectId);
     onOpenProject(projectId);
@@ -270,7 +288,7 @@ export function ProjectRail({ onOpenProject, onCloseProject, onGoHome, onQuickOp
 
   return (
     <>
-      <aside className="relative z-40 flex w-14 shrink-0 flex-col items-center gap-1 rounded-3xl border border-border-button-white bg-background-primary-default px-1 py-2 shadow-sidebar" aria-label="Projetos e ferramentas">
+      <aside className="relative z-40 me-1 flex w-16 shrink-0 flex-col items-center gap-1 rounded-3xl border border-border-button-white bg-background-primary-default px-1 py-2 shadow-sidebar" aria-label="Projetos e ferramentas">
         <button
           type="button"
           onClick={() => {
@@ -284,46 +302,39 @@ export function ProjectRail({ onOpenProject, onCloseProject, onGoHome, onQuickOp
           <BrandMark size="small" className="size-6" />
         </button>
         <Button variant="ghost" size="small" iconOnly leadingIcon={Plus} aria-label="Abrir projeto" title="Abrir projeto" onClick={() => setPickerOpen(true)} />
-        <span className="my-1 h-px w-6 shrink-0 bg-separator-border" aria-hidden="true" />
+        <span className="my-0.5 h-px w-8 shrink-0 bg-separator-border" aria-hidden="true" />
         <div className="flex min-h-0 w-full flex-1 flex-col items-center gap-1 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {openProjects.map((project) => {
             const active = project.id === activeProjectId;
             return (
-              <div key={project.id} className="group relative">
+              <div
+                key={project.id}
+                className={cx(
+                  "flex w-full flex-col items-center gap-0.5 rounded-xl border p-0.5 transition-colors",
+                  active ? "border-accent-500/35 bg-accent-500/10" : "border-transparent hover:bg-background-primary-hover",
+                )}
+              >
                 <button
                   type="button"
                   onClick={() => openProject(project.id)}
-                  className={cx(
-                    "flex size-8 items-center justify-center rounded-lg border text-[10px] font-semibold transition-colors",
-                    active
-                      ? "border-accent-500/40 bg-accent-500/10 text-text-primary"
-                      : "border-transparent text-text-secondary hover:bg-background-primary-hover hover:text-text-primary",
-                  )}
-                  style={{ color: active ? project.color || "#FFB547" : undefined }}
+                  className="flex size-8 items-center justify-center rounded-lg text-[10px] font-semibold transition-colors"
+                  style={{ color: project.color || "#FFB547" }}
                   aria-label={`Abrir ${project.name}`}
                   aria-current={active ? "page" : undefined}
                   title={`${project.name}\n${project.root}`}
                 >
                   {project.name.slice(0, 1).toUpperCase()}
                 </button>
-                <button
-                  type="button"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onCloseProject(project.id);
-                  }}
-                  className="absolute -end-1 -top-1 flex size-3.5 items-center justify-center rounded-full bg-background-secondary-default text-text-tertiary opacity-0 shadow-sm transition-opacity hover:text-text-primary focus-visible:opacity-100 focus-visible:outline-none group-hover:opacity-100"
-                  aria-label={`Fechar ${project.name}`}
-                  title={`Fechar ${project.name}`}
-                >
-                  <X size={8} />
-                </button>
+                <div className="flex items-center justify-center gap-0.5">
+                  <ProjectBell projectId={project.id} projectName={project.name} count={unreadFor(project.id)} />
+                  <ProjectClose projectName={project.name} onClose={() => onCloseProject(project.id)} />
+                </div>
               </div>
             );
           })}
         </div>
+        <span className="my-0.5 h-px w-8 shrink-0 bg-separator-border" aria-hidden="true" />
         <WorkspaceOptions vertical onQuickOpen={onQuickOpen} />
-        <NotificationButton />
         <ThemeToggle />
         {tophControl}
       </aside>
