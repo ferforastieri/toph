@@ -51,6 +51,7 @@ export default function TophSettings({ user, projectRoot }: Props) {
   const setUser = useApp((state) => state.setUser);
   const notify = useApp((state) => state.notify);
   const workspaceFeatures = useSettings((state) => state.workspaceFeatures);
+  const projectBar = useSettings((state) => state.projectBar);
   const updateSettings = useSettings((state) => state.update);
   const pet = usePet();
   const [open, setOpen] = useState(false);
@@ -197,6 +198,32 @@ export default function TophSettings({ user, projectRoot }: Props) {
             ) : section === "appearance" ? (
               <div className="flex flex-col gap-5">
                 <SettingsHeading title="Layout e ferramentas" description="Escolha diretamente o que aparece e é inicializado no workspace." />
+                <SettingsGroup title="Barra de projetos">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex min-w-0 flex-col">
+                      <span className="text-body-2-medium text-text-primary">Posição</span>
+                      <span className="text-caption-2-regular text-text-tertiary">No header os projetos mostram o nome; na barra direita, só a inicial.</span>
+                    </div>
+                    <div className="flex shrink-0 rounded-lg border border-border-button-default p-0.5">
+                      <button
+                        type="button"
+                        onClick={() => updateSettings({ projectBar: "header" })}
+                        className={cx("rounded-md px-2.5 py-1 text-caption-2-medium transition-colors", projectBar === "header" ? "bg-accent-500/15 text-accent-600" : "text-text-secondary hover:text-text-primary")}
+                        aria-pressed={projectBar === "header"}
+                      >
+                        Header
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => updateSettings({ projectBar: "right" })}
+                        className={cx("rounded-md px-2.5 py-1 text-caption-2-medium transition-colors", projectBar === "right" ? "bg-accent-500/15 text-accent-600" : "text-text-secondary hover:text-text-primary")}
+                        aria-pressed={projectBar === "right"}
+                      >
+                        Direita
+                      </button>
+                    </div>
+                  </div>
+                </SettingsGroup>
                 <SettingsGroup title="Layout">
                   <FeatureToggle label="Painel lateral" checked={workspaceFeatures.primarySidebar} onChange={(value) => setFeature("primarySidebar", value)} />
                   <FeatureToggle label="Abas e conteúdo" checked={workspaceFeatures.tabs} onChange={(value) => setFeature("tabs", value)} />
