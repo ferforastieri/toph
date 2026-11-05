@@ -1067,11 +1067,9 @@ export default function Workbench() {
       onOpenChange={(next) => { setProjectsMenuOpen(next); setBranchMenuOpen(false); }}
       panelClassName="w-[min(320px,calc(100vw-64px))] p-2.5"
       trigger={
-        <button type="button" className="relative mx-auto my-1 flex size-10 items-center justify-center rounded-2xl bg-transparent transition-colors hover:bg-background-primary-hover focus-visible:ring-2 focus-visible:ring-border-focus-ring" aria-label={`Trocar projeto. Projeto atual: ${project.name}. ${unreadCount} notificações.`} title={`${project.name} · trocar projeto`} onClick={() => setProjectsMenuOpen((open) => !open)}>
-          <span className="relative flex items-center justify-center" aria-hidden="true">
-            <Avatar size="sm" initials={(project.name.trim().slice(0, 1) || "T").toUpperCase()} className="bg-accent-500/15 text-caption-2-semibold text-accent-500" />
-            {unreadCount > 0 ? <NotificationBadge count={unreadCount} size={15} className="absolute end-0 top-0 z-10" /> : null}
-          </span>
+        <button type="button" className="relative mx-auto my-1 flex size-11 items-center justify-center rounded-2xl bg-transparent transition-colors hover:bg-background-primary-hover focus-visible:ring-2 focus-visible:ring-border-focus-ring" aria-label={`Trocar projeto. Projeto atual: ${project.name}. ${unreadCount} notificações.`} title={`${project.name} · trocar projeto`} onClick={() => setProjectsMenuOpen((open) => !open)}>
+          <BrandMark size="small" className="size-8" />
+          {unreadCount > 0 ? <NotificationBadge count={unreadCount} size={19} tone="light" className="absolute bottom-0 end-0 z-10" /> : null}
         </button>
       }
     >

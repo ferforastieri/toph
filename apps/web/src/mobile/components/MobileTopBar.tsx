@@ -2,7 +2,6 @@ import type { ComponentType } from "react";
 import { Menu, MessageSquare } from "@toph/icons";
 import NotificationBadge from "../../components/NotificationBadge";
 import BrandMark from "@toph/brand";
-import { Avatar } from "@/boardui/base/avatar/avatar";
 import { cx } from "@/boardui/utils/cx";
 import { Button } from "@/boardui/base/buttons/button";
 
@@ -43,7 +42,7 @@ export default function MobileTopBar({ title, subtitle, projectName, unreadCount
               : "size-10 rounded-full bg-transparent text-text-primary hover:bg-background-primary-hover",
           )}
         >
-          {floating ? <Menu className="size-5" /> : brandIcon ? <BrandMark size="small" className="size-7" /> : <Icon className="size-5" />}
+          {floating ? <Menu className="size-5" /> : brandIcon ? <Menu className="size-5" /> : <Icon className="size-5" />}
         </button>
         {!floating && !hideTitle ? (
           <div className="flex min-w-0 flex-1 flex-col gap-0">
@@ -65,13 +64,9 @@ export default function MobileTopBar({ title, subtitle, projectName, unreadCount
             className={cx("relative shrink-0 rounded-full", floating ? "size-9 p-1.5" : "size-10 p-2")}
           >
             <span className="relative flex items-center justify-center" aria-hidden="true">
-              <Avatar
-                size="sm"
-                initials={(projectName.trim().slice(0, 1) || "T").toUpperCase()}
-                className="bg-accent-500/15 text-caption-2-semibold text-accent-500"
-              />
+              <BrandMark size="small" className="size-7" />
               {unreadCount > 0 ? (
-                <NotificationBadge count={unreadCount} size={15} className="absolute end-0 top-0 z-10" />
+                <NotificationBadge count={unreadCount} size={18} tone="light" className="absolute -bottom-1 -end-1 z-10" />
               ) : null}
             </span>
           </Button>
