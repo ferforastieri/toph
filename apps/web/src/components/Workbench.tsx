@@ -118,6 +118,7 @@ export default function Workbench() {
   const tabsVisible = workspaceFeatures.tabs;
   const panelAlignment = useSettings((state) => state.panelAlignment);
   const projectBar = useSettings((state) => state.projectBar);
+  const [projectRailCollapsed, setProjectRailCollapsed] = useState(false);
   const [branchInfo, setBranchInfo] = useState<{ current: string; branches: string[] } | null>(null);
   const [branchBusy, setBranchBusy] = useState("");
   const [newBranchName, setNewBranchName] = useState("");
@@ -1031,16 +1032,16 @@ export default function Workbench() {
   }
 
 
-  const activityHeaderControl = (
+  const activityHeaderControl = projectBar === "left" ? (
     <IconButton
-      icon={sidebarVisible ? PanelLeftClose : PanelLeftOpen}
+      icon={projectRailCollapsed ? PanelLeftOpen : PanelLeftClose}
       size="xs"
       className="border-transparent bg-transparent shadow-none"
-      aria-label={sidebarVisible ? "Ocultar barra lateral" : "Mostrar barra lateral"}
-      title={sidebarVisible ? "Ocultar barra lateral" : "Mostrar barra lateral"}
-      onClick={() => setWorkspaceFeature("primarySidebar", !sidebarVisible)}
+      aria-label={projectRailCollapsed ? "Mostrar barra de projetos" : "Ocultar barra de projetos"}
+      title={projectRailCollapsed ? "Mostrar barra de projetos" : "Ocultar barra de projetos"}
+      onClick={() => setProjectRailCollapsed((collapsed) => !collapsed)}
     />
-  );
+  ) : undefined;
 
   function branchPickerBody() {
     return (
@@ -1118,7 +1119,16 @@ export default function Workbench() {
       <div className="pointer-events-none absolute inset-x-0 top-16 z-[100] flex justify-center px-12">
         <div className="pointer-events-auto w-full max-w-xl"><QuickOpen project={project} focusToken={quickOpenToken} onOpenFile={openFile} floating /></div>
       </div>
-      <div className="flex min-h-0 flex-1 gap-0 p-1">
+      <div className="relative flex min-h-0 flex-1 gap-0 p-1">
+        {projectBar === "left" && !projectRailCollapsed ? (
+          <ProjectRail
+            onOpenProject={switchProject}
+            onCloseProject={requestCloseProject}
+            onGoHome={() => setSidebar("bots")}
+            onQuickOpen={() => setQuickOpenToken((current) => current + 1)}
+            tophControl={<TophSettings user={user} projectRoot={project.root} />}
+          />
+        ) : null}
         {primarySidebar}
         {primaryResize}
 
@@ -1167,13 +1177,14 @@ export default function Workbench() {
           ) : null}
         </div>
 
-        {projectBar === "right" ? (
-          <ProjectRail
-            onOpenProject={switchProject}
-            onCloseProject={requestCloseProject}
-            onGoHome={() => setSidebar("bots")}
-            onQuickOpen={() => setQuickOpenToken((current) => current + 1)}
-            tophControl={<TophSettings user={user} projectRoot={project.root} />}
+        {projectBar === "left" && projectRailCollapsed ? (
+          <IconButton
+            icon={PanelLeftOpen}
+            size="small"
+            className="absolute start-3 top-3 z-50"
+            aria-label="Mostrar barra de projetos"
+            title="Mostrar barra de projetos"
+            onClick={() => setProjectRailCollapsed(false)}
           />
         ) : null}
       </div>

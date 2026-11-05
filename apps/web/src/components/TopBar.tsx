@@ -248,7 +248,7 @@ export default function TopBar({ onOpenProject, onCloseProject, onGoHome, onQuic
   );
 }
 
-/** Vertical project bar used when the header is configured to the right. */
+/** Vertical project bar used when the header is configured to the left. */
 export function ProjectRail({ onOpenProject, onCloseProject, onGoHome, onQuickOpen, tophControl }: Props) {
   const projects = useApp((state) => state.projects);
   const openProjectIds = useApp((state) => state.openProjectIds);
