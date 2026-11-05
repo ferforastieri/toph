@@ -64,6 +64,24 @@ const EMPTY_HISTORY_PAGE: HistoryPageState = {
   error: "",
 };
 
+interface SessionPageState {
+  sessionId: string | null;
+  cursor: string | null;
+  hasMore: boolean;
+  loading: boolean;
+  ready: boolean;
+  error: string;
+}
+
+const EMPTY_SESSION_PAGE: SessionPageState = {
+  sessionId: null,
+  cursor: null,
+  hasMore: false,
+  loading: false,
+  ready: false,
+  error: "",
+};
+
 function splitModel(model: string): { providerID: string; id: string } | null {
   const index = model.indexOf("/");
   if (index <= 0 || index >= model.length - 1) return null;
@@ -292,41 +310,47 @@ function partStatus(part: Record<string, any>): "running" | "complete" | "error"
   return "complete";
 }
 
-function restoreTophMessages(context: unknown, tophId: string, chatId: string): ChatMessage[] {
+function restoreTophMessages(context: unknown, tophId: string, chatId: string, sessionId?: string): ChatMessage[] {
   if (!Array.isArray(context)) return [];
   const restored: ChatMessage[] = [];
+  const base = sessionId ? { sessionId } : {};
   for (const raw of context as Array<Record<string, any>>) {
     const messageCreated = Number(raw.time?.created ?? Date.now());
     if (raw.type === "user") {
       const text = restoredUserText(String(raw.text ?? ""));
       if (!text) continue;
-      restored.push({ id: `history-user-${raw.id}`, chatId, role: "user", content: text, createdAt: messageCreated });
+      restored.push({ id: `history-user-${raw.id}`, chatId, role: "user", content: text, createdAt: messageCreated, ...base });
       continue;
     }
     if (raw.type !== "assistant") continue;
     const parts = Array.isArray(raw.content) ? raw.content as Array<Record<string, any>> : [];
     let textRun = "";
     let textStartedAt = 0;
+    let textStartIndex = 0;
     const flushText = () => {
       if (!textRun.trim()) {
         textRun = "";
         return;
       }
       restored.push({
-        id: `history-assistant-${raw.id}-${restored.length}`,
+        id: `history-assistant-${raw.id}-${textStartIndex}`,
         chatId,
         tophId,
         role: "assistant",
         content: textRun,
         status: "complete",
         createdAt: textStartedAt || messageCreated,
+        ...base,
       });
       textRun = "";
     };
     parts.forEach((part, index) => {
       const createdAt = partTime(part, messageCreated, index);
       if (part.type === "text") {
-        if (!textRun) textStartedAt = createdAt;
+        if (!textRun) {
+          textStartedAt = createdAt;
+          textStartIndex = index;
+        }
         textRun += String(part.text ?? "");
         return;
       }
@@ -344,6 +368,7 @@ function restoreTophMessages(context: unknown, tophId: string, chatId: string): 
           status: "complete",
           durationMs,
           createdAt,
+          ...base,
         });
         return;
       }
@@ -358,6 +383,7 @@ function restoreTophMessages(context: unknown, tophId: string, chatId: string): 
         detail: toolContent(partOutput(part)),
         status: partStatus(part),
         createdAt,
+        ...base,
       });
     });
     flushText();
@@ -529,6 +555,7 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
   const loadingOlder = useRef(false);
   const pendingScrollRestore = useRef<{ height: number; top: number } | null>(null);
   const [olderPage, setOlderPage] = useState<HistoryPageState>(EMPTY_HISTORY_PAGE);
+  const [sessionPage, setSessionPage] = useState<SessionPageState>(EMPTY_SESSION_PAGE);
   const [historyTick, setHistoryTick] = useState(0);
   const [atBottom, setAtBottom] = useState(true);
   const client = useMemo(() => {
@@ -552,6 +579,10 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
     [messages],
   );
   const groupedMessages = useMemo(() => groupChatMessages(conversationMessages), [conversationMessages]);
+  const sessionToph = chat?.kind === "individual" ? tophs[0] ?? null : null;
+  const activeSessionId = sessionToph?.sessionId ?? null;
+  const sessionHistory = Boolean(activeSessionId && sessionPage.sessionId === activeSessionId);
+  const historyPage = sessionHistory ? sessionPage : olderPage;
   const latestUserAt = useMemo(
     () => [...conversationMessages].reverse().find((message) => message.role === "user")?.createdAt ?? 0,
     [conversationMessages],
@@ -757,7 +788,7 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
     const page = await client.message.list({ sessionID: toph.sessionId, limit: 80, order: "desc" } as never).catch(() => null);
     if (!page?.data?.length) return;
     const cutoff = toph.sessionClearedAt ?? 0;
-    const restored = restoreTophMessages([...page.data].reverse(), toph.id, toph.chatId)
+    const restored = restoreTophMessages([...page.data].reverse(), toph.id, toph.chatId, toph.sessionId)
       .filter((message) => message.createdAt >= cutoff)
       .filter((message) => message.role === "assistant" && message.content.trim());
     if (restored.length === 0) return;
@@ -910,12 +941,38 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
   // merged the newest conversation and activity pages, so everything before
   // the oldest loaded message is contiguous history.
   async function loadOlderMessages(): Promise<void> {
-    if (!chat || loadingOlder.current || !olderPage.hasMore || !olderPage.cursor) return;
+    if (!chat || loadingOlder.current) return;
+    const sessionToph = chat.kind === "individual" ? tophs[0] : null;
+    const useSession = Boolean(sessionToph?.sessionId && sessionPage.sessionId === sessionToph.sessionId);
+    const state = useSession ? sessionPage : olderPage;
+    if (state.loading || !state.hasMore) return;
+    if (!useSession && !olderPage.cursor) return;
+    if (useSession && !sessionPage.cursor) return;
     loadingOlder.current = true;
     const scroller = scrollRef.current;
     const previous = scroller ? { height: scroller.scrollHeight, top: scroller.scrollTop } : null;
-    setOlderPage((current) => ({ ...current, loading: true, error: "" }));
+    if (useSession) setSessionPage((current) => ({ ...current, loading: true, error: "" }));
+    else setOlderPage((current) => ({ ...current, loading: true, error: "" }));
     try {
+      if (useSession && sessionToph?.sessionId) {
+        const sessionId = sessionToph.sessionId;
+        const response = await client.message.list({
+          sessionID: sessionId,
+          limit: 80,
+          order: "desc",
+          cursor: sessionPage.cursor,
+        } as never);
+        const context = response?.data?.length ? [...response.data].reverse() : [];
+        const restored = restoreTophMessages(context, sessionToph.id, sessionToph.chatId, sessionId);
+        const cursor = (response as { cursor?: { previous?: string | null } } | null)?.cursor?.previous ?? null;
+        if (restored.length > 0) {
+          if (previous) pendingScrollRestore.current = previous;
+          mergeMessages(project.id, restored);
+          setHistoryTick((value) => value + 1);
+        }
+        setSessionPage({ sessionId, cursor, hasMore: Boolean(cursor), loading: false, ready: true, error: "" });
+        return;
+      }
       const page = await api.workspaceMessages<ChatMessage>(project.id, {
         mode: "chat",
         channel: chat.id,
@@ -937,7 +994,8 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Não foi possível carregar mensagens antigas.";
-      setOlderPage((current) => ({ ...current, loading: false, error: message }));
+      if (useSession) setSessionPage((current) => ({ ...current, loading: false, error: message }));
+      else setOlderPage((current) => ({ ...current, loading: false, error: message }));
     } finally {
       loadingOlder.current = false;
     }
@@ -953,6 +1011,35 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
     scroller.scrollTop = pending.top + (scroller.scrollHeight - pending.height);
     lastScrollTop.current = scroller.scrollTop;
   }, [conversationMessages.length, historyTick]);
+
+  // A restored OpenCode session paginates through the session's own cursor:
+  // the local workspace mirror only holds the page that was restored.
+  useEffect(() => {
+    if (!chat || chat.kind !== "individual" || !activeSessionId) {
+      setSessionPage(EMPTY_SESSION_PAGE);
+      return;
+    }
+    let cancelled = false;
+    setSessionPage({ sessionId: activeSessionId, cursor: null, hasMore: false, loading: true, ready: false, error: "" });
+    void client.message.list({ sessionID: activeSessionId, limit: 80, order: "desc" } as never)
+      .then((response) => {
+        if (cancelled) return;
+        const cursor = response?.cursor?.previous ?? null;
+        setSessionPage({ sessionId: activeSessionId, cursor, hasMore: Boolean(cursor), loading: false, ready: true, error: "" });
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        setSessionPage({
+          sessionId: activeSessionId,
+          cursor: null,
+          hasMore: false,
+          loading: false,
+          ready: true,
+          error: error instanceof Error ? error.message : "Não foi possível carregar o histórico da sessão.",
+        });
+      });
+    return () => { cancelled = true; };
+  }, [activeSessionId, chat?.id, chat?.kind, client]);
 
   useEffect(() => {
     const element = activityScrollRef.current;
@@ -1062,34 +1149,34 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
           };
           switch (event.type) {
             case "session.text.started":
-              ensure({ id: textMessageID("assistant"), chatId, tophId, role: "assistant", content: "", status: "running", createdAt: Date.now() });
+              ensure({ id: textMessageID("assistant"), chatId, tophId, sessionId, role: "assistant", content: "", status: "running", createdAt: Date.now() });
               break;
             case "session.text.delta": {
               const id = textMessageID("assistant");
-              ensure({ id, chatId, tophId, role: "assistant", content: "", status: "running", createdAt: Date.now() });
+              ensure({ id, chatId, tophId, sessionId, role: "assistant", content: "", status: "running", createdAt: Date.now() });
               queueAppend(project.id, id, String(data.delta ?? ""));
               break;
             }
             case "session.text.ended": {
               flushAppends();
               const id = textMessageID("assistant");
-              ensure({ id, chatId, tophId, role: "assistant", content: "", status: "running", createdAt: Date.now() });
+              ensure({ id, chatId, tophId, sessionId, role: "assistant", content: "", status: "running", createdAt: Date.now() });
               state.updateMessage(project.id, id, { content: String(data.text ?? ""), status: "complete" });
               break;
             }
             case "session.reasoning.started":
-              ensure({ id: textMessageID("reasoning"), chatId, tophId, role: "reasoning", title: "Thought", content: "", status: "running", createdAt: Date.now() });
+              ensure({ id: textMessageID("reasoning"), chatId, tophId, sessionId, role: "reasoning", title: "Thought", content: "", status: "running", createdAt: Date.now() });
               break;
             case "session.reasoning.delta": {
               const id = textMessageID("reasoning");
-              ensure({ id, chatId, tophId, role: "reasoning", title: "Thought", content: "", status: "running", createdAt: Date.now() });
+              ensure({ id, chatId, tophId, sessionId, role: "reasoning", title: "Thought", content: "", status: "running", createdAt: Date.now() });
               queueAppend(project.id, id, String(data.delta ?? ""));
               break;
             }
             case "session.reasoning.ended": {
               flushAppends();
               const reasoningId = textMessageID("reasoning");
-              ensure({ id: reasoningId, chatId, tophId, role: "reasoning", title: "Thought", content: "", status: "running", createdAt: Date.now() });
+              ensure({ id: reasoningId, chatId, tophId, sessionId, role: "reasoning", title: "Thought", content: "", status: "running", createdAt: Date.now() });
               const startedAt = state.byProject[project.id]?.messages.find((item) => item.id === reasoningId)?.createdAt;
               state.updateMessage(project.id, reasoningId, {
                 content: String(data.text ?? ""),
@@ -1099,11 +1186,11 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
               break;
             }
             case "session.tool.input.started":
-              ensure({ id: messageID("tool", String(data.id ?? "")), chatId, tophId, role: "tool", title: `Tool · ${String(data.name ?? "call")}`, content: "", detail: "", status: "running", createdAt: Date.now() });
+              ensure({ id: messageID("tool", String(data.id ?? "")), chatId, tophId, sessionId, role: "tool", title: `Tool · ${String(data.name ?? "call")}`, content: "", detail: "", status: "running", createdAt: Date.now() });
               break;
             case "session.tool.input.delta": {
               const id = messageID("tool", String(data.id ?? ""));
-              ensure({ id, chatId, tophId, role: "tool", title: "Tool", content: "", detail: "", status: "running", createdAt: Date.now() });
+              ensure({ id, chatId, tophId, sessionId, role: "tool", title: "Tool", content: "", detail: "", status: "running", createdAt: Date.now() });
               queueAppend(project.id, id, String(data.delta ?? ""));
               break;
             }
@@ -1125,7 +1212,7 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
                 ? data.name
                 : existingTitle.replace(/^Tool\s*·\s*/i, "") || "call";
               const inputText = toolContent(data.input);
-              ensure({ id, chatId, tophId, role: "tool", title: `Tool · ${name}`, content: inputText, detail: "", status: "running", createdAt: Date.now() });
+              ensure({ id, chatId, tophId, sessionId, role: "tool", title: `Tool · ${name}`, content: inputText, detail: "", status: "running", createdAt: Date.now() });
               state.updateMessage(project.id, id, { title: `Tool · ${name}`, content: inputText, status: "running" });
               startToolFileSnapshot(sessionId, toolId, name, inputText);
               break;
@@ -1323,12 +1410,16 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
     }
   }
 
-  async function openCodeReply(toph: ChatToph, userText: string, attachments: AgentAttachment[] = [], token = runToken.current, retry = false, since = Date.now()): Promise<string> {
+  async function openCodeReply(toph: ChatToph, userText: string, attachments: AgentAttachment[] = [], token = runToken.current, retry = false, since = Date.now(), userMessageId?: string): Promise<string> {
     const current = storedToph(toph);
     const { chat: chatNow, tophs: tophsNow, messages: allHistory } = currentChat(current);
     const history = promptHistory(allHistory, userText);
     await applyMcpSelection(current);
     const sessionId = await ensureSession(current);
+    if (userMessageId) {
+      const stored = useChats.getState().byProject[project.id]?.messages.find((message) => message.id === userMessageId);
+      if (stored && stored.sessionId !== sessionId) updateMessage(project.id, userMessageId, { sessionId });
+    }
     const model = splitModel(current.model || aiConfig?.model || models[0]?.id || "");
     if (model) {
       await client.session.switchModel({
@@ -1351,7 +1442,7 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
       if (!retry && current.sessionId) {
         sessionTophMap.current.delete(current.sessionId);
         updateToph(project.id, current.id, { sessionId: undefined, sessionPrimed: false });
-        return openCodeReply({ ...current, sessionId: undefined, sessionPrimed: false }, userText, attachments, token, true, since);
+        return openCodeReply({ ...current, sessionId: undefined, sessionPrimed: false }, userText, attachments, token, true, since, userMessageId);
       }
       throw error;
     }
@@ -1453,7 +1544,7 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
     return result.text;
   }
 
-  async function respondAsToph(toph: ChatToph, userText: string, options: { attachments?: AgentAttachment[]; token?: number } = {}): Promise<string | null> {
+  async function respondAsToph(toph: ChatToph, userText: string, options: { attachments?: AgentAttachment[]; token?: number; userMessageId?: string } = {}): Promise<string | null> {
     const { tophs: tophsNow, messages: allHistory } = currentChat(toph);
     const history = promptHistory(allHistory, userText);
     const startedAt = Date.now();
@@ -1462,7 +1553,7 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
     try {
       if (aiConfig?.provider === "opencode") {
         const current = storedToph(toph);
-        const reply = await openCodeReply(current, userText, options.attachments, options.token, false, startedAt);
+        const reply = await openCodeReply(current, userText, options.attachments, options.token, false, startedAt, options.userMessageId);
         if (options.token !== undefined && options.token !== runToken.current) return null;
         if (epoch !== tophRunEpoch(toph.id)) return null;
         if (!current.sessionPrimed) updateToph(project.id, current.id, { sessionPrimed: true });
@@ -1486,6 +1577,7 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
             id: `bot-reply-${toph.id}-${Date.now()}`,
             chatId: toph.chatId,
             tophId: toph.id,
+            sessionId: storedToph(toph).sessionId,
             role: "assistant",
             content: reply.trim(),
             status: "complete",
@@ -1759,7 +1851,7 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
     try {
       const first = coordinator ?? tophs[0];
       if (!first) return;
-      const reply = await respondAsToph(first, text, { attachments, token });
+      const reply = await respondAsToph(first, text, { attachments, token, userMessageId });
       if (!reply || token !== runToken.current) return;
       if (first.coordinator || tophHasTool(first, "delegate")) {
         const delegated = tophHasTool(first, "delegate")
@@ -1808,22 +1900,64 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
     setSessionsTophId(null);
     bumpTophRunEpoch(toph.id);
     const page = await client.message.list({ sessionID: session.id, limit: 80, order: "desc" } as never).catch(() => null);
-    const context = page?.data?.length ? [...page.data].reverse() : [];
-    const existingUsers = new Set(
-      currentChat(toph).messages
-        .filter((message) => message.role === "user")
-        .map((message) => `${message.content}\u0000${message.createdAt}`),
-    );
-    const restored = restoreTophMessages(context, toph.id, toph.chatId)
-      .filter((message) => message.role !== "user" || !existingUsers.has(`${message.content}\u0000${message.createdAt}`));
+    if (!page) return;
+    const context = page.data?.length ? [...page.data].reverse() : [];
+    const restored = restoreTophMessages(context, toph.id, toph.chatId, session.id);
     if (toph.sessionId && toph.sessionId !== session.id) {
       sessionTophMap.current.delete(toph.sessionId);
       void client.session.interrupt({ sessionID: toph.sessionId } as never).catch(() => undefined);
     }
-    await api.deleteChatMessages(project.id, toph.chatId, toph.id).catch(() => undefined);
-    replaceTophMessages(project.id, toph.id, restored);
+    if (chat?.kind === "individual") {
+      // An individual chat shows one session at a time. Replace the whole
+      // transcript instead of leaving user messages from other sessions.
+      await api.replaceChatMessages(project.id, toph.chatId, restored).catch(() => undefined);
+      replaceChatMessages(project.id, toph.chatId, restored);
+      const cursor = (page as { cursor?: { previous?: string | null } }).cursor?.previous ?? null;
+      setSessionPage({ sessionId: session.id, cursor, hasMore: Boolean(cursor), loading: false, ready: true, error: "" });
+    } else {
+      const existingUsers = new Set(
+        currentChat(toph).messages
+          .filter((message) => message.role === "user")
+          .map((message) => `${message.content}\u0000${message.createdAt}`),
+      );
+      const filtered = restored.filter((message) =>
+        message.role !== "user" || !existingUsers.has(`${message.content}\u0000${message.createdAt}`),
+      );
+      await api.deleteChatMessages(project.id, toph.chatId, toph.id).catch(() => undefined);
+      replaceTophMessages(project.id, toph.id, filtered);
+      setSessionPage(EMPTY_SESSION_PAGE);
+    }
     setTophSession(project.id, toph.id, session.id, { sessionPrimed: true, sessionClearedAt: null });
     sessionTophMap.current.set(session.id, toph.id);
+    stickToBottom.current = true;
+    setAtBottom(true);
+    window.requestAnimationFrame(() => {
+      const element = scrollRef.current;
+      if (element) element.scrollTop = element.scrollHeight;
+    });
+  }
+
+  async function deleteSession(session: OpenCodeSessionSummary) {
+    const toph = sessionsToph;
+    if (!toph) return;
+    await client.session.remove({ sessionID: session.id } as never);
+    sessionTophMap.current.delete(session.id);
+    if (toph.sessionId !== session.id) return;
+    bumpTophRunEpoch(toph.id);
+    setSessionPage(EMPTY_SESSION_PAGE);
+    setExpandedActivity(null);
+    setForms((current) => current.filter((item) => item.tophId !== toph.id));
+    setRunningTophs((current) => {
+      const next = new Set(current);
+      next.delete(toph.id);
+      return next;
+    });
+    const reset = resetTophSession(project.id, toph.id);
+    if (!reset) return;
+    if (reset.clearChat) void api.deleteChatMessages(project.id, reset.chatId).catch(() => undefined);
+    else void api.deleteChatMessages(project.id, reset.chatId, toph.id).catch(() => undefined);
+    stickToBottom.current = true;
+    setAtBottom(true);
   }
 
   function newSession() {
@@ -1848,6 +1982,7 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
     });
     const reset = resetTophSession(project.id, toph.id);
     if (!reset) return;
+    setSessionPage(EMPTY_SESSION_PAGE);
     stickToBottom.current = true;
     setAtBottom(true);
     if (toph.sessionId) {
@@ -1913,22 +2048,22 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
             const following = element.scrollHeight - element.scrollTop - element.clientHeight < 80;
             stickToBottom.current = following && !movedUp;
             setAtBottom(stickToBottom.current);
-            if (element.scrollTop <= LOAD_OLDER_THRESHOLD && !olderPage.error) void loadOlderMessages();
+            if (element.scrollTop <= LOAD_OLDER_THRESHOLD && !historyPage.error) void loadOlderMessages();
           }}
         >
           <div ref={contentRef} key={chat?.id ?? "none"} className="toph-view-in mx-auto flex min-h-full w-full min-w-0 max-w-[760px] flex-col gap-4 overflow-x-hidden p-4 [&_img]:max-w-full [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_table]:block [&_table]:max-w-full [&_table]:overflow-x-auto">
-            {olderPage.loading ? (
+            {historyPage.loading ? (
               <div className="flex items-center justify-center gap-2 py-2 text-caption-2-regular text-text-tertiary">
                 <LoaderCircle className="size-3.5 animate-spin" /> Carregando mensagens antigas...
               </div>
             ) : null}
-            {olderPage.error ? (
+            {historyPage.error ? (
               <div className="flex flex-col items-center gap-1 py-1 text-center text-caption-2-regular text-status-rose-text">
-                <p>{olderPage.error}</p>
+                <p>{historyPage.error}</p>
                 <Button variant="secondary" size="small" onClick={() => void loadOlderMessages()}>Tentar novamente</Button>
               </div>
             ) : null}
-            {olderPage.ready && !olderPage.hasMore && !olderPage.loading && conversationMessages.length > 0 ? (
+            {historyPage.ready && !historyPage.hasMore && !historyPage.loading && conversationMessages.length > 0 ? (
               <p className="py-1 text-center text-[11px] text-text-tertiary">Início da conversa</p>
             ) : null}
             {!conversationPage.ready && conversationPage.loading ? (
@@ -2238,6 +2373,7 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
         onClose={() => setSessionsTophId(null)}
         onSelect={(session) => void restoreSession(session)}
         onNew={() => void newSession()}
+        onDelete={(session) => deleteSession(session)}
       />
 
       <TophGallery
