@@ -959,18 +959,24 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
         const response = await client.message.list({
           sessionID: sessionId,
           limit: 80,
-          order: "desc",
-          cursor: sessionPage.cursor,
+          ...(sessionPage.cursor ? { cursor: sessionPage.cursor } : { order: "desc" }),
         } as never);
         const context = response?.data?.length ? [...response.data].reverse() : [];
         const restored = restoreTophMessages(context, sessionToph.id, sessionToph.chatId, sessionId);
-        const cursor = (response as { cursor?: { previous?: string | null } } | null)?.cursor?.previous ?? null;
+        const cursor = (response as { cursor?: { next?: string | null } } | null)?.cursor?.next ?? null;
         if (restored.length > 0) {
           if (previous) pendingScrollRestore.current = previous;
           mergeMessages(project.id, restored);
           setHistoryTick((value) => value + 1);
         }
-        setSessionPage({ sessionId, cursor, hasMore: Boolean(cursor), loading: false, ready: true, error: "" });
+        setSessionPage({
+          sessionId,
+          cursor: context.length > 0 ? cursor : null,
+          hasMore: context.length > 0 && Boolean(cursor),
+          loading: false,
+          ready: true,
+          error: "",
+        });
         return;
       }
       const page = await api.workspaceMessages<ChatMessage>(project.id, {
@@ -1024,7 +1030,7 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
     void client.message.list({ sessionID: activeSessionId, limit: 80, order: "desc" } as never)
       .then((response) => {
         if (cancelled) return;
-        const cursor = response?.cursor?.previous ?? null;
+        const cursor = response?.cursor?.next ?? null;
         setSessionPage({ sessionId: activeSessionId, cursor, hasMore: Boolean(cursor), loading: false, ready: true, error: "" });
       })
       .catch((error) => {
@@ -1912,7 +1918,7 @@ export default function BotStudioTab({ project, mobile = false, externalAction =
       // transcript instead of leaving user messages from other sessions.
       await api.replaceChatMessages(project.id, toph.chatId, restored).catch(() => undefined);
       replaceChatMessages(project.id, toph.chatId, restored);
-      const cursor = (page as { cursor?: { previous?: string | null } }).cursor?.previous ?? null;
+      const cursor = (page as { cursor?: { next?: string | null } }).cursor?.next ?? null;
       setSessionPage({ sessionId: session.id, cursor, hasMore: Boolean(cursor), loading: false, ready: true, error: "" });
     } else {
       const existingUsers = new Set(

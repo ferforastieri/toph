@@ -256,7 +256,16 @@ impl UpdateManager {
         .await;
         let (latest, assets, apk_url, error) = match result {
             Ok((latest, assets, apk_url)) => (latest, assets, apk_url, String::new()),
-            Err(error) => (String::new(), Vec::new(), String::new(), error),
+            Err(error) => {
+                // Keep the last known release when GitHub is temporarily
+                // unreachable instead of making the update toast disappear.
+                let previous = self
+                    .cache
+                    .lock()
+                    .map(|cache| (cache.latest.clone(), cache.assets.clone(), cache.apk_url.clone()))
+                    .unwrap_or_default();
+                (previous.0, previous.1, previous.2, error)
+            }
         };
         if let Ok(mut cache) = self.cache.lock() {
             cache.checked = Some(Instant::now());
@@ -313,10 +322,13 @@ impl UpdateManager {
 
 fn parse_version(value: &str) -> Option<[u64; 3]> {
     let value = value.trim().trim_start_matches('v');
-    let mut parts = value.split('.');
+    // Development builds append suffixes such as `-3-gabc123`. The numeric
+    // release they derive from is still comparable.
+    let core = value.split(['-', '+']).next().unwrap_or(value);
+    let mut parts = core.split('.');
     let mut version = [0u64; 3];
-    for (index, part) in parts.by_ref().take(3).enumerate() {
-        version[index] = part.parse().ok()?;
+    for slot in &mut version {
+        *slot = parts.next()?.parse().ok()?;
     }
     if parts.next().is_some() {
         return None;
@@ -328,10 +340,34 @@ fn newer_release(latest: &str, current: &str) -> bool {
     let Some(latest) = parse_version(latest) else {
         return false;
     };
+    // When the running build has no comparable version, still offer the
+    // newest published release instead of silently hiding the update.
     let Some(current) = parse_version(current) else {
-        return false;
+        return true;
     };
     latest > current
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{newer_release, parse_version};
+
+    #[test]
+    fn parses_release_and_development_versions() {
+        assert_eq!(parse_version("v0.72.1"), Some([0, 72, 1]));
+        assert_eq!(parse_version("0.72.1-3-gabc123"), Some([0, 72, 1]));
+        assert_eq!(parse_version("0.72.1+build.5"), Some([0, 72, 1]));
+        assert_eq!(parse_version("dev"), None);
+    }
+
+    #[test]
+    fn offers_latest_release_when_running_version_is_unknown() {
+        assert!(newer_release("0.72.1", "0.72.0"));
+        assert!(!newer_release("0.72.1", "0.72.1"));
+        assert!(!newer_release("0.72.1", "0.73.0"));
+        assert!(newer_release("0.72.1", "dev"));
+        assert!(newer_release("0.72.1", "0.72.0-local"));
+    }
 }
 
 fn is_zero(value: &i64) -> bool {
