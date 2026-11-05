@@ -5,7 +5,7 @@ export type Theme = "light" | "dark";
 export type SideBarPosition = "left" | "right";
 export type PanelAlignment = "left" | "right" | "center" | "justify";
 export type QuickInputPosition = "top" | "center";
-export type ProjectBar = "header" | "right";
+export type ProjectBar = "header" | "left";
 
 export const WORKSPACE_FEATURES = [
   "topBar",
@@ -240,7 +240,7 @@ function readSettings(): Omit<SettingsState, "update" | "setTheme" | "reset"> {
           ? value.panelAlignment
           : "justify",
       quickInputPosition: value.quickInputPosition === "center" ? "center" : "top",
-      projectBar: value.projectBar === "right" ? "right" : "header",
+      projectBar: value.projectBar === "left" ? "left" : "header",
       gitBranchPattern:
         typeof value.gitBranchPattern === "string" && value.gitBranchPattern.trim()
           ? value.gitBranchPattern

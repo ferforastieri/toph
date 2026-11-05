@@ -202,7 +202,7 @@ export default function TophSettings({ user, projectRoot }: Props) {
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex min-w-0 flex-col">
                       <span className="text-body-2-medium text-text-primary">Posição</span>
-                      <span className="text-caption-2-regular text-text-tertiary">No header os projetos mostram o nome; na barra direita, só a inicial.</span>
+                      <span className="text-caption-2-regular text-text-tertiary">No header os projetos mostram o nome; na barra esquerda, só a inicial.</span>
                     </div>
                     <div className="flex shrink-0 rounded-lg border border-border-button-default p-0.5">
                       <button
@@ -215,11 +215,11 @@ export default function TophSettings({ user, projectRoot }: Props) {
                       </button>
                       <button
                         type="button"
-                        onClick={() => updateSettings({ projectBar: "right" })}
-                        className={cx("rounded-md px-2.5 py-1 text-caption-2-medium transition-colors", projectBar === "right" ? "bg-accent-500/15 text-accent-600" : "text-text-secondary hover:text-text-primary")}
-                        aria-pressed={projectBar === "right"}
+                        onClick={() => updateSettings({ projectBar: "left" })}
+                        className={cx("rounded-md px-2.5 py-1 text-caption-2-medium transition-colors", projectBar === "left" ? "bg-accent-500/15 text-accent-600" : "text-text-secondary hover:text-text-primary")}
+                        aria-pressed={projectBar === "left"}
                       >
-                        Direita
+                        Esquerda
                       </button>
                     </div>
                   </div>
