@@ -18,13 +18,58 @@ interface Props {
   onContextMenu?: (entry: FileEntry, event: React.MouseEvent) => void;
 }
 
+function hasTransferType(types: DataTransfer["types"], type: string): boolean {
+  return Array.from(types).includes(type);
+}
+
+function expansionKey(projectId: string): string {
+  return `toph:tree-expanded:${projectId}`;
+}
+
+function loadExpansion(projectId: string): Set<string> {
+  try {
+    const raw = window.sessionStorage.getItem(expansionKey(projectId));
+    const paths = raw ? (JSON.parse(raw) as unknown) : [];
+    return new Set(Array.isArray(paths) ? paths.filter((path): path is string => typeof path === "string") : []);
+  } catch {
+    return new Set();
+  }
+}
+
+/** Clear the persisted expansion for "collapse all" without touching the files. */
+export function clearTreeExpansion(projectId: string): void {
+  try {
+    window.sessionStorage.removeItem(expansionKey(projectId));
+  } catch {
+    // Storage can be disabled; the remount still collapses the tree.
+  }
+}
+
 export default function FileTree({ project, onOpenFile, embedded = false, statuses, onSelect, onContextMenu }: Props) {
   const [entries, setEntries] = useState<FileEntry[]>([]);
   const [revision, setRevision] = useState(0);
   const [error, setError] = useState("");
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState<Set<string>>(() => loadExpansion(project.id));
 
   useProjectEvents(project.id, ["files"], () => setRevision((current) => current + 1));
+
+  useEffect(() => {
+    try {
+      window.sessionStorage.setItem(expansionKey(project.id), JSON.stringify([...expanded]));
+    } catch {
+      // Storage can be disabled; expansion still works for this mount.
+    }
+  }, [expanded, project.id]);
+
+  function toggleExpanded(path: string) {
+    setExpanded((current) => {
+      const next = new Set(current);
+      if (next.has(path)) next.delete(path);
+      else next.add(path);
+      return next;
+    });
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -42,7 +87,8 @@ export default function FileTree({ project, onOpenFile, embedded = false, status
         role="tree"
         aria-label="Project files"
         onDragOver={(event) => {
-          if (event.dataTransfer.types.includes("text/toph-path")) event.preventDefault();
+          const types = event.dataTransfer.types;
+          if (hasTransferType(types, "text/toph-path") || hasTransferType(types, "Files")) event.preventDefault();
         }}
         onDrop={(event) => {
           const from = event.dataTransfer.getData("text/toph-path");
@@ -67,6 +113,8 @@ export default function FileTree({ project, onOpenFile, embedded = false, status
             onSelect={(item) => { setSelectedPath(item.path); onSelect?.(item); }}
             onContextMenu={onContextMenu}
             selectedPath={selectedPath}
+            expanded={expanded}
+            onToggle={toggleExpanded}
             onMoved={() => setRevision((value) => value + 1)}
           />
         ))}
@@ -75,7 +123,7 @@ export default function FileTree({ project, onOpenFile, embedded = false, status
   );
 }
 
-function TreeNode({ project, entry, depth, onOpenFile, statuses, revision, onSelect, onContextMenu, selectedPath, onMoved }: {
+function TreeNode({ project, entry, depth, onOpenFile, statuses, revision, onSelect, onContextMenu, selectedPath, expanded, onToggle, onMoved }: {
   project: Project;
   entry: FileEntry;
   depth: number;
@@ -85,9 +133,11 @@ function TreeNode({ project, entry, depth, onOpenFile, statuses, revision, onSel
   onSelect?: (entry: FileEntry) => void;
   onContextMenu?: (entry: FileEntry, event: React.MouseEvent) => void;
   selectedPath: string | null;
+  expanded: Set<string>;
+  onToggle: (path: string) => void;
   onMoved?: () => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const open = entry.dir && expanded.has(entry.path);
   const [dragOver, setDragOver] = useState(false);
   const [children, setChildren] = useState<FileEntry[] | null>(null);
   const [loading, setLoading] = useState(false);
@@ -108,7 +158,7 @@ function TreeNode({ project, entry, depth, onOpenFile, statuses, revision, onSel
 
   function toggle() {
     if (!entry.dir) { onOpenFile(entry.path); return; }
-    setOpen((current) => !current);
+    onToggle(entry.path);
   }
 
   return (
@@ -136,7 +186,7 @@ function TreeNode({ project, entry, depth, onOpenFile, statuses, revision, onSel
           event.dataTransfer.effectAllowed = "move";
         }}
         onDragOver={(event) => {
-          if (!entry.dir || !event.dataTransfer.types.includes("text/toph-path")) return;
+          if (!entry.dir || !hasTransferType(event.dataTransfer.types, "text/toph-path")) return;
           event.preventDefault();
           event.dataTransfer.dropEffect = "move";
           setDragOver(true);
@@ -183,7 +233,7 @@ function TreeNode({ project, entry, depth, onOpenFile, statuses, revision, onSel
           <div className={cn("min-h-0 overflow-hidden transition-opacity duration-300", open ? "opacity-100" : "opacity-0")}>
             {loading && <LoadingState label="Carregando..." className="py-0.5" />}
             {children?.map((child) => (
-              <TreeNode key={child.path} project={project} entry={child} depth={depth + 1} onOpenFile={onOpenFile} statuses={statuses} revision={revision} onSelect={onSelect} onContextMenu={onContextMenu} selectedPath={selectedPath} />
+              <TreeNode key={child.path} project={project} entry={child} depth={depth + 1} onOpenFile={onOpenFile} statuses={statuses} revision={revision} onSelect={onSelect} onContextMenu={onContextMenu} selectedPath={selectedPath} expanded={expanded} onToggle={onToggle} />
             ))}
           </div>
         </div>

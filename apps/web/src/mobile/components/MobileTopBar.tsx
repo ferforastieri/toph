@@ -1,7 +1,8 @@
 import type { ComponentType } from "react";
-import { LayoutPanelLeft, Menu, MessageSquare } from "@toph/icons";
+import { Menu, MessageSquare } from "@toph/icons";
 import NotificationBadge from "../../components/NotificationBadge";
 import BrandMark from "@toph/brand";
+import { Avatar } from "@/boardui/base/avatar/avatar";
 import { cx } from "@/boardui/utils/cx";
 import { Button } from "@/boardui/base/buttons/button";
 
@@ -36,18 +37,13 @@ export default function MobileTopBar({ title, subtitle, projectName, unreadCount
           title="Abrir menu"
           onClick={onMenu}
           className={cx(
-            "relative flex shrink-0 items-center justify-center transition-[background-color,color,transform,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus-ring",
+            "relative ms-1 flex shrink-0 items-center justify-center transition-[background-color,color,transform,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus-ring",
             floating
               ? "size-10 rounded-full bg-foreground-icon-primary/10 text-text-primary shadow-xs backdrop-blur-md hover:bg-foreground-icon-primary/15"
-              : "size-9 rounded-xl border border-accent-500/20 bg-accent-500/10 text-accent-500 shadow-xs hover:bg-accent-500/15",
+              : "size-10 rounded-full bg-transparent text-text-primary hover:bg-background-primary-hover",
           )}
         >
-          {floating ? <Menu className="size-5" /> : brandIcon ? <BrandMark size="small" className="size-5" /> : <Icon className="size-4" />}
-          {!floating ? (
-            <span className="absolute -bottom-0.5 -right-0.5 flex size-3.5 items-center justify-center rounded-full border border-border-button-default bg-background-primary-default text-foreground-icon-secondary shadow-xs">
-              <LayoutPanelLeft className="size-2" />
-            </span>
-          ) : null}
+          {floating ? <Menu className="size-5" /> : brandIcon ? <BrandMark size="small" className="size-7" /> : <Icon className="size-5" />}
         </button>
         {!floating && !hideTitle ? (
           <div className="flex min-w-0 flex-1 flex-col gap-0">
@@ -68,8 +64,16 @@ export default function MobileTopBar({ title, subtitle, projectName, unreadCount
             onClick={onProjects}
             className={cx("relative shrink-0 rounded-full", floating ? "size-9 p-1.5" : "size-10 p-2")}
           >
-            <BrandMark size="small" className="size-6" />
-            {unreadCount > 0 ? <NotificationBadge count={unreadCount} size={17} className="absolute end-0 top-0 z-10" /> : null}
+            <span className="relative flex items-center justify-center" aria-hidden="true">
+              <Avatar
+                size="sm"
+                initials={(projectName.trim().slice(0, 1) || "T").toUpperCase()}
+                className="bg-accent-500/15 text-caption-2-semibold text-accent-500"
+              />
+              {unreadCount > 0 ? (
+                <NotificationBadge count={unreadCount} size={16} className="absolute -end-1.5 -top-1.5 z-10" />
+              ) : null}
+            </span>
           </Button>
           {onConversations ? (
             <Button
