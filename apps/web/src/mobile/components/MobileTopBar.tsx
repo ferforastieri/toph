@@ -1,6 +1,7 @@
 import type { ComponentType } from "react";
-import { FolderGit2, LayoutPanelLeft, Menu, MessageSquare } from "@toph/icons";
+import { LayoutPanelLeft, Menu, MessageSquare } from "@toph/icons";
 import NotificationBadge from "../../components/NotificationBadge";
+import BrandMark from "@toph/brand";
 import { cx } from "@/boardui/utils/cx";
 import { Button } from "@/boardui/base/buttons/button";
 
@@ -59,14 +60,13 @@ export default function MobileTopBar({ title, subtitle, projectName, unreadCount
           <Button
             variant="ghost"
             size="small"
-            leadingIcon={FolderGit2}
             aria-label={`Projeto ${projectName}. Selecionar projeto${unreadCount > 0 ? `, ${unreadCount} notificações não lidas` : ""}`}
-            title="Selecionar projeto"
+            title={projectName}
             onClick={onProjects}
-            className={cx("relative shrink-0 gap-1 rounded-full", floating ? "h-8 px-1" : "h-9 px-1 [&_svg]:size-4")}
+            className={cx("relative shrink-0 rounded-full", floating ? "size-8 p-1" : "size-9 p-1")}
           >
-            <span className="min-w-0 max-w-24 truncate text-caption-2-medium">{projectName}</span>
-            <NotificationBadge count={unreadCount} size={11} className="pointer-events-none absolute -right-1 -top-1 rounded-full bg-background-primary-default p-0.5 shadow-xs" />
+            <BrandMark size="small" className="size-6" />
+            <NotificationBadge count={unreadCount} size={11} className="pointer-events-none absolute end-0 top-0 rounded-full bg-background-primary-default p-0.5 shadow-xs" />
           </Button>
           {onConversations ? (
             <Button

@@ -1083,10 +1083,10 @@ export default function Workbench() {
       onOpenChange={(next) => { setProjectsMenuOpen(next); setBranchMenuOpen(false); }}
       panelClassName="w-[min(320px,calc(100vw-64px))] p-2.5"
       trigger={
-        <button type="button" className="relative mx-auto my-1 flex size-10 items-center justify-center rounded-2xl border border-border-button-default bg-background-secondary-default shadow-xs transition-colors hover:border-accent-500/40 hover:bg-background-primary-hover focus-visible:ring-2 focus-visible:ring-border-focus-ring" aria-label={`Trocar projeto. Projeto atual: ${project.name}. ${unreadCount} notificações.`} title={`${project.name} · trocar projeto`} onClick={() => setProjectsMenuOpen((open) => !open)}>
+        <button type="button" className="relative mx-auto my-1 me-2 flex size-10 items-center justify-center rounded-2xl border border-border-button-default bg-background-secondary-default shadow-xs transition-colors hover:border-accent-500/40 hover:bg-background-primary-hover focus-visible:ring-2 focus-visible:ring-border-focus-ring" aria-label={`Trocar projeto. Projeto atual: ${project.name}. ${unreadCount} notificações.`} title={`${project.name} · trocar projeto`} onClick={() => setProjectsMenuOpen((open) => !open)}>
           <BrandMark size="small" className="size-6" />
-          {unreadCount > 0 ? <NotificationBadge count={unreadCount} size={11} className="absolute -top-1.5 -end-1.5 rounded-full bg-background-primary-default p-0.5 text-text-secondary shadow-xs" /> : null}
-          <span className="absolute -bottom-1 -end-1 flex size-4 items-center justify-center rounded-full border border-background-primary-default bg-background-tertiary-default text-text-secondary"><ChevronDown size={9} /></span>
+          {unreadCount > 0 ? <NotificationBadge count={unreadCount} size={11} className="absolute end-0 top-0 rounded-full bg-background-secondary-default p-0.5 text-text-secondary shadow-xs" /> : null}
+          <span className="absolute bottom-0 end-0 flex size-4 items-center justify-center rounded-full border border-background-primary-default bg-background-tertiary-default text-text-secondary"><ChevronDown size={9} /></span>
         </button>
       }
     >
