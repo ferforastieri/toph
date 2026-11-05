@@ -71,7 +71,7 @@ export default function MobileTopBar({ title, subtitle, projectName, unreadCount
                 className="bg-accent-500/15 text-caption-2-semibold text-accent-500"
               />
               {unreadCount > 0 ? (
-                <NotificationBadge count={unreadCount} size={16} className="absolute -end-1.5 -top-1.5 z-10" />
+                <NotificationBadge count={unreadCount} size={15} className="absolute end-0 top-0 z-10" />
               ) : null}
             </span>
           </Button>
