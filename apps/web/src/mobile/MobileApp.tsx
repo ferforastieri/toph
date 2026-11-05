@@ -341,6 +341,7 @@ export default function MobileApp() {
         onMenu={() => setMenuOpen(true)}
         onConversations={screen === "bots" ? openConversations : undefined}
         onProjects={() => setProjectsOpen(true)}
+        hideTitle={screen === "bots"}
       />
       <main className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background-primary-default">
         {screen === "bots" ? (
