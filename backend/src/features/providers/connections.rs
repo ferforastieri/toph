@@ -152,6 +152,7 @@ impl AiService {
             id: id.clone(),
             label: input.label,
             config: AiConfig {
+                label: String::new(),
                 provider: input.provider,
                 base_url: input.base_url.trim_end_matches('/').to_owned(),
                 api_key: key.clone(),
@@ -164,6 +165,7 @@ impl AiService {
                 autocomplete: false,
                 system_prompt: String::new(),
                 image_providers: vec![],
+                connection_label: String::new(),
             },
         };
         all.retain(|c| c.id != id);
@@ -192,13 +194,23 @@ impl AiService {
         let mut config = if id == "default" {
             self.load().await?
         } else {
-            self.connections()
+            let connection = self
+                .connections()
                 .await?
                 .into_iter()
                 .find(|c| c.id == id)
-                .ok_or_else(|| bad_request("The selected model connection no longer exists"))?
-                .config
+                .ok_or_else(|| bad_request("The selected model connection no longer exists"))?;
+            let mut config = connection.config;
+            config.connection_label = crate::ai::infer_connection_name(
+                &connection.label,
+                &config.provider,
+                &config.base_url,
+            );
+            config
         };
+        if config.connection_label.is_empty() {
+            config.connection_label = config.connection_name();
+        }
         if !model.is_empty() {
             config.model = model.to_string();
         }
@@ -261,6 +273,30 @@ mod reference_tests {
         assert!(
             migrate_model_reference("openai/gpt-6-astra", &std::collections::HashMap::new())
                 .is_err()
+        );
+    }
+
+    #[test]
+    fn connection_names_are_derived_from_the_real_endpoint() {
+        assert_eq!(
+            crate::ai::infer_connection_name(
+                "",
+                "custom",
+                "https://opencode.ai/inference/go/openai/v1"
+            ),
+            "OpenCode Go"
+        );
+        assert_eq!(
+            crate::ai::infer_connection_name("", "openai", "https://api.openai.com/v1"),
+            "OpenAI"
+        );
+        assert_eq!(
+            crate::ai::infer_connection_name("Meu provedor", "custom", "https://example.com"),
+            "Meu provedor"
+        );
+        assert_eq!(
+            crate::ai::infer_connection_name("", "custom", "https://models.example.com/v1"),
+            "models.example.com"
         );
     }
 }

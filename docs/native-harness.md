@@ -30,9 +30,11 @@ accidentally sent to a different endpoint.
 Use the compatible OpenAI protocol with
 `https://opencode.ai/inference/go/openai/v1` and a Console personal API key from
 the workspace subscribed to Go. The native client identifies itself as Toph and
-sends `x-opencode-session` using the persistent conversation ID, including
-compaction calls. The model catalog uses `/inference/go/v1/models`. This is a
-direct hosted model API integration; no external agent service is involved.
+sends a fresh `ses_<run-id>` in `x-opencode-session` for each execution,
+including compaction calls; reusing a historical session id can make the
+gateway return a misleading 429 "overloaded" response. The model catalog uses
+`/inference/go/v1/models`. This is a direct hosted model API integration; no
+external agent service is involved.
 
 ## Runtime
 
@@ -41,6 +43,23 @@ controls update the coordinator in the active chat, while each teammate keeps
 its own configuration. Sidebar actions open the selected Toph's configuration
 and sessions. The usage popover reports this chat's totals, a per-Toph breakdown,
 and the estimated context budget; it does not mix usage from other chats.
+
+Connection names are independent from wire protocols. A user can name the main
+connection (for example `OpenCode Go`) and add named connections using any
+OpenAI-compatible URL. The model picker shows the connection name and model,
+not the internal protocol value. Existing provider-prefixed selections are
+migrated only to the matching named connection.
+
+Short greetings and identity questions use the same selected model and
+connection on a small, tool-free context: no history replay, no project
+investigation and no compaction. Normal tasks keep the full tool-enabled path.
+When compaction is needed, each summary request is bounded independently.
+
+Transient 429 responses are retried at most twice against the same connection,
+with bounded backoff. Exhausting those attempts ends the run with an explicit
+error; Toph never switches model or provider automatically. The browser also
+reconciles active runs from snapshots and polls while a run is active, so a
+buffered or lost SSE event cannot leave the composer stuck in "busy".
 
 Legacy provider-prefixed model selections are migrated to explicit native
 connection IDs only when the corresponding provider connection is unambiguous.

@@ -111,6 +111,8 @@ export interface ImageProviderInput {
 }
 
 export interface AIConfig {
+  label: string;
+  connectionLabel: string;
   provider: string;
   baseUrl: string;
   model: string;
@@ -125,6 +127,7 @@ export interface AIConfig {
 }
 
 export interface AIConfigInput {
+  label: string;
   provider: string;
   baseUrl: string;
   apiKey?: string;
@@ -143,6 +146,7 @@ export interface AIModel {
   id: string;
   label: string;
   provider: string;
+  connectionLabel?: string;
   variants?: string[];
   inputs?: string[];
 }

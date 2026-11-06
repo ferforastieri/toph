@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mergeNativeMessages, mergeNativeRuns } from "./useAgentChat";
+import { mergeNativeMessages, mergeNativeRuns, reconcileNativeRuns } from "./useAgentChat";
 import type { NativeMessage, AgentRun } from "./api";
 
 describe("native conversation reconciliation", () => {
@@ -12,5 +12,9 @@ describe("native conversation reconciliation", () => {
   it("does not regress terminal runs when a reconnect snapshot races with completion", () => {
     const run: AgentRun = { id: "run", sessionId: "session", agentId: "agent", chatId: "chat", state: "completed", error: "", createdAt: 1, finishedAt: 2 };
     expect(mergeNativeRuns([run], [{ ...run, state: "running" }])).toEqual([run]);
+  });
+  it("drops a stale active run that disappeared from the authoritative snapshot", () => {
+    const stale: AgentRun = { id: "stale", sessionId: "session", agentId: "agent", chatId: "chat", state: "running", error: "", createdAt: 1 };
+    expect(reconcileNativeRuns([stale], [])).toEqual([]);
   });
 });

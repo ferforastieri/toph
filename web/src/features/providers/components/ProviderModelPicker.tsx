@@ -30,7 +30,7 @@ export default function ProviderModelPicker({ models, model, onChange, placehold
       grouped.set(provider, [...(grouped.get(provider) ?? []), item]);
     }
     return [...grouped.entries()].sort(([a], [b]) => (selected && modelGroup(selected) === a ? -1 : selected && modelGroup(selected) === b ? 1 : providerLabel(a).localeCompare(providerLabel(b))));
-  }, [uniqueModels, selected?.provider]);
+  }, [uniqueModels, selected?.connectionLabel]);
 
   useEffect(() => {
     if (!open || !selected) return;

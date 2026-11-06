@@ -14,11 +14,17 @@ import ProviderModelPicker from "./ProviderModelPicker";
 import { Chip } from "@/shared/boardui/base/badges/chip";
 
 const providers = [
-  { id: "openai", label: "OpenAI (Responses)", base: "https://api.openai.com" },
-  { id: "anthropic", label: "Anthropic", base: "https://api.anthropic.com" },
-  { id: "ollama", label: "Ollama", base: "http://127.0.0.1:11434" },
-  { id: "custom", label: "Custom", base: "" },
-];
+  { id: "openai", label: "OpenAI (Responses)", base: "https://api.openai.com", provider: "openai" },
+  { id: "anthropic", label: "Anthropic", base: "https://api.anthropic.com", provider: "anthropic" },
+  { id: "ollama", label: "Ollama", base: "http://127.0.0.1:11434", provider: "ollama" },
+  { id: "opencode-go", label: "OpenCode Go", base: "https://opencode.ai/inference/go/openai/v1", provider: "custom" },
+  { id: "custom", label: "URL personalizada (OpenAI compatível)", base: "", provider: "custom" },
+] as const;
+
+function connectionKind(provider: string, baseUrl: string): string {
+  if (provider === "custom" && baseUrl.toLowerCase().includes("opencode.ai/inference/go")) return "opencode-go";
+  return provider;
+}
 
 const IMAGE_PRESETS = [
   { kind: "openai", label: "OpenAI", base: "https://api.openai.com", model: "gpt-image-2" },
@@ -28,6 +34,7 @@ const IMAGE_PRESETS = [
 ] as const;
 
 const empty: AIConfigInput = {
+  label: "",
   provider: "",
   baseUrl: "",
   apiKey: "",
@@ -62,6 +69,7 @@ export default function AiSettings() {
         setConfig(next);
         void loadModels();
         setForm({
+          label: next.label ?? "",
           provider: next.provider,
           baseUrl: next.baseUrl,
           model: next.model,
@@ -94,10 +102,16 @@ export default function AiSettings() {
     setTested(null);
   }
 
-  function chooseProvider(provider: string) {    const preset = providers.find((item) => item.id === provider);
+  function chooseProvider(kind: string) {
+    const preset = providers.find((item) => item.id === kind);
+    if (!preset) return;
+    const keepCustom = preset.id === "custom" && !form.baseUrl.toLowerCase().includes("opencode.ai/inference/go");
+    const current = form.label.trim();
+    const isPresetLabel = providers.some((item) => item.label === current);
     patch({
-      provider,
-      baseUrl: provider === "custom" ? form.baseUrl : (preset?.base ?? ""),
+      provider: preset.provider,
+      label: preset.id === "custom" ? (isPresetLabel ? "" : current) : (isPresetLabel || !current ? preset.label : current),
+      baseUrl: preset.id === "custom" ? (keepCustom ? form.baseUrl : "") : preset.base,
       model: "",
       autocompleteModel: "",
       autocomplete: form.autocomplete,
@@ -167,9 +181,10 @@ export default function AiSettings() {
 
       <form className="flex flex-col gap-4" onSubmit={(event) => void save(event)}>
         <div className="bg-background-secondary-default flex flex-col gap-4 rounded-lg border p-4">
+          <Input label="Nome da conexão" value={form.label} onChange={(label) => patch({ label })} placeholder="Ex.: OpenCode Go" />
           <div className="flex flex-col gap-1.5">
-            <span className="text-body-medium text-text-secondary">Provider</span>
-            <Select selectedKey={form.provider} onSelectionChange={(key) => chooseProvider(String(key))} aria-label="Provider" className="w-full">
+            <span className="text-body-medium text-text-secondary">Tipo de conexão</span>
+            <Select selectedKey={connectionKind(form.provider, form.baseUrl)} onSelectionChange={(key) => chooseProvider(String(key))} aria-label="Tipo de conexão" className="w-full">
               {providers.map((provider) => (
                 <SelectItem key={provider.id} id={provider.id}>{provider.label}</SelectItem>
               ))}

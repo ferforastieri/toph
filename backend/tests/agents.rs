@@ -573,3 +573,26 @@ async fn interrupted_tool_calls_are_repaired_without_reexecution() {
         .iter()
         .any(|m| m["role"] == "tool" && m["tool_call_id"] == "unknown-effect"));
 }
+
+#[tokio::test]
+async fn greeting_answers_with_the_current_model_without_tools_or_history_replay() {
+    let fixture = Fixture::new(vec![Reply::Answer("Olá! Em que posso ajudar?")]).await;
+    let agents = vec![Fixture::agent("toph", "yolo")];
+    let run = fixture.start("greeting", agents, "Olá").await;
+    let snapshot = fixture.wait(run["id"].as_str().unwrap(), "completed").await;
+    assert!(snapshot["messages"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|message| message["role"] == "assistant"
+            && message["content"] == "Olá! Em que posso ajudar?"));
+    let requests = fixture.mock.requests.lock().unwrap();
+    assert_eq!(requests.len(), 1);
+    assert!(requests[0].get("tools").is_none());
+    let messages = requests[0]["messages"].as_array().unwrap();
+    assert_eq!(messages.len(), 2);
+    let system = messages[0]["content"].as_str().unwrap();
+    assert!(system.contains("fixture-model"));
+    assert!(system.contains("127.0.0.1"));
+    assert!(system.contains("Não retome"));
+}

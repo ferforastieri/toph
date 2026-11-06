@@ -232,6 +232,8 @@ impl Runtime {
             roster,
             chat_description: input.chat_description,
             depth: 0,
+            request: input.text.clone(),
+            conversational: context::conversational(&input.text) && input.attachments.is_empty(),
         };
         let runtime = self.clone();
         let budget = Arc::new(AtomicUsize::new(0));
@@ -499,11 +501,88 @@ impl Runtime {
                 &ctx.roster,
                 &ctx.root.display().to_string(),
                 &extra,
+                &config.model,
+                &config.connection_name(),
+                &config.provider,
             );
             if context::estimate(&json!([system, tools])) > context::INPUT_BUDGET / 2 {
                 return Err(bad_request(
                     "Agent instructions and tool schemas exceed half the context budget",
                 ));
+            }
+            // Greetings and identity questions answer with the current model and
+            // connection, without tools, history replay or summarization. This
+            // keeps an interrupted investigation from being resumed by "Olá".
+            if ctx.conversational {
+                let mid = format!("{}-conversation", ctx.run.id);
+                let display = json!({"id":mid,"userId":ctx.user_id,"projectId":ctx.project_id,"chatId":ctx.run.chat_id,"tophId":ctx.agent.id,"sessionId":ctx.run.session_id,"model":ctx.agent.model,"agentMode":ctx.agent.agent_mode,"role":"assistant","content":"","status":"running","createdAt":now()});
+                this.inner
+                    .drafts
+                    .lock()
+                    .unwrap()
+                    .insert(ctx.run.id.clone(), display.clone());
+                this.event(&ctx, "message", display.clone());
+                let runtime = this.clone();
+                let live_ctx = ctx.clone();
+                let mut draft = display.clone();
+                let mut last = Instant::now();
+                let mut pending_delta = String::new();
+                let mut emitted_units = 0usize;
+                let mut conversation = config.clone();
+                conversation.max_tokens = conversation.max_tokens.min(1024);
+                let messages = vec![
+                    json!({"role":"system","content":format!("{system}\nModo conversa: responda em uma ou duas frases, sem usar ferramentas e sem investigar o projeto nem o histórico.")}),
+                    json!({"role":"user","content":ctx.request.clone()}),
+                ];
+                let estimated = context::estimate(&json!([messages]));
+                let turn = this
+                    .generate(
+                        &ctx,
+                        &conversation,
+                        &messages,
+                        &[],
+                        "conversation",
+                        estimated,
+                        &budget,
+                        &cancel,
+                        move |chunk| {
+                            if let Value::String(content) = &mut draft["content"] {
+                                content.push_str(chunk);
+                            }
+                            pending_delta.push_str(chunk);
+                            if last.elapsed() >= Duration::from_millis(80) {
+                                runtime
+                                    .inner
+                                    .drafts
+                                    .lock()
+                                    .unwrap()
+                                    .insert(live_ctx.run.id.clone(), draft.clone());
+                                let units = pending_delta.encode_utf16().count();
+                                runtime.event(&live_ctx, "delta", json!({"id":draft["id"],"offset":emitted_units,"text":std::mem::take(&mut pending_delta)}));
+                                emitted_units += units;
+                                last = Instant::now();
+                            }
+                        },
+                    )
+                    .await?;
+                if turn.text.trim().is_empty() {
+                    return Err(bad_request("Model returned an empty answer"));
+                }
+                let mut done = display;
+                done["content"] = json!(turn.text);
+                done["status"] = json!("complete");
+                this.inner
+                    .repo
+                    .message(
+                        &ctx,
+                        &mid,
+                        json!({"role":"assistant","content":turn.text}),
+                        done.clone(),
+                    )
+                    .await?;
+                this.event(&ctx, "message", done);
+                this.inner.drafts.lock().unwrap().remove(&ctx.run.id);
+                return Ok(turn.text);
             }
             for step in 0..MAX_STEPS {
                 if cancel.is_cancelled() {
@@ -735,6 +814,8 @@ impl Runtime {
             roster: parent.roster.clone(),
             chat_description: parent.chat_description.clone(),
             depth: parent.depth + 1,
+            request: task.to_string(),
+            conversational: false,
         };
         let result = async {
             self.prepare(&ctx, task, &[]).await?;
@@ -794,7 +875,7 @@ impl Runtime {
             .await?;
         transaction.commit().await?;
         let started = Instant::now();
-        let result = tokio::select! {_=cancel.cancelled()=>Err(bad_request("Execution cancelled")),r=self.inner.ai.turn_in_session(config,messages,tools,Some(&ctx.agent.effort),&ctx.run.session_id,delta)=>r};
+        let result = tokio::select! {_=cancel.cancelled()=>Err(bad_request("Execution cancelled")),r=self.inner.ai.turn_in_session(config,messages,tools,Some(&ctx.agent.effort),&ctx.run.id,delta)=>r};
         drop(permit);
         let usage = result.as_ref().map(|t| t.usage.clone()).unwrap_or_default();
         let finish = result
@@ -838,7 +919,7 @@ impl Runtime {
             let mut count = 0;
             for end in ends.into_iter().filter(|end| *end <= keep) {
                 let data = json!({"previous":summary,"messages":rows[..end].iter().map(|r|json!({"seq":r.seq,"message":context::summary_message(&r.body)})).collect::<Vec<_>>()});
-                if context::estimate(&data) > context::INPUT_BUDGET - 1800 {
+                if context::estimate(&data) > context::SUMMARY_INPUT_BUDGET {
                     break;
                 }
                 count = end;

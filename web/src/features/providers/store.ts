@@ -56,7 +56,9 @@ function canonicalProvider(provider: string): string {
   return value;
 }
 
-export function modelGroup(model: { id: string; label: string; provider?: string }): string {
+export function modelGroup(model: { id: string; label: string; provider?: string; connectionLabel?: string }): string {
+  const connection = model.connectionLabel?.trim();
+  if (connection) return connection;
   const explicitProvider = model.provider?.trim();
   if (explicitProvider) {
     const provider = canonicalProvider(explicitProvider);
@@ -103,17 +105,17 @@ export function providerLabel(provider?: string): string {
     case "github-copilot": return "GitHub Copilot";
     case "azure": return "Azure OpenAI";
     case "amazon-bedrock": return "Amazon Bedrock";
-    default: return "Agent";
+    default: return provider?.trim() || "Agent";
   }
 }
 
-export function modelDisplay(model?: { id: string; label?: string; provider?: string }): string {
+export function modelDisplay(model?: { id: string; label?: string; provider?: string; connectionLabel?: string }): string {
   if (!model?.id) return "Modelo";
   const label = model.label?.trim() || model.id.split("/").pop() || model.id;
-  return `${providerLabel(modelGroup({ id: model.id, label, provider: model.provider }))} · ${label}`;
+  return `${providerLabel(modelGroup({ id: model.id, label, provider: model.provider, connectionLabel: model.connectionLabel }))} · ${label}`;
 }
 
-export function modelTitle(model?: { id: string; label?: string; provider?: string }): string {
+export function modelTitle(model?: { id: string; label?: string; provider?: string; connectionLabel?: string }): string {
   if (!model?.id) return "Modelo";
   const display = modelDisplay(model);
   return model.label && model.label !== model.id ? `${display} · ${model.id}` : display;
