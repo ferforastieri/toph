@@ -69,7 +69,7 @@ export default function AiSettings() {
         setConfig(next);
         void loadModels();
         setForm({
-          label: next.label ?? "",
+          label: next.label || next.connectionLabel || "",
           provider: next.provider,
           baseUrl: next.baseUrl,
           model: next.model,
