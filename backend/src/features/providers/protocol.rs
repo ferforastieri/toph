@@ -25,6 +25,7 @@ pub struct Turn {
     pub calls: Vec<ToolCall>,
     pub usage: Usage,
     pub finish: String,
+    pub response_items: Vec<Value>,
 }
 
 fn endpoint(base: &str, suffix: &str) -> String {
@@ -183,7 +184,13 @@ impl AiService {
         super::connections::validate_endpoint(&config.provider, &config.base_url)?;
         let anthropic = config.provider == "anthropic";
         let ollama = config.provider == "ollama";
-        let (url, body) = if anthropic {
+        let responses = config.provider == "openai";
+        let (url, body) = if responses {
+            (
+                endpoint(&config.base_url, "/responses"),
+                super::responses::request(config, messages, tools, effort)?,
+            )
+        } else if anthropic {
             let (system, chat) = anthropic_messages(messages)?;
             let mut body = json!({"model":config.model,"max_tokens":config.max_tokens,"system":[{"type":"text","text":system,"cache_control":{"type":"ephemeral"}}],"messages":chat,"stream":true});
             if system.is_empty() {
@@ -199,6 +206,8 @@ impl AiService {
         } else if ollama {
             let mut chat = messages.to_vec();
             for m in &mut chat {
+                m.as_object_mut().unwrap().remove("response_items");
+                m.as_object_mut().unwrap().remove("response_model");
                 if m["role"] == "tool" {
                     m["tool_name"] = m["name"].clone();
                 }
@@ -241,6 +250,8 @@ impl AiService {
             let mut body = json!({"model":config.model,"messages":messages,"max_completion_tokens":config.max_tokens,"stream":true,"stream_options":{"include_usage":true}});
             if let Some(chat) = body["messages"].as_array_mut() {
                 for message in chat {
+                    message.as_object_mut().unwrap().remove("response_items");
+                    message.as_object_mut().unwrap().remove("response_model");
                     if message["role"] == "tool" {
                         message.as_object_mut().unwrap().remove("name");
                     }
@@ -332,7 +343,11 @@ impl AiService {
                 if let Some(error) = value.get("error") {
                     return Err(AppError::Upstream(error.to_string()));
                 }
-                if anthropic {
+                if responses {
+                    if super::responses::event(&mut turn, &value, &mut delta)? {
+                        finished = true;
+                    }
+                } else if anthropic {
                     match value["type"].as_str().unwrap_or("") {
                         "message_start" => {
                             let u = &value["message"]["usage"];
@@ -450,7 +465,9 @@ impl AiService {
                 "Provider stream ended before completion".into(),
             ));
         }
-        turn.calls = calls.into_values().collect();
+        if !responses {
+            turn.calls = calls.into_values().collect();
+        }
         for call in &mut turn.calls {
             if call.id.is_empty() || call.name.is_empty() {
                 return Err(AppError::Upstream("Incomplete tool call".into()));

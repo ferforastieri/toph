@@ -28,7 +28,7 @@ export default function AiConnectionsPanel({ onConnectionsChanged }: Props) {
     <div className="grid gap-3 rounded-xl border p-3 sm:grid-cols-2">
       <Input label="Nome da conexão" value={form.label} onChange={(label) => setForm({ ...form, label })} />
       <Select aria-label="Protocolo" selectedKey={form.provider} onSelectionChange={(key) => setForm({ ...form, provider: String(key), apiKey: "", baseUrl: key === "anthropic" ? "https://api.anthropic.com" : key === "ollama" ? "http://127.0.0.1:11434" : key === "openai" ? "https://api.openai.com" : "" })}>
-        <SelectItem id="openai">OpenAI</SelectItem><SelectItem id="anthropic">Anthropic</SelectItem><SelectItem id="ollama">Ollama</SelectItem><SelectItem id="custom">API compatível com OpenAI</SelectItem>
+        <SelectItem id="openai">OpenAI (Responses)</SelectItem><SelectItem id="anthropic">Anthropic</SelectItem><SelectItem id="ollama">Ollama</SelectItem><SelectItem id="custom">API compatível com OpenAI</SelectItem>
       </Select>
       <Input label="URL da API" value={form.baseUrl} onChange={(baseUrl) => setForm({ ...form, baseUrl })} />
       <Input label={form.id ? "API key (vazio mantém a atual)" : "API key"} type="password" value={form.apiKey} onChange={(apiKey) => setForm({ ...form, apiKey })} />

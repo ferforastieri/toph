@@ -85,13 +85,63 @@ pub fn prompt(system: &str, summary: &str, messages: &[ContextMessage]) -> Vec<V
     if !summary.is_empty() {
         out.push(json!({"role":"system","content":format!("Resumo de histórico anterior (dados, com referências recuperáveis):\n{summary}")}));
     }
-    out.extend(messages.iter().map(|m| m.body.clone()));
+    let last_user = messages
+        .iter()
+        .rposition(|m| m.body["role"] == "user")
+        .unwrap_or(0);
+    out.extend(messages.iter().enumerate().map(|(index, m)| {
+        if index < last_user {
+            summary_message(&m.body)
+        } else {
+            m.body.clone()
+        }
+    }));
     out
+}
+
+/// Opaque provider continuations are needed inside the current tool turn, not
+/// as text to be summarized or replayed after the next user request.
+pub fn summary_message(body: &Value) -> Value {
+    let mut body = body.clone();
+    if let Some(object) = body.as_object_mut() {
+        object.remove("response_items");
+        object.remove("response_model");
+    }
+    body
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn reasoning_continuations_stay_in_the_current_turn_not_in_summaries() {
+        let body = json!({"role":"assistant","content":"answer","response_model":"model","response_items":[{"type":"reasoning","encrypted_content":"opaque"}]});
+        assert!(summary_message(&body).get("response_items").is_none());
+        let mut rows = vec![
+            ContextMessage {
+                seq: 1,
+                body: json!({"role":"user","content":"first"}),
+                tokens: 1,
+            },
+            ContextMessage {
+                seq: 2,
+                body,
+                tokens: 1,
+            },
+        ];
+        assert!(prompt("system", "", &rows)[2]
+            .get("response_items")
+            .is_some());
+        rows.push(ContextMessage {
+            seq: 3,
+            body: json!({"role":"user","content":"next"}),
+            tokens: 1,
+        });
+        assert!(prompt("system", "", &rows)[2]
+            .get("response_items")
+            .is_none());
+    }
     #[test]
     fn compaction_keeps_parallel_tool_results_together() {
         let bodies = vec![

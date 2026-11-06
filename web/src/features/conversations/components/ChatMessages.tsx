@@ -11,8 +11,13 @@ import AgentActivity, { type AgentActivityState } from "./AgentActivity";
 import { Button } from "@/shared/boardui/base/buttons/button";
 import { cx } from "@/shared/boardui/utils/cx";
 
+const transcriptCache = new WeakMap<NativeMessage, AiMessage>();
 export function toTranscriptMessage(message: NativeMessage): AiMessage {
-  return { id: message.id, role: message.role === "system" ? "assistant" : message.role, text: message.content, detail: message.detail, title: message.title, status: message.status, createdAt: message.createdAt };
+  const cached = transcriptCache.get(message);
+  if (cached) return cached;
+  const result: AiMessage = { id: message.id, role: message.role === "system" ? "assistant" : message.role, text: message.content, detail: message.detail, title: message.title, status: message.status, createdAt: message.createdAt };
+  transcriptCache.set(message, result);
+  return result;
 }
 
 function MessageInfo({ message, toph, model, align = "start" }: { message: NativeMessage; toph?: ChatToph; model: string; align?: "start" | "end" }) {

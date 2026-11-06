@@ -8,7 +8,9 @@ proxy, provider substitution or retry with a different model.
 ## Setup
 
 1. Configure a direct API URL, key and model under **Settings → AI**. Supported
-   protocols are OpenAI Chat Completions, Anthropic Messages and Ollama Chat.
+   protocols are OpenAI Responses, OpenAI-compatible Chat Completions,
+   Anthropic Messages and Ollama Chat. OpenAI uses Responses so GPT reasoning
+   models can call tools without disabling their configured reasoning effort.
    The selected model must support streaming and tool calls for agent work.
 2. Additional connections live under **Conexões de IA**. Models are identified
    by `connection-id::model-id`; model IDs containing `/` remain intact.

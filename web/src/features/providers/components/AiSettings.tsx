@@ -14,7 +14,7 @@ import ProviderModelPicker from "./ProviderModelPicker";
 import { Chip } from "@/shared/boardui/base/badges/chip";
 
 const providers = [
-  { id: "openai", label: "OpenAI", base: "https://api.openai.com" },
+  { id: "openai", label: "OpenAI (Responses)", base: "https://api.openai.com" },
   { id: "anthropic", label: "Anthropic", base: "https://api.anthropic.com" },
   { id: "ollama", label: "Ollama", base: "http://127.0.0.1:11434" },
   { id: "custom", label: "Custom", base: "" },
