@@ -88,7 +88,6 @@ records the covered sequence. Original messages remain searchable using FTS5.
 | Resource | Limit |
 | --- | --- |
 | Input context | 12,000 estimated tokens, including instructions and schemas |
-| Run budget | 120,000 reserved estimated tokens, including summaries and children |
 | Tool/model loop | 24 iterations per agent |
 | Parallel model requests | 4 across the runtime |
 | Run admission | 16 active/queued entries checked at admission |
@@ -103,10 +102,12 @@ records the covered sequence. Original messages remain searchable using FTS5.
 
 Token estimates are model-independent heuristics, not invoices or exact
 tokenizer counts. Each model call records provider-reported input, output,
-cached and reasoning tokens separately, plus the estimate and latency. Pending
-calls reserve budget; the main configuration's weekly limit covers native runs
-across projects. Autocomplete is disabled initially and capped at 512 output
-tokens when enabled. Utility completions also enforce the input budget.
+cached and reasoning tokens separately, plus the estimate and latency. There is
+no artificial per-run token ceiling: cost stays bounded by the 12,000-token
+input context, incremental summaries, 24-step loop and tool-output artifacts.
+Pending calls count toward the optional configured weekly limit using their
+estimate. Autocomplete is disabled initially and capped at 512 output tokens
+when enabled. Utility completions also enforce the input budget.
 
 Large attachments and request buffers are released after preparation/use rather
 than kept for the lifetime of a run. Streaming updates are coalesced to roughly
