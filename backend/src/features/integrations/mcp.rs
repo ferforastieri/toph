@@ -116,6 +116,10 @@ impl Service {
             }
             if server.env.is_empty() {
                 server.env = old.env.clone();
+            } else {
+                let mut merged = old.env.clone();
+                merged.extend(server.env);
+                server.env = merged;
             }
         } else {
             return Err(AppError::NotFound);

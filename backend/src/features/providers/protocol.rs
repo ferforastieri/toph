@@ -31,7 +31,7 @@ pub struct Turn {
 
 fn endpoint(base: &str, suffix: &str) -> String {
     let base = base.trim_end_matches('/');
-    if base.ends_with("/v1") {
+    if base.ends_with("/v1") || base.ends_with("/openai") {
         format!("{base}{suffix}")
     } else {
         format!("{base}/v1{suffix}")
@@ -109,6 +109,10 @@ mod gateway_tests {
         assert_eq!(
             models_endpoint("https://api.openai.com/v1"),
             "https://api.openai.com/v1/models"
+        );
+        assert_eq!(
+            models_endpoint("https://generativelanguage.googleapis.com/v1beta/openai"),
+            "https://generativelanguage.googleapis.com/v1beta/openai/models"
         );
         assert!(
             console_gateway("https://opencode.ai.example.com/inference/go/openai/v1").is_none()
