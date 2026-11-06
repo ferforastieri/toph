@@ -34,6 +34,10 @@ CREATE TABLE IF NOT EXISTS agent_checkpoints (
  summary TEXT NOT NULL, estimated_tokens INTEGER NOT NULL, created_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS agent_checkpoint_latest ON agent_checkpoints(session_id,through_seq DESC);
+CREATE TABLE IF NOT EXISTS agent_session_state (
+ session_id TEXT PRIMARY KEY REFERENCES agent_sessions(id) ON DELETE CASCADE,
+ ledger TEXT NOT NULL DEFAULT '', updated_at INTEGER NOT NULL
+);
 CREATE TABLE IF NOT EXISTS agent_tool_calls (
  id TEXT PRIMARY KEY, run_id TEXT NOT NULL REFERENCES agent_runs(id), call_id TEXT NOT NULL,
  name TEXT NOT NULL, arguments TEXT NOT NULL, state TEXT NOT NULL, result TEXT, created_at INTEGER NOT NULL,

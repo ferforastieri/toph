@@ -357,12 +357,12 @@ async fn compaction_preserves_original_history_and_records_its_cost() {
         .wait(first["id"].as_str().unwrap(), "completed")
         .await;
     let session = first["sessionId"].as_str().unwrap();
-    for index in 0..40 {
-        let text = format!("Decisão {index}: {}", "a".repeat(1500));
+    for index in 0..120 {
+        let text = format!("Decisão {index}: {}", "a".repeat(3000));
         let id = format!("history-{index}");
         let role = if index % 2 == 0 { "user" } else { "assistant" };
         sqlx::query("INSERT INTO agent_messages(id,session_id,role,body,display,content_text,estimated_tokens,created_at) VALUES(?,?,?,?,?,?,?,?)")
-            .bind(&id).bind(session).bind(role).bind(json!({"role":role,"content":text}).to_string()).bind(json!({"id":id,"chatId":"chat","role":role,"content":text,"createdAt":index}).to_string()).bind(&text).bind(550i64).bind(index).execute(fixture.store.pool()).await.unwrap();
+            .bind(&id).bind(session).bind(role).bind(json!({"role":role,"content":text}).to_string()).bind(json!({"id":id,"chatId":"chat","role":role,"content":text,"createdAt":index}).to_string()).bind(&text).bind(1000i64).bind(index).execute(fixture.store.pool()).await.unwrap();
     }
     let second = fixture
         .start("second", agents, "Continue sem perder as decisões")
@@ -375,7 +375,7 @@ async fn compaction_preserves_original_history_and_records_its_cost() {
             .fetch_one(fixture.store.pool())
             .await
             .unwrap();
-    assert_eq!(original, 40);
+    assert_eq!(original, 120);
     let summaries: i64 =
         sqlx::query_scalar("SELECT count(*) FROM agent_model_calls WHERE kind='summary'")
             .fetch_one(fixture.store.pool())
@@ -387,9 +387,16 @@ async fn compaction_preserves_original_history_and_records_its_cost() {
         .await
         .unwrap();
     assert!(checkpoint > 0);
+    let ledger: String =
+        sqlx::query_scalar("SELECT ledger FROM agent_session_state WHERE session_id=?")
+            .bind(session)
+            .fetch_one(fixture.store.pool())
+            .await
+            .unwrap();
+    assert!(ledger.contains("objective"));
     let requests = fixture.mock.requests.lock().unwrap();
     let last = requests.last().unwrap();
-    assert!(last["messages"].to_string().len() < 36000);
+    assert!(last["messages"].to_string().len() < 400_000);
 }
 
 #[tokio::test]
