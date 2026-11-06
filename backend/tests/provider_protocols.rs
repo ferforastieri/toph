@@ -37,6 +37,74 @@ fn config(provider: &str, url: String) -> AiConfig {
 }
 
 #[tokio::test]
+async fn openai_responses_supports_reasoning_tools_and_stateless_continuation() {
+    let output = json!([
+        {"type":"reasoning","id":"rs_fixture","summary":[],"encrypted_content":"opaque-state"},
+        {"type":"function_call","id":"fc_fixture","call_id":"call_fixture","name":"read_file","arguments":"{\"path\":\"main.rs\"}","status":"completed"}
+    ]);
+    let wire = Wire {
+        seen: Arc::new(Mutex::new(vec![])),
+        content_type: "text/event-stream",
+        body: format!(
+            "data: {}\n\n",
+            json!({"type":"response.completed","response":{"status":"completed","output":output,"usage":{"input_tokens":100,"output_tokens":20,"input_tokens_details":{"cached_tokens":40},"output_tokens_details":{"reasoning_tokens":10}}}})
+        ),
+    };
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("http://{}", listener.local_addr().unwrap());
+    let app = Router::new()
+        .route("/v1/responses", post(endpoint))
+        .with_state(wire.clone());
+    let task = tokio::spawn(async move {
+        axum::serve(listener, app).await.unwrap();
+    });
+    let dir = tempfile::tempdir().unwrap();
+    let store = Store::open(&dir.path().join("db")).await.unwrap();
+    let ai = AiService::new(store, &dir.path().join("key")).unwrap();
+    let config = config("openai", url);
+    let tools = vec![
+        json!({"type":"function","function":{"name":"read_file","description":"Read","parameters":{"type":"object","properties":{"path":{"type":"string"}},"required":["path"]}}}),
+    ];
+    let first = ai
+        .turn(
+            &config,
+            &[json!({"role":"user","content":"Read main.rs"})],
+            &tools,
+            Some("high"),
+            |_| {},
+        )
+        .await
+        .unwrap();
+    assert_eq!(first.calls[0].id, "call_fixture");
+    assert_eq!(first.usage.reasoning, 10);
+    assert_eq!(first.usage.cached, 40);
+    let messages = vec![
+        json!({"role":"user","content":"Read main.rs"}),
+        json!({"role":"assistant","content":"","response_model":"chosen-model","response_items":first.response_items}),
+        json!({"role":"tool","tool_call_id":"call_fixture","content":"fn main() {}"}),
+    ];
+    ai.turn(&config, &messages, &tools, Some("high"), |_| {})
+        .await
+        .unwrap();
+    let requests = wire.seen.lock().unwrap();
+    assert_eq!(requests[0]["reasoning"]["effort"], "high");
+    assert_eq!(requests[0]["tools"][0]["strict"], false);
+    assert_eq!(requests[0]["store"], false);
+    assert!(requests[1]["input"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|item| item["encrypted_content"] == "opaque-state"));
+    assert!(requests[1]["input"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|item| item["type"] == "function_call_output" && item["call_id"] == "call_fixture"));
+    drop(requests);
+    task.abort();
+}
+
+#[tokio::test]
 async fn anthropic_preserves_tool_pairs_and_cache_usage() {
     let events = vec![
         json!({"type":"message_start","message":{"usage":{"input_tokens":10,"cache_read_input_tokens":40}}}),
