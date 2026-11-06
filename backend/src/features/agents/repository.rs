@@ -277,10 +277,25 @@ impl Repository {
         items.reverse();
         let runs:Vec<Run>=sqlx::query_as("SELECT id,session_id,parent_id,chat_id,agent_id,state,error,created_at,finished_at FROM agent_runs WHERE user_id=? AND project_id=? AND chat_id=? ORDER BY created_at DESC LIMIT 32")
             .bind(user).bind(project).bind(chat).fetch_all(self.0.pool()).await?;
-        let approvals=sqlx::query("SELECT t.id,t.name,t.arguments,r.id AS run_id,r.agent_id,r.session_id FROM agent_tool_calls t JOIN agent_runs r ON r.id=t.run_id WHERE r.user_id=? AND r.project_id=? AND r.chat_id=? AND t.state='waiting'")
-            .bind(user).bind(project).bind(chat).fetch_all(self.0.pool()).await?.iter().map(|r|json!({"id":r.get::<String,_>("id"),"name":r.get::<String,_>("name"),"arguments":r.get::<String,_>("arguments"),"runId":r.get::<String,_>("run_id"),"agentId":r.get::<String,_>("agent_id")})).collect::<Vec<_>>();
+        let waiting=sqlx::query("SELECT t.id,t.name,t.arguments,r.id AS run_id,r.agent_id,r.session_id FROM agent_tool_calls t JOIN agent_runs r ON r.id=t.run_id WHERE r.user_id=? AND r.project_id=? AND r.chat_id=? AND t.state='waiting'")
+            .bind(user).bind(project).bind(chat).fetch_all(self.0.pool()).await?;
+        // Questions share the waiting state with permissions; the UI must not
+        // offer "authorize ask_user", so they travel in their own list.
+        let mut approvals = Vec::new();
+        let mut questions = Vec::new();
+        for r in waiting {
+            let name: String = r.get("name");
+            let arguments: String = r.get("arguments");
+            let item = json!({"id":r.get::<String,_>("id"),"name":name,"arguments":arguments,"runId":r.get::<String,_>("run_id"),"agentId":r.get::<String,_>("agent_id")});
+            if name == "ask_user" {
+                let parsed: Value = serde_json::from_str(&arguments).unwrap_or(Value::Null);
+                questions.push(json!({"id":item["id"],"name":name,"arguments":arguments,"runId":item["runId"],"agentId":item["agentId"],"questions":parsed["questions"].clone()}));
+            } else {
+                approvals.push(item);
+            }
+        }
         Ok(
-            json!({"messages":items,"hasMore":more,"cursor":cursor,"runs":runs,"approvals":approvals}),
+            json!({"messages":items,"hasMore":more,"cursor":cursor,"runs":runs,"approvals":approvals,"questions":questions}),
         )
     }
 

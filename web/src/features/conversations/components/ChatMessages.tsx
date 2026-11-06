@@ -3,10 +3,11 @@ import { Copy, CornerDownRight, ListTree } from "@toph/icons";
 import type { Project, AIModel } from "../../../shared/api";
 import type { AiMessage } from "../../../app/store";
 import type { ChatToph } from "../store";
-import { isActive, type AgentRun, type NativeMessage } from "../../agents/api";
+import { isActive, type AgentQuestionPrompt, type AgentRun, type NativeMessage } from "../../agents/api";
 import { modelDisplay } from "../../providers/store";
 import BotAvatar from "../../agents/components/BotAvatar";
-import AgentTranscript from "./AgentTranscript";
+import AgentTranscript, { AgentImageGallery, agentImagesForMessages } from "./AgentTranscript";
+import AgentQuestionCard from "./AgentQuestionCard";
 import AgentActivity, { type AgentActivityState } from "./AgentActivity";
 import { Button } from "@/shared/boardui/base/buttons/button";
 import { cx } from "@/shared/boardui/utils/cx";
@@ -36,9 +37,9 @@ function ActivityAvatar({ toph, state }: { toph: ChatToph; state?: AgentActivity
 }
 
 interface Group { kind: "user" | "system" | "toph"; id: string; tophId?: string; messages: NativeMessage[] }
-interface Props { messages: NativeMessage[]; tophs: ChatToph[]; coordinator: ChatToph | null; runs: AgentRun[]; models: AIModel[]; defaultModel: string; project: Project; mobile: boolean }
+interface Props { messages: NativeMessage[]; tophs: ChatToph[]; coordinator: ChatToph | null; runs: AgentRun[]; models: AIModel[]; defaultModel: string; project: Project; mobile: boolean; questions?: AgentQuestionPrompt[]; onAnswer?: (id: string, answer: string) => void | Promise<void> }
 
-export default function ChatMessages({ messages, tophs, coordinator, runs, models, defaultModel, project, mobile }: Props) {
+export default function ChatMessages({ messages, tophs, coordinator, runs, models, defaultModel, project, mobile, questions = [], onAnswer }: Props) {
   const [expanded, setExpanded] = useState<string | null>(null);
   const groups = useMemo(() => {
     const result: Group[] = [];
@@ -78,12 +79,16 @@ export default function ChatMessages({ messages, tophs, coordinator, runs, model
       const state: AgentActivityState | undefined = current ? tools.some((m) => m.status === "running") ? "working" : group.messages.some((m) => m.role === "assistant" && m.content) ? "responding" : "thinking" : undefined;
       const text = mobile ? group.messages : group.messages.filter((m) => m.role !== "tool" && m.role !== "reasoning");
       const footer = [...group.messages].reverse().find((m) => m.role === "assistant" && m.status !== "running" && m.content);
+      // Images the agent produced live in tool output. On desktop the tool rows
+      // are collapsed, so surface the images directly in the conversation.
+      const shown = mobile ? [] : agentImagesForMessages(tools.filter((m) => m.role === "tool").map(toTranscriptMessage), project.id, project.root);
       return <section key={group.id} className="flex min-w-0 max-w-full items-start gap-2.5 [content-visibility:auto] [contain-intrinsic-size:auto_200px]">
         <ActivityAvatar toph={toph} state={state} />
         <div className="flex min-w-0 flex-1 flex-col gap-1.5 border-s-2 ps-2.5" style={{ borderColor: `${toph.color}33` }}>
           <header className="flex min-w-0 items-baseline gap-2" title={toph.role}><strong className="truncate text-caption-1-semibold text-text-primary">{toph.name}</strong><span className="truncate text-caption-2-regular text-text-tertiary">{state ? <span className="toph-activity-status text-accent-500">{state === "thinking" ? "Pensando" : state === "working" ? "Trabalhando" : "Respondendo"}<span className="toph-activity-ellipsis" aria-hidden><i>.</i><i>.</i><i>.</i></span></span> : label(toph)}</span></header>
           {state && <AgentActivity messages={tools.map(toTranscriptMessage)} state={state} startedAt={run!.createdAt} projectId={project.id} projectRoot={project.root} />}
           <AgentTranscript messages={text.map(toTranscriptMessage)} streaming={current} projectId={project.id} projectRoot={project.root} />
+          {shown.length > 0 && <AgentImageGallery images={shown} />}
           {!state && tools.length > 0 && <button type="button" onClick={() => setExpanded(expanded === group.id ? null : group.id)} className="flex w-fit items-center gap-1.5 rounded-full border border-border-button-default bg-background-secondary-default px-2 py-1 text-[11px] text-text-secondary transition-colors hover:border-accent-500/40 hover:bg-accent-500/5 hover:text-accent-600" aria-expanded={expanded === group.id}><ListTree size={12} />{tools.length} {tools.length === 1 ? "atividade" : "atividades"}</button>}
           {!mobile && expanded === group.id && <div className="toph-view-in mt-1 rounded-2xl border border-border-button-default bg-background-secondary-default/60 p-2.5"><div className="mb-1.5 flex items-center justify-between px-1"><span className="text-[11px] font-medium text-text-secondary">O que {toph.name} fez</span><button type="button" onClick={() => setExpanded(null)} className="text-[11px] text-text-tertiary">Fechar</button></div><AgentTranscript messages={tools.map(toTranscriptMessage)} streaming={false} projectId={project.id} projectRoot={project.root} /></div>}
           {footer && <MessageInfo message={footer} toph={toph} model={label(toph, footer)} />}
@@ -93,6 +98,19 @@ export default function ChatMessages({ messages, tophs, coordinator, runs, model
     {activeRuns.filter((run) => !groups.some((g) => g.kind === "toph" && g.tophId === run.agentId && g.messages.some((m) => m.createdAt >= run.createdAt))).map((run) => {
       const toph = tophs.find((a) => a.id === run.agentId);
       return toph ? <section key={run.id} className="flex items-start gap-2.5"><ActivityAvatar toph={toph} state="thinking" /><div className="flex min-w-0 flex-1 flex-col gap-1.5"><strong className="text-caption-1-semibold">{toph.name}</strong><AgentActivity messages={[]} state="thinking" startedAt={run.createdAt} projectId={project.id} projectRoot={project.root} /></div></section> : null;
+    })}
+    {questions.map((prompt) => {
+      const toph = tophs.find((a) => a.id === prompt.agentId);
+      return <section key={prompt.id} className="flex min-w-0 max-w-full items-start gap-2.5">
+        {toph ? <ActivityAvatar toph={toph} /> : null}
+        <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+          {toph ? <strong className="text-caption-1-semibold text-text-primary">{toph.name}</strong> : null}
+          <AgentQuestionCard
+            questions={prompt.questions}
+            onSubmit={onAnswer ? (answer) => onAnswer(prompt.id, answer) : undefined}
+          />
+        </div>
+      </section>;
     })}
   </>;
 }

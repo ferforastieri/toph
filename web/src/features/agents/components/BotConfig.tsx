@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { Bot, Check, ChevronDown, Image, MessageSquare, PlugZap, Settings2, Trash2, UserRound, Wrench } from "@toph/icons";
-import { agentApi } from "../api";
+import { Bot, BookOpen, Check, ChevronDown, Image, MessageSquare, PlugZap, Settings2, Trash2, UserRound, Wrench } from "@toph/icons";
+import { agentApi, type ProjectSkill } from "../api";
 import { api, type EmailAccount } from "../../../shared/api";
 import type { ChatToph } from "../../conversations/store";
 import { useChats } from "../../conversations/store";
@@ -53,6 +53,8 @@ export default function BotConfig({ projectId, projectRoot, bot }: Props) {
   const [mcpLabels, setMcpLabels] = useState<Record<string,string>>({});
   const [mcpLoading, setMcpLoading] = useState(false);
   const [emailAccounts, setEmailAccounts] = useState<EmailAccount[]>([]);
+  const [skills, setSkills] = useState<ProjectSkill[]>([]);
+  const [skillsLoading, setSkillsLoading] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -83,6 +85,26 @@ export default function BotConfig({ projectId, projectRoot, bot }: Props) {
     void refreshMcpServers();
   }, [refreshMcpServers]);
 
+  // Skills come from the project tree, so they are discovered instead of typed.
+  const refreshSkills = useCallback(async () => {
+    if (!projectId) {
+      setSkills([]);
+      return;
+    }
+    setSkillsLoading(true);
+    try {
+      setSkills(await agentApi.skills(projectId));
+    } catch {
+      setSkills([]);
+    } finally {
+      setSkillsLoading(false);
+    }
+  }, [projectId]);
+
+  useEffect(() => {
+    if (section === "tools") void refreshSkills();
+  }, [refreshSkills, section]);
+
   useEffect(() => {
     if (section === "model" && models.length === 0) void loadModels();
   }, [loadModels, models.length, section]);
@@ -94,6 +116,11 @@ export default function BotConfig({ projectId, projectRoot, bot }: Props) {
   function toggleMcp(name: string) {
     const current = bot.mcpServers ?? [];
     update({ mcpServers: current.includes(name) ? current.filter((item) => item !== name) : [...current, name] });
+  }
+
+  function toggleSkill(id: string) {
+    const current = bot.skills ?? [];
+    update({ skills: current.includes(id) ? current.filter((item) => item !== id) : [...current, id] });
   }
 
   function toggleEmail(id: string) {
@@ -372,6 +399,32 @@ export default function BotConfig({ projectId, projectRoot, bot }: Props) {
                   return (
                     <button key={server} type="button" aria-pressed={selected} onClick={() => toggleMcp(server)} className={`flex items-center gap-1 rounded-full border px-2 py-1 text-caption-2-medium transition-[background-color,border-color,color,transform,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] active:scale-[0.97] ${selected ? "border-accent-500/40 bg-accent-500/10 text-accent-600" : "border-border-button-default text-text-secondary hover:bg-background-primary-hover"}`}>
                       {selected ? <Check size={11} /> : null}{mcpLabels[server] ?? server}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : null}
+          </div>
+
+          <div className="flex flex-col gap-2 rounded-2xl border border-border-button-default bg-background-secondary-default p-3">
+            <div>
+              <p className="text-body-medium text-text-primary">Skills deste Toph</p>
+              <p className="mt-1 text-caption-2-regular text-text-secondary">Descobertas em <code>.toph/skills</code>, <code>.agents/skills</code> e <code>.claude/skills</code> do projeto. Sem seleção, nenhuma skill fica disponível.</p>
+            </div>
+            {skillsLoading ? <span className="text-caption-2-regular text-text-tertiary">Carregando skills...</span> : null}
+            {!skillsLoading && skills.length === 0 ? <span className="text-caption-2-regular text-text-tertiary">Nenhuma skill encontrada neste projeto.</span> : null}
+            {skills.length > 0 ? (
+              <div className="flex flex-col gap-1.5">
+                {skills.map((skill) => {
+                  const selected = (bot.skills ?? []).includes(skill.id);
+                  return (
+                    <button key={skill.id} type="button" aria-pressed={selected} onClick={() => toggleSkill(skill.id)} className={`flex items-start gap-2 rounded-xl border px-3 py-2 text-left transition-colors ${selected ? "border-accent-500/40 bg-accent-500/10" : "border-border-button-default hover:bg-background-primary-hover"}`}>
+                      <BookOpen size={15} className={selected ? "mt-0.5 text-accent-600" : "mt-0.5 text-text-tertiary"} />
+                      <span className="flex min-w-0 flex-1 flex-col">
+                        <span className="text-caption-1-medium text-text-primary">{skill.name}</span>
+                        <span className="text-caption-2-regular text-text-tertiary">{skill.description}</span>
+                      </span>
+                      {selected ? <Check size={14} className="mt-0.5 text-accent-600" /> : null}
                     </button>
                   );
                 })}

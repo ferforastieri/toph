@@ -37,6 +37,12 @@ pub fn definitions(agent: &AgentSpec, depth: usize) -> Vec<Value> {
         definition("search_history","Find relevant earlier messages, including compacted history. Query uses plain words; returns source ids.",json!({"query":string()}),&["query"]),
         definition("search_memory","Find durable project facts by a keyword.",json!({"query":string()}),&["query"]),
         definition("fetch_url","Fetch a public HTTP(S) document. Large results are saved as artifacts.",json!({"url":string()}),&["url"]),
+        definition(
+            "ask_user",
+            "Ask the user a blocking question and wait for the answer. Use it when a decision cannot be inferred safely. Provide 2-4 concrete options; the user may also type a free answer. If the user does not answer in time the result is {\"answers\":null} and you must continue with your best assumption.",
+            json!({"questions":{"type":"array","items":{"type":"object","properties":{"header":string(),"question":string(),"options":{"type":"array","items":{"type":"object","properties":{"label":string(),"description":string()},"required":["label"]}},"multiple":{"type":"boolean"}},"required":["question","options"]}}}),
+            &["questions"],
+        ),
     ];
     if agent.agent_mode != "plan" && agent.permission_mode != "deny" {
         tools.extend([
@@ -74,6 +80,14 @@ pub fn definitions(agent: &AgentSpec, depth: usize) -> Vec<Value> {
             ));
         }
     }
+    if !agent.skills.is_empty() {
+        tools.push(definition(
+            "read_skill",
+            "Load the full instructions of an enabled project skill. Read a skill before acting on its domain.",
+            json!({"name":string()}),
+            &["name"],
+        ));
+    }
     if !agent.mcp_servers.is_empty() {
         tools.push(definition(
             "mcp_list",
@@ -91,14 +105,15 @@ pub fn definitions(agent: &AgentSpec, depth: usize) -> Vec<Value> {
 pub fn mutating(name: &str) -> bool {
     matches!(
         name,
-        "write_file"
-            | "edit_file"
-            | "shell"
-            | "remember"
-            | "generate_image"
-            | "email_send"
-            | "mcp_call"
+        "write_file" | "edit_file" | "shell" | "remember" | "generate_image" | "email_send"
     )
+}
+
+/// `mcp_call` prompts once per server instead of once per call when that
+/// server is configured as auto-approved. Browser automation issues dozens of
+/// calls per task, so a per-call prompt makes the feature unusable.
+pub fn mcp_needs_permission(servers: &[String], server: &str, auto: &[String]) -> bool {
+    servers.iter().any(|s| s == server) && !auto.iter().any(|s| s == server)
 }
 
 fn text<'a>(args: &'a Value, key: &str) -> AppResult<&'a str> {
@@ -378,6 +393,15 @@ impl Tools {
                     }
                 }
                 Ok(json!({"text":String::from_utf8_lossy(&bytes),"truncated":truncated}))
+            }
+            "read_skill" => {
+                let name = text(args, "name")?;
+                if !ctx.agent.skills.iter().any(|skill| skill == name) {
+                    return Err(AppError::Forbidden);
+                }
+                Ok(json!({
+                    "content": super::skills::read(&self.workspace, &ctx.root, name)?
+                }))
             }
             "mcp_list" | "mcp_call" => {
                 let server = text(args, "server")?;

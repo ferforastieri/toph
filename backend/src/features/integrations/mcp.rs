@@ -19,6 +19,10 @@ use tokio::{
     sync::Mutex,
 };
 
+/// Screenshots and a11y snapshots are large JSON payloads; 1 MiB rejected
+/// valid Chrome DevTools responses.
+const MAX_RESPONSE_BYTES: usize = 8 * 1024 * 1024;
+
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Server {
@@ -34,6 +38,18 @@ pub struct Server {
     pub env: HashMap<String, String>,
     #[serde(default)]
     pub token: String,
+    /// Browser automations and cold `npx` starts regularly exceed the old 45s
+    /// ceiling, so each server carries its own budget.
+    #[serde(default = "default_timeout")]
+    pub timeout_seconds: u64,
+    /// Skip the per-call permission prompt. Intended for high-frequency,
+    /// inspect-only servers such as Chrome DevTools.
+    #[serde(default)]
+    pub auto_approve: bool,
+}
+
+fn default_timeout() -> u64 {
+    120
 }
 #[derive(Clone)]
 pub struct Service {
@@ -88,7 +104,7 @@ impl Service {
         Ok(serde_json::from_str(&decrypt(&self.key, &raw)?)?)
     }
     pub async fn list(&self) -> AppResult<Value> {
-        Ok(json!(self.servers().await?.iter().map(|s|json!({"id":s.id,"name":s.name,"transport":s.transport,"url":s.url,"command":s.command,"hasToken":!s.token.is_empty(),"envKeys":s.env.keys().collect::<Vec<_>>()})).collect::<Vec<_>>()))
+        Ok(json!(self.servers().await?.iter().map(|s|json!({"id":s.id,"name":s.name,"transport":s.transport,"url":s.url,"command":s.command,"hasToken":!s.token.is_empty(),"envKeys":s.env.keys().collect::<Vec<_>>(),"timeoutSeconds":s.timeout_seconds,"autoApprove":s.auto_approve})).collect::<Vec<_>>()))
     }
     pub async fn save(&self, mut server: Server) -> AppResult<Server> {
         if server.name.trim().is_empty() {
@@ -161,6 +177,16 @@ impl Service {
             pool.clear();
         }
     }
+    /// Ids among `ids` that are configured to skip per-call approval.
+    pub async fn auto_approved(&self, ids: &[String]) -> AppResult<Vec<String>> {
+        Ok(self
+            .servers()
+            .await?
+            .into_iter()
+            .filter(|s| s.auto_approve && ids.iter().any(|id| *id == s.id))
+            .map(|s| s.id)
+            .collect())
+    }
     pub async fn test(&self, id: &str) -> AppResult<Value> {
         let result = self
             .call(&std::env::temp_dir(), id, "tools/list", json!({}))
@@ -222,7 +248,8 @@ impl Service {
                     .ok_or_else(|| bad_request("MCP stdout unavailable"))?;
                 link.process = Some((child, input, BufReader::new(output)));
             }
-            let initialized=tokio::time::timeout(Duration::from_secs(45),link.rpc("initialize",json!({"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"Toph","version":crate::VERSION}}),false)).await.map_err(|_|bad_request("MCP initialize timed out"))??;
+            let budget = Duration::from_secs(link.server.timeout_seconds.clamp(5, 600));
+            let initialized=tokio::time::timeout(budget,link.rpc("initialize",json!({"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"Toph","version":crate::VERSION}}),false)).await.map_err(|_|bad_request("MCP initialize timed out"))??;
             link.version = initialized["protocolVersion"]
                 .as_str()
                 .unwrap_or("2025-03-26")
@@ -240,7 +267,8 @@ impl Service {
             link
         };
         drop(pool);
-        let result = match tokio::time::timeout(Duration::from_secs(45), async {
+        let budget = Duration::from_secs(link.lock().await.server.timeout_seconds.clamp(5, 600));
+        let result = match tokio::time::timeout(budget, async {
             link.lock().await.rpc(method, params, false).await
         })
         .await
@@ -282,7 +310,7 @@ impl Link {
                     let n = end.map(|n| n + 1).unwrap_or(buf.len());
                     bytes.extend_from_slice(&buf[..n]);
                     output.consume(n);
-                    if bytes.len() > 1024 * 1024 {
+                    if bytes.len() > MAX_RESPONSE_BYTES {
                         return Err(AppError::TooLarge);
                     }
                     if end.is_some() {
@@ -343,7 +371,7 @@ impl Link {
                 .map_err(|e| AppError::Upstream(e.to_string()))?
             {
                 bytes.extend_from_slice(&chunk);
-                if bytes.len() > 1024 * 1024 {
+                if bytes.len() > MAX_RESPONSE_BYTES {
                     return Err(AppError::TooLarge);
                 }
                 if sse {

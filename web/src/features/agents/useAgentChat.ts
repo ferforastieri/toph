@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { agentApi, isActive, type AgentRun, type AgentSnapshot, type NativeMessage, type Approval, type AgentUsage } from "./api";
+import { agentApi, isActive, type AgentRun, type AgentSnapshot, type NativeMessage, type Approval, type AgentQuestionPrompt, type AgentUsage } from "./api";
 
-const empty = (): AgentSnapshot => ({ messages: [], drafts: [], runs: [], approvals: [], hasMore: false, cursor: null });
+const empty = (): AgentSnapshot => ({ messages: [], drafts: [], runs: [], approvals: [], questions: [], hasMore: false, cursor: null });
 export function mergeNativeMessages(current: NativeMessage[], incoming: NativeMessage[]): NativeMessage[] {
   const items = new Map(current.map((m) => [m.id, m]));
   for (const m of incoming) {
@@ -105,14 +105,19 @@ export function useAgentChat(project: string, chat: string | undefined) {
         setState((current) => ({ ...current, messages: mergeNativeMessages(current.messages, [event.data as NativeMessage]) }));
       } else if (event.type === "run") {
         const run = event.data as AgentRun;
-        setState((current) => ({ ...current, runs: mergeNativeRuns(current.runs, [run]), approvals: isActive(run) ? current.approvals : current.approvals.filter((a) => a.runId !== run.id) }));
+        setState((current) => ({ ...current, runs: mergeNativeRuns(current.runs, [run]), approvals: isActive(run) ? current.approvals : current.approvals.filter((a) => a.runId !== run.id), questions: isActive(run) ? current.questions : current.questions.filter((q) => q.runId !== run.id) }));
         if (!isActive(run)) { setCompacting(false); void sync(); void agentApi.usage(project, chat).then((value) => { if (!stopped) setUsage(value); }).catch(() => undefined); }
       } else if (event.type === "approval") {
-        const approval = event.data as Approval;
+        const approval = event.data as Approval & { kind?: string };
+        if (approval.kind === "question") {
+          const prompt = event.data as AgentQuestionPrompt;
+          setState((current) => ({ ...current, questions: [...current.questions.filter((q) => q.id !== prompt.id), prompt] }));
+          return;
+        }
         setState((current) => ({ ...current, approvals: [...current.approvals.filter((a) => a.id !== approval.id), approval] }));
       } else if (event.type === "approval.resolved") {
         const id = (event.data as { id: string }).id;
-        setState((current) => ({ ...current, approvals: current.approvals.filter((a) => a.id !== id) }));
+        setState((current) => ({ ...current, approvals: current.approvals.filter((a) => a.id !== id), questions: current.questions.filter((q) => q.id !== id) }));
       } else if (event.type === "compacting") setCompacting(true);
       else if (event.type === "usage") {
         const value = event.data as { input: number; output: number; cached: number; agentId?: string; kind?: string; estimatedInput?: number };
