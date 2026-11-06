@@ -188,8 +188,14 @@ pub(super) async fn save_mcp_server(
     State(state): State<Arc<AppState>>,
     Json(input): Json<crate::features::integrations::mcp::Server>,
 ) -> AppResult<Json<Value>> {
-    state.mcp.save(input).await?;
-    Ok(Json(json!({"ok":true})))
+    let server = state.mcp.save(input).await?;
+    Ok(Json(json!({"ok":true,"id":server.id})))
+}
+pub(super) async fn test_mcp_server(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+) -> AppResult<Json<Value>> {
+    Ok(Json(state.mcp.test(&id).await?))
 }
 pub(super) async fn delete_mcp_server(
     State(state): State<Arc<AppState>>,

@@ -1,22 +1,20 @@
 import { lazy, Suspense, useEffect, useState, type ComponentType, type FormEvent, type ReactNode } from "react";
-import { Bot, HardDrive, Info, LogOut, Mail, PlugZap, Settings2, Wrench } from "@toph/icons";
+import { Bot, HardDrive, Info, LogOut, Mail, PlugZap, Settings2 } from "@toph/icons";
 import { api, getApiBase, probeServer, setApiBase, type User } from "../../../shared/api";
 import { useApp } from "../../../app/store";
 import { useSettings, type WorkspaceFeature } from "../store";
 import { PET_OPTIONS, petLevel, petLevelProgress, usePet } from "../../pet/store";
 import PetSprite from "../../pet/components/PetSprite";
-const AiSettings = lazy(() => import("../../providers/components/AiSettings"));
+import ConnectionsHub from "../../providers/components/ConnectionsHub";
 const WorkspaceSettings = lazy(() => import("./WorkspaceSettings"));
-const AiConnectionsPanel = lazy(() => import("../../providers/components/AiConnectionsPanel"));
 const EmailPanel = lazy(() => import("../../integrations/components/EmailPanel"));
-const McpPanel = lazy(() => import("../../integrations/components/McpPanel"));
 import { Button } from "@/shared/boardui/base/buttons/button";
 import { Checkbox } from "@/shared/boardui/base/checkbox/checkbox";
 import { Input } from "@/shared/boardui/base/input/input";
 import { Modal } from "@/shared/boardui/base/modal/modal";
 import { cx } from "@/shared/boardui/utils/cx";
 
-type Section = "general" | "companion" | "appearance" | "ai" | "connections" | "mcp" | "email" | "workspace" | "about";
+type Section = "general" | "companion" | "appearance" | "connections" | "email" | "workspace" | "about";
 
 interface Props {
   user: User | null;
@@ -36,9 +34,7 @@ const sections: Array<{ label?: string; items: SectionItem[] }> = [
     { id: "appearance", label: "Layout e ferramentas", icon: Settings2 },
   ] },
   { label: "IA e ferramentas", items: [
-    { id: "ai", label: "Inteligência artificial", icon: Bot },
     { id: "connections", label: "Conexões", icon: PlugZap },
-    { id: "mcp", label: "Ferramentas MCP", icon: Wrench },
     { id: "email", label: "Email", icon: Mail },
   ] },
   { label: "Aplicativo", items: [
@@ -256,12 +252,8 @@ export default function TophSettings({ user, projectRoot }: Props) {
                   <FeatureToggle label="Toph" checked disabled onChange={() => undefined} />
                 </SettingsGroup>
               </div>
-            ) : section === "ai" ? (
-              <><SettingsHeading title="Inteligência artificial" description="Provider e modelos padrão." /><div className="mt-5"><AiSettings /></div></>
             ) : section === "connections" ? (
-              <><SettingsHeading title="Conexões" description="Contas e provedores de IA." /><div className="mt-5"><AiConnectionsPanel projectRoot={projectRoot} /></div></>
-            ) : section === "mcp" ? (
-              <><SettingsHeading title="Ferramentas MCP" description="Servidores e ferramentas conectadas." /><div className="mt-5"><McpPanel projectRoot={projectRoot} /></div></>
+              <><SettingsHeading title="Conexões" description="Modelos de IA e ferramentas MCP em um só lugar." /><div className="mt-5"><ConnectionsHub projectRoot={projectRoot} /></div></>
             ) : section === "email" ? (
               <><SettingsHeading title="Email" description="Contas disponíveis para os Tophs agentes." /><div className="mt-5"><EmailPanel /></div></>
             ) : section === "workspace" ? (

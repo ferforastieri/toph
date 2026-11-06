@@ -31,6 +31,8 @@ pub struct Server {
     #[serde(default)]
     pub command: Vec<String>,
     #[serde(default)]
+    pub env: HashMap<String, String>,
+    #[serde(default)]
     pub token: String,
 }
 #[derive(Clone)]
@@ -86,9 +88,9 @@ impl Service {
         Ok(serde_json::from_str(&decrypt(&self.key, &raw)?)?)
     }
     pub async fn list(&self) -> AppResult<Value> {
-        Ok(json!(self.servers().await?.iter().map(|s|json!({"id":s.id,"name":s.name,"transport":s.transport,"url":s.url,"command":s.command,"hasToken":!s.token.is_empty()})).collect::<Vec<_>>()))
+        Ok(json!(self.servers().await?.iter().map(|s|json!({"id":s.id,"name":s.name,"transport":s.transport,"url":s.url,"command":s.command,"hasToken":!s.token.is_empty(),"envKeys":s.env.keys().collect::<Vec<_>>()})).collect::<Vec<_>>()))
     }
-    pub async fn save(&self, mut server: Server) -> AppResult<()> {
+    pub async fn save(&self, mut server: Server) -> AppResult<Server> {
         if server.name.trim().is_empty() {
             return Err(bad_request("MCP name is required"));
         }
@@ -112,10 +114,14 @@ impl Service {
             if server.token.is_empty() {
                 server.token = old.token.clone();
             }
+            if server.env.is_empty() {
+                server.env = old.env.clone();
+            }
         } else {
             return Err(AppError::NotFound);
         }
         all.retain(|s| s.id != server.id);
+        let saved = server.clone();
         all.push(server);
         self.store
             .set_setting(
@@ -124,7 +130,7 @@ impl Service {
             )
             .await?;
         self.pool.lock().await.clear();
-        Ok(())
+        Ok(saved)
     }
     pub async fn delete(&self, id: &str) -> AppResult<()> {
         let mut all = self.servers().await?;
@@ -150,6 +156,13 @@ impl Service {
         if let Ok(mut pool) = self.pool.try_lock() {
             pool.clear();
         }
+    }
+    pub async fn test(&self, id: &str) -> AppResult<Value> {
+        let result = self
+            .call(&std::env::temp_dir(), id, "tools/list", json!({}))
+            .await?;
+        let tools = result["tools"].as_array().map(Vec::len).unwrap_or(0);
+        Ok(json!({"ok": true, "tools": tools}))
     }
     pub async fn call(
         &self,
@@ -191,6 +204,7 @@ impl Service {
                     .stdout(Stdio::piped())
                     .stderr(Stdio::null())
                     .kill_on_drop(true);
+                cmd.envs(&link.server.env);
                 #[cfg(unix)]
                 cmd.process_group(0);
                 let mut child = cmd.spawn()?;

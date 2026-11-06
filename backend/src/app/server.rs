@@ -672,6 +672,7 @@ fn router(state: Arc<AppState>) -> Router {
         )
         .route("/api/mcp/servers", get(mcp_servers).post(save_mcp_server))
         .route("/api/mcp/servers/{server_id}", delete(delete_mcp_server))
+        .route("/api/mcp/servers/{server_id}/test", post(test_mcp_server))
         .layer(middleware::from_fn_with_state(
             state.clone(),
             auth_middleware,
