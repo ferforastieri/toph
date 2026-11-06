@@ -22,9 +22,7 @@ use std::{
 use tokio::sync::{broadcast, oneshot, Semaphore};
 use tokio_util::sync::CancellationToken;
 
-const MAX_STEPS: usize = 24;
 type CompletionHandler = Arc<dyn Fn() + Send + Sync>;
-
 struct Inner {
     repo: Repository,
     tools: Tools,
@@ -577,7 +575,10 @@ impl Runtime {
                 this.inner.drafts.lock().unwrap().remove(&ctx.run.id);
                 return Ok(turn.text);
             }
-            for step in 0..MAX_STEPS {
+            let mut step = 0usize;
+            let mut last_batch: Option<String> = None;
+            let mut repeated_batches = 0usize;
+            loop {
                 if cancel.is_cancelled() {
                     return Err(bad_request("Execution cancelled"));
                 }
@@ -614,6 +615,29 @@ impl Runtime {
                 if turn.calls.len() > 8 || turn.calls.iter().any(|c| c.arguments.len() > 64 * 1024)
                 {
                     return Err(bad_request("Model requested an oversized tool batch"));
+                }
+                if !turn.calls.is_empty() {
+                    let signature = turn
+                        .calls
+                        .iter()
+                        .map(|call| format!("{}\u{0}{}", call.name, call.arguments))
+                        .collect::<Vec<_>>()
+                        .join("\u{1}");
+                    let signature = crate::crypto::sha256_hex(signature.as_bytes());
+                    if last_batch.as_deref() == Some(signature.as_str()) {
+                        repeated_batches += 1;
+                    } else {
+                        repeated_batches = 0;
+                        last_batch = Some(signature);
+                    }
+                    if repeated_batches >= 3 {
+                        return Err(bad_request(
+                            "Detectei o mesmo conjunto de ferramentas repetido 4 vezes; interrompi para não desperdiçar tokens. Use o resultado anterior ou mude de estratégia.",
+                        ));
+                    }
+                } else {
+                    last_batch = None;
+                    repeated_batches = 0;
                 }
                 let calls=turn.calls.iter().map(|c|json!({"id":c.id,"type":"function","function":{"name":c.name,"arguments":c.arguments}})).collect::<Vec<_>>();
                 let mut body = json!({"role":"assistant","content":turn.text});
@@ -709,10 +733,8 @@ impl Runtime {
                     this.inner.repo.message(&ctx,&tid,json!({"role":"tool","tool_call_id":call.id,"name":call.name,"content":visible.to_string()}),display.clone()).await?;
                     this.event(&ctx, "message", display);
                 }
+                step += 1;
             }
-            Err(bad_request(
-                "Run reached the 24-step limit; narrow the task to continue",
-            ))
         })
     }
 
