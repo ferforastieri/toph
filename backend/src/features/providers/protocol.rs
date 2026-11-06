@@ -548,11 +548,9 @@ impl AiService {
             serde_json::from_str::<Value>(&call.arguments)
                 .map_err(|e| AppError::Upstream(format!("Invalid tool JSON: {e}")))?;
         }
-        if turn.finish == "length" || turn.finish == "max_tokens" {
-            return Err(AppError::Upstream(
-                "Model reached its output limit; increase max tokens".into(),
-            ));
-        }
+        // A `length` finish is not fatal: summaries may be truncated and text
+        // answers can still be useful. The runtime keeps the partial content
+        // instead of failing the whole execution.
         Ok(turn)
     }
 }

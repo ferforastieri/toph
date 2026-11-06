@@ -870,6 +870,11 @@ impl Runtime {
         sqlx::query("UPDATE agent_model_calls SET input_tokens=?,output_tokens=?,cached_tokens=?,reasoning_tokens=?,duration_ms=?,finish=? WHERE id=?")
             .bind(usage.input as i64).bind(usage.output as i64).bind(usage.cached as i64).bind(usage.reasoning as i64).bind(started.elapsed().as_millis() as i64).bind(finish).bind(&call_id).execute(self.inner.repo.0.pool()).await?;
         self.event(ctx,"usage",json!({"runId":ctx.run.id,"agentId":ctx.agent.id,"kind":kind,"input":usage.input,"output":usage.output,"cached":usage.cached,"estimatedInput":estimated}));
+        if let Ok(turn) = &result {
+            if matches!(turn.finish.as_str(), "length" | "max_tokens") {
+                tracing::warn!(kind, model = %config.model, output = turn.usage.output, "provider stopped at the output limit; keeping the partial result");
+            }
+        }
         result
     }
 
@@ -919,7 +924,7 @@ impl Runtime {
                 json!({"role":"user","content":data.to_string()}),
             ];
             let mut summarizer = config.clone();
-            summarizer.max_tokens = 1200;
+            summarizer.max_tokens = 3000;
             self.event(
                 ctx,
                 "compacting",
@@ -938,7 +943,7 @@ impl Runtime {
                 )
                 .await?;
             if turn.text.trim().is_empty()
-                || context::estimate(&json!(turn.text)) > context::SUMMARY_BUDGET * 2
+                || context::estimate(&json!(turn.text)) > context::SUMMARY_BUDGET * 3
             {
                 return Err(bad_request("Summary did not fit its budget"));
             }

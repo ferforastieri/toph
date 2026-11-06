@@ -203,3 +203,41 @@ async fn ollama_uses_ndjson_and_native_tool_arguments() {
     drop(requests);
     task.abort();
 }
+
+#[tokio::test]
+async fn output_limit_keeps_the_partial_result_instead_of_failing() {
+    let wire = Wire {
+        seen: Arc::new(Mutex::new(vec![])),
+        content_type: "text/event-stream",
+        body: concat!(
+            "data: {\"id\":\"fixture\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"partial answer\"},\"finish_reason\":null}]}\n\n",
+            "data: {\"id\":\"fixture\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"length\"}],\"usage\":{\"prompt_tokens\":12,\"completion_tokens\":1024}}\n\n",
+            "data: [DONE]\n\n"
+        ).into(),
+    };
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("http://{}", listener.local_addr().unwrap());
+    let app = Router::new()
+        .route("/v1/chat/completions", post(endpoint))
+        .with_state(wire.clone());
+    let task = tokio::spawn(async move {
+        axum::serve(listener, app).await.unwrap();
+    });
+    let dir = tempfile::tempdir().unwrap();
+    let store = Store::open(&dir.path().join("db")).await.unwrap();
+    let ai = AiService::new(store, &dir.path().join("key")).unwrap();
+    let config = config("custom", url);
+    let turn = ai
+        .turn(
+            &config,
+            &[json!({"role":"user","content":"Answer briefly"})],
+            &[],
+            None,
+            |_| {},
+        )
+        .await
+        .unwrap();
+    assert_eq!(turn.finish, "length");
+    assert_eq!(turn.text, "partial answer");
+    task.abort();
+}

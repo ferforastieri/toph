@@ -88,19 +88,6 @@ export default function TerminalPanel({ project, onOpenFile, sheet = false, onCl
   const setTerminalOpen = useApp((state) => state.setTerminalOpen);
   const initialized = useRef(false);
   const outputRef = useRef("");
-  const cleanupTimer = useRef<number | undefined>(undefined);
-
-  useEffect(() => {
-    window.clearTimeout(cleanupTimer.current);
-    cleanupTimer.current = undefined;
-    return () => {
-      window.clearTimeout(cleanupTimer.current);
-      cleanupTimer.current = window.setTimeout(() => {
-        cleanupTimer.current = undefined;
-        void api.closeProjectTerminals(project.id).catch(() => undefined);
-      }, 0);
-    };
-  }, [project.id]);
 
   const appendOutput = useCallback((chunk: string) => {
     if (!chunk) return;
@@ -145,8 +132,28 @@ export default function TerminalPanel({ project, onOpenFile, sheet = false, onCl
   useEffect(() => {
     if (initialized.current) return;
     initialized.current = true;
-    void createSession("bash").catch((err) => setError(err instanceof Error ? err.message : "Não foi possível abrir o terminal."));
-  }, [createSession]);
+    let cancelled = false;
+    void (async () => {
+      try {
+        const existing = await api.terminalSessions(project.id);
+        if (cancelled) return;
+        const restored = existing.terminals.map((item) => ({
+          id: item.id,
+          shell: item.shell,
+          title: item.shell,
+        }));
+        if (restored.length > 0) {
+          setSessions(restored);
+          setActiveId(restored[0].id);
+          return;
+        }
+        await createSession("bash");
+      } catch (err) {
+        if (!cancelled) setError(err instanceof Error ? err.message : "Não foi possível abrir o terminal.");
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [createSession, project.id]);
 
   useEffect(() => {
     const handler = (event: Event) => {
