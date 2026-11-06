@@ -70,6 +70,19 @@ fn retry_after(response: &reqwest::Response) -> Option<Duration> {
         .map(Duration::from_secs)
 }
 
+fn describe(error: &reqwest::Error) -> String {
+    let mut parts = vec![error.to_string()];
+    let mut source = std::error::Error::source(error);
+    while let Some(current) = source {
+        let text = current.to_string();
+        if !text.is_empty() && !parts.iter().any(|part| part == &text) {
+            parts.push(text);
+        }
+        source = current.source();
+    }
+    parts.join(": ")
+}
+
 /// Hosted inference gateway only; no connection to an installed agent service.
 pub fn console_gateway(base: &str) -> Option<String> {
     let url = reqwest::Url::parse(base).ok()?;
@@ -341,10 +354,22 @@ impl AiService {
             } else if !config.api_key.is_empty() {
                 request = request.bearer_auth(&config.api_key);
             }
-            let current = request
-                .send()
-                .await
-                .map_err(|e| AppError::Upstream(e.to_string()))?;
+            let current = match request.send().await {
+                Ok(response) => response,
+                Err(error) if attempt < 2 => {
+                    tracing::warn!(attempt, error = %describe(&error), "provider request failed; retrying the same connection");
+                    tokio::time::sleep(Duration::from_millis(700 * (1 << attempt))).await;
+                    continue;
+                }
+                Err(error) => {
+                    return Err(AppError::Upstream(format!(
+                        "Falha de rede ao conectar à conexão {} ({}): {}",
+                        config.connection_name(),
+                        config.base_url,
+                        describe(&error)
+                    )))
+                }
+            };
             // Transient gateway overload: retry the same connection only. Never
             // switch model or provider. Honor Retry-After when it is bounded.
             if current.status() == reqwest::StatusCode::TOO_MANY_REQUESTS && attempt < 2 {
