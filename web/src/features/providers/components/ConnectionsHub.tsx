@@ -102,6 +102,7 @@ function McpLogo({ id, size = 22 }: { id: string; size?: number }) {
 export default function ConnectionsHub({ projectRoot: _projectRoot }: { projectRoot?: string }) {
   const notify = useApp((state) => state.notify);
   const loadingModels = useAI((state) => state.loadingModels);
+  const modelError = useAI((state) => state.error);
   const loadModels = useAI((state) => state.loadModels);
   const [main, setMain] = useState<AIConfig | null>(null);
   const [connections, setConnections] = useState<Connection[]>([]);
@@ -241,6 +242,13 @@ export default function ConnectionsHub({ projectRoot: _projectRoot }: { projectR
     try {
       let command: string[] = [];
       let env: Record<string, string> = {};
+      if (!mcpForm.id && mcpPreset.id === "jira") {
+        const missing = (mcpPreset.envFields ?? []).filter((field) => !(mcpEnv[field.key] ?? "").trim());
+        if (missing.length) throw new Error(`Preencha: ${missing.map((field) => field.label).join(", ")}.`);
+      }
+      if (!mcpForm.id && mcpPreset.id === "github" && !mcpForm.token.trim()) {
+        throw new Error("Informe o personal access token do GitHub.");
+      }
       if (mcpForm.transport === "stdio") {
         const parsed = JSON.parse(mcpForm.command);
         if (!Array.isArray(parsed) || parsed.some((item) => typeof item !== "string")) {
@@ -345,6 +353,7 @@ export default function ConnectionsHub({ projectRoot: _projectRoot }: { projectR
           </div>
           {loadingModels && <ProgressBar size="sm" isIndeterminate label="Carregando modelos..." />}
         </div>
+        {modelError && <p role="alert" className="rounded-xl border border-red-500/30 bg-red-500/5 p-3 text-caption-1-regular text-red-500">{modelError}</p>}
 
         {modelPreset && (
           <div className="grid gap-3 rounded-2xl border border-border-button-default bg-background-secondary-default/45 p-4 sm:grid-cols-2">
