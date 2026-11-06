@@ -16,16 +16,12 @@ use futures_util::future::BoxFuture;
 use serde_json::{json, Value};
 use std::{
     collections::HashMap,
-    sync::{
-        atomic::{AtomicUsize, Ordering},
-        Arc, Mutex, RwLock,
-    },
+    sync::{Arc, Mutex, RwLock},
     time::{Duration, Instant},
 };
 use tokio::sync::{broadcast, oneshot, Semaphore};
 use tokio_util::sync::CancellationToken;
 
-const MAX_RUN_TOKENS: usize = 120_000;
 const MAX_STEPS: usize = 24;
 type CompletionHandler = Arc<dyn Fn() + Send + Sync>;
 
@@ -236,7 +232,6 @@ impl Runtime {
             conversational: context::conversational(&input.text) && input.attachments.is_empty(),
         };
         let runtime = self.clone();
-        let budget = Arc::new(AtomicUsize::new(0));
         tokio::spawn(async move {
             let preparation = runtime.prepare(&ctx, &input.text, &input.attachments).await;
             drop(input.attachments);
@@ -244,7 +239,7 @@ impl Runtime {
             let result = match preparation {
                 Ok(()) => tokio::time::timeout(
                     Duration::from_secs(900),
-                    runtime.execute(ctx.clone(), config, token.clone(), budget),
+                    runtime.execute(ctx.clone(), config, token.clone()),
                 )
                 .await
                 .unwrap_or_else(|_| Err(bad_request("Run exceeded 15 minutes"))),
@@ -419,7 +414,6 @@ impl Runtime {
         ctx: RunContext,
         config: AiConfig,
         cancel: CancellationToken,
-        budget: Arc<AtomicUsize>,
     ) -> BoxFuture<'static, AppResult<String>> {
         let this = self.clone();
         Box::pin(async move {
@@ -543,7 +537,6 @@ impl Runtime {
                         &[],
                         "conversation",
                         estimated,
-                        &budget,
                         &cancel,
                         move |chunk| {
                             if let Value::String(content) = &mut draft["content"] {
@@ -589,7 +582,7 @@ impl Runtime {
                     return Err(bad_request("Execution cancelled"));
                 }
                 let mut messages = this
-                    .build_context(&ctx, &config, &system, &tools, &budget, &cancel)
+                    .build_context(&ctx, &config, &system, &tools, &cancel)
                     .await?;
                 let estimated = context::estimate(&json!([messages, tools]));
                 this.hydrate_images(&ctx, &mut messages).await?;
@@ -607,7 +600,7 @@ impl Runtime {
                 let mut last = Instant::now();
                 let mut pending_delta = String::new();
                 let mut emitted_units = 0usize;
-                let turn=this.generate(&ctx,&config,&messages,&tools,"turn",estimated,&budget,&cancel,move|chunk|{
+                let turn=this.generate(&ctx,&config,&messages,&tools,"turn",estimated,&cancel,move|chunk|{
                     if let Value::String(content)=&mut draft["content"]{content.push_str(chunk);}
                     pending_delta.push_str(chunk);
                     if last.elapsed()>=Duration::from_millis(80){
@@ -673,7 +666,7 @@ impl Runtime {
                     let result = if !allowed {
                         Err(bad_request("Tool rejected by the user"))
                     } else if call.name == "delegate" {
-                        this.delegate(&ctx, &args, &cancel, budget.clone()).await
+                        this.delegate(&ctx, &args, &cancel).await
                     } else {
                         let seconds = if call.name == "generate_image" {
                             600
@@ -755,7 +748,6 @@ impl Runtime {
         parent: &RunContext,
         args: &Value,
         cancel: &CancellationToken,
-        budget: Arc<AtomicUsize>,
     ) -> AppResult<Value> {
         if parent.depth >= 1 {
             return Err(bad_request("Nested delegation is not enabled"));
@@ -819,8 +811,7 @@ impl Runtime {
         };
         let result = async {
             self.prepare(&ctx, task, &[]).await?;
-            self.execute(ctx.clone(), config, token.clone(), budget)
-                .await
+            self.execute(ctx.clone(), config, token.clone()).await
         }
         .await;
         let output = match &result {
@@ -839,19 +830,13 @@ impl Runtime {
         tools: &[Value],
         kind: &str,
         estimated: usize,
-        budget: &AtomicUsize,
         cancel: &CancellationToken,
         delta: F,
     ) -> AppResult<crate::features::providers::protocol::Turn>
     where
         F: FnMut(&str) + Send,
     {
-        let reservation = estimated + config.max_tokens.max(0) as usize;
-        if budget.fetch_add(reservation, Ordering::Relaxed) + reservation > MAX_RUN_TOKENS {
-            return Err(bad_request(
-                "Run token budget exceeded (includes delegated agents)",
-            ));
-        }
+        let projected = estimated + config.max_tokens.max(0) as usize;
         let permit = tokio::select! {_=cancel.cancelled()=>return Err(bad_request("Execution cancelled")),p=self.inner.model_slots.acquire()=>p.map_err(|_|bad_request("Runtime stopped"))?};
         let call_id = new_id();
         let limit = self.inner.ai.load().await?.weekly_token_limit;
@@ -859,7 +844,7 @@ impl Runtime {
         if limit > 0 {
             let spent:i64=sqlx::query_scalar("SELECT coalesce(sum(CASE WHEN c.finish='pending' THEN c.estimated_input+8192 ELSE max(c.input_tokens,c.estimated_input)+c.output_tokens END),0) FROM agent_model_calls c JOIN agent_runs r ON r.id=c.run_id WHERE r.user_id=? AND c.created_at>=?")
                 .bind(ctx.user_id).bind(now()-7*24*60*60*1000).fetch_one(&mut *transaction).await?;
-            if spent + reservation as i64 > limit {
+            if spent + projected as i64 > limit {
                 return Err(bad_request("Weekly token budget exceeded"));
             }
         }
@@ -894,7 +879,6 @@ impl Runtime {
         config: &AiConfig,
         system: &str,
         tools: &[Value],
-        budget: &AtomicUsize,
         cancel: &CancellationToken,
     ) -> AppResult<Vec<Value>> {
         loop {
@@ -949,7 +933,6 @@ impl Runtime {
                     &[],
                     "summary",
                     context::estimate(&json!(prompt)),
-                    budget,
                     cancel,
                     |_| {},
                 )
