@@ -16,6 +16,7 @@ use toph_server::{config::Config, server::EmbeddedServer, store::Store};
 enum Reply {
     Answer(&'static str),
     Tool(&'static str, Value),
+    EmptyLength,
     Error,
     Wait(Arc<tokio::sync::Notify>),
 }
@@ -35,23 +36,22 @@ async fn model(State(mock): State<Mock>, Json(body): Json<Value>) -> Response {
     } else {
         mock.replies.lock().unwrap().pop_front()
     };
-    let delta = match reply {
-        Some(Reply::Answer(text)) => json!({"content":text}),
-        Some(Reply::Tool(name, args)) => {
-            json!({"tool_calls":[{"index":0,"id":format!("call-{}",mock.requests.lock().unwrap().len()),"type":"function","function":{"name":name,"arguments":args.to_string()}}]})
-        }
+    let (delta, finish, completion, reasoning) = match reply {
+        Some(Reply::Answer(text)) => (json!({"content":text}), "stop", 20, 0),
+        Some(Reply::Tool(name, args)) => (
+            json!({"tool_calls":[{"index":0,"id":format!("call-{}",mock.requests.lock().unwrap().len()),"type":"function","function":{"name":name,"arguments":args.to_string()}}]}),
+            "tool_calls",
+            20,
+            0,
+        ),
+        Some(Reply::EmptyLength) => (json!({"content":""}), "length", 4096, 4096),
         Some(Reply::Wait(gate)) => {
             gate.notified().await;
-            json!({"content":"Finished"})
+            (json!({"content":"Finished"}), "stop", 20, 0)
         }
         _ => return (StatusCode::SERVICE_UNAVAILABLE, "explicit provider failure").into_response(),
     };
-    let finish = if delta.get("tool_calls").is_some() {
-        "tool_calls"
-    } else {
-        "stop"
-    };
-    let first = json!({"choices":[{"delta":delta,"finish_reason":finish}],"usage":{"prompt_tokens":100,"completion_tokens":20,"prompt_tokens_details":{"cached_tokens":40}}});
+    let first = json!({"choices":[{"delta":delta,"finish_reason":finish}],"usage":{"prompt_tokens":100,"completion_tokens":completion,"completion_tokens_details":{"reasoning_tokens":reasoning},"prompt_tokens_details":{"cached_tokens":40}}});
     (
         [(header::CONTENT_TYPE, "text/event-stream")],
         format!("data: {first}\n\ndata: [DONE]\n\n"),
@@ -644,4 +644,27 @@ async fn identical_tool_batches_are_stopped_as_a_loop() {
         .unwrap()
         .contains("repetido 4 vezes"));
     assert_eq!(fixture.mock.requests.lock().unwrap().len(), 4);
+}
+
+#[tokio::test]
+async fn empty_reasoning_only_answer_retries_with_more_output() {
+    let fixture = Fixture::new(vec![Reply::EmptyLength, Reply::Answer("Resposta final.")]).await;
+    let run = fixture
+        .start(
+            "empty-retry",
+            vec![Fixture::agent("toph", "yolo")],
+            "Responda",
+        )
+        .await;
+    let snapshot = fixture.wait(run["id"].as_str().unwrap(), "completed").await;
+    assert!(snapshot["messages"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|message| message["content"] == "Resposta final."));
+    let requests = fixture.mock.requests.lock().unwrap();
+    assert_eq!(requests.len(), 2);
+    assert!(
+        requests[1]["max_tokens"].as_i64().unwrap() > requests[0]["max_tokens"].as_i64().unwrap()
+    );
 }

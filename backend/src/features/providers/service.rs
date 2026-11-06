@@ -1046,7 +1046,7 @@ pub fn infer_connection_name(label: &str, provider: &str, base_url: &str) -> Str
 }
 
 fn default_weekly_token_limit() -> i64 {
-    10_000_000
+    0
 }
 
 fn auth_headers(key: &str) -> Vec<(&'static str, String)> {
