@@ -596,3 +596,45 @@ async fn greeting_answers_with_the_current_model_without_tools_or_history_replay
     assert!(system.contains("127.0.0.1"));
     assert!(system.contains("Não retome"));
 }
+
+#[tokio::test]
+async fn long_runs_are_not_cut_at_a_fixed_step_count() {
+    let mut replies = (0..26)
+        .map(|index| Reply::Tool("shell", json!({"command": format!("echo step-{index}")})))
+        .collect::<Vec<_>>();
+    replies.push(Reply::Answer("Todos os passos concluídos."));
+    let fixture = Fixture::new(replies).await;
+    let run = fixture
+        .start(
+            "long-run",
+            vec![Fixture::agent("toph", "yolo")],
+            "Execute os passos",
+        )
+        .await;
+    let snapshot = fixture.wait(run["id"].as_str().unwrap(), "completed").await;
+    assert!(snapshot["runs"][0]["error"]
+        .as_str()
+        .unwrap_or("")
+        .is_empty());
+    assert!(fixture.mock.requests.lock().unwrap().len() >= 27);
+}
+
+#[tokio::test]
+async fn identical_tool_batches_are_stopped_as_a_loop() {
+    let fixture = Fixture::new(vec![
+        Reply::Tool("shell", json!({"command": "echo same"})),
+        Reply::Tool("shell", json!({"command": "echo same"})),
+        Reply::Tool("shell", json!({"command": "echo same"})),
+        Reply::Tool("shell", json!({"command": "echo same"})),
+    ])
+    .await;
+    let run = fixture
+        .start("loop", vec![Fixture::agent("toph", "yolo")], "Repita")
+        .await;
+    let snapshot = fixture.wait(run["id"].as_str().unwrap(), "failed").await;
+    assert!(snapshot["runs"][0]["error"]
+        .as_str()
+        .unwrap()
+        .contains("repetido 4 vezes"));
+    assert_eq!(fixture.mock.requests.lock().unwrap().len(), 4);
+}
