@@ -38,13 +38,14 @@ export function useAgentChat(project: string, chat: string | undefined) {
     const snapshot = await agentApi.snapshot(project, chat);
     if (start !== scopeRef.current) return;
     setState((current) => ({ ...snapshot, runs: mergeNativeRuns(replace ? [] : current.runs, snapshot.runs), messages: mergeNativeMessages(replace ? [] : current.messages, [...snapshot.messages, ...snapshot.drafts]) }));
-    const value = await agentApi.usage(project);
+    const value = await agentApi.usage(project, chat);
     if (start === scopeRef.current) setUsage(value);
   }, [project, chat]);
 
   useEffect(() => {
     const epoch = ++generation.current;
     setState(empty()); setError(""); setCompacting(false);
+    setUsage({ inputTokens: 0, outputTokens: 0, cachedTokens: 0, calls: 0, byAgent: [] });
     if (!chat) return;
     let stopped = false;
     let syncing = false;
@@ -60,7 +61,7 @@ export function useAgentChat(project: string, chat: string | undefined) {
       finally { syncing = false; }
     };
     void sync();
-    void agentApi.usage(project).then((value) => { if (!stopped) setUsage(value); }).catch(() => undefined);
+    void agentApi.usage(project, chat).then((value) => { if (!stopped) setUsage(value); }).catch(() => undefined);
     const stream = new EventSource(agentApi.events(project), { withCredentials: true });
     stream.addEventListener("resync", () => { void sync(); });
     stream.addEventListener("agent", (raw) => {
@@ -83,7 +84,7 @@ export function useAgentChat(project: string, chat: string | undefined) {
       } else if (event.type === "run") {
         const run = event.data as AgentRun;
         setState((current) => ({ ...current, runs: mergeNativeRuns(current.runs, [run]), approvals: isActive(run) ? current.approvals : current.approvals.filter((a) => a.runId !== run.id) }));
-        if (!isActive(run)) { setCompacting(false); void sync(); void agentApi.usage(project).then((value) => { if (!stopped) setUsage(value); }).catch(() => undefined); }
+        if (!isActive(run)) { setCompacting(false); void sync(); void agentApi.usage(project, chat).then((value) => { if (!stopped) setUsage(value); }).catch(() => undefined); }
       } else if (event.type === "approval") {
         const approval = event.data as Approval;
         setState((current) => ({ ...current, approvals: [...current.approvals.filter((a) => a.id !== approval.id), approval] }));
@@ -92,8 +93,15 @@ export function useAgentChat(project: string, chat: string | undefined) {
         setState((current) => ({ ...current, approvals: current.approvals.filter((a) => a.id !== id) }));
       } else if (event.type === "compacting") setCompacting(true);
       else if (event.type === "usage") {
-        const value = event.data as { input: number; output: number; cached: number };
-        setUsage((current) => ({ inputTokens: current.inputTokens + value.input, outputTokens: current.outputTokens + value.output, cachedTokens: current.cachedTokens + value.cached, calls: current.calls + 1 }));
+        const value = event.data as { input: number; output: number; cached: number; agentId?: string; kind?: string; estimatedInput?: number };
+        setUsage((current) => {
+          const agents = new Map((current.byAgent ?? []).map((a) => [a.agentId, a]));
+          if (value.agentId) {
+            const old = agents.get(value.agentId) ?? { agentId: value.agentId, inputTokens: 0, outputTokens: 0, cachedTokens: 0, calls: 0 };
+            agents.set(value.agentId, { ...old, inputTokens: old.inputTokens + value.input, outputTokens: old.outputTokens + value.output, cachedTokens: old.cachedTokens + value.cached, calls: old.calls + 1 });
+          }
+          return { ...current, inputTokens: current.inputTokens + value.input, outputTokens: current.outputTokens + value.output, cachedTokens: current.cachedTokens + value.cached, calls: current.calls + 1, byAgent: [...agents.values()], ...(value.kind === "turn" ? { contextTokens: value.estimatedInput, contextAgentId: value.agentId } : {}) };
+        });
       }
     });
     const visible = () => { if (!document.hidden) void sync(); };

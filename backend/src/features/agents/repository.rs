@@ -266,11 +266,15 @@ impl Repository {
         )
     }
 
-    pub async fn usage(&self, user: i64, project: &str) -> AppResult<Value> {
-        let row=sqlx::query("SELECT coalesce(sum(c.input_tokens),0) AS input,coalesce(sum(c.output_tokens),0) AS output,coalesce(sum(c.cached_tokens),0) AS cached,count(*) AS calls FROM agent_model_calls c JOIN agent_runs r ON r.id=c.run_id WHERE r.user_id=? AND r.project_id=?")
-            .bind(user).bind(project).fetch_one(self.0.pool()).await?;
+    pub async fn usage(&self, user: i64, project: &str, chat: Option<&str>) -> AppResult<Value> {
+        let rows = sqlx::query("SELECT r.agent_id,coalesce(sum(c.input_tokens),0) AS input,coalesce(sum(c.output_tokens),0) AS output,coalesce(sum(c.cached_tokens),0) AS cached,count(*) AS calls FROM agent_model_calls c JOIN agent_runs r ON r.id=c.run_id WHERE r.user_id=? AND r.project_id=? AND (? IS NULL OR r.chat_id=?) AND c.finish<>'pending' GROUP BY r.agent_id")
+            .bind(user).bind(project).bind(chat).bind(chat).fetch_all(self.0.pool()).await?;
+        let by_agent = rows.iter().map(|r| json!({"agentId":r.get::<String,_>("agent_id"),"inputTokens":r.get::<i64,_>("input"),"outputTokens":r.get::<i64,_>("output"),"cachedTokens":r.get::<i64,_>("cached"),"calls":r.get::<i64,_>("calls")})).collect::<Vec<_>>();
+        let last: Option<(i64,String)> = sqlx::query_as("SELECT c.estimated_input,r.agent_id FROM agent_model_calls c JOIN agent_runs r ON r.id=c.run_id WHERE r.user_id=? AND r.project_id=? AND (? IS NULL OR r.chat_id=?) AND c.kind='turn' ORDER BY c.created_at DESC LIMIT 1")
+            .bind(user).bind(project).bind(chat).bind(chat).fetch_optional(self.0.pool()).await?;
+        let total = |column: &str| rows.iter().map(|r| r.get::<i64, _>(column)).sum::<i64>();
         Ok(
-            json!({"inputTokens":row.get::<i64,_>("input"),"outputTokens":row.get::<i64,_>("output"),"cachedTokens":row.get::<i64,_>("cached"),"calls":row.get::<i64,_>("calls")}),
+            json!({"inputTokens":total("input"),"outputTokens":total("output"),"cachedTokens":total("cached"),"calls":total("calls"),"byAgent":by_agent,"contextTokens":last.as_ref().map(|v|v.0).unwrap_or(0),"contextAgentId":last.map(|v|v.1),"contextBudget":super::context::INPUT_BUDGET}),
         )
     }
 

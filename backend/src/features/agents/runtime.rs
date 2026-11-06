@@ -135,6 +135,7 @@ impl Runtime {
         if input.request_id.is_empty()
             || input.request_id.len() > 128
             || input.chat_id.is_empty()
+            || input.chat_description.len() > 8_000
             || input.text.len() > 64 * 1024
             || input.agents.is_empty()
             || input.agents.len() > 16
@@ -162,23 +163,25 @@ impl Runtime {
                 return Err(bad_request("Invalid agent configuration"));
             }
         }
-        let agent = input
+        let mut agent = input
             .agents
             .iter()
             .find(|a| a.id == input.agent_id)
             .cloned()
             .ok_or_else(|| bad_request("Unknown agent"))?;
+        agent.model = self.inner.ai.migrate_agent_model(&agent.model).await?;
         let config = self.inner.ai.resolve(&agent.model).await?;
+        let mut roster = input.agents;
+        if let Some(selected) = roster.iter_mut().find(|a| a.id == agent.id) {
+            *selected = agent.clone();
+        }
         let project_row = self.inner.repo.0.project(project).await?;
         let root = self
             .inner
             .tools
             .workspace
             .validate_root(std::path::Path::new(&project_row.root))?;
-        self.inner
-            .repo
-            .profiles(user, project, &input.agents)
-            .await?;
+        self.inner.repo.profiles(user, project, &roster).await?;
         let session = self
             .inner
             .repo
@@ -226,7 +229,8 @@ impl Runtime {
             project_id: project.into(),
             root,
             agent,
-            roster: input.agents,
+            roster,
+            chat_description: input.chat_description,
             depth: 0,
         };
         let runtime = self.clone();
@@ -304,7 +308,7 @@ impl Runtime {
         } else {
             json!({"role":"user","content":parts})
         };
-        let display = json!({"id":id,"chatId":ctx.run.chat_id,"tophId":ctx.agent.id,"sessionId":ctx.run.session_id,"role":if ctx.depth==0{"user"}else{"system"},"content":text,"status":"complete","createdAt":now()});
+        let display = json!({"id":id,"chatId":ctx.run.chat_id,"tophId":ctx.agent.id,"sessionId":ctx.run.session_id,"model":ctx.agent.model,"agentMode":ctx.agent.agent_mode,"role":if ctx.depth==0{"user"}else{"system"},"content":if ctx.depth==0{text.to_owned()}else{format!("Tarefa para @{}: {}",ctx.agent.handle,text)},"status":"complete","createdAt":now()});
         self.inner
             .repo
             .message(ctx, &id, body, display.clone())
@@ -424,6 +428,10 @@ impl Runtime {
                 tools.retain(|t| t["function"]["name"] != "delegate");
             }
             let mut extra = config.system_prompt.clone();
+            if !ctx.chat_description.is_empty() {
+                extra.push_str("\nContexto compartilhado do chat:\n");
+                extra.push_str(&ctx.chat_description);
+            }
             let image_config = this.inner.ai.public().await?;
             let image_backends = image_config
                 .image_providers
@@ -507,7 +515,7 @@ impl Runtime {
                 let estimated = context::estimate(&json!([messages, tools]));
                 this.hydrate_images(&ctx, &mut messages).await?;
                 let mid = format!("{}-{step}", ctx.run.id);
-                let display = json!({"id":mid,"userId":ctx.user_id,"projectId":ctx.project_id,"chatId":ctx.run.chat_id,"tophId":ctx.agent.id,"sessionId":ctx.run.session_id,"role":"assistant","content":"","status":"running","createdAt":now()});
+                let display = json!({"id":mid,"userId":ctx.user_id,"projectId":ctx.project_id,"chatId":ctx.run.chat_id,"tophId":ctx.agent.id,"sessionId":ctx.run.session_id,"model":ctx.agent.model,"agentMode":ctx.agent.agent_mode,"role":"assistant","content":"","status":"running","createdAt":now()});
                 this.inner
                     .drafts
                     .lock()
@@ -689,6 +697,7 @@ impl Runtime {
             .as_str()
             .filter(|s| !s.is_empty() && s.len() < 16000)
             .ok_or_else(|| bad_request("Delegation needs a bounded task"))?;
+        agent.model = self.inner.ai.migrate_agent_model(&agent.model).await?;
         let config = self.inner.ai.resolve(&agent.model).await?;
         let session = self
             .inner
@@ -720,6 +729,7 @@ impl Runtime {
             root: parent.root.clone(),
             agent,
             roster: parent.roster.clone(),
+            chat_description: parent.chat_description.clone(),
             depth: parent.depth + 1,
         };
         let result = async {
@@ -789,7 +799,7 @@ impl Runtime {
             .unwrap_or("error");
         sqlx::query("UPDATE agent_model_calls SET input_tokens=?,output_tokens=?,cached_tokens=?,reasoning_tokens=?,duration_ms=?,finish=? WHERE id=?")
             .bind(usage.input as i64).bind(usage.output as i64).bind(usage.cached as i64).bind(usage.reasoning as i64).bind(started.elapsed().as_millis() as i64).bind(finish).bind(&call_id).execute(self.inner.repo.0.pool()).await?;
-        self.event(ctx,"usage",json!({"runId":ctx.run.id,"input":usage.input,"output":usage.output,"cached":usage.cached,"estimatedInput":estimated}));
+        self.event(ctx,"usage",json!({"runId":ctx.run.id,"agentId":ctx.agent.id,"kind":kind,"input":usage.input,"output":usage.output,"cached":usage.cached,"estimatedInput":estimated}));
         result
     }
 
