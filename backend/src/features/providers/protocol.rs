@@ -36,6 +36,53 @@ fn endpoint(base: &str, suffix: &str) -> String {
     }
 }
 
+/// Hosted inference gateway only; no connection to an installed agent service.
+pub fn console_gateway(base: &str) -> Option<String> {
+    let url = reqwest::Url::parse(base).ok()?;
+    if url.scheme() != "https" || url.host_str()? != "opencode.ai" {
+        return None;
+    }
+    let path = url.path().trim_end_matches('/');
+    for root in ["/inference/go", "/inference"] {
+        if path == format!("{root}/openai/v1") || path == format!("{root}/anthropic/v1") {
+            return Some(format!("https://opencode.ai{root}"));
+        }
+    }
+    None
+}
+
+pub fn models_endpoint(base: &str) -> String {
+    match console_gateway(base) {
+        Some(root) => format!("{root}/v1/models"),
+        None => endpoint(base, "/models"),
+    }
+}
+
+#[cfg(test)]
+mod gateway_tests {
+    use super::*;
+
+    #[test]
+    fn hosted_go_catalog_has_a_distinct_url_from_inference() {
+        assert_eq!(
+            models_endpoint("https://opencode.ai/inference/go/openai/v1"),
+            "https://opencode.ai/inference/go/v1/models"
+        );
+        assert_eq!(
+            models_endpoint("https://opencode.ai/inference/go/anthropic/v1/"),
+            "https://opencode.ai/inference/go/v1/models"
+        );
+        assert_eq!(
+            models_endpoint("https://api.openai.com/v1"),
+            "https://api.openai.com/v1/models"
+        );
+        assert!(
+            console_gateway("https://opencode.ai.example.com/inference/go/openai/v1").is_none()
+        );
+        assert!(console_gateway("http://127.0.0.1:3005").is_none());
+    }
+}
+
 pub fn anthropic_messages(messages: &[Value]) -> AppResult<(String, Vec<Value>)> {
     let mut system = Vec::new();
     let mut result: Vec<Value> = Vec::new();
@@ -111,6 +158,23 @@ impl AiService {
         messages: &[Value],
         tools: &[Value],
         effort: Option<&str>,
+        delta: F,
+    ) -> AppResult<Turn>
+    where
+        F: FnMut(&str) + Send,
+    {
+        let session = crate::crypto::new_id();
+        self.turn_in_session(config, messages, tools, effort, &session, delta)
+            .await
+    }
+
+    pub async fn turn_in_session<F>(
+        &self,
+        config: &AiConfig,
+        messages: &[Value],
+        tools: &[Value],
+        effort: Option<&str>,
+        session: &str,
         mut delta: F,
     ) -> AppResult<Turn>
     where
@@ -198,7 +262,14 @@ impl AiService {
         };
         let mut request = self.client.post(url).json(&body);
         drop(body);
-        if anthropic {
+        if console_gateway(&config.base_url).is_some() {
+            request = request
+                .bearer_auth(&config.api_key)
+                .header("x-opencode-session", session);
+            if anthropic {
+                request = request.header("anthropic-version", "2023-06-01");
+            }
+        } else if anthropic {
             request = request
                 .header("x-api-key", &config.api_key)
                 .header("anthropic-version", "2023-06-01");

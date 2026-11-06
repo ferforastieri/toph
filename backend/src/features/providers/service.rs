@@ -176,6 +176,7 @@ impl AiService {
             store,
             key: load_or_create_key(key_file)?,
             client: Client::builder()
+                .user_agent(format!("Toph/{}", crate::VERSION))
                 .timeout(Duration::from_secs(600))
                 .build()
                 .map_err(|error| AppError::Internal(error.into()))?,
@@ -359,7 +360,7 @@ impl AiService {
         }
         let (url, headers) = match config.provider.as_str() {
             "anthropic" => (
-                endpoint(&config.base_url, "/models"),
+                super::protocol::models_endpoint(&config.base_url),
                 vec![
                     ("x-api-key", config.api_key.clone()),
                     ("anthropic-version", "2023-06-01".into()),
@@ -367,7 +368,7 @@ impl AiService {
             ),
             "ollama" => (format!("{}/api/tags", config.base_url), Vec::new()),
             "openai" | "custom" => (
-                endpoint(&config.base_url, "/models"),
+                super::protocol::models_endpoint(&config.base_url),
                 vec![("Authorization", format!("Bearer {}", config.api_key))],
             ),
             _ => return Err(crate::errors::bad_request("Unsupported provider protocol")),
@@ -408,7 +409,7 @@ impl AiService {
     async fn models_openai(&self, config: &AiConfig) -> AppResult<Vec<AiModel>> {
         let value = self
             .get_json(
-                &endpoint(&config.base_url, "/models"),
+                &super::protocol::models_endpoint(&config.base_url),
                 &auth_headers(&config.api_key),
             )
             .await?;
@@ -436,7 +437,7 @@ impl AiService {
     async fn models_anthropic(&self, config: &AiConfig) -> AppResult<Vec<AiModel>> {
         let value = self
             .get_json(
-                &endpoint(&config.base_url, "/models"),
+                &super::protocol::models_endpoint(&config.base_url),
                 &[
                     ("x-api-key", config.api_key.clone()),
                     ("anthropic-version", "2023-06-01".into()),
@@ -877,7 +878,13 @@ impl AiService {
             .into_iter()
             .map(|m| json!({"role":m.role,"content":m.content}))
             .collect::<Vec<_>>();
-        let turn = self.turn(&selected, &messages, &[], None, |_| {}).await?;
+        let session = format!(
+            "completion-{}",
+            crate::crypto::sha256_hex(input.path.as_bytes())
+        );
+        let turn = self
+            .turn_in_session(&selected, &messages, &[], None, &session, |_| {})
+            .await?;
         Ok(clean_completion(&turn.text))
     }
 

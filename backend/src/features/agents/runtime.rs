@@ -780,7 +780,7 @@ impl Runtime {
             .await?;
         transaction.commit().await?;
         let started = Instant::now();
-        let result = tokio::select! {_=cancel.cancelled()=>Err(bad_request("Execution cancelled")),r=self.inner.ai.turn(config,messages,tools,Some(&ctx.agent.effort),delta)=>r};
+        let result = tokio::select! {_=cancel.cancelled()=>Err(bad_request("Execution cancelled")),r=self.inner.ai.turn_in_session(config,messages,tools,Some(&ctx.agent.effort),&ctx.run.session_id,delta)=>r};
         drop(permit);
         let usage = result.as_ref().map(|t| t.usage.clone()).unwrap_or_default();
         let finish = result
