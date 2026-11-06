@@ -63,6 +63,23 @@ async fn terminal_websocket_streams_commands_and_output() {
         .unwrap();
     let terminal_id = terminal["id"].as_str().unwrap();
 
+    let listed: serde_json::Value = client
+        .get(format!("{origin}/api/projects/{project_id}/terminals"))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert!(
+        listed["terminals"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|item| item["id"] == terminal_id),
+        "created terminal should remain listed for its project"
+    );
+
     let ws_url = format!("ws://{}/api/terminals/{terminal_id}/ws", server.addr);
     let mut request = ws_url.into_client_request().unwrap();
     let cookie_url = reqwest::Url::parse(&origin).unwrap();

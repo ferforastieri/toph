@@ -558,7 +558,9 @@ fn router(state: Arc<AppState>) -> Router {
         .route("/api/projects/{project_id}/close", post(close_project))
         .route(
             "/api/projects/{project_id}/terminals",
-            post(create_terminal).delete(close_terminals),
+            get(list_terminals)
+                .post(create_terminal)
+                .delete(close_terminals),
         )
         .route("/api/terminals/shells", get(terminal_shells))
         .route("/api/terminals/{terminal_id}", delete(close_terminal))

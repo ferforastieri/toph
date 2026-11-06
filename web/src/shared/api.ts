@@ -822,6 +822,10 @@ export const api = {
     });
   },
 
+  async terminalSessions(projectId: string): Promise<{ terminals: Array<{ id: string; projectId: string; shell: string }> }> {
+    return request(`/projects/${encodeURIComponent(projectId)}/terminals`);
+  },
+
   async terminalShells(): Promise<{ shells: string[] }> {
     return request("/terminals/shells");
   },

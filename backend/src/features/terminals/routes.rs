@@ -24,6 +24,13 @@ pub(super) async fn create_terminal(
         .into_response())
 }
 
+pub(super) async fn list_terminals(
+    State(state): State<Arc<AppState>>,
+    Path(project_id): Path<String>,
+) -> Json<Value> {
+    Json(json!({ "terminals": state.terminals.list_project(&project_id) }))
+}
+
 pub(super) async fn terminal_shells() -> Json<Value> {
     Json(json!({ "shells": crate::terminal::available_shells() }))
 }

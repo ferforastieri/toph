@@ -6,6 +6,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 
 use portable_pty::{CommandBuilder, MasterPty, PtySize};
+use serde::Serialize;
 use tokio::sync::broadcast;
 
 use crate::crypto::new_id;
@@ -16,6 +17,14 @@ const RING_SIZE: usize = 128 * 1024;
 pub struct TerminalManager {
     sessions: Mutex<HashMap<String, Arc<TerminalSession>>>,
     shell: String,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TerminalInfo {
+    pub id: String,
+    pub project_id: String,
+    pub shell: String,
 }
 
 pub struct TerminalSession {
@@ -105,6 +114,24 @@ impl TerminalManager {
 
     pub fn get(&self, id: &str) -> Option<Arc<TerminalSession>> {
         self.sessions.lock().ok()?.get(id).cloned()
+    }
+
+    pub fn list_project(&self, project_id: &str) -> Vec<TerminalInfo> {
+        let Ok(sessions) = self.sessions.lock() else {
+            return Vec::new();
+        };
+        let mut items = sessions
+            .values()
+            .filter(|session| session.project_id == project_id)
+            .filter(|session| !session.closed.load(Ordering::SeqCst))
+            .map(|session| TerminalInfo {
+                id: session.id.clone(),
+                project_id: session.project_id.clone(),
+                shell: session.shell.clone(),
+            })
+            .collect::<Vec<_>>();
+        items.sort_by(|left, right| left.id.cmp(&right.id));
+        items
     }
 
     pub fn close_session(&self, id: &str) -> bool {
