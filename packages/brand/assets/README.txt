@@ -24,5 +24,5 @@ Arquivos principais:
 - generated/apple-touch-icon.png — ícone iOS com fundo escuro
 - app-icons/toph-*.png — ícones de app com fundo sólido
 
-Os Tophs individuais ficam em apps/web/public/tophs/ e também são PNGs
+Os Tophs individuais ficam em web/public/tophs/ e também são PNGs
 transparentes, sem sombra de estúdio.

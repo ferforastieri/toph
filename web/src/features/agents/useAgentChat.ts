@@ -1,0 +1,114 @@
+import { useCallback, useEffect, useRef, useState } from "react";
+import { agentApi, isActive, type AgentRun, type AgentSnapshot, type NativeMessage, type Approval, type AgentUsage } from "./api";
+
+const empty = (): AgentSnapshot => ({ messages: [], drafts: [], runs: [], approvals: [], hasMore: false, cursor: null });
+export function mergeNativeMessages(current: NativeMessage[], incoming: NativeMessage[]): NativeMessage[] {
+  const items = new Map(current.map((m) => [m.id, m]));
+  for (const m of incoming) {
+    const old = items.get(m.id);
+    if (old?.status === "complete" && m.status === "running") continue;
+    if (old?.status === "running" && m.status === "running" && old.content.length > m.content.length) continue;
+    items.set(m.id, { ...old, ...m, seq: m.seq ?? old?.seq });
+  }
+  return [...items.values()].sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id));
+}
+export function mergeNativeRuns(current: AgentRun[], incoming: AgentRun[]): AgentRun[] {
+  const runs = new Map(current.map((r) => [r.id, r]));
+  for (const run of incoming) {
+    const old = runs.get(run.id);
+    if (old && !isActive(old) && isActive(run)) continue;
+    runs.set(run.id, { ...old, ...run });
+  }
+  return [...runs.values()].sort((a, b) => b.createdAt - a.createdAt).slice(0, 64);
+}
+
+export function useAgentChat(project: string, chat: string | undefined) {
+  const [state, setState] = useState<AgentSnapshot>(empty);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [compacting, setCompacting] = useState(false);
+  const [usage, setUsage] = useState<AgentUsage>({ inputTokens: 0, outputTokens: 0, cachedTokens: 0, calls: 0 });
+  const generation = useRef(0);
+  const scope = `${project}:${chat ?? ""}`;
+  const scopeRef = useRef(scope); scopeRef.current = scope;
+
+  const refresh = useCallback(async (replace = false) => {
+    if (!chat) return;
+    const start = scopeRef.current;
+    const snapshot = await agentApi.snapshot(project, chat);
+    if (start !== scopeRef.current) return;
+    setState((current) => ({ ...snapshot, runs: mergeNativeRuns(replace ? [] : current.runs, snapshot.runs), messages: mergeNativeMessages(replace ? [] : current.messages, [...snapshot.messages, ...snapshot.drafts]) }));
+    const value = await agentApi.usage(project);
+    if (start === scopeRef.current) setUsage(value);
+  }, [project, chat]);
+
+  useEffect(() => {
+    const epoch = ++generation.current;
+    setState(empty()); setError(""); setCompacting(false);
+    if (!chat) return;
+    let stopped = false;
+    let syncing = false;
+    const sync = async () => {
+      if (syncing || stopped) return;
+      syncing = true;
+      try {
+        const snapshot = await agentApi.snapshot(project, chat);
+        if (stopped || generation.current !== epoch) return;
+        setState((current) => ({ ...snapshot, runs: mergeNativeRuns(current.runs, snapshot.runs), messages: mergeNativeMessages(current.messages, [...snapshot.messages, ...snapshot.drafts]) }));
+        setError("");
+      } catch (e) { if (!stopped) setError(e instanceof Error ? e.message : "Falha ao carregar conversa"); }
+      finally { syncing = false; }
+    };
+    void sync();
+    void agentApi.usage(project).then((value) => { if (!stopped) setUsage(value); }).catch(() => undefined);
+    const stream = new EventSource(agentApi.events(project), { withCredentials: true });
+    stream.addEventListener("resync", () => { void sync(); });
+    stream.addEventListener("agent", (raw) => {
+      if (stopped) return;
+      const event = JSON.parse((raw as MessageEvent).data) as { chatId: string; type: string; data: unknown };
+      if (event.chatId !== chat) return;
+      if (event.type === "delta") {
+        if (document.hidden) return;
+        const delta = event.data as { id: string; offset: number; text: string };
+        setState((current) => {
+          const message = current.messages.find((m) => m.id === delta.id);
+          if (!message || message.content.length < delta.offset) { queueMicrotask(() => { void sync(); }); return current; }
+          if (message.status === "complete" || message.content.length >= delta.offset + delta.text.length) return current;
+          const text = message.content + delta.text.slice(message.content.length - delta.offset);
+          return { ...current, messages: current.messages.map((m) => m.id === delta.id ? { ...m, content: text } : m) };
+        });
+      } else if (event.type === "message" || event.type === "error") {
+        setCompacting(false);
+        setState((current) => ({ ...current, messages: mergeNativeMessages(current.messages, [event.data as NativeMessage]) }));
+      } else if (event.type === "run") {
+        const run = event.data as AgentRun;
+        setState((current) => ({ ...current, runs: mergeNativeRuns(current.runs, [run]), approvals: isActive(run) ? current.approvals : current.approvals.filter((a) => a.runId !== run.id) }));
+        if (!isActive(run)) { setCompacting(false); void sync(); void agentApi.usage(project).then((value) => { if (!stopped) setUsage(value); }).catch(() => undefined); }
+      } else if (event.type === "approval") {
+        const approval = event.data as Approval;
+        setState((current) => ({ ...current, approvals: [...current.approvals.filter((a) => a.id !== approval.id), approval] }));
+      } else if (event.type === "approval.resolved") {
+        const id = (event.data as { id: string }).id;
+        setState((current) => ({ ...current, approvals: current.approvals.filter((a) => a.id !== id) }));
+      } else if (event.type === "compacting") setCompacting(true);
+      else if (event.type === "usage") {
+        const value = event.data as { input: number; output: number; cached: number };
+        setUsage((current) => ({ inputTokens: current.inputTokens + value.input, outputTokens: current.outputTokens + value.output, cachedTokens: current.cachedTokens + value.cached, calls: current.calls + 1 }));
+      }
+    });
+    const visible = () => { if (!document.hidden) void sync(); };
+    document.addEventListener("visibilitychange", visible);
+    return () => { stopped = true; stream.close(); document.removeEventListener("visibilitychange", visible); };
+  }, [project, chat]);
+
+  const older = async () => {
+    if (!chat || loading || !state.hasMore || state.cursor == null) return;
+    setLoading(true); const start = scopeRef.current;
+    try {
+      const page = await agentApi.snapshot(project, chat, state.cursor);
+      if (start === scopeRef.current) setState((current) => ({ ...current, messages: mergeNativeMessages(current.messages, page.messages), cursor: page.cursor, hasMore: page.hasMore }));
+    } catch (e) { setError(e instanceof Error ? e.message : "Falha no histórico"); }
+    finally { setLoading(false); }
+  };
+  return { ...state, error, setError, usage, loading, older, refresh, compacting, busy: state.runs.some(isActive) };
+}

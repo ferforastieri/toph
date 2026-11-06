@@ -25,27 +25,31 @@ jobs:
         with:
           filters: |
             web:
-              - 'apps/web/**'
+              - 'web/**'
               - 'packages/**'
+              - 'scripts/check-architecture.mjs'
+              - '.github/workflows/ci.yml'
               - 'package.json'
               - 'package-lock.json'
               - 'tsconfig.json'
-              - 'apps/web/vite.config.ts'
+              - 'web/vite.config.ts'
             server:
-              - 'services/toph/**'
-              - 'apps/web/**'
+              - 'backend/**'
+              - 'web/**'
               - 'packages/**'
               - 'package.json'
               - 'package-lock.json'
             backend:
-              - 'services/toph/**'
+              - 'backend/**'
+              - '.github/workflows/ci.yml'
             android:
-              - 'apps/client/**'
+              - 'mobile/**'
               - 'packages/**'
+              - '.github/workflows/ci.yml'
               - 'package.json'
               - 'package-lock.json'
             landing:
-              - 'landing-page/**'
+              - 'landing/**'
 
   rust:
     needs: changes
@@ -60,10 +64,10 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: services/toph
+          workspaces: backend
 
-      - run: cargo fmt --manifest-path services/toph/Cargo.toml --check
-      - run: cargo test --manifest-path services/toph/Cargo.toml
+      - run: cargo fmt --manifest-path backend/Cargo.toml --check
+      - run: cargo test --manifest-path backend/Cargo.toml
 
   web:
     needs: changes
@@ -77,6 +81,7 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
       - run: npm ci
+      - run: npm run check:architecture
       - run: npm test
       - run: npm run build:web
 
@@ -127,7 +132,7 @@ jobs:
       - name: Initialize Tauri Android project
         run: |
           export NDK_HOME="${ANDROID_HOME:-$ANDROID_SDK_ROOT}/ndk/28.2.13676358"
-          cd apps/client
+          cd mobile
           npm run sync-brand
           npm run tauri -- android init
           npm run icons
@@ -136,11 +141,11 @@ jobs:
       - name: Build Tauri Android debug APK
         run: |
           export NDK_HOME="${ANDROID_HOME:-$ANDROID_SDK_ROOT}/ndk/28.2.13676358"
-          cd apps/client
+          cd mobile
           npm run tauri -- android build --debug --apk --target aarch64
 
       - uses: actions/upload-artifact@v4
         with:
           name: toph-android-debug
-          path: apps/client/src-tauri/gen/android/app/build/outputs/apk/**/*.apk
+          path: mobile/src-tauri/gen/android/app/build/outputs/apk/**/*.apk
           if-no-files-found: error

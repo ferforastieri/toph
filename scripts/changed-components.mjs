@@ -23,15 +23,15 @@ const has = (predicate) => files.some(predicate);
 const anyPrefix = (...prefixes) => has((file) => prefixes.some((prefix) => file.startsWith(prefix)));
 
 const web = anyPrefix(
-  "apps/web/",
+  "web/",
   "packages/",
 ) || files.some((file) =>
   ["package.json", "package-lock.json", "tsconfig.json", "vite.config.ts"].includes(file),
 );
 
 const backend = anyPrefix(
-  "services/toph/",
-  "apps/web/",
+  "backend/",
+  "web/",
   "packages/",
 ) || files.some((file) =>
   ["package.json", "package-lock.json"].includes(file),
@@ -41,17 +41,19 @@ const backend = anyPrefix(
 const server = backend || web;
 
 const client = anyPrefix(
-  "apps/client/",
+  "desktop/",
   "packages/",
 ) || files.some((file) =>
   ["package.json", "package-lock.json"].includes(file),
 );
 
-// The mobile and desktop clients are thin shells around the server web app.
-// They do not need a rebuild when only the web UI or backend changes.
-const android = client;
-const desktop = client;
-const landing = anyPrefix("landing-page/");
+// Android is remote-only; desktop embeds the backend and web build.
+const sharedNative = anyPrefix("packages/native/", "packages/launcher/");
+const android = anyPrefix("mobile/", "packages/brand/") || sharedNative || files.some((file) =>
+  ["package.json", "package-lock.json", ".github/workflows/ci.yml", ".github/workflows/release.yml"].includes(file),
+);
+const desktop = client || backend || web || sharedNative || anyPrefix(".github/workflows/desktop.yml");
+const landing = anyPrefix("landing/");
 const installer = files.includes("install.sh");
 const releasable = server || android || desktop || installer;
 

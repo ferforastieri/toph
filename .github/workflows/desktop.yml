@@ -50,8 +50,8 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: |
-            services/toph -> target
-            apps/client/src-tauri -> target
+            backend -> target
+            desktop/src-tauri -> target
 
       - name: Install Linux dependencies
         if: matrix.platform == 'ubuntu-24.04'
@@ -85,7 +85,7 @@ jobs:
       - name: Resolve desktop version
         id: version
         shell: bash
-        working-directory: apps/client
+        working-directory: desktop
         env:
           REQUESTED_VERSION: ${{ inputs.version }}
         run: |
@@ -103,7 +103,7 @@ jobs:
         run: npm run build:web
 
       - name: Build desktop
-        working-directory: apps/client
+        working-directory: desktop
         env:
           TOPH_VERSION: ${{ steps.version.outputs.version }}
         run: npm run sync-brand && npm run tauri -- build --bundles "${{ matrix.bundles }}" --config '{"version":"${{ steps.version.outputs.version }}"}'
@@ -112,5 +112,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: toph-client-desktop-${{ matrix.platform }}
-          path: apps/client/src-tauri/target/release/bundle/**/*
+          path: desktop/src-tauri/target/release/bundle/**/*
           if-no-files-found: error
