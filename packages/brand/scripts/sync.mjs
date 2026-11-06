@@ -3,9 +3,9 @@ import { resolve } from "node:path";
 
 const root = resolve(import.meta.dirname, "../../..");
 const source = resolve(root, "packages/brand/assets");
-const webBrand = resolve(root, "apps/web/public/brand");
-const landingBrand = resolve(root, "apps/landing/public/brand");
-const desktopPublic = resolve(root, "apps/client/public");
+const webBrand = resolve(root, "web/public/brand");
+const landingBrand = resolve(root, "landing/preview/public/brand");
+const desktopPublic = resolve(root, "packages/launcher/public");
 
 const brandTargets = [webBrand, landingBrand];
 for (const target of brandTargets) {
@@ -32,7 +32,7 @@ await Promise.all([
 ]);
 
 // Tauri desktop and Android icons are generated from src-tauri/icons.json with
-// `npm run icons --workspace @toph/client`. Keeping that step separate lets the
+// `npm run icons --workspace @toph/mobile`. Keeping that step separate lets the
 // Android target refresh its adaptive launcher icon after `tauri android init`.
 
 console.log("brand assets synchronized");

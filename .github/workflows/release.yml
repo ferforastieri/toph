@@ -81,10 +81,10 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: services/toph -> target
+          workspaces: backend -> target
 
       - run: npm ci
-      # The server embeds apps/web/dist, so this is required even when only
+      # The server embeds web/dist, so this is required even when only
       # backend code changed.
       - run: npm run build:web
 
@@ -94,8 +94,8 @@ jobs:
           TOPH_VERSION: ${{ needs.prepare.outputs.version }}
         run: |
           set -euo pipefail
-          cargo build --release --manifest-path services/toph/Cargo.toml --bin toph
-          cp services/toph/target/release/toph "${{ matrix.output }}"
+          cargo build --release --manifest-path backend/Cargo.toml --bin toph
+          cp backend/target/release/toph "${{ matrix.output }}"
 
       - name: Upload server artifacts
         uses: actions/upload-artifact@v4
@@ -156,7 +156,7 @@ jobs:
           export ANDROID_KEYSTORE_PATH="$RUNNER_TEMP/toph-release.jks"
           echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$ANDROID_KEYSTORE_PATH"
           export NDK_HOME="${ANDROID_HOME:-$ANDROID_SDK_ROOT}/ndk/28.2.13676358"
-          cd apps/client
+          cd mobile
           npm run sync-brand
           npm run tauri -- android init
           npm run icons
@@ -164,8 +164,8 @@ jobs:
           node scripts/configure-android-signing.mjs
           npm run tauri -- android build --apk --target aarch64 --config "{\"version\":\"${TOPH_VERSION_NAME}\"}"
           APK=$(find src-tauri/gen/android/app/build/outputs/apk -name 'app-universal-release.apk' -print -quit)
-          cp "$APK" "../../toph-v${TOPH_VERSION_NAME}.apk"
-          "${ANDROID_HOME:-$ANDROID_SDK_ROOT}/build-tools/36.0.0/apksigner" verify "../../toph-v${TOPH_VERSION_NAME}.apk"
+          cp "$APK" "../toph-v${TOPH_VERSION_NAME}.apk"
+          "${ANDROID_HOME:-$ANDROID_SDK_ROOT}/build-tools/36.0.0/apksigner" verify "../toph-v${TOPH_VERSION_NAME}.apk"
 
       - name: Upload Android APK
         uses: actions/upload-artifact@v4

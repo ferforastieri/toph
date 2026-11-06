@@ -3,9 +3,10 @@
   "private": true,
   "version": "0.8.10",
   "workspaces": [
-    "apps/web",
-    "apps/landing",
-    "apps/client",
+    "web",
+    "landing/preview",
+    "desktop",
+    "mobile",
     "packages/brand",
     "packages/ui",
     "packages/icons"
@@ -14,12 +15,16 @@
     "dev:web": "npm run dev --workspace @toph/web",
     "dev:landing": "npm run dev --workspace @toph/landing",
     "build:web": "npm run build --workspace @toph/web",
+    "measure:web": "node scripts/bundle-size.mjs",
     "build:landing": "npm run build --workspace @toph/landing",
-    "build:client": "npm run build --workspace @toph/client",
+    "build:client": "npm run build:desktop",
+    "build:desktop": "npm run build --workspace @toph/desktop",
+    "build:mobile": "npm run build --workspace @toph/mobile",
+    "check:architecture": "node scripts/check-architecture.mjs",
     "test": "npm run test --workspace @toph/web",
     "sync-brand": "npm run sync --workspace @toph/brand",
-    "build:server": "cargo build --release --manifest-path services/toph/Cargo.toml --bin toph",
-    "test:server": "cargo test --manifest-path services/toph/Cargo.toml"
+    "build:server": "cargo build --release --manifest-path backend/Cargo.toml --bin toph",
+    "test:server": "cargo test --manifest-path backend/Cargo.toml"
   },
   "overrides": {
     "dompurify": "3.4.17"

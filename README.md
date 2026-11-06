@@ -11,7 +11,7 @@ Toph is built for people who keep their own services, repositories and data on m
 - `/` — redirects to the workbench.
 - `/app` — the workbench (sign-in required).
 
-The installed server does not serve the landing page or documentation. The landing source lives in `apps/landing/` for separate local work only; it is not part of the installer, release or backend bundle.
+The installed server does not serve the landing page or documentation. The landing source lives in `landing/preview/` for separate local work only; it is not part of the installer, release or backend bundle.
 
 ## What it does
 
@@ -21,12 +21,12 @@ The installed server does not serve the landing page or documentation. The landi
 - Open projects as top-level tabs. Closing a project tab stops its terminal sessions and child processes without deleting the project.
 - Use the real VS Code Material Icon Theme, stage/unstage/discard/commit and branch creation from configurable patterns in the Git modal, side-by-side diff tabs and Git blame for the current editor line.
 - Search matches both file names and file content automatically with debounce, without pressing Enter.
-- Ctrl+P opens and focuses the same unified search, while inline Git blame and an OpenCode-style conversation view provide reasoning, tool cards, subagents and Markdown.
+- Ctrl+P opens and focuses the same unified search; conversations display streamed answers, tool activity, delegated agents and Markdown.
 - Edit SQL table rows with primary-key safety.
 - Connect to PostgreSQL, MySQL/MariaDB, SQLite, SQL Server, Oracle, ClickHouse, Cassandra, MongoDB, Redis, Elasticsearch and Neo4j, inspect schemas, run queries and inspect results.
-- Talk to OpenCode, OpenAI-compatible endpoints, Codex, Claude or Ollama from the Agent tab without leaving the workbench.
+- Run agents with Toph's native Rust harness, connecting directly to OpenAI, Anthropic, Ollama or compatible model APIs.
 - Configure the AI URL, API key and model in Settings → AI; API keys are encrypted at rest.
-- Manage AI accounts, provider API keys and MCP servers from Settings → AI. The **Conexões de IA** tab connects OpenCode Console, OpenAI, Anthropic, Google, OpenRouter and other model providers; the **MCP** tab connects Atlassian, Stripe, local commands or remote MCP endpoints. A local OpenCode server is detected automatically from `~/.config/opencode/service.json`; use `TOPH_OPENCODE_URL` and `TOPH_OPENCODE_AUTH` for remote servers.
+- Manage direct model connections and encrypted API keys from Settings → AI. The **Conexões de IA** tab adds named provider connections. Native MCP supports local stdio commands and remote Streamable HTTP endpoints with optional bearer tokens. Tool execution, delegation, cancellation, history and compaction belong to Toph's backend.
 - Enable editor autocomplete with an automatic lightweight model or a specific autocomplete model in Settings → AI.
 - Add server folders as workspace roots in Settings → Workspace, without Docker bind mounts.
 - Keep self-hosted and external web apps in their own tabs, including pages that block iframes, through a server-side preview proxy.
@@ -42,16 +42,28 @@ The installed server does not serve the landing page or documentation. The landi
 ## Repository layout
 
 ```text
-apps/web/        React workbench application
-apps/landing/    public landing page
-apps/client/    Tauri desktop and Android client
-services/toph/   Rust API, workspace, terminals, databases, OpenCode proxy
-packages/brand/  shared brand assets and BrandMark
-packages/ui/     shared React UI primitives
-deploy/          Docker Compose
+backend/           Rust API; app composition, platform and feature modules
+web/               React workbench; app, features and shared UI
+desktop/           Tauri desktop entrypoint and packaging
+mobile/            Tauri Android entrypoint, Kotlin and push integration
+landing/site/      Published static landing page
+landing/preview/   Independent React landing preview
+packages/launcher/ Shared native launcher interface
+packages/native/   Shared Tauri runtime source
+packages/brand/    Brand assets and BrandMark
+packages/ui/       Shared React UI primitives
+packages/icons/    Shared icon components
+deploy/            Docker Compose
 ```
 
 The backend embeds only the application. The landing page is never installed, embedded, released or served by the Toph server.
+
+See [architecture and performance](docs/architecture.md) for module boundaries,
+resource lifetimes and validation commands. `npm run check:architecture` checks
+workspace paths and internal frontend imports.
+
+The [native harness guide](docs/native-harness.md) documents direct provider
+setup, execution limits, token accounting, tools and interruption behavior.
 
 ## Architecture
 
@@ -65,10 +77,10 @@ Browser (React)                     Tauri (desktop + Android)
         ├── projects and workspace files
         ├── terminal (PTY over WebSocket)
         ├── database gateway
-        ├── OpenCode proxy
+        ├── native agent runtime and direct model providers
         └── web target registry
                           │
-        repositories · PostgreSQL · SQLite · MySQL · OpenCode
+        repositories · PostgreSQL · SQLite · MySQL · model APIs
 ```
 
 The Rust server is the only component that touches repositories, database credentials and shells. Clients are thin: they render tabs and stream data. The browser build is embedded in the Rust binary; desktop and Android clients use the same API. Desktop local mode embeds the Rust server in the Tauri process itself, so no separate server process is started.
@@ -80,7 +92,7 @@ The Rust server is the only component that touches repositories, database creden
 - Cookie-authenticated mutations require a double-submit CSRF token.
 - Login and API endpoints have per-client rate limits.
 - `X-Forwarded-For` is only trusted from loopback or the CIDRs in `TOPH_TRUSTED_PROXIES`.
-- The OpenCode proxy drops browser cookies and authorization headers before forwarding.
+- Model and MCP credentials are managed by the backend and are not exposed to the browser or model prompts.
 - API responses use `Cache-Control: no-store` and responses are protected against framing.
 
 ## Run it
@@ -97,7 +109,7 @@ The Rust server is the only component that touches repositories, database creden
 
 ```sh
 cp .env.example .env
-cargo run --manifest-path services/toph/Cargo.toml --bin toph
+cargo run --manifest-path backend/Cargo.toml --bin toph
 ```
 
 In another terminal:
@@ -122,7 +134,7 @@ make build
 ./bin/toph
 ```
 
-`make build` builds `apps/web` and embeds it into the Rust binary. Open `http://127.0.0.1:8787`.
+`make build` builds `web` and embeds it into the Rust binary. Open `http://127.0.0.1:8787`.
 
 ### One-command install
 
@@ -174,7 +186,7 @@ toast. Installing the downloaded APK still requires the normal Android prompt.
 
 Install the Windows or Linux package from the [latest release](https://github.com/ferforastieri/toph/releases/latest). Desktop local mode embeds the Rust Toph server and asks for a workspace folder; server mode asks only for a URL on first use and reconnects to the last server on later launches. The launcher also offers an optional development-environment installer for Git, Node.js, pnpm, Rust, Go and Python. The local backend uses the app data directory for SQLite and its generated admin password.
 
-The desktop and Android builds share `apps/client/`; Android remains remote-only; the embedded desktop server target is not built for mobile. Windows installers use a Toph-branded WiX MSI with custom artwork and metadata.
+The desktop and Android entrypoints share `packages/launcher/` and `packages/native/`; Android remains remote-only and does not compile the embedded server. Windows installers use a Toph-branded WiX MSI with custom artwork and metadata.
 
 ### Docker
 
@@ -188,13 +200,13 @@ Mount the repositories you want to expose under `/workspaces` and keep `TOPH_DAT
 
 Signed Android APKs are published on [GitHub Releases](https://github.com/ferforastieri/toph/releases). They are remote-only.
 
-The Tauri client lives in `apps/client/` and builds the Windows and Linux installers from the same source. On the desktop it can connect to a Toph server or run the embedded local Rust backend. On Android it is a remote-only client: the WebView connects to the Toph server URL configured on the launcher, and no local server or terminal runs on the phone.
+The Tauri entrypoints live in `desktop/` and `mobile/`. The desktop can connect to a Toph server or run the embedded local Rust backend. On Android it is a remote-only client: the WebView connects to the Toph server URL configured on the launcher, and no local server or terminal runs on the phone.
 
 For Android development, install JDK 21, Android SDK 36 and NDK 28.2, then:
 
 ```sh
 npm ci
-cd apps/client
+cd mobile
 npm run tauri -- android init
 npm run icons
 npm run android:patch
@@ -213,8 +225,6 @@ The generated Android project is not committed; `tauri android init` recreates i
 | `TOPH_ADMIN_PASSWORD` | generated on first run | Initial admin password |
 | `TOPH_SECURE_COOKIES` | `false` | Require HTTPS for browser sessions; the installer sets `true` |
 | `TOPH_TRUSTED_PROXIES` | empty | Comma-separated proxy IPs/CIDRs allowed to supply `X-Forwarded-For` |
-| `TOPH_OPENCODE_URL` | `http://127.0.0.1:3005` | Fallback OpenCode server; Settings → AI overrides it. When unset, a local `~/.config/opencode/service.json` port is used |
-| `TOPH_OPENCODE_AUTH` | auto-detected locally | Fallback raw `Authorization` value for OpenCode. A local service password is read from `~/.config/opencode/service.json`; set this for remote servers |
 | `TOPH_FIREBASE_CREDENTIALS_FILE` | empty | Firebase service-account JSON used by the server for Android push |
 | `TOPH_FIREBASE_PROJECT_ID` | service-account project | Firebase project ID for Cloud Messaging |
 | `TOPH_WEB_DIR` | embedded build | Serve a web build from disk in development |
@@ -236,4 +246,4 @@ MIT.
 
 ## Desktop
 
-The client lives in `apps/client/` and uses Tauri 2. The same project builds Windows and Linux installers, with a Tauri Android target for mobile. Server mode accepts any Toph server URL; local mode embeds the Rust backend in the Tauri process, asks for a workspace folder, serves the UI on loopback, and shuts the backend down when the app exits. Windows local terminals use ConPTY; Linux uses a PTY.
+The client lives in `desktop/` and uses Tauri 2. The same project builds Windows and Linux installers, with a Tauri Android target for mobile. Server mode accepts any Toph server URL; local mode embeds the Rust backend in the Tauri process, asks for a workspace folder, serves the UI on loopback, and shuts the backend down when the app exits. Windows local terminals use ConPTY; Linux uses a PTY.

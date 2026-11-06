@@ -2,7 +2,7 @@
 
 ## Direção confirmada: opção A
 
-A própria silhueta da logo atual é o corpo do `toph-logo`: três barras decrescentes, com dois olhos pretos ovais e brilho branco **na barra superior**. O ponto inferior da referência original também é preservado. Material 3D brilhante em degradê laranja, fundo branco e sombra suave. Referência: `apps/web/public/brand/toph-mark.png`.
+A própria silhueta da logo atual é o corpo do `toph-logo`: três barras decrescentes, com dois olhos pretos ovais e brilho branco **na barra superior**. O ponto inferior da referência original também é preservado. Material 3D brilhante em degradê laranja, fundo branco e sombra suave. Referência: `web/public/brand/toph-mark.png`.
 
 Os demais 30 personagens têm silhuetas distintas, dois olhos ovais com brilho e traços no topo quando aplicável. Todos os PNGs finais são 1024 × 1024.
 
