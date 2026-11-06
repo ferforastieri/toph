@@ -13,7 +13,7 @@ interface Props {
   onModelChange: (value: string) => void;
   effort: string;
   efforts: string[];
-  onEffortChange: (value: string) => void;
+  onEffortChange?: (value: string) => void;
   fullWidth?: boolean;
 }
 
@@ -69,7 +69,7 @@ export default function ModelPicker({ models, model, onModelChange, effort, effo
 
   function pick(item: AIModel, nextEffort: string, close = true) {
     onModelChange(item.id);
-    if (nextEffort !== effort) onEffortChange(nextEffort);
+    if (nextEffort !== effort) onEffortChange?.(nextEffort);
     if (close) setOpen(false);
   }
 
@@ -81,7 +81,7 @@ export default function ModelPicker({ models, model, onModelChange, effort, effo
     }
     const nextEffort = itemVariants.includes(effort) ? effort : "";
     onModelChange(item.id);
-    if (nextEffort !== effort) onEffortChange(nextEffort);
+    if (nextEffort !== effort) onEffortChange?.(nextEffort);
     setExpandedModel(item.id);
   }
 

@@ -9,6 +9,8 @@ pub struct AgentSpec {
     pub name: String,
     pub handle: String,
     #[serde(default)]
+    pub role: String,
+    #[serde(default)]
     pub prompt: String,
     #[serde(default)]
     pub description: String,
@@ -56,6 +58,8 @@ pub struct Attachment {
 pub struct RunInput {
     pub request_id: String,
     pub chat_id: String,
+    #[serde(default)]
+    pub chat_description: String,
     pub agent_id: String,
     pub text: String,
     #[serde(default)]
@@ -117,6 +121,7 @@ pub struct RunContext {
     pub root: std::path::PathBuf,
     pub agent: AgentSpec,
     pub roster: Vec<AgentSpec>,
+    pub chat_description: String,
     pub depth: usize,
 }
 

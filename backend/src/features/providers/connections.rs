@@ -27,6 +27,75 @@ pub struct ConnectionInput {
 }
 
 impl AiService {
+    /// One-time identifier migration, preserving both provider and model. This
+    /// never retries a failed model through a different provider.
+    pub async fn model_reference_migrations(
+        &self,
+    ) -> AppResult<std::collections::HashMap<String, Vec<String>>> {
+        let default = self.load().await?;
+        let mut configs = vec![("default".to_owned(), default)];
+        configs.extend(
+            self.connections()
+                .await?
+                .into_iter()
+                .map(|c| (c.id, c.config)),
+        );
+        let mut bindings = std::collections::HashMap::<String, Vec<String>>::new();
+        for (id, config) in configs {
+            if super::protocol::console_gateway(&config.base_url)
+                .is_some_and(|url| url.ends_with("/go"))
+            {
+                bindings
+                    .entry("opencode-go/".into())
+                    .or_default()
+                    .push(id.clone());
+            }
+            if config.provider == "openai"
+                && reqwest::Url::parse(&config.base_url)
+                    .ok()
+                    .and_then(|url| url.host_str().map(str::to_owned))
+                    .as_deref()
+                    == Some("api.openai.com")
+            {
+                bindings.entry("openai/".into()).or_default().push(id);
+            }
+        }
+        Ok(bindings)
+    }
+
+    pub async fn migrate_agent_model(&self, model: &str) -> AppResult<String> {
+        if !legacy_model_reference(model) {
+            return Ok(model.into());
+        }
+        migrate_model_reference(model, &self.model_reference_migrations().await?)
+    }
+
+    pub async fn migrate_layout_models(&self, layout: &mut serde_json::Value) -> AppResult<()> {
+        let Some(agents) = layout
+            .pointer_mut("/chats/tophs")
+            .and_then(serde_json::Value::as_array_mut)
+        else {
+            return Ok(());
+        };
+        if !agents
+            .iter()
+            .any(|a| a["model"].as_str().is_some_and(legacy_model_reference))
+        {
+            return Ok(());
+        }
+        let bindings = self.model_reference_migrations().await?;
+        for agent in agents {
+            if let Some(model) = agent["model"].as_str() {
+                // Unconfigured/ambiguous selections stay visible for editing;
+                // execution reports a precise configuration error before billing.
+                if let Ok(model) = migrate_model_reference(model, &bindings) {
+                    agent["model"] = serde_json::json!(model);
+                }
+            }
+        }
+        Ok(())
+    }
+
     pub async fn connections(&self) -> AppResult<Vec<Connection>> {
         let raw = match self.store.setting("native_ai_connections").await {
             Ok(raw) => raw,
@@ -143,6 +212,56 @@ impl AiService {
             return Err(bad_request("Select a model in Settings → AI"));
         }
         Ok(config)
+    }
+}
+
+fn legacy_model_reference(model: &str) -> bool {
+    !model.contains("::") && (model.starts_with("opencode-go/") || model.starts_with("openai/"))
+}
+
+fn migrate_model_reference(
+    model: &str,
+    bindings: &std::collections::HashMap<String, Vec<String>>,
+) -> AppResult<String> {
+    if !legacy_model_reference(model) {
+        return Ok(model.into());
+    }
+    let prefix = if model.starts_with("opencode-go/") {
+        "opencode-go/"
+    } else {
+        "openai/"
+    };
+    match bindings.get(prefix).map(Vec::as_slice) {
+        Some([connection]) => Ok(format!("{connection}::{}", &model[prefix.len()..])),
+        _ => Err(bad_request(format!("Reconfigure o modelo {model} deste Toph: selecione explicitamente a conexão correspondente. Nenhuma outra conexão foi utilizada."))),
+    }
+}
+
+#[cfg(test)]
+mod reference_tests {
+    use super::*;
+    #[test]
+    fn migration_preserves_model_and_provider_without_falling_back() {
+        let bindings = std::collections::HashMap::from([
+            ("opencode-go/".into(), vec!["default".into()]),
+            ("openai/".into(), vec!["openai-account".into()]),
+        ]);
+        assert_eq!(
+            migrate_model_reference("openai/gpt-6-astra", &bindings).unwrap(),
+            "openai-account::gpt-6-astra"
+        );
+        assert_eq!(
+            migrate_model_reference("opencode-go/deepseek-v4.1-flash", &bindings).unwrap(),
+            "default::deepseek-v4.1-flash"
+        );
+        assert_eq!(
+            migrate_model_reference("router::openai/gpt-6-astra", &bindings).unwrap(),
+            "router::openai/gpt-6-astra"
+        );
+        assert!(
+            migrate_model_reference("openai/gpt-6-astra", &std::collections::HashMap::new())
+                .is_err()
+        );
     }
 }
 

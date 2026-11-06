@@ -283,8 +283,15 @@ impl AiService {
         if !response.status().is_success() {
             let status = response.status();
             let text = response.text().await.unwrap_or_default();
+            let text = if config.api_key.is_empty() {
+                text
+            } else {
+                text.replace(&config.api_key, "[redacted]")
+            };
             return Err(AppError::Upstream(format!(
-                "Provider {status}: {}",
+                "Modelo {} ({}): Provider {status}: {}",
+                config.model,
+                config.provider,
                 text.chars().take(1500).collect::<String>()
             )));
         }

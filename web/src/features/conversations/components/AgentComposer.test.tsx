@@ -21,6 +21,10 @@ beforeAll(() => {
 afterEach(cleanup);
 
 describe("AgentComposer actions", () => {
+  it("keeps the model selector visible when no effort callback is provided", () => {
+    render(<AgentComposer value="" onChange={vi.fn()} onSend={vi.fn()} busy={false} models={[{ id: "account::model", label: "Model", provider: "openai" }]} model="account::model" onModelChange={vi.fn()} placeholder="Mensagem" />);
+    expect(screen.getByRole("button", { name: "Modelo e esforço" })).toBeVisible();
+  });
   it("uses BoardUI buttons for audio and send", () => {
     render(
       <AgentComposer

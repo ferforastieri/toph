@@ -34,6 +34,19 @@ direct hosted model API integration; no external agent service is involved.
 
 ## Runtime
 
+The chat keeps the individual Toph/team interface: Build/Plan, model and effort
+controls update the coordinator in the active chat, while each teammate keeps
+its own configuration. Sidebar actions open the selected Toph's configuration
+and sessions. The usage popover reports this chat's totals, a per-Toph breakdown,
+and the estimated context budget; it does not mix usage from other chats.
+
+Legacy provider-prefixed model selections are migrated to explicit native
+connection IDs only when the corresponding provider connection is unambiguous.
+The model and provider are preserved; a missing/ambiguous connection requires
+configuration and never causes a retry against another provider. Workspace
+reads/writes normalize these IDs so an older browser tab cannot restore a
+misrouted selection.
+
 `runtime.rs` owns admission, execution, cancellation, model concurrency, tool
 dispatch, approvals, delegation and events. Runs have stable request IDs for
 idempotent submission. A SQLite uniqueness constraint allows one active run per
@@ -123,7 +136,7 @@ Project endpoints are below `/api/projects/:project/agent`:
 - `GET /events`: SSE notifications; `GET /snapshot?chatId=...` recovers state.
 - `GET /sessions?agentId=...`, `POST /sessions`: list, activate or start sessions.
 - `POST /approvals/:call`: approve/reject a waiting tool.
-- `GET /usage`, `GET /artifacts/:id`: usage and owned artifacts.
+- `GET /usage?chatId=...`, `GET /artifacts/:id`: chat/Toph usage and owned artifacts.
 
 Direct connections use `/api/ai/connections`; MCP uses `/api/mcp/servers`.
 

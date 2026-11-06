@@ -109,14 +109,21 @@ pub(super) async fn agent_usage(
     State(state): State<Arc<AppState>>,
     Path(project): Path<String>,
     Extension(auth): Extension<AuthContext>,
+    Query(query): Query<UsageQuery>,
 ) -> AppResult<Json<Value>> {
     Ok(Json(
         state
             .agents
             .repository()
-            .usage(auth.user.id, &project)
+            .usage(auth.user.id, &project, query.chat_id.as_deref())
             .await?,
     ))
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct UsageQuery {
+    chat_id: Option<String>,
 }
 pub(super) async fn agent_artifact(
     State(state): State<Arc<AppState>>,

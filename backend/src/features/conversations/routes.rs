@@ -9,9 +9,11 @@ pub(super) async fn get_layout(
         .store
         .workspace_layout(context.user.id, &project_id)
         .await?;
+    let mut layout: Value = serde_json::from_str(&layout)?;
+    state.ai.migrate_layout_models(&mut layout).await?;
     Ok((
         [(header::CONTENT_TYPE, "application/json; charset=utf-8")],
-        layout,
+        layout.to_string(),
     )
         .into_response())
 }
@@ -20,8 +22,9 @@ pub(super) async fn save_layout(
     State(state): State<Arc<AppState>>,
     Path(project_id): Path<String>,
     Extension(context): Extension<AuthContext>,
-    Json(layout): Json<Value>,
+    Json(mut layout): Json<Value>,
 ) -> AppResult<Json<Value>> {
+    state.ai.migrate_layout_models(&mut layout).await?;
     state
         .store
         .save_workspace_layout(context.user.id, &project_id, &layout.to_string())
