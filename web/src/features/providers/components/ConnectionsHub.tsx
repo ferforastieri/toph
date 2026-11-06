@@ -37,6 +37,10 @@ interface McpPreset {
   command?: string[];
   tokenLabel?: string;
   envFields?: EnvField[];
+  /** Browser automation needs a longer budget than a plain API MCP. */
+  timeoutSeconds?: number;
+  /** High-frequency inspect-only servers skip the per-call prompt. */
+  autoApprove?: boolean;
 }
 
 const MODEL_PRESETS: ModelPreset[] = [
@@ -73,6 +77,22 @@ const MCP_PRESETS: McpPreset[] = [
     transport: "http",
     url: "https://api.githubcopilot.com/mcp/",
     tokenLabel: "Personal access token",
+  },
+  {
+    id: "chrome",
+    name: "Chrome DevTools",
+    description: "Abre páginas, clica, lê console e rede, e tira prints para o agente ver.",
+    transport: "stdio",
+    command: [
+      "npx", "-y", "chrome-devtools-mcp@latest",
+      "--headless",
+      "--isolated",
+      "--slim",
+      "--no-usage-statistics",
+      "--no-performance-crux",
+    ],
+    timeoutSeconds: 180,
+    autoApprove: true,
   },
   {
     id: "custom",
@@ -276,6 +296,8 @@ export default function ConnectionsHub({ projectRoot: _projectRoot }: { projectR
         command,
         token: mcpForm.token,
         env,
+        timeoutSeconds: mcpPreset.timeoutSeconds,
+        autoApprove: mcpPreset.autoApprove,
       });
       await load();
       setMcpForm(emptyMcpForm);

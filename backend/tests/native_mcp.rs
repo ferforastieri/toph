@@ -29,6 +29,8 @@ for line in sys.stdin:
                 "fixture-value".into(),
             )]),
             command: vec!["python3".into(), "-u".into(), "-c".into(), script.into()],
+            timeout_seconds: 120,
+            auto_approve: false,
         })
         .await
         .unwrap();
@@ -110,6 +112,8 @@ async fn streamable_http_reuses_the_negotiated_session() {
             command: vec![],
             token: "private-token".into(),
             env: std::collections::HashMap::new(),
+            timeout_seconds: 120,
+            auto_approve: false,
         })
         .await
         .unwrap();

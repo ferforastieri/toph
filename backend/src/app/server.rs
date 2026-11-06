@@ -635,6 +635,10 @@ fn router(state: Arc<AppState>) -> Router {
         )
         .route("/api/web-targets/{target_id}", delete(delete_web_target))
         .route("/api/web-preview", get(web_preview))
+        .route(
+            "/api/projects/{project_id}/agent/skills",
+            get(project_skills),
+        )
         .route("/api/projects/{project_id}/agent/runs", post(start_agent))
         .route(
             "/api/projects/{project_id}/agent/cancel",

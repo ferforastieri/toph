@@ -184,6 +184,22 @@ pub(super) async fn delete_ai_connection(
 pub(super) async fn mcp_servers(State(state): State<Arc<AppState>>) -> AppResult<Json<Value>> {
     Ok(Json(state.mcp.list().await?))
 }
+/// Skills are discovered from the project tree, never configured by hand, so
+/// the Toph editor can offer whatever the project actually ships.
+pub(super) async fn project_skills(
+    State(state): State<Arc<AppState>>,
+    Path(project): Path<String>,
+) -> AppResult<Json<Value>> {
+    let root = state.workspace.validate_root(std::path::Path::new(
+        &state.store.project(&project).await?.root,
+    ))?;
+    Ok(Json(json!(crate::features::agents::skills::discover(
+        &root
+    )
+    .into_iter()
+    .map(|skill| json!({"id":skill.id,"name":skill.name,"description":skill.description}))
+    .collect::<Vec<_>>())))
+}
 pub(super) async fn save_mcp_server(
     State(state): State<Arc<AppState>>,
     Json(input): Json<crate::features::integrations::mcp::Server>,

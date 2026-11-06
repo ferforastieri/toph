@@ -8,7 +8,7 @@ import { agentApi } from "../../agents/api";
 import type { Project } from "../../../shared/api";
 
 const native = vi.hoisted(() => ({
-  messages: [], drafts: [], runs: [], approvals: [], hasMore: false, cursor: null,
+  messages: [] as unknown[], drafts: [], runs: [], approvals: [], questions: [] as unknown[], hasMore: false, cursor: null,
   error: "", setError: vi.fn(), loading: false, older: vi.fn(), refresh: vi.fn(), compacting: false, busy: false,
   usage: { inputTokens: 100, outputTokens: 20, cachedTokens: 40, calls: 1, byAgent: [], contextTokens: 3000, contextBudget: 12000 },
 }));
@@ -91,5 +91,27 @@ describe("Toph chat controls", () => {
     expect(within(dialog).getByText("Fernando · coordenador")).toBeVisible();
     expect(within(dialog).getByText("Beto")).toBeVisible();
     expect(within(dialog).getByText("100")).toBeVisible();
+  });
+
+  it("renders a blocking question inside the conversation and answers it", async () => {
+    const answer = vi.spyOn(agentApi, "answer").mockResolvedValue({ ok: true });
+    native.questions = [{
+      id: "call-question", runId: "run", agentId: coordinatorId, name: "ask_user", arguments: "{}",
+      questions: [{ header: "Escopo", question: "Qual escopo devo usar?", options: [{ label: "Tudo" }, { label: "Só o backend" }] }],
+    }];
+    render(<BotStudioTab project={project} />);
+    expect(screen.getByText("O agente precisa da sua resposta")).toBeVisible();
+    fireEvent.click(screen.getByRole("radio", { name: /Só o backend/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Responder" }));
+    await waitFor(() => expect(answer).toHaveBeenCalledOnce());
+    expect(answer.mock.calls[0][1]).toBe("call-question");
+    expect(answer.mock.calls[0][2]).toContain("Só o backend");
+    native.questions = [];
+  });
+
+  it("no longer renders the standalone Apresentação panel", () => {
+    render(<BotStudioTab project={project} />);
+    expect(screen.queryByText("Apresentação")).not.toBeInTheDocument();
+    expect(screen.queryByText("O que o agente quer mostrar")).not.toBeInTheDocument();
   });
 });

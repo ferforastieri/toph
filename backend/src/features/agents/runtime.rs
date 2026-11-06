@@ -234,13 +234,10 @@ impl Runtime {
             let preparation = runtime.prepare(&ctx, &input.text, &input.attachments).await;
             drop(input.attachments);
             drop(input.text);
+            // A run ends when it finishes or when the user cancels it. There is
+            // no wall-clock cap: long browser sessions and refactors are legit.
             let result = match preparation {
-                Ok(()) => tokio::time::timeout(
-                    Duration::from_secs(900),
-                    runtime.execute(ctx.clone(), config, token.clone()),
-                )
-                .await
-                .unwrap_or_else(|_| Err(bad_request("Run exceeded 15 minutes"))),
+                Ok(()) => runtime.execute(ctx.clone(), config, token.clone()).await,
                 Err(e) => Err(e),
             };
             runtime.finish(&ctx, result, token.is_cancelled()).await;
@@ -422,6 +419,7 @@ impl Runtime {
                 tools.retain(|t| t["function"]["name"] != "delegate");
             }
             let mut extra = config.system_prompt.clone();
+            let mut auto_mcp: Vec<String> = Vec::new();
             if !ctx.chat_description.is_empty() {
                 extra.push_str("\nContexto compartilhado do chat:\n");
                 extra.push_str(&ctx.chat_description);
@@ -441,6 +439,20 @@ impl Runtime {
                     json!(image_backends)
                 ));
             }
+            if !ctx.agent.skills.is_empty() {
+                let selected = super::skills::enabled(&ctx.root, &ctx.agent.skills);
+                // Progressive disclosure: name and description only. The body is
+                // fetched with read_skill, so an idle skill costs one line.
+                // A skill deleted from disk is skipped rather than failing the run.
+                if !selected.is_empty() {
+                    extra.push_str(
+                        "\nSkills habilitadas (use read_skill antes de agir no domínio delas):\n",
+                    );
+                    for skill in selected {
+                        extra.push_str(&format!("- {}: {}\n", skill.id, skill.description));
+                    }
+                }
+            }
             if !ctx.agent.mcp_servers.is_empty() {
                 let all = this.inner.tools.mcp.list().await?;
                 let selected = all
@@ -454,6 +466,12 @@ impl Runtime {
                     return Err(bad_request("An enabled MCP connection no longer exists; update the agent configuration"));
                 }
                 extra.push_str(&format!("\nMCPs habilitados: {}", json!(selected)));
+                auto_mcp = this
+                    .inner
+                    .tools
+                    .mcp
+                    .auto_approved(&ctx.agent.mcp_servers)
+                    .await?;
             }
             if !ctx.agent.email_account_ids.is_empty() {
                 let selected = this
@@ -737,13 +755,24 @@ impl Runtime {
                         .bind(&tid).bind(&ctx.run.id).bind(&call.id).bind(&call.name).bind(&call.arguments).bind(now()).execute(this.inner.repo.0.pool()).await?;
                     let tool_display = json!({"id":tid,"chatId":ctx.run.chat_id,"tophId":ctx.agent.id,"sessionId":ctx.run.session_id,"role":"tool","title":call.name,"content":call.arguments,"status":"running","createdAt":now()});
                     this.event(&ctx, "message", tool_display.clone());
-                    let allowed =
-                        if tools::mutating(&call.name) && ctx.agent.permission_mode == "ask" {
-                            this.permission(&ctx, &tid, &call.name, &args, &cancel)
-                                .await?
-                        } else {
-                            true
-                        };
+                    let needs_permission = if call.name == "mcp_call" {
+                        match args["server"].as_str() {
+                            Some(server) => tools::mcp_needs_permission(
+                                &ctx.agent.mcp_servers,
+                                server,
+                                &auto_mcp,
+                            ),
+                            None => true,
+                        }
+                    } else {
+                        tools::mutating(&call.name)
+                    };
+                    let allowed = if needs_permission && ctx.agent.permission_mode == "ask" {
+                        this.permission(&ctx, &tid, &call.name, &args, &cancel)
+                            .await?
+                    } else {
+                        true
+                    };
                     sqlx::query("UPDATE agent_tool_calls SET state='running' WHERE id=?")
                         .bind(&tid)
                         .execute(this.inner.repo.0.pool())
@@ -752,6 +781,8 @@ impl Runtime {
                         Err(bad_request("Tool rejected by the user"))
                     } else if call.name == "delegate" {
                         this.delegate(&ctx, &args, &cancel).await
+                    } else if call.name == "ask_user" {
+                        this.question(&ctx, &tid, &args, &cancel).await
                     } else {
                         let seconds = if call.name == "generate_image" {
                             600
@@ -824,6 +855,41 @@ impl Runtime {
         self.inner.repo.state(&ctx.run.id, "running", "").await?;
         self.event(ctx, "approval.resolved", json!({"id":id}));
         Ok(result?["approved"].as_bool() == Some(true))
+    }
+
+    /// Blocking question delivered to the chat. Reuses the approval channel, so a
+    /// single endpoint answers both permissions and questions.
+    async fn question(
+        &self,
+        ctx: &RunContext,
+        id: &str,
+        args: &Value,
+        cancel: &CancellationToken,
+    ) -> AppResult<Value> {
+        let (sender, receiver) = oneshot::channel();
+        self.inner
+            .approvals
+            .lock()
+            .unwrap()
+            .insert(id.into(), sender);
+        sqlx::query("UPDATE agent_tool_calls SET state='waiting' WHERE id=?")
+            .bind(id)
+            .execute(self.inner.repo.0.pool())
+            .await?;
+        self.inner.repo.state(&ctx.run.id, "waiting", "").await?;
+        self.event(ctx,"approval",json!({"id":id,"runId":ctx.run.id,"agentId":ctx.agent.id,"name":"ask_user","kind":"question","questions":args["questions"],"arguments":args.to_string()}));
+        let result = tokio::select! {
+            _=cancel.cancelled()=>Err(bad_request("Execution cancelled")),
+            result=tokio::time::timeout(Duration::from_secs(600),receiver)=>result.map_err(|_|bad_request("Question expired"))?.map_err(|_|bad_request("Question cancelled"))
+        };
+        self.inner.approvals.lock().unwrap().remove(id);
+        self.inner.repo.state(&ctx.run.id, "running", "").await?;
+        self.event(ctx, "approval.resolved", json!({"id":id}));
+        Ok(match result {
+            Ok(value) => json!({"answers": value.get("answers").cloned().unwrap_or(Value::Null)}),
+            // No answer in time must not kill the run: the model continues and states its assumption.
+            Err(_) => json!({"answers": Value::Null, "expired": true}),
+        })
     }
 
     async fn delegate(

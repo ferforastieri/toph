@@ -1,6 +1,7 @@
 import { request, getApiBase } from "../../shared/api";
 import type { ChatMessage, ChatToph } from "../conversations/store";
 import type { AgentAttachment } from "../conversations/components/AgentComposer";
+import type { AgentQuestion } from "../conversations/components/AgentQuestionCard";
 
 export interface AgentRun {
   id: string; sessionId: string; parentId?: string; chatId: string; agentId: string;
@@ -9,12 +10,18 @@ export interface AgentRun {
 }
 export interface AgentSession { id: string; chatId: string; agentId: string; title: string; archived: boolean; createdAt: number; updatedAt: number }
 export interface Approval { id: string; runId: string; agentId: string; name: string; arguments: string }
+export interface AgentQuestionPrompt {
+  id: string; runId: string; agentId: string; name: string; arguments: string;
+  questions: AgentQuestion[];
+}
 export interface NativeMessage extends ChatMessage { seq?: number; model?: string; agentMode?: "build" | "plan" }
-export interface AgentSnapshot { messages: NativeMessage[]; drafts: NativeMessage[]; runs: AgentRun[]; approvals: Approval[]; hasMore: boolean; cursor: number | null }
+export interface AgentSnapshot { messages: NativeMessage[]; drafts: NativeMessage[]; runs: AgentRun[]; approvals: Approval[]; questions: AgentQuestionPrompt[]; hasMore: boolean; cursor: number | null }
 export interface TophUsage { agentId: string; inputTokens: number; outputTokens: number; cachedTokens: number; calls: number }
 export interface AgentUsage { inputTokens: number; outputTokens: number; cachedTokens: number; calls: number; byAgent?: TophUsage[]; contextTokens?: number; contextBudget?: number; contextAgentId?: string | null }
 export interface Connection { id: string; label: string; provider: string; baseUrl: string; model: string; hasKey: boolean }
-export interface McpServer { id: string; name: string; transport: "stdio" | "http"; url: string; command: string[]; token?: string; env?: Record<string, string>; envKeys?: string[]; hasToken: boolean }
+export interface McpServer { id: string; name: string; transport: "stdio" | "http"; url: string; command: string[]; token?: string; env?: Record<string, string>; envKeys?: string[]; hasToken: boolean; timeoutSeconds?: number; autoApprove?: boolean }
+
+export interface ProjectSkill { id: string; name: string; description: string }
 
 const root = (project: string) => `/projects/${encodeURIComponent(project)}/agent`;
 const post = (body: unknown): RequestInit => ({ method: "POST", body: JSON.stringify(body) });
@@ -27,11 +34,13 @@ export const agentApi = {
   sessions: (project: string, agent: string) => request<AgentSession[]>(`${root(project)}/sessions?agentId=${encodeURIComponent(agent)}`),
   switchSession: (project: string, agentId: string, sessionId: string | null) => request(`${root(project)}/sessions`, post({ agentId, sessionId })),
   approve: (project: string, call: string, approved: boolean) => request(`${root(project)}/approvals/${encodeURIComponent(call)}`, post({ approved })),
+  answer: (project: string, call: string, answer: string) => request(`${root(project)}/approvals/${encodeURIComponent(call)}`, post({ answers: answer })),
   usage: (project: string, chat?: string) => request<AgentUsage>(`${root(project)}/usage${chat ? `?chatId=${encodeURIComponent(chat)}` : ""}`),
   connections: () => request<Connection[]>("/ai/connections"),
   saveConnection: (input: Partial<Connection> & { apiKey?: string; clearKey?: boolean }) => request("/ai/connections", post(input)),
   deleteConnection: (id: string) => request(`/ai/connections/${encodeURIComponent(id)}`, { method: "DELETE" }),
   mcpServers: () => request<McpServer[]>("/mcp/servers"),
+  skills: (project: string) => request<ProjectSkill[]>(`${root(project)}/skills`),
   saveMcp: (input: Partial<McpServer> & { token?: string; env?: Record<string, string> }) => request<{ ok: boolean; id?: string }>("/mcp/servers", post(input)),
   deleteMcp: (id: string) => request(`/mcp/servers/${encodeURIComponent(id)}`, { method: "DELETE" }),
   testMcp: (id: string) => request<{ ok: boolean; tools: number }>(`/mcp/servers/${encodeURIComponent(id)}/test`, post({})),
