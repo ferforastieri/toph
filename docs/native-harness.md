@@ -23,6 +23,15 @@ uses the selected backend/model without retrying a different model. Native
 provider configuration uses its own settings key so old credentials are not
 accidentally sent to a different endpoint.
 
+### OpenCode Go as a model API
+
+Use the compatible OpenAI protocol with
+`https://opencode.ai/inference/go/openai/v1` and a Console personal API key from
+the workspace subscribed to Go. The native client identifies itself as Toph and
+sends `x-opencode-session` using the persistent conversation ID, including
+compaction calls. The model catalog uses `/inference/go/v1/models`. This is a
+direct hosted model API integration; no external agent service is involved.
+
 ## Runtime
 
 `runtime.rs` owns admission, execution, cancellation, model concurrency, tool
