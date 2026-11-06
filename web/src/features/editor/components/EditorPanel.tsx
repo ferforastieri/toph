@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api, ApiError, type GitBlameLine, type Project } from "../../../shared/api";
+import { api, ApiError, type DebugBreakpoint, type GitBlameLine, type Project } from "../../../shared/api";
 import { languageFor } from "../../../shared/lib";
 import { useApp, type Tab } from "../../../app/store";
 import CodeEditor from "./CodeEditor";
@@ -17,13 +17,15 @@ interface Props {
   debugEnabled?: boolean;
 }
 
+const NO_BREAKPOINTS: DebugBreakpoint[] = [];
+
 export default function EditorPanel({ tab, project, onOpenChanges, mobile = false, debugEnabled = true }: Props) {
   const updateTab = useApp((state) => state.updateTab);
   const notify = useApp((state) => state.notify);
   const [blame, setBlame] = useState<GitBlameLine[]>([]);
   const [stale, setStale] = useState(false);
   const loadDebug = useDebug((state) => state.load);
-  const breakpoints = useDebug((state) => state.byProject[project.id]?.breakpoints ?? []);
+  const breakpoints = useDebug((state) => state.byProject[project.id]?.breakpoints) ?? NO_BREAKPOINTS;
   const debugLocation = useDebug((state) => state.locations[project.id] ?? null);
   const toggleBreakpoint = useDebug((state) => state.toggleBreakpoint);
   const tabRef = useRef(tab);
