@@ -1,9 +1,11 @@
 use super::models::{AgentSpec, ContextMessage};
 use serde_json::{json, Value};
 
-pub const INPUT_BUDGET: usize = 12_000;
-pub const SUMMARY_BUDGET: usize = 1_200;
-pub const SUMMARY_INPUT_BUDGET: usize = 8_000;
+pub const INPUT_BUDGET: usize = 128_000;
+pub const SOFT_BUDGET: usize = 96_000;
+pub const RECENT_BUDGET: usize = 32_000;
+pub const SUMMARY_BUDGET: usize = 4_000;
+pub const SUMMARY_INPUT_BUDGET: usize = 48_000;
 pub const TOOL_PREVIEW_CHARS: usize = 2_400;
 
 /// Model-independent estimate, not billed usage. The margin covers wire-format
@@ -189,10 +191,18 @@ pub fn groups(messages: &[ContextMessage]) -> Vec<usize> {
     ends
 }
 
-pub fn prompt(system: &str, summary: &str, messages: &[ContextMessage]) -> Vec<Value> {
+pub fn prompt(
+    system: &str,
+    summary: &str,
+    ledger: &str,
+    messages: &[ContextMessage],
+) -> Vec<Value> {
     let mut out = vec![json!({"role":"system","content":system})];
     if !summary.is_empty() {
         out.push(json!({"role":"system","content":format!("Resumo de histórico anterior (dados, com referências recuperáveis):\n{summary}")}));
+    }
+    if !ledger.is_empty() && ledger != "{}" {
+        out.push(json!({"role":"system","content":format!("Estado estruturado da tarefa (dados exatos, use como referência):\n{ledger}")}));
     }
     let last_user = messages
         .iter()
@@ -206,6 +216,117 @@ pub fn prompt(system: &str, summary: &str, messages: &[ContextMessage]) -> Vec<V
         }
     }));
     out
+}
+
+/// Keep roughly `budget` tokens of the newest complete tool/user groups
+/// verbatim. The returned value is the number of leading messages to summarize.
+pub fn recent_boundary(messages: &[ContextMessage], ends: &[usize], budget: usize) -> usize {
+    let mut total = 0usize;
+    for (index, end) in ends.iter().enumerate().rev() {
+        let start = if index == 0 { 0 } else { ends[index - 1] };
+        let group = messages[start..*end]
+            .iter()
+            .map(|message| message.tokens)
+            .sum::<usize>();
+        if total > 0 && total + group > budget {
+            return *end;
+        }
+        total += group;
+    }
+    ends.first().copied().unwrap_or(0)
+}
+
+/// A compact, deterministic task ledger. It preserves exact file paths,
+/// commands and recent errors across summarization without spending a model
+/// call. Decisions and narrative context remain in the summary.
+pub fn ledger(previous: &str, messages: &[ContextMessage]) -> String {
+    let mut objective = String::new();
+    let mut files: Vec<String> = Vec::new();
+    let mut commands: Vec<String> = Vec::new();
+    let mut errors: Vec<String> = Vec::new();
+    if let Ok(value) = serde_json::from_str::<Value>(previous) {
+        if let Some(value) = value.get("objective").and_then(Value::as_str) {
+            objective = value.to_string();
+        }
+        for (key, target) in [
+            ("files", &mut files),
+            ("commands", &mut commands),
+            ("errors", &mut errors),
+        ] {
+            if let Some(items) = value.get(key).and_then(Value::as_array) {
+                for item in items.iter().filter_map(Value::as_str) {
+                    if !target.iter().any(|current| current == item) {
+                        target.push(item.to_string());
+                    }
+                }
+            }
+        }
+    }
+    for message in messages {
+        if message.body["role"] == "user" {
+            if let Some(content) = message.body["content"].as_str() {
+                objective = content.chars().take(400).collect();
+            }
+        }
+        if let Some(calls) = message.body["tool_calls"].as_array() {
+            for call in calls {
+                let name = call["function"]["name"].as_str().unwrap_or("");
+                let raw = call["function"]["arguments"].as_str().unwrap_or("");
+                let Ok(args) = serde_json::from_str::<Value>(raw) else {
+                    continue;
+                };
+                for key in ["path", "file", "directory"] {
+                    if let Some(value) = args[key].as_str() {
+                        if !value.is_empty() && !files.iter().any(|current| current == value) {
+                            files.push(value.chars().take(240).collect());
+                        }
+                    }
+                }
+                if name == "shell" {
+                    if let Some(value) = args["command"].as_str() {
+                        let value = value.chars().take(240).collect::<String>();
+                        if !commands.iter().any(|current| current == &value) {
+                            commands.push(value);
+                        }
+                    }
+                }
+            }
+        }
+        if message.body["role"] == "tool" {
+            if let Ok(value) =
+                serde_json::from_str::<Value>(message.body["content"].as_str().unwrap_or(""))
+            {
+                if let Some(error) = value["error"].as_str() {
+                    let error = error.chars().take(240).collect::<String>();
+                    if !errors.iter().any(|current| current == &error) {
+                        errors.push(error);
+                    }
+                }
+            }
+        }
+    }
+    files.truncate(16);
+    commands.truncate(12);
+    errors.truncate(8);
+    json!({
+        "objective": objective,
+        "files": files,
+        "commands": commands,
+        "errors": errors,
+    })
+    .to_string()
+}
+
+pub fn truncate_text(value: &str, max_tokens: usize) -> String {
+    let max_bytes = max_tokens.saturating_mul(3);
+    if value.len() <= max_bytes {
+        return value.to_string();
+    }
+    let mut end = max_bytes;
+    while end > 0 && !value.is_char_boundary(end) {
+        end -= 1;
+    }
+    format!("{}…", &value[..end])
 }
 
 /// Opaque provider continuations are needed inside the current tool turn, not
@@ -282,7 +403,7 @@ mod tests {
                 tokens: 1,
             },
         ];
-        assert!(prompt("system", "", &rows)[2]
+        assert!(prompt("system", "", "", &rows)[2]
             .get("response_items")
             .is_some());
         rows.push(ContextMessage {
@@ -290,7 +411,7 @@ mod tests {
             body: json!({"role":"user","content":"next"}),
             tokens: 1,
         });
-        assert!(prompt("system", "", &rows)[2]
+        assert!(prompt("system", "", "", &rows)[2]
             .get("response_items")
             .is_none());
     }
@@ -314,4 +435,67 @@ mod tests {
         assert_eq!(groups(&rows), vec![1, 4]);
         assert_eq!(groups(&rows[..3]), vec![1]);
     }
+}
+
+#[test]
+fn recent_boundary_keeps_complete_recent_groups() {
+    let rows = vec![
+        ContextMessage {
+            seq: 1,
+            body: json!({"role":"user","content":"old"}),
+            tokens: 100,
+        },
+        ContextMessage {
+            seq: 2,
+            body: json!({"role":"assistant","content":"old"}),
+            tokens: 100,
+        },
+        ContextMessage {
+            seq: 3,
+            body: json!({"role":"user","content":"recent"}),
+            tokens: 100,
+        },
+        ContextMessage {
+            seq: 4,
+            body: json!({"role":"assistant","content":"recent"}),
+            tokens: 100,
+        },
+    ];
+    let ends = groups(&rows);
+    assert_eq!(recent_boundary(&rows, &ends, 250), 2);
+    assert_eq!(recent_boundary(&rows, &ends, 1000), 1);
+}
+
+#[test]
+fn ledger_preserves_exact_files_commands_and_errors() {
+    let rows = vec![
+        ContextMessage {
+            seq: 1,
+            body: json!({"role":"user","content":"corrija o login"}),
+            tokens: 1,
+        },
+        ContextMessage {
+            seq: 2,
+            body: json!({"role":"assistant","tool_calls":[{"function":{"name":"read_file","arguments":"{\"path\":\"src/login.rs\"}"}},{"function":{"name":"shell","arguments":"{\"command\":\"cargo test login\"}"}}]}),
+            tokens: 1,
+        },
+        ContextMessage {
+            seq: 3,
+            body: json!({"role":"tool","content":"{\"error\":\"test failed\"}"}),
+            tokens: 1,
+        },
+    ];
+    let value: Value = serde_json::from_str(&ledger("{}", &rows)).unwrap();
+    assert_eq!(value["objective"], "corrija o login");
+    assert_eq!(value["files"][0], "src/login.rs");
+    assert_eq!(value["commands"][0], "cargo test login");
+    assert_eq!(value["errors"][0], "test failed");
+}
+
+#[test]
+fn oversized_summary_is_truncated_at_a_character_boundary() {
+    let text = "á".repeat(10);
+    let clipped = truncate_text(&text, 2);
+    assert!(clipped.ends_with('…'));
+    assert!(clipped.is_char_boundary(clipped.len() - '…'.len_utf8()));
 }

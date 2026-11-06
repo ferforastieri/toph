@@ -87,7 +87,9 @@ records the covered sequence. Original messages remain searchable using FTS5.
 
 | Resource | Limit |
 | --- | --- |
-| Input context | 12,000 estimated tokens, including instructions and schemas |
+| Input context | 128,000 estimated tokens; compact at 96,000 |
+| Recent verbatim window | 32,000 estimated tokens |
+| History summary | 4,000 estimated tokens target; 48,000 input budget |
 | Loop guard | repeated identical tool batches, not a fixed step count |
 | Parallel model requests | 4 across the runtime |
 | Run admission | 16 active/queued entries checked at admission |
@@ -103,12 +105,16 @@ records the covered sequence. Original messages remain searchable using FTS5.
 Token estimates are model-independent heuristics, not invoices or exact
 tokenizer counts. Each model call records provider-reported input, output,
 cached and reasoning tokens separately, plus the estimate and latency. There is
-no artificial per-run token ceiling: cost stays bounded by the 12,000-token
-input context, incremental summaries, repeated-batch loop detection,
-tool-output artifacts and the 15-minute run timeout. Pending calls count toward
-the optional configured weekly limit using their estimate. Autocomplete is
-disabled initially and capped at 512 output tokens when enabled. Utility
-completions also enforce the input budget.
+no artificial per-run token ceiling: cost stays bounded by the 128,000-token
+working context, incremental summaries, repeated-batch loop detection,
+tool-output artifacts and the 15-minute run timeout. The newest ~32,000 tokens
+stay verbatim; the soft compaction point is 96,000 tokens when the cache is
+cold, while a warm prompt cache can use the full 128,000-token budget before
+compacting. A deterministic ledger preserves exact file paths, commands and
+recent errors across compaction. Pending calls count toward the optional
+configured weekly limit using their estimate. Autocomplete is disabled
+initially and capped at 512 output tokens when enabled. Utility completions also
+enforce the input budget.
 
 Agents are instructed to batch independent tool calls in one model turn and to
 avoid re-reading unchanged files. The system prompt and tool schemas stay

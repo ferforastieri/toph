@@ -224,6 +224,24 @@ impl Repository {
     pub async fn checkpoint(&self, session: &str) -> AppResult<(i64, String)> {
         Ok(sqlx::query_as("SELECT through_seq,summary FROM agent_checkpoints WHERE session_id=? ORDER BY through_seq DESC LIMIT 1").bind(session).fetch_optional(self.0.pool()).await?.unwrap_or((0,String::new())))
     }
+    pub async fn ledger(&self, session: &str) -> AppResult<String> {
+        Ok(
+            sqlx::query_scalar("SELECT ledger FROM agent_session_state WHERE session_id=?")
+                .bind(session)
+                .fetch_optional(self.0.pool())
+                .await?
+                .unwrap_or_default(),
+        )
+    }
+    pub async fn save_ledger(&self, session: &str, ledger: &str) -> AppResult<()> {
+        sqlx::query("INSERT INTO agent_session_state(session_id,ledger,updated_at) VALUES(?,?,?) ON CONFLICT(session_id) DO UPDATE SET ledger=excluded.ledger,updated_at=excluded.updated_at")
+            .bind(session)
+            .bind(ledger)
+            .bind(now())
+            .execute(self.0.pool())
+            .await?;
+        Ok(())
+    }
     pub async fn save_checkpoint(&self, session: &str, seq: i64, summary: &str) -> AppResult<()> {
         sqlx::query("INSERT INTO agent_checkpoints VALUES(?,?,?,?,?,?)")
             .bind(new_id())
