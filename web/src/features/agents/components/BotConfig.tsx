@@ -8,8 +8,6 @@ import type { BotAvatar as BotAvatarShape } from "../avatars";
 import { BOT_AVATAR_LABELS, BOT_AVATARS } from "../avatars";
 import { modelDisplay, modelTitle, useAI } from "../../providers/store";
 import BotAvatar from "./BotAvatar";
-import AiConnectionsPanel from "../../providers/components/AiConnectionsPanel";
-import McpPanel from "../../integrations/components/McpPanel";
 import { Button } from "@/shared/boardui/base/buttons/button";
 import { Input } from "@/shared/boardui/base/input/input";
 import { Textarea } from "@/shared/boardui/base/textarea/textarea";
@@ -51,7 +49,6 @@ export default function BotConfig({ projectId, projectRoot, bot }: Props) {
   const selectedModel = models.find((model) => model.id === effectiveModel);
   const confirm = useConfirm();
   const [section, setSection] = useState<ConfigSection>("profile");
-  const [manageMcps, setManageMcps] = useState(false);
   const [mcpServers, setMcpServers] = useState<string[]>([]);
   const [mcpLabels, setMcpLabels] = useState<Record<string,string>>({});
   const [mcpLoading, setMcpLoading] = useState(false);
@@ -92,7 +89,6 @@ export default function BotConfig({ projectId, projectRoot, bot }: Props) {
 
   useEffect(() => {
     setSection("profile");
-    setManageMcps(false);
   }, [bot.id]);
 
   function toggleMcp(name: string) {
@@ -322,14 +318,13 @@ export default function BotConfig({ projectId, projectRoot, bot }: Props) {
             </label>
           </div>
           <div className="rounded-2xl border border-border-button-default p-3">
-            <div className="mb-3 flex items-center gap-2">
+            <div className="flex items-center gap-2">
               <PlugZap size={15} className="text-accent-500" />
               <div>
-                <p className="text-body-medium text-text-primary">Contas e provedores</p>
-                <p className="text-caption-2-regular text-text-secondary">OpenAI, Anthropic, Ollama e APIs compatíveis.</p>
+                <p className="text-body-medium text-text-primary">Conexões</p>
+                <p className="text-caption-2-regular text-text-secondary">Modelos e MCPs são configurados em Configurações → Conexões.</p>
               </div>
             </div>
-            <AiConnectionsPanel projectRoot={projectRoot} onConnectionsChanged={() => void loadModels()} />
           </div>
         </div>
       ) : null}
@@ -364,14 +359,9 @@ export default function BotConfig({ projectId, projectRoot, bot }: Props) {
           </div>
 
           <div className="flex flex-col gap-2 rounded-2xl border border-border-button-default bg-background-secondary-default p-3">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-body-medium text-text-primary">MCPs habilitados</p>
-                <p className="mt-1 text-caption-2-regular text-text-secondary">A seleção é exclusiva deste Toph.</p>
-              </div>
-              <Button type="button" variant="secondary" size="xs" leadingIcon={Wrench} onClick={() => setManageMcps((value) => !value)}>
-                {manageMcps ? "Fechar gerenciador" : "Gerenciar MCPs"}
-              </Button>
+            <div>
+              <p className="text-body-medium text-text-primary">MCPs habilitados</p>
+              <p className="mt-1 text-caption-2-regular text-text-secondary">A seleção é exclusiva deste Toph. Configure servidores em Configurações → Conexões.</p>
             </div>
             {mcpLoading ? <span className="text-caption-2-regular text-text-tertiary">Carregando MCPs...</span> : null}
             {!mcpLoading && mcpServers.length === 0 ? <span className="text-caption-2-regular text-text-tertiary">Nenhum MCP configurado ainda.</span> : null}
@@ -388,7 +378,6 @@ export default function BotConfig({ projectId, projectRoot, bot }: Props) {
               </div>
             ) : null}
           </div>
-          {manageMcps ? <McpPanel projectRoot={projectRoot} onChanged={refreshMcpServers} /> : null}
 
           <div className="flex flex-col gap-2 rounded-2xl border border-border-button-default bg-background-secondary-default p-3">
             <div>

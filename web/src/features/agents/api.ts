@@ -14,7 +14,7 @@ export interface AgentSnapshot { messages: NativeMessage[]; drafts: NativeMessag
 export interface TophUsage { agentId: string; inputTokens: number; outputTokens: number; cachedTokens: number; calls: number }
 export interface AgentUsage { inputTokens: number; outputTokens: number; cachedTokens: number; calls: number; byAgent?: TophUsage[]; contextTokens?: number; contextBudget?: number; contextAgentId?: string | null }
 export interface Connection { id: string; label: string; provider: string; baseUrl: string; model: string; hasKey: boolean }
-export interface McpServer { id: string; name: string; transport: "stdio" | "http"; url: string; command: string[]; hasToken: boolean }
+export interface McpServer { id: string; name: string; transport: "stdio" | "http"; url: string; command: string[]; token?: string; env?: Record<string, string>; envKeys?: string[]; hasToken: boolean }
 
 const root = (project: string) => `/projects/${encodeURIComponent(project)}/agent`;
 const post = (body: unknown): RequestInit => ({ method: "POST", body: JSON.stringify(body) });
@@ -32,8 +32,9 @@ export const agentApi = {
   saveConnection: (input: Partial<Connection> & { apiKey?: string; clearKey?: boolean }) => request("/ai/connections", post(input)),
   deleteConnection: (id: string) => request(`/ai/connections/${encodeURIComponent(id)}`, { method: "DELETE" }),
   mcpServers: () => request<McpServer[]>("/mcp/servers"),
-  saveMcp: (input: Partial<McpServer> & { token?: string }) => request("/mcp/servers", post(input)),
+  saveMcp: (input: Partial<McpServer> & { token?: string; env?: Record<string, string> }) => request<{ ok: boolean; id?: string }>("/mcp/servers", post(input)),
   deleteMcp: (id: string) => request(`/mcp/servers/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  testMcp: (id: string) => request<{ ok: boolean; tools: number }>(`/mcp/servers/${encodeURIComponent(id)}/test`, post({})),
 };
 
 export function isActive(run: AgentRun): boolean { return ["queued", "running", "waiting"].includes(run.state); }

@@ -14,7 +14,7 @@ async fn stdio_mcp_is_initialized_once_reused_and_released() {
 for line in sys.stdin:
     r=json.loads(line)
     if 'id' not in r: continue
-    result={'protocolVersion':'2025-03-26','capabilities':{},'serverInfo':{'name':'test','version':'1'}} if r['method']=='initialize' else {'tools':[], 'pid':os.getpid()}
+    result={'protocolVersion':'2025-03-26','capabilities':{},'serverInfo':{'name':'test','version':'1'}} if r['method']=='initialize' else {'tools':[], 'pid':os.getpid(), 'token':os.environ.get('FIXTURE_TOKEN','')}
     print(json.dumps({'jsonrpc':'2.0','id':r['id'],'result':result}),flush=True)
 "#;
     service
@@ -24,6 +24,10 @@ for line in sys.stdin:
             transport: "stdio".into(),
             url: String::new(),
             token: String::new(),
+            env: std::collections::HashMap::from([(
+                "FIXTURE_TOKEN".into(),
+                "fixture-value".into(),
+            )]),
             command: vec!["python3".into(), "-u".into(), "-c".into(), script.into()],
         })
         .await
@@ -34,11 +38,14 @@ for line in sys.stdin:
         .call(dir.path(), id, "tools/list", json!({}))
         .await
         .unwrap();
+    assert_eq!(first["token"], "fixture-value");
     let second = service
         .call(dir.path(), id, "tools/list", json!({}))
         .await
         .unwrap();
     assert_eq!(first["pid"], second["pid"]);
+    let tested = service.test(id).await.unwrap();
+    assert_eq!(tested["tools"], 0);
     let pid = first["pid"].as_i64().unwrap() as i32;
     service.stop().await;
     tokio::time::timeout(std::time::Duration::from_secs(3), async {
@@ -102,6 +109,7 @@ async fn streamable_http_reuses_the_negotiated_session() {
             url,
             command: vec![],
             token: "private-token".into(),
+            env: std::collections::HashMap::new(),
         })
         .await
         .unwrap();
