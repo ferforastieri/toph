@@ -21,6 +21,7 @@ async fn endpoint(
 }
 fn config(provider: &str, url: String) -> AiConfig {
     AiConfig {
+        label: String::new(),
         provider: provider.into(),
         base_url: url,
         api_key: "fixture".into(),
@@ -33,6 +34,7 @@ fn config(provider: &str, url: String) -> AiConfig {
         autocomplete: false,
         system_prompt: String::new(),
         image_providers: vec![],
+        connection_label: String::new(),
     }
 }
 

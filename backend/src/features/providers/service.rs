@@ -14,6 +14,9 @@ const SETTING_KEY: &str = "native_ai_config";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AiConfig {
+    /// User-visible name of this connection, independent of the wire protocol.
+    #[serde(default)]
+    pub label: String,
     pub provider: String,
     #[serde(rename = "baseUrl")]
     pub base_url: String,
@@ -38,6 +41,9 @@ pub struct AiConfig {
     pub system_prompt: String,
     #[serde(rename = "imageProviders", default)]
     pub image_providers: Vec<ImageProvider>,
+    /// Resolved connection name for display; never persisted.
+    #[serde(skip)]
+    pub connection_label: String,
 }
 
 /// A configured image generation backend. `kind` selects the wire protocol so
@@ -96,6 +102,8 @@ pub struct ImageProviderInput {
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PublicConfig {
+    pub label: String,
+    pub connection_label: String,
     pub provider: String,
     pub base_url: String,
     pub model: String,
@@ -112,6 +120,8 @@ pub struct PublicConfig {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AiConfigInput {
+    #[serde(default)]
+    pub label: String,
     pub provider: String,
     pub base_url: String,
     pub api_key: Option<String>,
@@ -141,6 +151,8 @@ pub struct AiModel {
     pub id: String,
     pub label: String,
     pub provider: String,
+    #[serde(rename = "connectionLabel", skip_serializing_if = "String::is_empty")]
+    pub connection_label: String,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub variants: Vec<String>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -188,6 +200,7 @@ impl AiService {
             Ok(raw) => raw,
             Err(AppError::NotFound) => {
                 return Ok(AiConfig {
+                    label: String::new(),
                     provider: String::new(),
                     base_url: String::new(),
                     api_key: String::new(),
@@ -200,6 +213,7 @@ impl AiService {
                     autocomplete: false,
                     system_prompt: String::new(),
                     image_providers: Vec::new(),
+                    connection_label: String::new(),
                 });
             }
             Err(error) => return Err(error),
@@ -223,6 +237,8 @@ impl AiService {
     pub async fn public(&self) -> AppResult<PublicConfig> {
         let config = self.load().await?;
         Ok(PublicConfig {
+            label: config.label.clone(),
+            connection_label: config.connection_name(),
             provider: config.provider,
             base_url: config.base_url,
             model: config.model,
@@ -333,6 +349,7 @@ impl AiService {
             });
         }
         let mut config = AiConfig {
+            label: input.label.trim().to_string(),
             provider,
             base_url,
             api_key,
@@ -345,6 +362,7 @@ impl AiService {
             autocomplete: input.autocomplete,
             system_prompt: input.system_prompt,
             image_providers,
+            connection_label: String::new(),
         };
         config.normalize();
         self.store
@@ -380,15 +398,22 @@ impl AiService {
         let mut result = Vec::new();
         let default = self.load().await?;
         if !default.provider.is_empty() {
+            let name = default.connection_name();
             for mut model in self.models_for(&default).await? {
                 model.id = format!("default::{}", model.id);
+                model.connection_label = name.clone();
                 result.push(model);
             }
         }
         for connection in self.connections().await? {
+            let name = infer_connection_name(
+                &connection.label,
+                &connection.config.provider,
+                &connection.config.base_url,
+            );
             for mut model in self.models_for(&connection.config).await? {
                 model.id = format!("{}::{}", connection.id, model.id);
-                model.label = format!("{} · {}", connection.label, model.label);
+                model.connection_label = name.clone();
                 result.push(model);
             }
         }
@@ -425,6 +450,7 @@ impl AiService {
                     id: id.into(),
                     label: id.into(),
                     provider: config.provider.clone(),
+                    connection_label: String::new(),
                     variants: Vec::new(),
                     inputs: Vec::new(),
                 });
@@ -463,6 +489,7 @@ impl AiService {
                 id: id.into(),
                 label: label.into(),
                 provider: config.provider.clone(),
+                connection_label: String::new(),
                 variants: Vec::new(),
                 inputs: Vec::new(),
             });
@@ -489,6 +516,7 @@ impl AiService {
                     id: name.into(),
                     label: name.into(),
                     provider: "ollama".into(),
+                    connection_label: String::new(),
                     variants: Vec::new(),
                     inputs: Vec::new(),
                 });
@@ -963,7 +991,16 @@ impl AiService {
 }
 
 impl AiConfig {
+    /// Name shown to the user for this connection. The protocol is separate.
+    pub fn connection_name(&self) -> String {
+        if !self.connection_label.trim().is_empty() {
+            return self.connection_label.trim().to_string();
+        }
+        infer_connection_name(&self.label, &self.provider, &self.base_url)
+    }
+
     fn normalize(&mut self) {
+        self.label = self.label.trim().to_string();
         self.provider = self.provider.trim().to_lowercase();
         if self.provider.is_empty() {
             self.provider = String::new();
@@ -981,6 +1018,31 @@ impl AiConfig {
 
 fn default_true() -> bool {
     true
+}
+
+/// Display name of a direct connection. The protocol stays a separate field so
+/// "OpenCode Go" or any user-chosen name never becomes "Custom AI" in the UI.
+pub fn infer_connection_name(label: &str, provider: &str, base_url: &str) -> String {
+    let label = label.trim();
+    if !label.is_empty() {
+        return label.to_string();
+    }
+    let base = base_url.to_lowercase();
+    if base.contains("opencode.ai/inference/go") {
+        return "OpenCode Go".into();
+    }
+    let host = reqwest::Url::parse(base_url)
+        .ok()
+        .and_then(|url| url.host_str().map(str::to_owned));
+    if host.as_deref() == Some("api.openai.com") {
+        return "OpenAI".into();
+    }
+    match provider {
+        "openai" => "OpenAI".into(),
+        "anthropic" => "Anthropic".into(),
+        "ollama" => "Ollama".into(),
+        _ => host.unwrap_or_else(|| "Conexão personalizada".into()),
+    }
 }
 
 fn default_weekly_token_limit() -> i64 {

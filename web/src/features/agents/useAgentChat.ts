@@ -22,6 +22,13 @@ export function mergeNativeRuns(current: AgentRun[], incoming: AgentRun[]): Agen
   return [...runs.values()].sort((a, b) => b.createdAt - a.createdAt).slice(0, 64);
 }
 
+/// Snapshots are authoritative for active runs. Drop a stale "running" entry
+/// that no longer exists there so a lost SSE completion cannot leave busy=true.
+export function reconcileNativeRuns(current: AgentRun[], incoming: AgentRun[]): AgentRun[] {
+  const ids = new Set(incoming.map((run) => run.id));
+  return mergeNativeRuns(current, incoming).filter((run) => !isActive(run) || ids.has(run.id));
+}
+
 export function useAgentChat(project: string, chat: string | undefined) {
   const [state, setState] = useState<AgentSnapshot>(empty);
   const [error, setError] = useState("");
@@ -31,13 +38,19 @@ export function useAgentChat(project: string, chat: string | undefined) {
   const generation = useRef(0);
   const scope = `${project}:${chat ?? ""}`;
   const scopeRef = useRef(scope); scopeRef.current = scope;
+  const busyRef = useRef(false);
+
+  useEffect(() => { busyRef.current = state.runs.some(isActive); }, [state.runs]);
 
   const refresh = useCallback(async (replace = false) => {
     if (!chat) return;
     const start = scopeRef.current;
     const snapshot = await agentApi.snapshot(project, chat);
     if (start !== scopeRef.current) return;
-    setState((current) => ({ ...snapshot, runs: mergeNativeRuns(replace ? [] : current.runs, snapshot.runs), messages: mergeNativeMessages(replace ? [] : current.messages, [...snapshot.messages, ...snapshot.drafts]) }));
+    setState((current) => {
+      const runs = reconcileNativeRuns(replace ? [] : current.runs, snapshot.runs);
+      return { ...snapshot, runs, messages: mergeNativeMessages(replace ? [] : current.messages, [...snapshot.messages, ...snapshot.drafts]) };
+    });
     const value = await agentApi.usage(project, chat);
     if (start === scopeRef.current) setUsage(value);
   }, [project, chat]);
@@ -55,7 +68,10 @@ export function useAgentChat(project: string, chat: string | undefined) {
       try {
         const snapshot = await agentApi.snapshot(project, chat);
         if (stopped || generation.current !== epoch) return;
-        setState((current) => ({ ...snapshot, runs: mergeNativeRuns(current.runs, snapshot.runs), messages: mergeNativeMessages(current.messages, [...snapshot.messages, ...snapshot.drafts]) }));
+        setState((current) => {
+          const runs = reconcileNativeRuns(current.runs, snapshot.runs);
+          return { ...snapshot, runs, messages: mergeNativeMessages(current.messages, [...snapshot.messages, ...snapshot.drafts]) };
+        });
         setError("");
       } catch (e) { if (!stopped) setError(e instanceof Error ? e.message : "Falha ao carregar conversa"); }
       finally { syncing = false; }
@@ -64,6 +80,12 @@ export function useAgentChat(project: string, chat: string | undefined) {
     void agentApi.usage(project, chat).then((value) => { if (!stopped) setUsage(value); }).catch(() => undefined);
     const stream = new EventSource(agentApi.events(project), { withCredentials: true });
     stream.addEventListener("resync", () => { void sync(); });
+    // A lost SSE connection must not leave the chat "thinking" forever: the
+    // EventSource reconnects, and this also reconciles from the authoritative
+    // snapshot. While a run is active we poll as a safety net for buffered or
+    // dropped events.
+    stream.onerror = () => { if (!stopped) void sync(); };
+    const poll = window.setInterval(() => { if (busyRef.current) void sync(); }, 3000);
     stream.addEventListener("agent", (raw) => {
       if (stopped) return;
       const event = JSON.parse((raw as MessageEvent).data) as { chatId: string; type: string; data: unknown };
@@ -106,7 +128,7 @@ export function useAgentChat(project: string, chat: string | undefined) {
     });
     const visible = () => { if (!document.hidden) void sync(); };
     document.addEventListener("visibilitychange", visible);
-    return () => { stopped = true; stream.close(); document.removeEventListener("visibilitychange", visible); };
+    return () => { stopped = true; stream.close(); window.clearInterval(poll); document.removeEventListener("visibilitychange", visible); };
   }, [project, chat]);
 
   const older = async () => {

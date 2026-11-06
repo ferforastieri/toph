@@ -123,6 +123,10 @@ pub struct RunContext {
     pub roster: Vec<AgentSpec>,
     pub chat_description: String,
     pub depth: usize,
+    /// The current request text, used to keep greetings/identity questions out
+    /// of the project-investigation path.
+    pub request: String,
+    pub conversational: bool,
 }
 
 pub fn now() -> i64 {

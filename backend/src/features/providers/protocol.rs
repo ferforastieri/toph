@@ -5,6 +5,7 @@ use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::BTreeMap;
+use std::time::Duration;
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ToolCall {
@@ -35,6 +36,38 @@ fn endpoint(base: &str, suffix: &str) -> String {
     } else {
         format!("{base}/v1{suffix}")
     }
+}
+
+/// The hosted gateway expects a `ses_` session identifier for routing. Use a
+/// fresh one per run so a throttled historical id cannot poison new turns.
+fn provider_session(session: &str) -> String {
+    let cleaned = session
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '-' || c == '_' {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect::<String>();
+    if cleaned.starts_with("ses_") {
+        cleaned
+    } else {
+        format!("ses_{cleaned}")
+    }
+}
+
+fn retry_after(response: &reqwest::Response) -> Option<Duration> {
+    response
+        .headers()
+        .get(reqwest::header::RETRY_AFTER)?
+        .to_str()
+        .ok()?
+        .trim()
+        .parse::<u64>()
+        .ok()
+        .map(Duration::from_secs)
 }
 
 /// Hosted inference gateway only; no connection to an installed agent service.
@@ -81,6 +114,13 @@ mod gateway_tests {
             console_gateway("https://opencode.ai.example.com/inference/go/openai/v1").is_none()
         );
         assert!(console_gateway("http://127.0.0.1:3005").is_none());
+    }
+
+    #[test]
+    fn gateway_sessions_always_use_the_routable_prefix() {
+        assert_eq!(provider_session("MYEPS9IRYv4BJHdA"), "ses_MYEPS9IRYv4BJHdA");
+        assert_eq!(provider_session("ses_already"), "ses_already");
+        assert_eq!(provider_session("a/b c"), "ses_a_b_c");
     }
 }
 
@@ -271,26 +311,50 @@ impl AiService {
             }
             (endpoint(&config.base_url, "/chat/completions"), body)
         };
-        let mut request = self.client.post(url).json(&body);
-        drop(body);
-        if console_gateway(&config.base_url).is_some() {
-            request = request
-                .bearer_auth(&config.api_key)
-                .header("x-opencode-session", session);
-            if anthropic {
-                request = request.header("anthropic-version", "2023-06-01");
+        let gateway = console_gateway(&config.base_url).is_some();
+        // Go routes and rate-limits by this header. A reused internal Toph id
+        // can be permanently throttled by the gateway, so every run gets a
+        // fresh `ses_` id instead of the long-lived chat/session id.
+        let provider_session = if gateway {
+            provider_session(session)
+        } else {
+            session.to_string()
+        };
+        let mut response = None;
+        for attempt in 0..3 {
+            let mut request = self.client.post(&url).json(&body);
+            if gateway {
+                request = request
+                    .bearer_auth(&config.api_key)
+                    .header("x-opencode-session", &provider_session);
+                if anthropic {
+                    request = request.header("anthropic-version", "2023-06-01");
+                }
+            } else if anthropic {
+                request = request
+                    .header("x-api-key", &config.api_key)
+                    .header("anthropic-version", "2023-06-01");
+            } else if !config.api_key.is_empty() {
+                request = request.bearer_auth(&config.api_key);
             }
-        } else if anthropic {
-            request = request
-                .header("x-api-key", &config.api_key)
-                .header("anthropic-version", "2023-06-01");
-        } else if !config.api_key.is_empty() {
-            request = request.bearer_auth(&config.api_key);
+            let current = request
+                .send()
+                .await
+                .map_err(|e| AppError::Upstream(e.to_string()))?;
+            // Transient gateway overload: retry the same connection only. Never
+            // switch model or provider. Honor Retry-After when it is bounded.
+            if current.status() == reqwest::StatusCode::TOO_MANY_REQUESTS && attempt < 2 {
+                let wait = retry_after(&current)
+                    .unwrap_or_else(|| Duration::from_millis(800 * (1 << attempt)));
+                let _ = current.bytes().await;
+                tokio::time::sleep(wait.min(Duration::from_secs(8))).await;
+                continue;
+            }
+            response = Some(current);
+            break;
         }
-        let response = request
-            .send()
-            .await
-            .map_err(|e| AppError::Upstream(e.to_string()))?;
+        let response =
+            response.ok_or_else(|| AppError::Upstream("AI provider unavailable".into()))?;
         if !response.status().is_success() {
             let status = response.status();
             let text = response.text().await.unwrap_or_default();
@@ -299,8 +363,14 @@ impl AiService {
             } else {
                 text.replace(&config.api_key, "[redacted]")
             };
+            let connection = config.connection_name();
+            if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
+                return Err(AppError::Upstream(format!(
+                    "A conexão {connection} recusou a requisição por sobrecarga (429) após três tentativas. Esta execução foi encerrada; tente novamente em instantes."
+                )));
+            }
             return Err(AppError::Upstream(format!(
-                "Modelo {} ({}): Provider {status}: {}",
+                "Conexão {connection} · modelo {} ({}): Provider {status}: {}",
                 config.model,
                 config.provider,
                 text.chars().take(1500).collect::<String>()
