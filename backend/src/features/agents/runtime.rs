@@ -527,6 +527,24 @@ impl Runtime {
                     json!({"role":"user","content":ctx.request.clone()}),
                 ];
                 let estimated = context::estimate(&json!([messages]));
+                let mut on_delta = move |chunk: &str| {
+                    if let Value::String(content) = &mut draft["content"] {
+                        content.push_str(chunk);
+                    }
+                    pending_delta.push_str(chunk);
+                    if last.elapsed() >= Duration::from_millis(80) {
+                        runtime
+                            .inner
+                            .drafts
+                            .lock()
+                            .unwrap()
+                            .insert(live_ctx.run.id.clone(), draft.clone());
+                        let units = pending_delta.encode_utf16().count();
+                        runtime.event(&live_ctx, "delta", json!({"id":draft["id"],"offset":emitted_units,"text":std::mem::take(&mut pending_delta)}));
+                        emitted_units += units;
+                        last = Instant::now();
+                    }
+                };
                 let turn = this
                     .generate(
                         &ctx,
@@ -536,24 +554,7 @@ impl Runtime {
                         "conversation",
                         estimated,
                         &cancel,
-                        move |chunk| {
-                            if let Value::String(content) = &mut draft["content"] {
-                                content.push_str(chunk);
-                            }
-                            pending_delta.push_str(chunk);
-                            if last.elapsed() >= Duration::from_millis(80) {
-                                runtime
-                                    .inner
-                                    .drafts
-                                    .lock()
-                                    .unwrap()
-                                    .insert(live_ctx.run.id.clone(), draft.clone());
-                                let units = pending_delta.encode_utf16().count();
-                                runtime.event(&live_ctx, "delta", json!({"id":draft["id"],"offset":emitted_units,"text":std::mem::take(&mut pending_delta)}));
-                                emitted_units += units;
-                                last = Instant::now();
-                            }
-                        },
+                        &mut on_delta,
                     )
                     .await?;
                 if turn.text.trim().is_empty() {
@@ -608,16 +609,64 @@ impl Runtime {
                 let mut last = Instant::now();
                 let mut pending_delta = String::new();
                 let mut emitted_units = 0usize;
-                let turn=this.generate(&ctx,&config,&messages,&tools,"turn",estimated,&cancel,move|chunk|{
-                    if let Value::String(content)=&mut draft["content"]{content.push_str(chunk);}
-                    pending_delta.push_str(chunk);
-                    if last.elapsed()>=Duration::from_millis(80){
-                        runtime.inner.drafts.lock().unwrap().insert(live_ctx.run.id.clone(),draft.clone());
-                        let units=pending_delta.encode_utf16().count();
-                        runtime.event(&live_ctx,"delta",json!({"id":draft["id"],"offset":emitted_units,"text":std::mem::take(&mut pending_delta)}));
-                        emitted_units+=units;last=Instant::now();
+                let mut on_delta = move |chunk: &str| {
+                    if let Value::String(content) = &mut draft["content"] {
+                        content.push_str(chunk);
                     }
-                }).await?;
+                    pending_delta.push_str(chunk);
+                    if last.elapsed() >= Duration::from_millis(80) {
+                        runtime
+                            .inner
+                            .drafts
+                            .lock()
+                            .unwrap()
+                            .insert(live_ctx.run.id.clone(), draft.clone());
+                        let units = pending_delta.encode_utf16().count();
+                        runtime.event(&live_ctx, "delta", json!({"id":draft["id"],"offset":emitted_units,"text":std::mem::take(&mut pending_delta)}));
+                        emitted_units += units;
+                        last = Instant::now();
+                    }
+                };
+                let mut turn = this
+                    .generate(
+                        &ctx,
+                        &config,
+                        &messages,
+                        &tools,
+                        "turn",
+                        estimated,
+                        &cancel,
+                        &mut on_delta,
+                    )
+                    .await?;
+                // Reasoning models can spend the entire output budget thinking
+                // and return no text or tool call. Retry once with room to
+                // finish instead of surfacing an empty answer.
+                if turn.text.trim().is_empty()
+                    && turn.calls.is_empty()
+                    && matches!(turn.finish.as_str(), "length" | "max_tokens")
+                {
+                    let mut retry = config.clone();
+                    retry.max_tokens = (config.max_tokens.max(4096) * 4).min(32768);
+                    tracing::warn!(
+                        output = turn.usage.output,
+                        reasoning = turn.usage.reasoning,
+                        max_tokens = retry.max_tokens,
+                        "empty answer at output limit; retrying with a larger budget"
+                    );
+                    turn = this
+                        .generate(
+                            &ctx,
+                            &retry,
+                            &messages,
+                            &tools,
+                            "turn",
+                            estimated,
+                            &cancel,
+                            &mut on_delta,
+                        )
+                        .await?;
+                }
                 drop(messages);
                 first_turn = false;
                 last_turn = Instant::now();
@@ -668,7 +717,10 @@ impl Runtime {
                 this.inner.drafts.lock().unwrap().remove(&ctx.run.id);
                 if turn.calls.is_empty() {
                     if turn.text.trim().is_empty() {
-                        return Err(bad_request("Model returned an empty answer"));
+                        return Err(bad_request(format!(
+                            "Model returned an empty answer (finish={}, output={}, reasoning={})",
+                            turn.finish, turn.usage.output, turn.usage.reasoning
+                        )));
                     }
                     return Ok(turn.text);
                 }
@@ -862,7 +914,7 @@ impl Runtime {
         kind: &str,
         estimated: usize,
         cancel: &CancellationToken,
-        delta: F,
+        delta: &mut F,
     ) -> AppResult<crate::features::providers::protocol::Turn>
     where
         F: FnMut(&str) + Send,
@@ -965,6 +1017,7 @@ impl Runtime {
                 "compacting",
                 json!({"sessionId":ctx.run.session_id,"throughSeq":rows[count-1].seq}),
             );
+            let mut noop = |_chunk: &str| {};
             let turn = self
                 .generate(
                     ctx,
@@ -974,7 +1027,7 @@ impl Runtime {
                     "summary",
                     context::estimate(&json!(prompt)),
                     cancel,
-                    |_| {},
+                    &mut noop,
                 )
                 .await?;
             let mut summary_text = turn.text.trim().to_string();
