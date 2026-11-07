@@ -143,10 +143,10 @@ export default function ChatMessages({
       previousRole = "user";
       rows.push(
         <div key={message.id} className="ms-auto flex min-w-0 max-w-[88%] flex-col items-end gap-1">
+          <span className="px-1 text-[10px] text-text-tertiary">{timeLabel(message.createdAt)}</span>
           <p className="min-w-0 max-w-full overflow-hidden rounded-xl border border-accent-500/25 bg-accent-500/[0.07] px-3.5 py-2 text-[14px] leading-[1.55] whitespace-pre-wrap break-words text-text-primary">
             <span className="me-1.5 font-mono text-accent-500">›</span>{message.content}
           </p>
-          <span className="px-1 text-[10px] text-text-tertiary">{timeLabel(message.createdAt)}</span>
         </div>,
       );
       continue;
@@ -218,6 +218,12 @@ export default function ChatMessages({
       const value = toTranscriptMessage(message);
       rows.push(
         <StepRow key={message.id} compact={compact}>
+          {message.status !== "running" ? (
+            <div className="flex items-center gap-1.5 px-1 text-[10px] text-text-tertiary">
+              <span>{message.agentMode === "plan" ? "Plan" : "Build"}</span><span>·</span><span className="truncate">{label(toph, message)}</span><span>·</span><span>{timeLabel(message.createdAt)}</span>
+              <Button variant="ghost" size="xs" iconOnly leadingIcon={Copy} aria-label="Copiar resposta" className="size-5 text-text-tertiary" onClick={() => void navigator.clipboard?.writeText(message.content).catch(() => undefined)} />
+            </div>
+          ) : null}
           <TranscriptMessage
             message={value}
             showCaret={message.status === "running"}
@@ -225,12 +231,6 @@ export default function ChatMessages({
             projectId={project.id}
             projectRoot={project.root}
           />
-          {message.status !== "running" ? (
-            <div className="flex items-center gap-1.5 px-1 text-[10px] text-text-tertiary">
-              <span>{message.agentMode === "plan" ? "Plan" : "Build"}</span><span>·</span><span className="truncate">{label(toph, message)}</span><span>·</span><span>{timeLabel(message.createdAt)}</span>
-              <Button variant="ghost" size="xs" iconOnly leadingIcon={Copy} aria-label="Copiar resposta" className="size-5 text-text-tertiary" onClick={() => void navigator.clipboard?.writeText(message.content).catch(() => undefined)} />
-            </div>
-          ) : null}
         </StepRow>,
       );
     }
