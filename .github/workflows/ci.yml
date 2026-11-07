@@ -27,7 +27,7 @@ jobs:
             web:
               - 'web/**'
               - 'packages/**'
-              - 'scripts/check-architecture.mjs'
+              - 'tools/scripts/check-architecture.mjs'
               - '.github/workflows/ci.yml'
               - 'package.json'
               - 'package-lock.json'

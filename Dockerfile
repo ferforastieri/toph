@@ -26,6 +26,7 @@ RUN apt-get update \
 WORKDIR /src
 COPY backend/Cargo.toml backend/Cargo.lock backend/build.rs ./backend/
 COPY backend/src ./backend/src
+COPY backend/skills ./backend/skills
 COPY --from=web /src/web/dist ./web/dist
 RUN cargo build --release --manifest-path backend/Cargo.toml --bin toph
 

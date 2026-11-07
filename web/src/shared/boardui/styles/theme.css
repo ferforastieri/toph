@@ -7,7 +7,7 @@
  *   .dark { ... }      semantic overrides (dark mode) — landed when designed
  *   @theme inline {..} re-export of semantic tokens so they become utilities
  *
- * See docs/FIGMA_WORKFLOW.md for how tokens get added (Figma is source of truth).
+ * Figma is the source of truth for tokens.
  * --------------------------------------------------------------------------- */
 
 @theme {

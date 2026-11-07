@@ -409,7 +409,7 @@ export default function BotConfig({ projectId, projectRoot, bot }: Props) {
           <div className="flex flex-col gap-2 rounded-2xl border border-border-button-default bg-background-secondary-default p-3">
             <div>
               <p className="text-body-medium text-text-primary">Skills deste Toph</p>
-              <p className="mt-1 text-caption-2-regular text-text-secondary">Descobertas em <code>.toph/skills</code>, <code>.agents/skills</code> e <code>.claude/skills</code> do projeto. Sem seleção, nenhuma skill fica disponível.</p>
+              <p className="mt-1 text-caption-2-regular text-text-secondary">Skills integradas do backend e skills do projeto em <code>.toph/skills</code>, <code>.agents/skills</code> e <code>.claude/skills</code>. Sem seleção, nenhuma skill fica disponível.</p>
             </div>
             {skillsLoading ? <span className="text-caption-2-regular text-text-tertiary">Carregando skills...</span> : null}
             {!skillsLoading && skills.length === 0 ? <span className="text-caption-2-regular text-text-tertiary">Nenhuma skill encontrada neste projeto.</span> : null}

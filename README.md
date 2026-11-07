@@ -54,16 +54,12 @@ packages/brand/    Brand assets and BrandMark
 packages/ui/       Shared React UI primitives
 packages/icons/    Shared icon components
 deploy/            Docker Compose
+tools/             Repository build, release and architecture scripts
 ```
 
 The backend embeds only the application. The landing page is never installed, embedded, released or served by the Toph server.
 
-See [architecture and performance](docs/architecture.md) for module boundaries,
-resource lifetimes and validation commands. `npm run check:architecture` checks
-workspace paths and internal frontend imports.
-
-The [native harness guide](docs/native-harness.md) documents direct provider
-setup, execution limits, token accounting, tools and interruption behavior.
+`npm run check:architecture` checks workspace paths and internal frontend imports.
 
 ## Architecture
 

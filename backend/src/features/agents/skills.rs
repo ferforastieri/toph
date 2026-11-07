@@ -1,5 +1,5 @@
-//! Project skills: `SKILL.md` files with YAML frontmatter, discovered per
-//! project and enabled per agent.
+//! Project and built-in skills: `SKILL.md` files with YAML frontmatter,
+//! discovered per project and enabled per agent.
 //!
 //! Progressive disclosure is the whole point: only `name` and `description`
 //! reach the system prompt, and the body is loaded on demand through the
@@ -11,6 +11,7 @@ use crate::{
     errors::{bad_request, AppError, AppResult},
     workspace::WorkspaceService,
 };
+use rust_embed::RustEmbed;
 use std::path::Path;
 
 /// Metadata alone is enough to choose a skill; the body is read on demand.
@@ -22,13 +23,19 @@ const FRONTMATTER_BYTES: u64 = 8 * 1024;
 /// Directory names scanned inside the project root, in priority order.
 const DIRECTORIES: [&str; 3] = [".toph/skills", ".agents/skills", ".claude/skills"];
 
+#[derive(RustEmbed)]
+#[folder = "skills/"]
+struct BuiltinSkills;
+
 #[derive(Clone, Debug)]
 pub struct Skill {
     pub id: String,
     pub name: String,
     pub description: String,
-    /// Project-relative path to the `SKILL.md`, reused by `read_skill`.
+    /// Project-relative path to the `SKILL.md`, or the embedded path when
+    /// `builtin` is true. Reused by `read_skill`.
     pub path: String,
+    builtin: bool,
 }
 
 fn split_frontmatter(raw: &str) -> (&str, &str) {
@@ -80,9 +87,8 @@ fn head(path: &Path, limit: u64) -> AppResult<String> {
     Ok(String::from_utf8_lossy(&buffer).into_owned())
 }
 
-fn parse(root: &Path, relative: &str) -> Option<Skill> {
-    let raw = head(&root.join(relative), FRONTMATTER_BYTES).ok()?;
-    let (frontmatter, _) = split_frontmatter(&raw);
+fn parse_raw(relative: &str, raw: &str, builtin: bool) -> Option<Skill> {
+    let (frontmatter, _) = split_frontmatter(raw);
     let folder = relative.rsplit('/').nth(1).unwrap_or("skill").to_string();
     let name = field(frontmatter, "name");
     let description: String = field(frontmatter, "description")
@@ -103,7 +109,27 @@ fn parse(root: &Path, relative: &str) -> Option<Skill> {
         name: if name.is_empty() { folder } else { name },
         description,
         path: relative.to_string(),
+        builtin,
     })
+}
+
+fn parse(root: &Path, relative: &str) -> Option<Skill> {
+    let raw = head(&root.join(relative), FRONTMATTER_BYTES).ok()?;
+    parse_raw(relative, &raw, false)
+}
+
+fn parse_builtin(relative: &str) -> Option<Skill> {
+    let file = BuiltinSkills::get(relative)?;
+    parse_raw(relative, &String::from_utf8_lossy(&file.data), true)
+}
+
+fn builtin_skills() -> Vec<Skill> {
+    let mut found: Vec<Skill> = BuiltinSkills::iter()
+        .filter(|path| path.ends_with("/SKILL.md"))
+        .filter_map(|path| parse_builtin(&path))
+        .collect();
+    found.sort_by(|a, b| a.id.cmp(&b.id));
+    found
 }
 
 /// Lists the skills available in a project. Ordering is by directory priority,
@@ -136,6 +162,12 @@ pub fn discover(root: &Path) -> Vec<Skill> {
             found.push(skill);
         }
     }
+    // Project skills take precedence over identically named built-in skills.
+    for skill in builtin_skills() {
+        if seen.insert(skill.id.clone()) {
+            found.push(skill);
+        }
+    }
     found
 }
 
@@ -155,11 +187,16 @@ pub fn read(workspace: &WorkspaceService, root: &Path, id: &str) -> AppResult<St
         .into_iter()
         .find(|skill| skill.id == id)
         .ok_or_else(|| bad_request(format!("Unknown skill: {id}")))?;
-    let file = workspace.read(root, &skill.path)?;
-    if file.content.chars().count() > MAX_BODY_CHARS {
+    let content = if skill.builtin {
+        let file = BuiltinSkills::get(&skill.path).ok_or(AppError::NotFound)?;
+        String::from_utf8_lossy(&file.data).into_owned()
+    } else {
+        workspace.read(root, &skill.path)?.content
+    };
+    if content.chars().count() > MAX_BODY_CHARS {
         return Err(AppError::TooLarge);
     }
-    let (_, body) = split_frontmatter(&file.content);
+    let (_, body) = split_frontmatter(&content);
     Ok(body.trim_start().to_string())
 }
 
@@ -182,9 +219,11 @@ mod tests {
         )
         .unwrap();
         let skills = discover(&root);
-        assert_eq!(skills.len(), 1);
-        assert_eq!(skills[0].id, "browser");
-        assert_eq!(skills[0].description, "Automate pages");
+        let browser = skills
+            .iter()
+            .find(|skill| skill.id == "browser")
+            .expect("project skill");
+        assert_eq!(browser.description, "Automate pages");
         std::fs::remove_dir_all(&root).ok();
     }
 
@@ -196,7 +235,22 @@ mod tests {
             "---\nname: browser\n---\nBody\n",
         )
         .unwrap();
-        assert!(discover(&root).is_empty());
+        assert!(!discover(&root).iter().any(|skill| skill.id == "browser"));
+        std::fs::remove_dir_all(&root).ok();
+    }
+
+    #[test]
+    fn includes_builtin_skills() {
+        let root = temporary();
+        let skills = discover(&root);
+        let skill = skills
+            .iter()
+            .find(|skill| skill.id == "chrome-devtools")
+            .expect("builtin chrome-devtools skill");
+        assert!(skill.description.contains("Chrome"));
+        let workspace = WorkspaceService::new(vec![root.clone()]).unwrap();
+        let body = read(&workspace, &root, "chrome-devtools").unwrap();
+        assert!(body.contains("# Chrome DevTools"));
         std::fs::remove_dir_all(&root).ok();
     }
 

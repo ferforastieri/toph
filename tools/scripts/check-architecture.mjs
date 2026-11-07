@@ -1,7 +1,7 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, resolve, relative } from "node:path";
 
-const root = resolve(import.meta.dirname, "..");
+const root = resolve(import.meta.dirname, "../..");
 const ignored = new Set(["node_modules", "target", "dist", "gen", ".git"]);
 const errors = [];
 const sources = [];

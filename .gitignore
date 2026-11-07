@@ -7,7 +7,6 @@
 .env
 .env.*
 !.env.example
-NOTES.local.md
 .DS_Store
 .idea/
 *.iml
@@ -39,3 +38,6 @@ web/public/onig.wasm
 
 # Chat images externalized from messages
 toph-generated/
+
+# Agent screenshots and local artifacts
+.toph/artifacts/

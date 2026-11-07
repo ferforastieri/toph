@@ -41,7 +41,7 @@ jobs:
           set -euo pipefail
           git fetch --tags --force
           BASE_REF="$(git describe --tags --abbrev=0 --match 'v*' HEAD^ 2>/dev/null || true)"
-          BASE_REF="$BASE_REF" node scripts/changed-components.mjs
+          BASE_REF="$BASE_REF" node tools/scripts/changed-components.mjs
 
       - name: Determine next version
         id: version
@@ -50,7 +50,7 @@ jobs:
         run: |
           set -euo pipefail
           git fetch --tags --force
-          node scripts/next-version.mjs
+          node tools/scripts/next-version.mjs
 
   server:
     needs: prepare

@@ -2,7 +2,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { resolve, join } from "node:path";
 import { gzipSync } from "node:zlib";
 
-const dist = resolve(import.meta.dirname, "../web/dist");
+const dist = resolve(import.meta.dirname, "../../web/dist");
 const html = readFileSync(join(dist, "index.html"), "utf8");
 const sources = [];
 for (const [tag] of html.matchAll(/<(?:script|link)\b[^>]*>/g)) {
