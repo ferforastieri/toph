@@ -1,27 +1,16 @@
-pub mod condenser;
+pub mod activity;
+pub mod artifacts;
 pub mod contract;
 pub mod event;
 pub mod gates;
+pub mod phase;
 pub mod planner;
-pub mod projection;
 pub mod state;
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use serde_json::json;
-
-    fn event(seq: i64, kind: &str, payload: serde_json::Value) -> event::StoredEvent {
-        event::StoredEvent {
-            seq,
-            id: format!("e{seq}"),
-            session_id: "s".into(),
-            run_id: Some("r".into()),
-            kind: kind.into(),
-            payload,
-            created_at: seq,
-        }
-    }
 
     #[test]
     fn contract_is_pinned_and_contains_the_exact_request() {
@@ -40,57 +29,17 @@ mod tests {
 
     #[test]
     fn change_gate_requires_edit_then_successful_verification() {
-        let contract = contract::TaskContract {
-            kind: contract::TaskKind::Change,
-            goal: "change".into(),
-            request: "change".into(),
-            acceptance: vec![],
-            steps: vec![],
-        };
-        let mut state = state::RunState::from_events(contract, &[]);
+        let mut state = state::RunState::default();
         assert!(!gates::completion_blockers(&state, "done").is_empty());
 
-        state.apply(&event(2, event::kind::EDIT_APPLIED, json!({"path":"a.ts"})));
+        state.record_edit(1);
         assert!(!gates::completion_blockers(&state, "done").is_empty());
 
-        state.apply(&event(
-            3,
-            event::kind::VERIFICATION,
-            json!({"ok":true,"commands":["npm test"]}),
-        ));
+        state.record_verification(true, 2);
         assert!(gates::completion_blockers(&state, "done").is_empty());
 
-        state.apply(&event(
-            4,
-            event::kind::VERIFICATION,
-            json!({"ok":false,"commands":["npm test"]}),
-        ));
+        state.record_verification(false, 3);
         assert!(!gates::completion_blockers(&state, "done").is_empty());
-    }
-
-    #[test]
-    fn projection_keeps_contract_and_condensation_summary() {
-        let contract = contract::TaskContract::conversation("Olá");
-        let messages = projection::build(
-            "system",
-            &contract,
-            "resumo antigo",
-            &[event(
-                1,
-                event::kind::USER_TASK,
-                json!({"body":{"role":"user","content":"pedido"}}),
-            )],
-        );
-        assert_eq!(messages[0]["role"], "system");
-        assert!(messages[1]["content"]
-            .as_str()
-            .unwrap()
-            .contains("CONTRATO"));
-        assert!(messages[2]["content"]
-            .as_str()
-            .unwrap()
-            .contains("resumo antigo"));
-        assert_eq!(messages[3]["content"], "pedido");
     }
 
     #[test]
@@ -103,5 +52,13 @@ mod tests {
         assert_eq!(plan.kind, contract::TaskKind::Change);
         assert_eq!(plan.acceptance, vec!["build"]);
         assert!(planner::parse("not json", "pedido").is_none());
+    }
+
+    #[test]
+    fn activity_is_human_readable() {
+        assert_eq!(
+            activity::tool_activity("read_file", &json!({"path":"a.ts"})),
+            "leu `a.ts`"
+        );
     }
 }

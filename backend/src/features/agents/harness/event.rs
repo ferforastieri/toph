@@ -8,10 +8,13 @@ pub mod kind {
     pub const ASSISTANT: &str = "assistant";
     pub const TOOL: &str = "tool";
     pub const TOOL_CALL: &str = "tool_call";
+    pub const RESEARCH: &str = "research";
+    pub const PLAN: &str = "plan";
     pub const EDIT_APPLIED: &str = "edit_applied";
     pub const VERIFICATION: &str = "verification";
-    pub const CONDENSATION: &str = "condensation";
     pub const COMPLETION_REJECTED: &str = "completion_rejected";
+    pub const BLOCKED: &str = "blocked";
+    pub const ACTIVITY: &str = "activity";
     pub const RUN_COMPLETED: &str = "run_completed";
     pub const RUN_FAILED: &str = "run_failed";
 }
@@ -37,6 +40,7 @@ pub fn message_kind(role: &str) -> &'static str {
     match role {
         "user" => kind::USER_TASK,
         "tool" => kind::TOOL,
+        "activity" => kind::ACTIVITY,
         _ => kind::ASSISTANT,
     }
 }

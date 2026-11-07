@@ -1,44 +1,28 @@
-use super::{
-    contract::TaskContract,
-    event::{kind, StoredEvent},
-};
-
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct RunState {
-    pub contract: TaskContract,
-    pub tool_calls: usize,
-    pub last_edit_seq: Option<i64>,
-    pub last_verification_ok_seq: Option<i64>,
-    pub last_verification_failed_seq: Option<i64>,
+    pub edits: usize,
+    pub last_edit: usize,
+    pub last_verify_ok: usize,
+    pub last_verify_failed: usize,
+    pub verify_failures: usize,
 }
 
 impl RunState {
-    pub fn from_events(contract: TaskContract, events: &[StoredEvent]) -> Self {
-        let mut state = Self {
-            contract,
-            tool_calls: 0,
-            last_edit_seq: None,
-            last_verification_ok_seq: None,
-            last_verification_failed_seq: None,
-        };
-        for event in events {
-            state.apply(event);
-        }
-        state
+    pub fn record_edit(&mut self, step: usize) {
+        self.edits += 1;
+        self.last_edit = step;
     }
 
-    pub fn apply(&mut self, event: &StoredEvent) {
-        match event.kind.as_str() {
-            kind::TOOL_CALL => self.tool_calls += 1,
-            kind::EDIT_APPLIED => self.last_edit_seq = Some(event.seq),
-            kind::VERIFICATION => {
-                if event.payload["ok"].as_bool() == Some(true) {
-                    self.last_verification_ok_seq = Some(event.seq);
-                } else {
-                    self.last_verification_failed_seq = Some(event.seq);
-                }
-            }
-            _ => {}
+    pub fn record_verification(&mut self, ok: bool, step: usize) {
+        if ok {
+            self.last_verify_ok = step;
+        } else {
+            self.last_verify_failed = step;
+            self.verify_failures += 1;
         }
+    }
+
+    pub fn last_verification_failed(&self) -> bool {
+        self.last_verify_failed > self.last_verify_ok
     }
 }

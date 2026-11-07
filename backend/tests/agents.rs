@@ -20,33 +20,108 @@ enum Reply {
     Error,
     Wait(Arc<tokio::sync::Notify>),
 }
+
+#[derive(Default)]
+struct Script {
+    planner: VecDeque<Reply>,
+    research: VecDeque<Reply>,
+    plan: VecDeque<Reply>,
+    implement: VecDeque<Reply>,
+    answer: VecDeque<Reply>,
+}
+
 #[derive(Clone)]
 struct Mock {
-    replies: Arc<Mutex<VecDeque<Reply>>>,
+    script: Arc<Mutex<Script>>,
     requests: Arc<Mutex<Vec<Value>>>,
+    planner_requests: Arc<Mutex<Vec<Value>>>,
     plan_kind: &'static str,
 }
+
 const PLAN_CONVERSATION: &str =
     "{\"kind\":\"conversation\",\"goal\":\"Responder\",\"acceptance\":[],\"steps\":[]}";
-const PLAN_INVESTIGATION: &str = "{\"kind\":\"investigation\",\"goal\":\"Investigar\",\"acceptance\":[\"evidência concreta\"],\"steps\":[\"usar ferramentas\"]}";
-const PLAN_CHANGE: &str = "{\"kind\":\"change\",\"goal\":\"Alterar\",\"acceptance\":[\"alteração verificada\"],\"steps\":[\"editar\",\"verificar\"]}";
+const PLAN_INVESTIGATION: &str = "{\"kind\":\"investigation\",\"goal\":\"Investigar\",\"acceptance\":[\"evidência concreta\"],\"steps\":[\"pesquisar\"]}";
+const PLAN_CHANGE: &str = "{\"kind\":\"change\",\"goal\":\"Alterar\",\"acceptance\":[\"alteração verificada\"],\"steps\":[\"pesquisar\",\"planejar\",\"implementar\",\"verificar\"]}";
+
+fn default_research() -> Reply {
+    Reply::Tool(
+        "submit_research",
+        json!({
+            "summary": "Implement the requested change.",
+            "files": [{"path":"created.txt","relevance":"target","excerpt":""}],
+            "constraints": [],
+            "openQuestions": []
+        }),
+    )
+}
+
+fn default_plan() -> Reply {
+    Reply::Tool(
+        "submit_plan",
+        json!({
+            "goal": "Implement the requested change",
+            "files": [{"path":"created.txt","action":"create","instructions":"Create the file with the requested content."}],
+            "verification": ["true"],
+            "acceptance": ["the change is applied"]
+        }),
+    )
+}
+
+fn tool_names(request: &Value) -> Vec<String> {
+    request["tools"]
+        .as_array()
+        .map(|tools| {
+            tools
+                .iter()
+                .filter_map(|tool| tool["function"]["name"].as_str().map(str::to_owned))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn contains_tool(request: &Value, name: &str) -> bool {
+    tool_names(request).iter().any(|tool| tool == name)
+}
+
 async fn model(State(mock): State<Mock>, Json(body): Json<Value>) -> Response {
     let first = body["messages"][0]["content"].as_str().unwrap_or("");
     let planner = first.starts_with("You are the planning component");
-    let summary = first.starts_with("Summarize this history");
-    if !planner {
-        mock.requests.lock().unwrap().push(body.clone());
-    }
-    let reply = if planner {
-        Some(Reply::Answer(match mock.plan_kind {
-            "investigation" => PLAN_INVESTIGATION,
-            "change" => PLAN_CHANGE,
-            _ => PLAN_CONVERSATION,
-        }))
-    } else if summary {
-        Some(Reply::Answer("Objetivo preservado. Arquivos: input.txt. Decisão: manter SQLite. Consulte search_history para fontes."))
+    let phase = if planner {
+        "planner"
+    } else if first.contains("FASE DE PESQUISA") {
+        "research"
+    } else if first.contains("FASE DE PLANO") {
+        "plan"
+    } else if first.contains("FASE DE IMPLEMENTAÇÃO") {
+        "implement"
     } else {
-        mock.replies.lock().unwrap().pop_front()
+        "answer"
+    };
+    let reply = if planner {
+        mock.planner_requests.lock().unwrap().push(body.clone());
+        mock.script.lock().unwrap().planner.pop_front()
+    } else {
+        mock.requests.lock().unwrap().push(body.clone());
+        let mut script = mock.script.lock().unwrap();
+        let queue = match phase {
+            "research" => &mut script.research,
+            "plan" => &mut script.plan,
+            "implement" => &mut script.implement,
+            _ => &mut script.answer,
+        };
+        queue.pop_front()
+    };
+    let reply = match (phase, reply) {
+        ("planner", Some(reply)) => Some(reply),
+        ("planner", None) => Some(Reply::Answer(match mock.plan_kind {
+            "investigation" => PLAN_INVESTIGATION,
+            "conversation" => PLAN_CONVERSATION,
+            _ => PLAN_CHANGE,
+        })),
+        ("research", None) => Some(default_research()),
+        ("plan", None) => Some(default_plan()),
+        ("answer", None) => Some(Reply::Answer("Resposta final.")),
+        (_, reply) => reply,
     };
     let (delta, finish, completion, reasoning) = match reply {
         Some(Reply::Answer(text)) => (json!({"content":text}), "stop", 20, 0),
@@ -92,10 +167,28 @@ impl Drop for Fixture {
 }
 impl Fixture {
     async fn new(replies: Vec<Reply>) -> Self {
-        Self::new_with_plan(replies, "investigation").await
+        Self::new_with_script(
+            Script {
+                implement: replies.into(),
+                ..Script::default()
+            },
+            "change",
+        )
+        .await
     }
 
-    async fn new_with_plan(replies: Vec<Reply>, plan_kind: &'static str) -> Self {
+    async fn new_conversation(replies: Vec<Reply>) -> Self {
+        Self::new_with_script(
+            Script {
+                answer: replies.into(),
+                ..Script::default()
+            },
+            "conversation",
+        )
+        .await
+    }
+
+    async fn new_with_script(script: Script, plan_kind: &'static str) -> Self {
         let dir = tempfile::tempdir().unwrap();
         let workspace = dir.path().join("workspace");
         std::fs::create_dir_all(&workspace).unwrap();
@@ -105,8 +198,9 @@ impl Fixture {
         )
         .unwrap();
         let mock = Mock {
-            replies: Arc::new(Mutex::new(replies.into())),
+            script: Arc::new(Mutex::new(script)),
             requests: Arc::new(Mutex::new(vec![])),
+            planner_requests: Arc::new(Mutex::new(vec![])),
             plan_kind,
         };
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -210,7 +304,7 @@ impl Fixture {
             .unwrap()
     }
     async fn wait(&self, id: &str, state: &str) -> Value {
-        tokio::time::timeout(Duration::from_secs(15), async {
+        tokio::time::timeout(Duration::from_secs(40), async {
             loop {
                 let snapshot = self.snapshot().await;
                 let run = snapshot["runs"]
@@ -239,13 +333,27 @@ impl Fixture {
 
 #[tokio::test]
 async fn native_run_uses_tools_persists_usage_and_is_idempotent() {
-    let fixture = Fixture::new(vec![
-        Reply::Tool(
-            "read_file",
-            json!({"path":"input.txt","offset":1,"limit":2}),
-        ),
-        Reply::Answer("Li o arquivo e confirmei SQLite."),
-    ])
+    let fixture = Fixture::new_with_script(
+        Script {
+            research: vec![
+                Reply::Tool(
+                    "read_file",
+                    json!({"path":"input.txt","offset":1,"limit":2}),
+                ),
+                default_research(),
+            ]
+            .into(),
+            plan: vec![default_plan()].into(),
+            implement: vec![
+                Reply::Tool("write_file", json!({"path":"created.txt","content":"ok"})),
+                Reply::Tool("verify", json!({})),
+                Reply::Answer("Li o arquivo e confirmei SQLite."),
+            ]
+            .into(),
+            ..Script::default()
+        },
+        "change",
+    )
     .await;
     let agents = vec![Fixture::agent("toph", "yolo")];
     let run = fixture
@@ -269,12 +377,19 @@ async fn native_run_uses_tools_persists_usage_and_is_idempotent() {
         .unwrap()
         .iter()
         .any(|m| m["role"] == "tool" && m["content"].as_str().unwrap().contains("SQLite")));
+    assert!(snapshot["messages"].as_array().unwrap().iter().any(
+        |m| m["role"] == "assistant" && m["content"].as_str().unwrap_or("").contains("SQLite")
+    ));
     let duplicate = fixture.start("request-1", agents, "Leia input.txt").await;
     assert_eq!(duplicate["id"], run["id"]);
     let requests = fixture.mock.requests.lock().unwrap();
-    assert_eq!(requests.len(), 2);
+    assert_eq!(requests.len(), 6);
     assert_eq!(
-        requests[1]["messages"].as_array().unwrap().last().unwrap()["role"],
+        requests.last().unwrap()["messages"]
+            .as_array()
+            .unwrap()
+            .last()
+            .unwrap()["role"],
         "tool"
     );
     drop(requests);
@@ -284,24 +399,29 @@ async fn native_run_uses_tools_persists_usage_and_is_idempotent() {
     .fetch_one(fixture.store.pool())
     .await
     .unwrap();
-    assert_eq!(count, 2);
+    // The architect plan phase is recorded with kind='plan', so this counts
+    // research (2) + implementation editor (3).
+    assert_eq!(count, 5);
     let tokens: i64 = sqlx::query_scalar(
         "SELECT sum(input_tokens+output_tokens) FROM agent_model_calls WHERE kind<>'plan'",
     )
     .fetch_one(fixture.store.pool())
     .await
     .unwrap();
-    assert_eq!(tokens, 240);
+    assert_eq!(tokens, 600);
 }
 
 #[tokio::test]
-async fn approval_rejection_prevents_file_mutation() {
+async fn approval_rejection_blocks_the_change() {
     let fixture = Fixture::new(vec![
         Reply::Tool(
             "write_file",
             json!({"path":"created.txt","content":"should not exist"}),
         ),
-        Reply::Answer("A alteração foi recusada."),
+        Reply::Tool(
+            "report_blocked",
+            json!({"reason":"the user rejected the write"}),
+        ),
     ])
     .await;
     let run = fixture
@@ -316,13 +436,24 @@ async fn approval_rejection_prevents_file_mutation() {
     fixture
         .post(&format!("/approvals/{id}"), json!({"approved":false}))
         .await;
-    fixture.wait(run["id"].as_str().unwrap(), "completed").await;
+    let snapshot = fixture.wait(run["id"].as_str().unwrap(), "failed").await;
     assert!(!fixture.dir.path().join("workspace/created.txt").exists());
+    assert!(snapshot["runs"][0]["error"]
+        .as_str()
+        .unwrap_or("")
+        .contains("bloqueio"));
 }
 
 #[tokio::test]
 async fn provider_errors_do_not_switch_models_or_retry() {
-    let fixture = Fixture::new(vec![Reply::Error]).await;
+    let fixture = Fixture::new_with_script(
+        Script {
+            planner: vec![Reply::Error].into(),
+            ..Script::default()
+        },
+        "change",
+    )
+    .await;
     let run = fixture
         .start("failure", vec![Fixture::agent("toph", "yolo")], "Responda")
         .await;
@@ -331,14 +462,21 @@ async fn provider_errors_do_not_switch_models_or_retry() {
         .as_str()
         .unwrap()
         .contains("503"));
-    let calls = fixture.mock.requests.lock().unwrap();
+    let calls = fixture.mock.planner_requests.lock().unwrap();
     assert_eq!(calls.len(), 1);
     assert_eq!(calls[0]["model"], "fixture-model");
 }
 
 #[tokio::test]
 async fn cancellation_releases_a_pending_model_request() {
-    let fixture = Fixture::new(vec![Reply::Wait(Arc::new(tokio::sync::Notify::new()))]).await;
+    let fixture = Fixture::new_with_script(
+        Script {
+            research: vec![Reply::Wait(Arc::new(tokio::sync::Notify::new()))].into(),
+            ..Script::default()
+        },
+        "change",
+    )
+    .await;
     let run = fixture
         .start("cancel", vec![Fixture::agent("toph", "yolo")], "Espere")
         .await;
@@ -363,17 +501,19 @@ async fn cancellation_releases_a_pending_model_request() {
 }
 
 #[tokio::test]
-async fn compaction_preserves_original_history_and_records_its_cost() {
+async fn phase_contexts_do_not_replay_old_history() {
     let fixture = Fixture::new(vec![
-        Reply::Tool("read_file", json!({"path":"input.txt","offset":1})),
-        Reply::Answer("Primeiro turno."),
-        Reply::Tool("read_file", json!({"path":"input.txt","offset":1})),
-        Reply::Answer("Segundo turno."),
+        Reply::Tool("write_file", json!({"path":"created.txt","content":"ok"})),
+        Reply::Tool("verify", json!({})),
+        Reply::Answer("Concluído."),
+        Reply::Tool("write_file", json!({"path":"created.txt","content":"ok"})),
+        Reply::Tool("verify", json!({})),
+        Reply::Answer("Concluído."),
     ])
     .await;
     let agents = vec![Fixture::agent("toph", "yolo")];
     let first = fixture
-        .start("first", agents.clone(), "Leia input.txt")
+        .start("first", agents.clone(), "Crie created.txt")
         .await;
     fixture
         .wait(first["id"].as_str().unwrap(), "completed")
@@ -385,11 +525,8 @@ async fn compaction_preserves_original_history_and_records_its_cost() {
         let role = if index % 2 == 0 { "user" } else { "assistant" };
         sqlx::query("INSERT INTO agent_messages(id,session_id,role,body,display,content_text,estimated_tokens,created_at) VALUES(?,?,?,?,?,?,?,?)")
             .bind(&id).bind(session).bind(role).bind(json!({"role":role,"content":text}).to_string()).bind(json!({"id":id,"chatId":"chat","role":role,"content":text,"createdAt":index}).to_string()).bind(&text).bind(1000i64).bind(index).execute(fixture.store.pool()).await.unwrap();
-        sqlx::query("INSERT INTO agent_events(id,session_id,run_id,kind,payload,created_at) VALUES(?,?,?,?,?,?)")
-            .bind(format!("event-{id}")).bind(session).bind(first["id"].as_str().unwrap()).bind(if role == "user" { "user_task" } else { "assistant" })
-            .bind(json!({"body":{"role":role,"content":text},"display":{"role":role,"content":text}}).to_string())
-            .bind(index).execute(fixture.store.pool()).await.unwrap();
     }
+    std::fs::remove_file(fixture.dir.path().join("workspace/created.txt")).unwrap();
     let second = fixture
         .start("second", agents, "Continue sem perder as decisões")
         .await;
@@ -402,29 +539,18 @@ async fn compaction_preserves_original_history_and_records_its_cost() {
             .await
             .unwrap();
     assert_eq!(original, 160);
-    let condensations: i64 = sqlx::query_scalar(
-        "SELECT count(*) FROM agent_events WHERE session_id=? AND kind='condensation'",
-    )
-    .bind(session)
-    .fetch_one(fixture.store.pool())
-    .await
-    .unwrap();
-    assert!(condensations > 0);
     let requests = fixture.mock.requests.lock().unwrap();
     let last = requests.last().unwrap();
     assert!(last["messages"].to_string().len() < 400_000);
+    assert!(!last["messages"].to_string().contains("Decisão 0:"));
 }
 
 #[tokio::test]
-async fn delegation_has_its_own_run_and_only_the_task_context() {
+async fn research_phase_can_delegate_but_implementation_cannot() {
     let fixture = Fixture::new(vec![
-        Reply::Tool(
-            "delegate",
-            json!({"agent":"reviewer","task":"Revise input.txt"}),
-        ),
-        Reply::Tool("read_file", json!({"path":"input.txt","offset":1})),
-        Reply::Answer("Revisão concluída."),
-        Reply::Answer("Consolidação concluída."),
+        Reply::Tool("write_file", json!({"path":"created.txt","content":"ok"})),
+        Reply::Tool("verify", json!({})),
+        Reply::Answer("Concluído."),
     ])
     .await;
     let run = fixture
@@ -438,32 +564,27 @@ async fn delegation_has_its_own_run_and_only_the_task_context() {
         )
         .await;
     fixture.wait(run["id"].as_str().unwrap(), "completed").await;
-    let children: i64 = sqlx::query_scalar(
-        "SELECT count(*) FROM agent_runs WHERE parent_id=? AND state='completed'",
-    )
-    .bind(run["id"].as_str().unwrap())
-    .fetch_one(fixture.store.pool())
-    .await
-    .unwrap();
-    assert_eq!(children, 1);
     let requests = fixture.mock.requests.lock().unwrap();
-    assert_eq!(requests.len(), 4);
-    assert!(!requests[1]["messages"]
-        .to_string()
-        .contains("UNIQUE_PARENT_ONLY_MARKER"));
-    assert!(!requests[1]["tools"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .any(|t| t["function"]["name"] == "delegate"));
+    assert!(contains_tool(&requests[0], "delegate"));
+    assert!(!contains_tool(requests.last().unwrap(), "delegate"));
+    assert!(!contains_tool(requests.last().unwrap(), "search"));
+    assert!(!contains_tool(requests.last().unwrap(), "shell"));
 }
 
 #[tokio::test]
 async fn imported_local_history_is_searchable_without_replaying_it() {
-    let fixture = Fixture::new(vec![
-        Reply::Tool("search_history", json!({"query":"Safira"})),
-        Reply::Answer("O projeto Safira usa SQLite."),
-    ])
+    let fixture = Fixture::new_with_script(
+        Script {
+            research: vec![
+                Reply::Tool("search_history", json!({"query":"Safira"})),
+                default_research(),
+            ]
+            .into(),
+            answer: vec![Reply::Answer("O projeto Safira usa SQLite.")].into(),
+            ..Script::default()
+        },
+        "investigation",
+    )
     .await;
     let user = fixture.store.user_by_username("admin").await.unwrap();
     fixture.store.save_workspace_messages(user.id,&fixture.project,vec![json!({"id":"old-message","chatId":"chat","role":"user","content":"Decisão do projeto Safira: usar SQLite.","createdAt":1})]).await.unwrap();
@@ -500,37 +621,46 @@ async fn shell_timeout_kills_background_process_group() {
 }
 
 #[tokio::test]
-async fn plan_mode_rejects_mutating_calls_even_if_the_model_requests_them() {
-    let fixture = Fixture::new(vec![Reply::Tool(
-        "write_file",
-        json!({"path":"not-allowed.txt","content":"no"}),
-    )])
+async fn plan_mode_produces_a_plan_without_mutating_files() {
+    let fixture = Fixture::new_with_script(
+        Script {
+            answer: vec![Reply::Answer(
+                "Plano: criar created.txt e verificar com true.",
+            )]
+            .into(),
+            ..Script::default()
+        },
+        "change",
+    )
     .await;
     let mut agent = Fixture::agent("toph", "yolo");
     agent["agentMode"] = json!("plan");
     let run = fixture
         .start("plan", vec![agent], "Planeje a alteração")
         .await;
-    fixture.wait(run["id"].as_str().unwrap(), "failed").await;
-    assert!(!fixture
-        .dir
-        .path()
-        .join("workspace/not-allowed.txt")
-        .exists());
+    let snapshot = fixture.wait(run["id"].as_str().unwrap(), "completed").await;
+    assert!(!fixture.dir.path().join("workspace/created.txt").exists());
+    assert!(snapshot["messages"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|m| m["content"].as_str().unwrap_or("").contains("Plano:")));
 }
 
 #[tokio::test]
-async fn interrupted_tool_calls_are_repaired_without_reexecution() {
+async fn interrupted_tool_calls_are_repaired_without_replaying_them() {
     let fixture = Fixture::new(vec![
-        Reply::Tool("read_file", json!({"path":"input.txt","offset":1})),
-        Reply::Answer("Primeira resposta"),
-        Reply::Tool("read_file", json!({"path":"input.txt","offset":1})),
-        Reply::Answer("Retomado sem repetir efeitos"),
+        Reply::Tool("write_file", json!({"path":"created.txt","content":"ok"})),
+        Reply::Tool("verify", json!({})),
+        Reply::Answer("Concluído."),
+        Reply::Tool("write_file", json!({"path":"created.txt","content":"ok"})),
+        Reply::Tool("verify", json!({})),
+        Reply::Answer("Concluído."),
     ])
     .await;
     let agents = vec![Fixture::agent("toph", "yolo")];
     let run = fixture
-        .start("before-crash", agents.clone(), "Leia input.txt")
+        .start("before-crash", agents.clone(), "Crie created.txt")
         .await;
     let id = run["id"].as_str().unwrap();
     fixture.wait(id, "completed").await;
@@ -548,6 +678,7 @@ async fn interrupted_tool_calls_are_repaired_without_reexecution() {
         .recover()
         .await
         .unwrap();
+    std::fs::remove_file(fixture.dir.path().join("workspace/created.txt")).unwrap();
     let resumed = fixture
         .start("after-crash", agents, "Inspecione e continue")
         .await;
@@ -559,30 +690,46 @@ async fn interrupted_tool_calls_are_repaired_without_reexecution() {
         .path()
         .join("workspace/never-replayed.txt")
         .exists());
+    let repaired: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM agent_messages WHERE session_id=? AND role='tool' AND body LIKE '%unknown-effect%'",
+    )
+    .bind(run["sessionId"].as_str().unwrap())
+    .fetch_one(fixture.store.pool())
+    .await
+    .unwrap();
+    assert!(repaired > 0);
     let requests = fixture.mock.requests.lock().unwrap();
-    assert_eq!(requests.len(), 4);
-    assert!(requests
+    assert!(!requests
         .iter()
         .any(|request| request["messages"].to_string().contains("unknown-effect")));
 }
 
 #[tokio::test]
 async fn generic_greeting_is_rejected_and_the_task_continues() {
-    let fixture = Fixture::new_with_plan(
-        vec![
-            Reply::Answer("Oi! 👋 Tô aqui. Em que posso ajudar?"),
-            Reply::Tool("read_file", json!({"path":"input.txt","offset":1})),
-            Reply::Answer("A investigação confirmou o conteúdo de input.txt."),
-        ],
-        "investigation",
+    let fixture = Fixture::new_with_script(
+        Script {
+            research: vec![
+                Reply::Answer("Oi! 👋 Tô aqui. Em que posso ajudar?"),
+                default_research(),
+            ]
+            .into(),
+            plan: vec![default_plan()].into(),
+            implement: vec![
+                Reply::Tool("write_file", json!({"path":"created.txt","content":"ok"})),
+                Reply::Tool("verify", json!({})),
+                Reply::Answer("Implementei a alteração."),
+            ]
+            .into(),
+            ..Script::default()
+        },
+        "change",
     )
     .await;
-    let agents = vec![Fixture::agent("toph", "yolo")];
     let run = fixture
         .start(
             "generic-answer",
-            agents,
-            "Leia input.txt e confirme o conteúdo.",
+            vec![Fixture::agent("toph", "yolo")],
+            "Crie o arquivo created.txt",
         )
         .await;
     let snapshot = fixture.wait(run["id"].as_str().unwrap(), "completed").await;
@@ -590,29 +737,22 @@ async fn generic_greeting_is_rejected_and_the_task_continues() {
     assert!(messages.iter().any(|message| message["role"] == "assistant"
         && message["content"]
             .as_str()
-            .is_some_and(|content| content.contains("A investigação confirmou"))));
+            .is_some_and(|content| content.contains("Implementei a alteração"))));
     assert!(
         !messages.iter().any(|message| message["role"] == "assistant"
             && message["content"]
                 .as_str()
                 .is_some_and(|content| content.contains("Em que posso ajudar")))
     );
-
     let requests = fixture.mock.requests.lock().unwrap();
-    assert_eq!(requests.len(), 3);
-    let reminder = requests[1]["messages"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .filter_map(|message| message["content"].as_str())
-        .find(|content| content.contains("Completion Gate"))
-        .expect("the runtime must return concrete completion blockers");
-    assert!(reminder.contains("investigação") || reminder.contains("ferramenta"));
+    assert!(requests[1]["messages"]
+        .to_string()
+        .contains("só termina com submit_research"));
 }
 
 #[tokio::test]
 async fn greeting_answers_with_the_current_model_without_tools_or_history_replay() {
-    let fixture = Fixture::new(vec![Reply::Answer("Olá! Em que posso ajudar?")]).await;
+    let fixture = Fixture::new_conversation(vec![Reply::Answer("Olá! Em que posso ajudar?")]).await;
     let agents = vec![Fixture::agent("toph", "yolo")];
     let run = fixture.start("greeting", agents, "Olá").await;
     let snapshot = fixture.wait(run["id"].as_str().unwrap(), "completed").await;
@@ -634,17 +774,36 @@ async fn greeting_answers_with_the_current_model_without_tools_or_history_replay
 }
 
 #[tokio::test]
-async fn long_runs_are_not_cut_at_a_fixed_step_count() {
-    let mut replies = (0..26)
-        .map(|index| Reply::Tool("shell", json!({"command": format!("echo step-{index}")})))
+async fn research_phase_accepts_long_investigation_until_submit() {
+    let mut research = (0..26)
+        .map(|_| {
+            Reply::Tool(
+                "read_file",
+                json!({"path":"input.txt","offset":1,"limit":2}),
+            )
+        })
         .collect::<Vec<_>>();
-    replies.push(Reply::Answer("Todos os passos concluídos."));
-    let fixture = Fixture::new(replies).await;
+    research.push(default_research());
+    let fixture = Fixture::new_with_script(
+        Script {
+            research: research.into(),
+            plan: vec![default_plan()].into(),
+            implement: vec![
+                Reply::Tool("write_file", json!({"path":"created.txt","content":"ok"})),
+                Reply::Tool("verify", json!({})),
+                Reply::Answer("Concluído."),
+            ]
+            .into(),
+            ..Script::default()
+        },
+        "change",
+    )
+    .await;
     let run = fixture
         .start(
             "long-run",
             vec![Fixture::agent("toph", "yolo")],
-            "Execute os passos",
+            "Investigue e crie created.txt",
         )
         .await;
     let snapshot = fixture.wait(run["id"].as_str().unwrap(), "completed").await;
@@ -659,7 +818,8 @@ async fn long_runs_are_not_cut_at_a_fixed_step_count() {
 async fn empty_reasoning_only_answer_retries_with_more_output() {
     let fixture = Fixture::new(vec![
         Reply::EmptyLength,
-        Reply::Tool("read_file", json!({"path":"input.txt","offset":1})),
+        Reply::Tool("write_file", json!({"path":"created.txt","content":"ok"})),
+        Reply::Tool("verify", json!({})),
         Reply::Answer("Resposta final."),
     ])
     .await;
@@ -677,23 +837,20 @@ async fn empty_reasoning_only_answer_retries_with_more_output() {
         .iter()
         .any(|message| message["content"] == "Resposta final."));
     let requests = fixture.mock.requests.lock().unwrap();
-    assert_eq!(requests.len(), 3);
+    assert_eq!(requests.len(), 6);
     assert!(
-        requests[1]["max_tokens"].as_i64().unwrap() > requests[0]["max_tokens"].as_i64().unwrap()
+        requests[3]["max_tokens"].as_i64().unwrap() > requests[2]["max_tokens"].as_i64().unwrap()
     );
 }
 
 #[tokio::test]
 async fn change_tasks_require_edit_and_verification_before_completion() {
-    let fixture = Fixture::new_with_plan(
-        vec![
-            Reply::Answer("Concluído."),
-            Reply::Tool("write_file", json!({"path":"created.txt","content":"ok"})),
-            Reply::Tool("verify", json!({"commands":["true"]})),
-            Reply::Answer("Implementei e verifiquei a alteração."),
-        ],
-        "change",
-    )
+    let fixture = Fixture::new(vec![
+        Reply::Answer("Concluído."),
+        Reply::Tool("write_file", json!({"path":"created.txt","content":"ok"})),
+        Reply::Tool("verify", json!({})),
+        Reply::Answer("Implementei e verifiquei a alteração."),
+    ])
     .await;
     let run = fixture
         .start(
@@ -719,4 +876,42 @@ async fn change_tasks_require_edit_and_verification_before_completion() {
     .await
     .unwrap();
     assert!(rejections > 0);
+}
+
+#[tokio::test]
+async fn phase_tools_are_restricted_by_contract() {
+    let fixture = Fixture::new(vec![
+        Reply::Tool("write_file", json!({"path":"created.txt","content":"ok"})),
+        Reply::Tool("verify", json!({})),
+        Reply::Answer("Concluído."),
+    ])
+    .await;
+    let run = fixture
+        .start(
+            "phase-tools",
+            vec![Fixture::agent("toph", "yolo")],
+            "Crie created.txt",
+        )
+        .await;
+    fixture.wait(run["id"].as_str().unwrap(), "completed").await;
+    let requests = fixture.mock.requests.lock().unwrap();
+    let research = &requests[0];
+    assert!(contains_tool(research, "read_file"));
+    assert!(contains_tool(research, "submit_research"));
+    assert!(!contains_tool(research, "edit_file"));
+    assert!(!contains_tool(research, "write_file"));
+    assert!(!contains_tool(research, "shell"));
+    let plan = &requests[1];
+    assert!(contains_tool(plan, "submit_plan"));
+    assert!(!contains_tool(plan, "read_file"));
+    assert!(!contains_tool(plan, "edit_file"));
+    let implement = &requests[2];
+    assert!(contains_tool(implement, "read_file"));
+    assert!(contains_tool(implement, "edit_file"));
+    assert!(contains_tool(implement, "write_file"));
+    assert!(contains_tool(implement, "verify"));
+    assert!(contains_tool(implement, "report_blocked"));
+    assert!(!contains_tool(implement, "search"));
+    assert!(!contains_tool(implement, "shell"));
+    assert!(!contains_tool(implement, "submit_plan"));
 }

@@ -26,61 +26,28 @@ fn definition(name: &str, description: &str, properties: Value, required: &[&str
     json!({"type":"function","function":{"name":name,"description":description,"parameters":{"type":"object","properties":properties,"required":required,"additionalProperties":false}}})
 }
 
-pub fn definitions(agent: &AgentSpec, depth: usize) -> Vec<Value> {
+fn ask_user_definition() -> Value {
+    let string = || json!({"type":"string"});
+    definition(
+        "ask_user",
+        "Ask the user a blocking question and wait for the answer. Use it only when a decision cannot be inferred safely. Provide 2-4 concrete options; the user may also type a free answer.",
+        json!({"questions":{"type":"array","items":{"type":"object","properties":{"header":string(),"question":string(),"options":{"type":"array","items":{"type":"object","properties":{"label":string(),"description":string()},"required":["label"]}},"multiple":{"type":"boolean"}},"required":["question","options"]}}}),
+        &["questions"],
+    )
+}
+
+fn read_tools(agent: &AgentSpec) -> Vec<Value> {
     let string = || json!({"type":"string"});
     let integer = || json!({"type":"integer"});
-    let mut tools=vec![
+    let mut tools = vec![
         definition("read_file","Read a project file range. Returns its hash for safe editing. Prefer small relevant ranges.",json!({"path":string(),"offset":integer(),"limit":integer()}),&["path"]),
         definition("list_files","List matching project paths (max 100).",json!({"query":string()}),&["query"]),
         definition("search","Search file contents for literal text. Returns paths and line numbers.",json!({"query":string(),"path":string()}),&["query"]),
         definition("read_artifact","Read a bounded range of a saved tool result or attachment.",json!({"id":string(),"offset":integer(),"limit":integer()}),&["id"]),
-        definition("search_history","Find relevant earlier messages, including compacted history. Query uses plain words; returns source ids.",json!({"query":string()}),&["query"]),
+        definition("search_history","Find relevant earlier messages. Query uses plain words; returns source ids.",json!({"query":string()}),&["query"]),
         definition("search_memory","Find durable project facts by a keyword.",json!({"query":string()}),&["query"]),
         definition("fetch_url","Fetch a public HTTP(S) document. Large results are saved as artifacts.",json!({"url":string()}),&["url"]),
-        definition(
-            "ask_user",
-            "Ask the user a blocking question and wait for the answer. Use it when a decision cannot be inferred safely. Provide 2-4 concrete options; the user may also type a free answer. The question stays open until the user answers or cancels the run.",
-            json!({"questions":{"type":"array","items":{"type":"object","properties":{"header":string(),"question":string(),"options":{"type":"array","items":{"type":"object","properties":{"label":string(),"description":string()},"required":["label"]}},"multiple":{"type":"boolean"}},"required":["question","options"]}}}),
-            &["questions"],
-        ),
     ];
-    if agent.agent_mode != "plan" && agent.permission_mode != "deny" {
-        tools.extend([
-            definition("write_file","Create a file or replace it. For an existing file, expectedHash from read_file is required.",json!({"path":string(),"content":string(),"expectedHash":string()}),&["path","content"]),
-            definition("edit_file","Replace exactly one occurrence of oldText in a file. Fails when ambiguous or stale.",json!({"path":string(),"oldText":string(),"newText":string()}),&["path","oldText","newText"]),
-            definition("shell","Run a shell command in the project. It has no default timeout; pass timeoutMs only when the command must be bounded. Output is bounded; never use watch or tail -f.",json!({"command":string(),"timeoutMs":integer()}),&["command"]),
-            definition("verify","Run verification commands (tests/build/lint) after changes. Returns a structured pass/fail result. Required before finishing a change task.",json!({"commands":{"type":"array","items":{"type":"string"}},"reason":string()}),&["commands"]),
-            definition("remember","Save an explicit durable project fact with its source message id.",json!({"content":string(),"sourceId":string()}),&["content","sourceId"]),
-        ]);
-        if agent.tools.iter().any(|s| s == "generate_image") {
-            tools.push(definition("generate_image","Generate an image with a configured image provider. Provider id is required when several are configured.",json!({"prompt":string(),"provider":string(),"model":string(),"size":string(),"filename":string()}),&["prompt"]));
-        }
-    }
-    if depth == 0 && agent.tools.iter().any(|s| s == "delegate") {
-        tools.push(definition("delegate","Give a specific task to another team agent by handle. Include only necessary context and artifact references. Waits for its result.",json!({"agent":string(),"task":string()}),&["agent","task"]));
-    }
-    if !agent.email_account_ids.is_empty() {
-        tools.push(definition(
-            "email_list",
-            "List recent messages in an authorized email account.",
-            json!({"accountId":string(),"limit":integer()}),
-            &["accountId"],
-        ));
-        tools.push(definition(
-            "email_read",
-            "Read an email by UID.",
-            json!({"accountId":string(),"uid":string()}),
-            &["accountId", "uid"],
-        ));
-        if agent.agent_mode != "plan" && agent.permission_mode != "deny" {
-            tools.push(definition(
-                "email_send",
-                "Send an email from an authorized account.",
-                json!({"accountId":string(),"to":string(),"subject":string(),"text":string()}),
-                &["accountId", "to", "subject", "text"],
-            ));
-        }
-    }
     if !agent.skills.is_empty() {
         tools.push(definition(
             "read_skill",
@@ -89,24 +56,102 @@ pub fn definitions(agent: &AgentSpec, depth: usize) -> Vec<Value> {
             &["name"],
         ));
     }
-    if !agent.mcp_servers.is_empty() {
-        tools.push(definition(
-            "mcp_list",
-            "Discover available tools and input schemas from an enabled MCP server.",
-            json!({"server":string()}),
-            &["server"],
-        ));
-        if agent.agent_mode != "plan" && agent.permission_mode != "deny" {
-            tools.push(definition("mcp_call","Call a discovered MCP tool using its input schema.",json!({"server":string(),"tool":string(),"arguments":{"type":"object","additionalProperties":true}}),&["server","tool","arguments"]));
-        }
+    tools
+}
+
+/// Phase 1: read-only research. The only terminal action is submit_research.
+pub fn research_definitions(agent: &AgentSpec) -> Vec<Value> {
+    let string = || json!({"type":"string"});
+    let mut tools = read_tools(agent);
+    tools.push(ask_user_definition());
+    tools.push(definition(
+        "submit_research",
+        "Finish the read-only research phase. Return the exact files, excerpts, constraints and open questions needed to plan the change. This is the only way to leave the research phase.",
+        json!({
+            "summary": string(),
+            "files": {"type":"array","items":{"type":"object","properties":{"path":string(),"relevance":string(),"excerpt":string()},"required":["path"]}},
+            "constraints": {"type":"array","items":{"type":"string"}},
+            "openQuestions": {"type":"array","items":{"type":"string"}}
+        }),
+        &["summary", "files"],
+    ));
+    tools
+}
+
+pub fn delegate_definition() -> Value {
+    definition(
+        "delegate",
+        "Give a specific research task to another team agent by handle. Include only necessary context and artifact references. Waits for its result.",
+        json!({"agent":{"type":"string"},"task":{"type":"string"}}),
+        &["agent", "task"],
+    )
+}
+
+/// Phase 2: architect. The only terminal action is submit_plan.
+pub fn plan_definitions() -> Vec<Value> {
+    let string = || json!({"type":"string"});
+    vec![
+        ask_user_definition(),
+        definition(
+            "submit_plan",
+            "Finish the planning phase with an executable change plan. Name the exact files, the instructions for each one, and the real verification commands.",
+            json!({
+                "goal": string(),
+                "files": {"type":"array","items":{"type":"object","properties":{"path":string(),"action":{"type":"string","enum":["edit","create","delete"]},"instructions":string()},"required":["path","action","instructions"]}},
+                "verification": {"type":"array","items":{"type":"string"}},
+                "acceptance": {"type":"array","items":{"type":"string"}}
+            }),
+            &["goal", "files", "verification"],
+        ),
+    ]
+}
+
+/// Phase 3: editor. It can only read and change files named by the plan and
+/// can only run the plan's verification commands.
+pub fn implementation_definitions(
+    agent: &AgentSpec,
+    plan: &crate::features::agents::harness::artifacts::ChangePlan,
+) -> Vec<Value> {
+    let string = || json!({"type":"string"});
+    let integer = || json!({"type":"integer"});
+    let paths = plan.paths();
+    let mut tools = vec![definition(
+        "read_file",
+        &format!(
+            "Read one of the files named by the plan. Allowed paths: {}. Returns its hash.",
+            paths.join(", ")
+        ),
+        json!({"path":string(),"offset":integer(),"limit":integer()}),
+        &["path"],
+    )];
+    if agent.agent_mode != "plan" && agent.permission_mode != "deny" {
+        tools.extend([
+            definition("edit_file","Replace exactly one occurrence of oldText in a planned file. Fails when ambiguous or stale.",json!({"path":string(),"oldText":string(),"newText":string()}),&["path","oldText","newText"]),
+            definition("write_file","Create a planned file or replace it. For an existing file, expectedHash from read_file is required.",json!({"path":string(),"content":string(),"expectedHash":string()}),&["path","content"]),
+            definition("delete_file","Delete one of the planned files.",json!({"path":string()}),&["path"]),
+            definition("verify","Run the verification commands from the plan. Call it after the last edit. It is the only way to prove completion.",json!({"reason":string()}),&[]),
+        ]);
     }
+    tools.push(definition(
+        "report_blocked",
+        "Stop the run with a concrete blocker when the plan cannot be applied safely. Do not use it to avoid work.",
+        json!({"reason":string()}),
+        &["reason"],
+    ));
+    tools.push(ask_user_definition());
     tools
 }
 
 pub fn mutating(name: &str) -> bool {
     matches!(
         name,
-        "write_file" | "edit_file" | "shell" | "remember" | "generate_image" | "email_send"
+        "write_file"
+            | "edit_file"
+            | "delete_file"
+            | "shell"
+            | "remember"
+            | "generate_image"
+            | "email_send"
     )
 }
 
@@ -267,6 +312,16 @@ impl Tools {
                 .map_err(|e| AppError::Internal(e.into()))??;
                 Ok(result)
             }
+            "delete_file" => {
+                let path = text(args, "path")?.to_owned();
+                let ws = self.workspace.clone();
+                let root = ctx.root.clone();
+                let deleted = path.clone();
+                tokio::task::spawn_blocking(move || ws.delete(&root, &path))
+                    .await
+                    .map_err(|e| AppError::Internal(e.into()))??;
+                Ok(json!({"path":deleted,"deleted":true}))
+            }
             "shell" => {
                 shell(
                     &ctx.root,
@@ -275,36 +330,7 @@ impl Tools {
                 )
                 .await
             }
-            "verify" => {
-                let commands = args["commands"]
-                    .as_array()
-                    .ok_or_else(|| bad_request("commands is required"))?
-                    .iter()
-                    .filter_map(Value::as_str)
-                    .map(str::trim)
-                    .filter(|command| !command.is_empty())
-                    .map(str::to_owned)
-                    .collect::<Vec<_>>();
-                if commands.is_empty() {
-                    return Err(bad_request("verify requires at least one command"));
-                }
-                let mut results = Vec::new();
-                let mut ok = true;
-                for command in &commands {
-                    let result = shell(&ctx.root, command, None).await?;
-                    let passed = result["exitCode"].as_i64() == Some(0);
-                    results.push(json!({"command":command,"result":result}));
-                    if !passed {
-                        ok = false;
-                        break;
-                    }
-                }
-                Ok(json!({
-                    "ok": ok,
-                    "results": results,
-                    "summary": if ok { "Todos os comandos de verificação passaram." } else { "Um comando de verificação falhou." },
-                }))
-            }
+            "verify" => Err(bad_request("verify is executed by the phase runner")),
             "read_artifact" => {
                 let id = text(args, "id")?;
                 let (mime, bytes) = self
@@ -491,6 +517,34 @@ async fn bounded<R: AsyncRead + Unpin>(mut reader: R) -> std::io::Result<(String
     }
     Ok((String::from_utf8_lossy(&output).into_owned(), total))
 }
+/// Runs the exact commands from the change plan. The model cannot invent
+/// verification commands: completion is tied to the plan's acceptance.
+pub async fn run_verification(root: &std::path::Path, commands: &[String]) -> AppResult<Value> {
+    if commands.is_empty() {
+        return Err(bad_request("the plan has no verification commands"));
+    }
+    let mut results = Vec::new();
+    let mut ok = true;
+    for command in commands {
+        let result = shell(root, command, None).await?;
+        let passed = result["exitCode"].as_i64() == Some(0);
+        results.push(json!({"command":command,"result":result}));
+        if !passed {
+            ok = false;
+            break;
+        }
+    }
+    Ok(json!({
+        "ok": ok,
+        "results": results,
+        "summary": if ok {
+            "Todos os comandos de verificação passaram."
+        } else {
+            "Um comando de verificação falhou."
+        },
+    }))
+}
+
 pub async fn shell(
     root: &std::path::Path,
     command: &str,

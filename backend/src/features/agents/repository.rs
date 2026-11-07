@@ -82,27 +82,64 @@ impl Repository {
             .collect()
     }
 
-    pub async fn latest_condensation(
+    /// The persisted user message of the current run, including multimodal
+    /// parts. The research phase must see exactly what the user sent.
+    pub async fn user_task(&self, run: &str) -> AppResult<Option<(String, Value)>> {
+        let row = sqlx::query(
+            "SELECT payload FROM agent_events WHERE run_id=? AND kind='user_task' ORDER BY seq LIMIT 1",
+        )
+        .bind(run)
+        .fetch_optional(self.0.pool())
+        .await?;
+        let Some(row) = row else {
+            return Ok(None);
+        };
+        let payload: Value = serde_json::from_str(row.get::<String, _>("payload").as_str())?;
+        let body = payload.get("body").cloned().unwrap_or(Value::Null);
+        if body.is_null() {
+            return Ok(None);
+        }
+        let id = payload
+            .pointer("/display/id")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string();
+        Ok(Some((id, body)))
+    }
+
+    /// A small, text-only window of the conversation. Tool output is
+    /// deliberately excluded: the phase contexts carry their own evidence.
+    pub async fn recent_text(
         &self,
         session: &str,
-    ) -> AppResult<Option<event::StoredEvent>> {
-        let row = sqlx::query("SELECT seq,id,session_id,run_id,kind,payload,created_at FROM agent_events WHERE session_id=? AND kind=? ORDER BY seq DESC LIMIT 1")
-            .bind(session)
-            .bind(event::kind::CONDENSATION)
-            .fetch_optional(self.0.pool())
-            .await?;
-        row.map(|row| {
-            Ok(event::StoredEvent {
-                seq: row.get("seq"),
-                id: row.get("id"),
-                session_id: row.get("session_id"),
-                run_id: row.get("run_id"),
-                kind: row.get("kind"),
-                payload: serde_json::from_str(row.get::<String, _>("payload").as_str())?,
-                created_at: row.get("created_at"),
-            })
-        })
-        .transpose()
+        exclude_id: &str,
+        limit: i64,
+    ) -> AppResult<String> {
+        let rows = sqlx::query(
+            "SELECT role,content_text FROM agent_messages WHERE session_id=? AND id<>? AND id NOT LIKE 'import-%' AND role IN ('user','assistant') AND content_text<>'' ORDER BY seq DESC LIMIT ?",
+        )
+        .bind(session)
+        .bind(exclude_id)
+        .bind(limit)
+        .fetch_all(self.0.pool())
+        .await?;
+        let mut out = String::new();
+        for row in rows.into_iter().rev() {
+            let role: String = row.get("role");
+            let text: String = row.get("content_text");
+            let text = text.chars().take(800).collect::<String>();
+            if text.trim().is_empty() {
+                continue;
+            }
+            out.push_str(if role == "user" {
+                "Usuário: "
+            } else {
+                "Toph: "
+            });
+            out.push_str(text.trim());
+            out.push('\n');
+        }
+        Ok(out)
     }
 
     pub async fn backfill_events(&self) -> AppResult<()> {
