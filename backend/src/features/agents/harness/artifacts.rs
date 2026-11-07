@@ -15,6 +15,7 @@ const MAX_COMMAND_CHARS: usize = 500;
 
 /// Structured output of the read-only research phase.
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ResearchReport {
     pub summary: String,
     #[serde(default)]
