@@ -337,6 +337,11 @@ impl WorkspaceService {
     pub fn files(&self, root: &Path, query: &str, limit: usize) -> AppResult<Vec<String>> {
         let limit = if limit == 0 || limit > 200 { 80 } else { limit };
         let needle = query.trim().to_lowercase();
+        let match_all = needle.is_empty()
+            || needle == "*"
+            || needle == "**"
+            || needle == "**/*"
+            || needle == ".";
         let mut files = Vec::new();
         for entry in WalkDir::new(root)
             .follow_links(false)
@@ -357,7 +362,7 @@ impl WorkspaceService {
                 .unwrap_or(entry.path())
                 .to_string_lossy()
                 .replace('\\', "/");
-            if !needle.is_empty() && !relative.to_lowercase().contains(&needle) {
+            if !match_all && !relative.to_lowercase().contains(&needle) {
                 continue;
             }
             files.push(relative);
@@ -855,4 +860,21 @@ async fn git_checked(root: &Path, args: &[&str]) -> AppResult<()> {
 
 async fn git_show(root: &Path, spec: &str) -> String {
     git_output(root, &["show", spec]).await.unwrap_or_default()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn list_files_treats_glob_star_as_match_all() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("a.txt"), "x").unwrap();
+        std::fs::create_dir_all(dir.path().join("src")).unwrap();
+        std::fs::write(dir.path().join("src/b.ts"), "y").unwrap();
+        let service = WorkspaceService::new(vec![dir.path().to_path_buf()]).unwrap();
+        let files = service.files(dir.path(), "*", 100).unwrap();
+        assert!(files.contains(&"a.txt".to_string()));
+        assert!(files.contains(&"src/b.ts".to_string()));
+    }
 }

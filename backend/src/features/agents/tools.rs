@@ -41,7 +41,7 @@ fn read_tools(agent: &AgentSpec) -> Vec<Value> {
     let integer = || json!({"type":"integer"});
     let mut tools = vec![
         definition("read_file","Read a project file range. Returns its hash for safe editing. Prefer small relevant ranges.",json!({"path":string(),"offset":integer(),"limit":integer()}),&["path"]),
-        definition("list_files","List matching project paths (max 100).",json!({"query":string()}),&["query"]),
+        definition("list_files","List project paths matching a substring. Use an empty query or * to list all paths (max 100).",json!({"query":string()}),&["query"]),
         definition("search","Search file contents for literal text. Returns paths and line numbers.",json!({"query":string(),"path":string()}),&["query"]),
         definition("read_artifact","Read a bounded range of a saved tool result or attachment.",json!({"id":string(),"offset":integer(),"limit":integer()}),&["id"]),
         definition("search_history","Find relevant earlier messages. Query uses plain words; returns source ids.",json!({"query":string()}),&["query"]),
