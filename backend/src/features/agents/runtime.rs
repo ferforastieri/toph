@@ -1091,6 +1091,30 @@ impl Runtime {
             let keep = context::recent_boundary(&rows, &ends, recent_budget)
                 .max(ends[0])
                 .min(rows.len() - 1);
+            // The hosted Go gateway has a small prefill budget and each LLM
+            // summary would take 30-40 seconds. Keep the recent window and
+            // ledger, and move the older narrative behind search_history in a
+            // single deterministic checkpoint instead of many model calls.
+            if crate::features::providers::protocol::console_gateway(&config.base_url).is_some() {
+                let next_ledger = context::ledger(&ledger, &rows[..keep]);
+                let summary_text = context::truncate_text(
+                    &if summary.trim().is_empty() {
+                        "Histórico anterior compactado pelo limite do gateway; consulte search_history para detalhes e decisões antigas.".to_string()
+                    } else {
+                        summary
+                    },
+                    summary_budget,
+                );
+                self.inner
+                    .repo
+                    .save_checkpoint(&ctx.run.session_id, rows[keep - 1].seq, &summary_text)
+                    .await?;
+                self.inner
+                    .repo
+                    .save_ledger(&ctx.run.session_id, &next_ledger)
+                    .await?;
+                continue;
+            }
             let mut count = 0;
             for end in ends.iter().copied().filter(|end| *end <= keep) {
                 let data = json!({"previous":summary,"ledger":ledger,"messages":rows[..end].iter().map(|r|json!({"seq":r.seq,"message":context::summary_message(&r.body)})).collect::<Vec<_>>()});

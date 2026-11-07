@@ -113,7 +113,7 @@ stay verbatim; the soft compaction point is 96,000 tokens when the cache is
 cold, while a warm prompt cache can use the full 128,000-token budget before
 compacting. The hosted OpenCode Go gateway has a much smaller measured prefill
 capacity, so that connection uses a 16,000-token budget and 14,000-token soft
-compaction point; this is a gateway limit, not the model window. A deterministic ledger preserves exact file paths, commands and
+compaction point; this is a gateway limit, not the model window. Because each Go summary call is slow and large, Go compaction keeps the recent window and ledger and moves older narrative behind `search_history` in one deterministic checkpoint. A deterministic ledger preserves exact file paths, commands and
 recent errors across compaction. Pending calls count toward the optional
 configured weekly limit using their estimate. Autocomplete is disabled
 initially and capped at 512 output tokens when enabled. Utility completions also
