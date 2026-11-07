@@ -1,5 +1,18 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { activeChat, chatCoordinator, chatTophs, messagesForChat, messagesForToph, useChats, type ChatMessage, type TophPreset } from "./store";
+import {
+  activeChat,
+  chatCoordinator,
+  chatForToph,
+  chatTophs,
+  individualTophs,
+  messagesForChat,
+  messagesForToph,
+  teamChat,
+  tophForChat,
+  useChats,
+  type ChatMessage,
+  type TophPreset,
+} from "./store";
 
 const preset = (name: string, role: string): TophPreset => ({
   name,
@@ -34,6 +47,36 @@ describe("useChats", () => {
     const individual = project.chats.find((chat) => chat.kind === "individual")!;
     expect(useChats.getState().addToph("p", individual.id, preset("Leo", "Dev"))).not.toBeNull();
     expect(useChats.getState().addToph("p", individual.id, preset("Nico", "Revisor"))).toBeNull();
+  });
+
+  it("exposes Tophs as the primary list and keeps the team separate", () => {
+    const project = useChats.getState().ensure("p");
+    const individual = project.chats.find((chat) => chat.kind === "individual")!;
+    const team = teamChat(project)!;
+    const toph = useChats.getState().addToph("p", individual.id, preset("Leo", "Dev"))!;
+
+    expect(individualTophs(useChats.getState().byProject.p).map((item) => item.id)).toEqual([toph.id]);
+    expect(chatForToph(useChats.getState().byProject.p, toph.id)?.id).toBe(individual.id);
+    expect(tophForChat(useChats.getState().byProject.p, individual.id)?.id).toBe(toph.id);
+    expect(team.kind).toBe("team");
+  });
+
+  it("restores the active chat to a conversation that actually has a Toph", () => {
+    useChats.getState().ensure("p");
+    const first = useChats.getState().byProject.p.chats.find((chat) => chat.kind === "individual")!;
+    const second = useChats.getState().createChat("p", "Segundo");
+    const toph = useChats.getState().addToph("p", second.id, preset("Leo", "Dev"))!;
+    const snapshot = useChats.getState().snapshot("p")!;
+
+    useChats.getState().load("p", {
+      ...snapshot,
+      activeChatId: first.id,
+      messages: [],
+      hydrated: true,
+    });
+
+    expect(activeChat(useChats.getState().byProject.p)?.id).toBe(second.id);
+    expect(tophForChat(useChats.getState().byProject.p, second.id)?.id).toBe(toph.id);
   });
 
   it("keeps messages in the chat and removes them with their Toph", () => {

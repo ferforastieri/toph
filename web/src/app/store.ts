@@ -56,7 +56,9 @@ export interface AppNotification {
   createdAt: number;
   read: boolean;
   projectId?: string;
+  projectName?: string;
   tabId?: string;
+  chatId?: string;
   sessionId?: string;
   notificationId?: string;
   botId?: string;

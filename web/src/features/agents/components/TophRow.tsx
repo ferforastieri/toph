@@ -1,4 +1,4 @@
-import { History } from "@toph/icons";
+import { History, Settings2 } from "@toph/icons";
 import type { ChatToph } from "../../conversations/store";
 import BotAvatar from "./BotAvatar";
 import { Button } from "@/shared/boardui/base/buttons/button";
@@ -7,14 +7,16 @@ import { cx } from "@/shared/boardui/utils/cx";
 interface Props {
   toph: Pick<ChatToph, "id" | "name" | "role" | "color" | "avatar" | "coordinator">;
   onOpen: () => void;
+  onConfig?: () => void;
   onSessions: () => void;
   compact?: boolean;
+  selected?: boolean;
 }
 
 /** Toph row used by the desktop sidebar and the mobile chat sheet. */
-export default function TophRow({ toph, onOpen, onSessions, compact = false }: Props) {
+export default function TophRow({ toph, onOpen, onConfig, onSessions, compact = false, selected = false }: Props) {
   return (
-    <div className="flex w-full items-center rounded-xl pe-1 transition-[background-color,color,transform,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] hover:bg-background-primary-hover">
+    <div className={cx("flex w-full items-center rounded-xl pe-1 transition-colors", selected ? "bg-background-tertiary-default" : "hover:bg-background-primary-hover")}>
       <button
         type="button"
         onClick={onOpen}
@@ -29,6 +31,7 @@ export default function TophRow({ toph, onOpen, onSessions, compact = false }: P
           <span className="truncate text-caption-2-regular text-text-secondary">{toph.role || "Toph"}</span>
         </span>
       </button>
+      {onConfig ? <Button variant="ghost" size={compact ? "small" : "xs"} iconOnly leadingIcon={Settings2} aria-label={`Configurar ${toph.name}`} title="Configurar Toph" onClick={onConfig} /> : null}
       <Button variant="ghost" size={compact ? "small" : "xs"} iconOnly leadingIcon={History} aria-label={`Sessões de ${toph.name}`} title="Sessões do Toph" onClick={onSessions} />
     </div>
   );

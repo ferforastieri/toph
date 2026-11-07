@@ -529,6 +529,7 @@ export const api = {
     botName: string;
     botRole?: string;
     sessionId?: string;
+    chatId?: string;
     tabId?: string;
     title: string;
     body: string;

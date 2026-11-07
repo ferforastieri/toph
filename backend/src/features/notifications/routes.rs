@@ -38,6 +38,8 @@ pub(super) struct BotNotificationRequest {
     bot_role: String,
     #[serde(rename = "sessionId", default)]
     session_id: String,
+    #[serde(rename = "chatId", default)]
+    chat_id: String,
     #[serde(rename = "tabId", default)]
     tab_id: String,
     #[serde(default)]
@@ -58,7 +60,7 @@ pub(super) async fn notify_bot(
             "projectId and botId are required".into(),
         ));
     }
-    state.store.project(project_id).await?;
+    let project = state.store.project(project_id).await?;
 
     let bot_name = input.bot_name.trim();
     let title = if bot_name.is_empty() {
@@ -79,6 +81,7 @@ pub(super) async fn notify_bot(
     };
     let title: String = title.chars().take(120).collect();
     let body: String = body.chars().take(500).collect();
+    let display_title = format!("{title} · {}", project.name);
     let notification_id = if input.notification_id.trim().is_empty() {
         new_id()
     } else {
@@ -86,6 +89,7 @@ pub(super) async fn notify_bot(
     };
     let bot_role = input.bot_role.trim();
     let session_id = input.session_id.trim();
+    let chat_id = input.chat_id.trim();
     let tab_id = if input.tab_id.trim().is_empty() {
         format!("bots:{project_id}")
     } else {
@@ -94,11 +98,13 @@ pub(super) async fn notify_bot(
 
     let event = NotificationEvent {
         event_type: "ai.done".into(),
-        title: title.clone(),
+        title: display_title.clone(),
         body: body.clone(),
         created_at: chrono::Utc::now().timestamp_millis(),
         notification_id: Some(notification_id.clone()),
         project_id: Some(project_id.to_string()),
+        project_name: Some(project.name.clone()),
+        chat_id: (!chat_id.is_empty()).then(|| chat_id.to_string()),
         bot_id: Some(bot_id.to_string()),
         bot_name: Some(title.clone()),
         bot_role: (!bot_role.is_empty()).then(|| bot_role.to_string()),
@@ -109,10 +115,12 @@ pub(super) async fn notify_bot(
 
     if state.push.enabled() {
         let message = PushMessage {
-            title: title.clone(),
+            title: display_title,
             body: body.clone(),
             data: vec![
                 ("projectId".into(), project_id.to_string()),
+                ("projectName".into(), project.name),
+                ("chatId".into(), chat_id.to_string()),
                 ("botId".into(), bot_id.to_string()),
                 ("botName".into(), title),
                 ("botRole".into(), bot_role.to_string()),

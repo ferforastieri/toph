@@ -77,6 +77,18 @@ describe("Toph chat controls", () => {
     expect(agents.find((a) => a.id === memberId)?.model).toBe("openai::review");
   });
 
+  it("uses the Toph identity as the chat title instead of the individual container", () => {
+    const individual = useChats.getState().createChat(project.id, "Toph");
+    useChats.getState().addToph(project.id, individual.id, { ...TOPH_PRESETS[1], name: "Leo", role: "Dev" });
+    useChats.getState().setActiveChat(project.id, individual.id);
+
+    render(<BotStudioTab project={project} />);
+
+    expect(screen.getByText("Leo")).toBeVisible();
+    expect(screen.queryByText("Conversa individual")).not.toBeInTheDocument();
+    expect(screen.queryByText("Individual")).not.toBeInTheDocument();
+  });
+
   it("opens the selected Toph from the sidebar action event", async () => {
     render(<BotStudioTab project={project} />);
     act(() => window.dispatchEvent(new CustomEvent("toph:toph-action", { detail: { action: "config", tophId: memberId } })));

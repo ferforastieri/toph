@@ -2,6 +2,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { agentApi, isActive, type AgentRun, type AgentSnapshot, type NativeMessage, type Approval, type AgentQuestionPrompt, type AgentUsage } from "./api";
 
 const empty = (): AgentSnapshot => ({ messages: [], drafts: [], runs: [], approvals: [], questions: [], hasMore: false, cursor: null });
+export function nativeMessageOrder(a: NativeMessage, b: NativeMessage): number {
+  if (a.seq != null && b.seq != null) return a.seq - b.seq;
+  if (a.seq != null) return -1;
+  if (b.seq != null) return 1;
+  return a.createdAt - b.createdAt || a.id.localeCompare(b.id);
+}
+
 export function mergeNativeMessages(current: NativeMessage[], incoming: NativeMessage[]): NativeMessage[] {
   const items = new Map(current.map((m) => [m.id, m]));
   for (const m of incoming) {
@@ -10,7 +17,7 @@ export function mergeNativeMessages(current: NativeMessage[], incoming: NativeMe
     if (old?.status === "running" && m.status === "running" && old.content.length > m.content.length) continue;
     items.set(m.id, { ...old, ...m, seq: m.seq ?? old?.seq });
   }
-  return [...items.values()].sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id));
+  return [...items.values()].sort(nativeMessageOrder);
 }
 export function mergeNativeRuns(current: AgentRun[], incoming: AgentRun[]): AgentRun[] {
   const runs = new Map(current.map((r) => [r.id, r]));

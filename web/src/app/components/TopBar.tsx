@@ -6,6 +6,7 @@ import { featureEnabled, useSettings, type WorkspaceFeature } from "../../featur
 import type { Project } from "../../shared/api";
 import ProjectSwitcher from "../../features/projects/components/ProjectSwitcher";
 import QuickOpen from "../../features/explorer/components/QuickOpen";
+import NotificationsBell from "../../features/notifications/components/NotificationsBell";
 import { Button } from "@/shared/boardui/base/buttons/button";
 import { Modal } from "@/shared/boardui/base/modal/modal";
 import { cx } from "@/shared/boardui/utils/cx";
@@ -275,6 +276,7 @@ export default function TopBar({ onOpenProject, onCloseProject, onGoHome, projec
         <div className="flex shrink-0 items-center gap-1">
           <WorkspaceOptions onOpenAuxiliary={onOpenAuxiliary} />
           <span className="h-5 w-px shrink-0 bg-separator-border" aria-hidden="true" />
+          <NotificationsBell />
           <ThemeToggle />
           {tophControl}
         </div>
@@ -373,6 +375,7 @@ export function ProjectRail({ onOpenProject, onCloseProject, onGoHome, onQuickOp
         <span className="h-px w-8 shrink-0 bg-separator-border" aria-hidden="true" />
         <WorkspaceOptions vertical onQuickOpen={onQuickOpen} onOpenAuxiliary={onOpenAuxiliary} />
         <div className="mt-auto flex flex-col items-center gap-2">
+          <NotificationsBell vertical side="right" />
           <ThemeToggle />
           {tophControl}
         </div>

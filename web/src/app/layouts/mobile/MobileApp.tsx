@@ -60,6 +60,8 @@ export default function MobileApp() {
   const [accountOpen, setAccountOpen] = useState(false);
   const [conversationsOpen, setConversationsOpen] = useState(false);
   const [pendingTophAction, setPendingTophAction] = useState<TophActionRequest | null>(null);
+  const pendingBot = useRef<{ projectId: string; botId: string } | null>(null);
+  const chatsHydrated = useChats((state) => activeProjectId ? state.byProject[activeProjectId]?.hydrated === true : false);
   const swipeStart = useRef<{ x: number; y: number } | null>(null);
   const [currentBranch, setCurrentBranch] = useState("");
   const pageSubtitle = screen === "scm" && currentBranch ? currentBranch : (project?.name ?? "");
@@ -124,7 +126,19 @@ export default function MobileApp() {
   }, [mobile]);
 
   useEffect(() => {
-    const openBot = () => setScreen("bots");
+    const openBot = (event: Event) => {
+      const detail = (event as CustomEvent<{ projectId?: string; botId?: string }>).detail;
+      if (detail?.projectId) {
+        setActiveProject(detail.projectId);
+        if (detail.botId) {
+          const chats = useChats.getState().byProject[detail.projectId];
+          const toph = chats?.tophs.find((item) => item.id === detail.botId);
+          if (chats?.hydrated && toph) useChats.getState().setActiveChat(detail.projectId, toph.chatId);
+          else pendingBot.current = { projectId: detail.projectId, botId: detail.botId };
+        }
+      }
+      setScreen("bots");
+    };
     const openTerminal = () => setTerminalOpen(true);
     window.addEventListener("toph:open-bot", openBot);
     window.addEventListener("toph:open-terminal", openTerminal);
@@ -132,7 +146,58 @@ export default function MobileApp() {
       window.removeEventListener("toph:open-bot", openBot);
       window.removeEventListener("toph:open-terminal", openTerminal);
     };
-  }, []);
+  }, [setActiveProject]);
+
+  useEffect(() => {
+    const pending = pendingBot.current;
+    if (!pending || pending.projectId !== activeProjectId || !chatsHydrated) return;
+    const toph = useChats.getState().byProject[pending.projectId]?.tophs.find((item) => item.id === pending.botId);
+    if (toph) useChats.getState().setActiveChat(pending.projectId, toph.chatId);
+    pendingBot.current = null;
+  }, [activeProjectId, chatsHydrated]);
+
+  useEffect(() => {
+    type PushPayload = {
+      projectId?: string;
+      projectName?: string;
+      botId?: string;
+      botName?: string;
+      botRole?: string;
+      chatId?: string;
+      sessionId?: string;
+      tabId?: string;
+      notificationId?: string;
+      title?: string;
+      body?: string;
+      opened?: string;
+    };
+    const handler = (payload: PushPayload) => {
+      if (payload.opened === "true") {
+        window.setTimeout(() => window.dispatchEvent(new CustomEvent("toph:open-bot", { detail: payload })), 0);
+        return;
+      }
+      const projectId = payload.projectId || activeProjectId || undefined;
+      if (!projectId) return;
+      useApp.getState().addNotification({
+        kind: "ai",
+        title: payload.botName?.trim() || payload.title?.trim() || "Resposta da IA",
+        body: payload.body?.trim() || "A IA terminou de responder.",
+        projectId,
+        projectName: payload.projectName || projects.find((item) => item.id === projectId)?.name,
+        tabId: payload.tabId || `bots:${projectId}`,
+        chatId: payload.chatId,
+        sessionId: payload.sessionId,
+        notificationId: payload.notificationId,
+        botId: payload.botId,
+        botName: payload.botName,
+        botRole: payload.botRole,
+      });
+    };
+    (window as unknown as { __tophPush?: (payload: PushPayload) => void }).__tophPush = handler;
+    return () => {
+      delete (window as unknown as { __tophPush?: (payload: PushPayload) => void }).__tophPush;
+    };
+  }, [activeProjectId, projects]);
 
   function selectScreen(next: MobileScreen) {
     setScreen(next);

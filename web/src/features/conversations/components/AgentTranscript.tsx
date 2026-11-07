@@ -417,7 +417,7 @@ function ToolGroup({ messages, onPermission, onQuestion, defaultOpen = false, pr
   );
 }
 
-const TranscriptMessage = memo(function TranscriptMessage({ message, showCaret, onPermission, onQuestion, toolsExpanded, projectId, projectRoot, bubble }: MessageProps) {
+export const TranscriptMessage = memo(function TranscriptMessage({ message, showCaret, onPermission, onQuestion, toolsExpanded, projectId, projectRoot, bubble }: MessageProps) {
   if (message.role === "error") {
     return <Chip color="rose" variant="subtle" className="justify-start gap-1.5 whitespace-normal px-2 py-1.5"><CircleAlert size={13} /> {message.text}</Chip>;
   }

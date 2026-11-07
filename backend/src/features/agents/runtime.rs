@@ -22,7 +22,18 @@ use std::{
 use tokio::sync::{broadcast, oneshot, Semaphore};
 use tokio_util::sync::CancellationToken;
 
-type CompletionHandler = Arc<dyn Fn() + Send + Sync>;
+type CompletionHandler = Arc<dyn Fn(CompletionNotice) + Send + Sync>;
+
+#[derive(Clone, Debug)]
+pub struct CompletionNotice {
+    pub project_id: String,
+    pub chat_id: String,
+    pub session_id: String,
+    pub agent_id: String,
+    pub agent_name: String,
+    pub agent_role: String,
+    pub text: String,
+}
 struct Inner {
     repo: Repository,
     tools: Tools,
@@ -69,7 +80,7 @@ impl Runtime {
     pub fn subscribe(&self) -> broadcast::Receiver<AgentEvent> {
         self.inner.events.subscribe()
     }
-    pub fn set_on_complete(&self, handler: impl Fn() + Send + Sync + 'static) {
+    pub fn set_on_complete(&self, handler: impl Fn(CompletionNotice) + Send + Sync + 'static) {
         *self.inner.on_complete.write().unwrap() = Some(Arc::new(handler));
     }
     pub fn shutdown(&self) {
@@ -301,10 +312,13 @@ impl Runtime {
             json!({"role":"user","content":parts})
         };
         let display = json!({"id":id,"chatId":ctx.run.chat_id,"tophId":ctx.agent.id,"sessionId":ctx.run.session_id,"model":ctx.agent.model,"agentMode":ctx.agent.agent_mode,"role":if ctx.depth==0{"user"}else{"system"},"content":if ctx.depth==0{text.to_owned()}else{format!("Tarefa para @{}: {}",ctx.agent.handle,text)},"status":"complete","createdAt":now()});
-        self.inner
+        let seq = self
+            .inner
             .repo
             .message(ctx, &id, body, display.clone())
             .await?;
+        let mut display = display;
+        display["seq"] = json!(seq);
         self.event(ctx, "message", display);
         Ok(())
     }
@@ -349,11 +363,12 @@ impl Runtime {
     }
 
     async fn finish(&self, ctx: &RunContext, result: AppResult<String>, cancelled: bool) {
-        let (state, error) = match result {
-            Ok(_) => ("completed", String::new()),
+        let (state, error, answer) = match result {
+            Ok(text) => ("completed", String::new(), text),
             Err(e) => (
                 if cancelled { "cancelled" } else { "failed" },
                 e.to_string(),
+                String::new(),
             ),
         };
         if let Err(e) = self.inner.repo.state(&ctx.run.id, state, &error).await {
@@ -399,7 +414,15 @@ impl Runtime {
         self.event(ctx,"run",json!({"id":ctx.run.id,"chatId":ctx.run.chat_id,"sessionId":ctx.run.session_id,"agentId":ctx.agent.id,"state":state,"error":error,"parentId":ctx.run.parent_id,"createdAt":ctx.run.created_at,"finishedAt":now()}));
         if state == "completed" && ctx.depth == 0 {
             if let Some(handler) = self.inner.on_complete.read().unwrap().as_ref() {
-                handler();
+                handler(CompletionNotice {
+                    project_id: ctx.project_id.clone(),
+                    chat_id: ctx.run.chat_id.clone(),
+                    session_id: ctx.run.session_id.clone(),
+                    agent_id: ctx.agent.id.clone(),
+                    agent_name: ctx.agent.name.clone(),
+                    agent_role: ctx.agent.role.clone(),
+                    text: answer,
+                });
             }
         }
     }
@@ -601,7 +624,8 @@ impl Runtime {
                 let mut done = display;
                 done["content"] = json!(turn.text);
                 done["status"] = json!("complete");
-                this.inner
+                let seq = this
+                    .inner
                     .repo
                     .message(
                         &ctx,
@@ -610,6 +634,7 @@ impl Runtime {
                         done.clone(),
                     )
                     .await?;
+                done["seq"] = json!(seq);
                 this.event(&ctx, "message", done);
                 this.inner.drafts.lock().unwrap().remove(&ctx.run.id);
                 return Ok(turn.text);
@@ -768,10 +793,12 @@ impl Runtime {
                 let mut display = display;
                 display["content"] = json!(turn.text);
                 display["status"] = json!("complete");
-                this.inner
+                let seq = this
+                    .inner
                     .repo
                     .message(&ctx, &mid, body, display.clone())
                     .await?;
+                display["seq"] = json!(seq);
                 this.event(&ctx, "message", display);
                 this.inner.drafts.lock().unwrap().remove(&ctx.run.id);
                 if turn.calls.is_empty() {
@@ -885,7 +912,8 @@ impl Runtime {
                     display["content"] = json!(visible.to_string());
                     display["detail"] = json!(json!({"input":args,"output":visible}).to_string());
                     display["status"] = json!(if failed { "error" } else { "complete" });
-                    this.inner.repo.message(&ctx,&tid,json!({"role":"tool","tool_call_id":call.id,"name":call.name,"content":visible.to_string()}),display.clone()).await?;
+                    let seq = this.inner.repo.message(&ctx,&tid,json!({"role":"tool","tool_call_id":call.id,"name":call.name,"content":visible.to_string()}),display.clone()).await?;
+                    display["seq"] = json!(seq);
                     this.event(&ctx, "message", display);
                 }
                 step += 1;

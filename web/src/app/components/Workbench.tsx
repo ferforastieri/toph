@@ -329,10 +329,12 @@ export default function Workbench() {
       body?: string;
       notificationId?: string;
       projectId?: string;
+      projectName?: string;
       botId?: string;
       botName?: string;
       botRole?: string;
       sessionId?: string;
+      chatId?: string;
       tabId?: string;
       opened?: string;
     };
@@ -344,13 +346,28 @@ export default function Workbench() {
       const state = useApp.getState();
       const projectId = payload.projectId || state.activeProjectId || undefined;
       if (!projectId) return;
-      if (document.visibilityState === "visible" && document.hasFocus() && state.sidebar === "bots" && state.activeProjectId === projectId) return;
+      const chats = useChats.getState().byProject[projectId];
+      const active = chats?.chats.find((chat) => chat.id === chats.activeChatId);
+      const activeHasBot = Boolean(
+        payload.botId &&
+        active &&
+        chats?.tophs.some((toph) => toph.id === payload.botId && toph.chatId === active.id),
+      );
+      if (
+        document.visibilityState === "visible" &&
+        document.hasFocus() &&
+        state.sidebar === "bots" &&
+        state.activeProjectId === projectId &&
+        (activeHasBot || !payload.botId)
+      ) return;
       state.addNotification({
         kind: "ai",
         title: payload.botName?.trim() || payload.title?.trim() || "Resposta da IA",
         body: payload.body?.trim() || "A IA terminou de responder.",
         projectId,
+        projectName: payload.projectName?.trim() || state.projects.find((project) => project.id === projectId)?.name,
         tabId: payload.tabId || `bots:${projectId}`,
+        chatId: payload.chatId,
         sessionId: payload.sessionId,
         notificationId: payload.notificationId,
         botId: payload.botId,
@@ -962,7 +979,9 @@ export default function Workbench() {
         <DebugPanel project={project} headerControl={rightPanelControl} />
       )}
       {rightPanel === "bots" && (
-        <BotsSidebar project={project} headerControl={rightPanelControl} onSelectChat={() => selectSidebar("bots")} />
+        sidebar === "bots"
+          ? <BotsSidebar project={project} headerControl={rightPanelControl} />
+          : <BotStudioTab project={project} embedded compact headerControl={rightPanelControl} />
       )}
     </Suspense>
   ) : null;

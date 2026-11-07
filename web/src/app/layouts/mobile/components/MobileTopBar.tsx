@@ -1,6 +1,7 @@
 import type { ComponentType } from "react";
 import { Menu, MessageSquare } from "@toph/icons";
 import NotificationBadge from "../../../../features/notifications/components/NotificationBadge";
+import NotificationsBell from "../../../../features/notifications/components/NotificationsBell";
 import BrandMark from "@toph/brand";
 import { cx } from "@/shared/boardui/utils/cx";
 import { Button } from "@/shared/boardui/base/buttons/button";
@@ -55,6 +56,7 @@ export default function MobileTopBar({ title, subtitle, projectName, unreadCount
           <div className="min-w-0 flex-1" />
         )}
         <div className={cx("flex min-w-0 shrink-0 items-center gap-0.5", floating && "max-w-[calc(100vw-4.5rem)] justify-end rounded-full bg-foreground-icon-primary/10 p-1 shadow-xs backdrop-blur-md")}>
+          <NotificationsBell />
           <Button
             variant="ghost"
             size="small"

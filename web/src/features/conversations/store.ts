@@ -293,7 +293,7 @@ export function freshProject(hydrated = false): ProjectChats {
   const now = Date.now();
   const individual: TophChat = {
     id: newId("chat"),
-    name: "Individual",
+    name: "Toph",
     description: "",
     kind: "individual",
     createdAt: now,
@@ -324,7 +324,7 @@ function sanitizeProject(input: ProjectChats | null | undefined): ProjectChats {
     .filter((chat): chat is TophChat => Boolean(chat && typeof chat.id === "string" && chat.id))
     .map((chat) => ({
       id: chat.id,
-      name: chat.name?.trim() || (chat.kind === "team" ? "Equipe" : "Individual"),
+      name: chat.name?.trim() || (chat.kind === "team" ? "Equipe" : "Toph"),
       description: chat.description ?? "",
       kind: chat.kind === "team" ? "team" as const : "individual" as const,
       createdAt: Number.isFinite(chat.createdAt) ? chat.createdAt : Date.now(),
@@ -336,7 +336,7 @@ function sanitizeProject(input: ProjectChats | null | undefined): ProjectChats {
   if (individuals.length === 0) {
     individuals = [{
       id: newId("chat"),
-      name: "Individual",
+      name: "Toph",
       description: "",
       kind: "individual",
       createdAt: Date.now(),
@@ -359,6 +359,9 @@ function sanitizeProject(input: ProjectChats | null | undefined): ProjectChats {
     if (members.length > 0) {
       const coordinator = members.find((toph) => toph.coordinator) ?? members[0];
       for (const toph of members) toph.coordinator = toph.id === coordinator.id;
+      // Toph-first migration: the individual conversation is named after its
+      // Toph instead of the legacy "Individual" container.
+      if (chat.kind === "individual") chat.name = members[0].name;
     }
   }
 
@@ -373,9 +376,16 @@ function sanitizeProject(input: ProjectChats | null | undefined): ProjectChats {
     .map(normalizeMessage)
     .sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id));
 
-  const activeChatId = fixedChats.some((chat) => chat.id === input.activeChatId)
-    ? input.activeChatId
-    : individuals[0].id;
+  const activeChatId = (() => {
+    const requested = fixedChats.find((chat) => chat.id === input.activeChatId);
+    const tophChatIds = new Set(tophs.map((toph) => toph.chatId));
+    const fallback =
+      individuals.find((chat) => tophChatIds.has(chat.id)) ?? team ?? individuals[0];
+    if (requested && (requested.kind === "team" || tophChatIds.has(requested.id))) {
+      return requested.id;
+    }
+    return fallback.id;
+  })();
 
   return { version: 2, chats: fixedChats, tophs, messages, activeChatId, hydrated: true };
 }
@@ -491,7 +501,7 @@ export const useChats = create<ChatStore>((set, get) => ({
     const now = Date.now();
     const chat: TophChat = {
       id: newId("chat"),
-      name: name.trim() || "Individual",
+      name: name.trim() || "Toph",
       description: description.trim(),
       kind: "individual",
       createdAt: now,
@@ -900,6 +910,30 @@ export function chatSessionIds(project: ProjectChats | undefined): string[] {
 export function chatTophs(project: ProjectChats | undefined, chatId: string | null | undefined): ChatToph[] {
   if (!project || !chatId) return [];
   return project.tophs.filter((toph) => toph.chatId === chatId);
+}
+
+/** Toph-first view: every individual Toph owns one conversation. */
+export function individualTophs(project: ProjectChats | undefined): ChatToph[] {
+  if (!project) return [];
+  const individualChats = new Set(
+    project.chats.filter((chat) => chat.kind === "individual").map((chat) => chat.id),
+  );
+  return project.tophs.filter((toph) => individualChats.has(toph.chatId));
+}
+
+export function teamChat(project: ProjectChats | undefined): TophChat | null {
+  return project?.chats.find((chat) => chat.kind === "team") ?? null;
+}
+
+export function chatForToph(project: ProjectChats | undefined, tophId: string | null | undefined): TophChat | null {
+  if (!project || !tophId) return null;
+  const toph = project.tophs.find((item) => item.id === tophId);
+  return toph ? project.chats.find((chat) => chat.id === toph.chatId) ?? null : null;
+}
+
+export function tophForChat(project: ProjectChats | undefined, chatId: string | null | undefined): ChatToph | null {
+  if (!project || !chatId) return null;
+  return project.tophs.find((toph) => toph.chatId === chatId) ?? null;
 }
 
 /**

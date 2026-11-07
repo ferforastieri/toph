@@ -186,7 +186,7 @@ impl Repository {
         id: &str,
         body: Value,
         display: Value,
-    ) -> AppResult<()> {
+    ) -> AppResult<i64> {
         let text = body["content"]
             .as_str()
             .map(str::to_string)
@@ -195,6 +195,10 @@ impl Repository {
         sqlx::query("INSERT INTO agent_messages(id,session_id,run_id,role,body,display,content_text,estimated_tokens,created_at) VALUES(?,?,?,?,?,?,?,?,?)")
             .bind(id).bind(&ctx.run.session_id).bind(&ctx.run.id).bind(body["role"].as_str().unwrap_or("assistant"))
             .bind(body.to_string()).bind(display.to_string()).bind(text).bind(estimate(&body) as i64).bind(now()).execute(&mut *tx).await?;
+        let seq: i64 = sqlx::query_scalar("SELECT seq FROM agent_messages WHERE id=?")
+            .bind(id)
+            .fetch_one(&mut *tx)
+            .await?;
         // Keep the existing chat transcript as an archive, in the same transaction.
         sqlx::query("INSERT INTO bot_messages(user_id,project_id,message_id,mode,channel,role,bot_id,created_at,payload,updated_at) VALUES(?,?,?,'chat',?,?,?,?,?,?) ON CONFLICT(user_id,project_id,mode,channel,message_id) DO UPDATE SET payload=excluded.payload,updated_at=excluded.updated_at")
             .bind(ctx.user_id).bind(&ctx.project_id).bind(id).bind(&ctx.run.chat_id).bind(display["role"].as_str().unwrap_or("assistant"))
@@ -205,7 +209,7 @@ impl Repository {
             .execute(&mut *tx)
             .await?;
         tx.commit().await?;
-        Ok(())
+        Ok(seq)
     }
 
     pub async fn context(&self, session: &str, after: i64) -> AppResult<Vec<ContextMessage>> {

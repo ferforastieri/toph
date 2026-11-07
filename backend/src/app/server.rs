@@ -76,7 +76,10 @@ use crate::debug::{DebugManager, DebugStartInput};
 use crate::email::{AccountInput, EmailService, PublicAccount, SendInput, DEFAULT_LIST_LIMIT};
 use crate::errors::{AppError, AppResult};
 use crate::events::{EventHub, ProjectWatcher};
-use crate::features::agents::{runtime::Runtime as AgentRuntime, tools::Tools as AgentTools};
+use crate::features::agents::{
+    runtime::{CompletionNotice, Runtime as AgentRuntime},
+    tools::Tools as AgentTools,
+};
 use crate::features::integrations::mcp::Service as McpService;
 use crate::model::{DbProfile, PetConfig, Project, Session, User, WebTarget};
 use crate::push::{PushMessage, PushService};
@@ -124,6 +127,10 @@ pub struct NotificationEvent {
     pub notification_id: Option<String>,
     #[serde(rename = "projectId", skip_serializing_if = "Option::is_none")]
     pub project_id: Option<String>,
+    #[serde(rename = "projectName", skip_serializing_if = "Option::is_none")]
+    pub project_name: Option<String>,
+    #[serde(rename = "chatId", skip_serializing_if = "Option::is_none")]
+    pub chat_id: Option<String>,
     #[serde(rename = "botId", skip_serializing_if = "Option::is_none")]
     pub bot_id: Option<String>,
     #[serde(rename = "botName", skip_serializing_if = "Option::is_none")]
@@ -134,6 +141,38 @@ pub struct NotificationEvent {
     pub session_id: Option<String>,
     #[serde(rename = "tabId", skip_serializing_if = "Option::is_none")]
     pub tab_id: Option<String>,
+}
+
+fn notification_preview(text: &str) -> String {
+    let mut clean = String::new();
+    let mut in_code = false;
+    for line in text.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with("```") {
+            in_code = !in_code;
+            continue;
+        }
+        if in_code || trimmed.is_empty() {
+            continue;
+        }
+        let line = trimmed.trim_start_matches(['#', '>', '-', '*', '`']).trim();
+        if line.is_empty() {
+            continue;
+        }
+        if !clean.is_empty() {
+            clean.push(' ');
+        }
+        clean.push_str(line);
+        if clean.chars().count() >= 240 {
+            break;
+        }
+    }
+    let clean: String = clean.chars().take(240).collect();
+    if clean.trim().is_empty() {
+        "A execução terminou sem resposta textual.".into()
+    } else {
+        clean
+    }
 }
 
 #[derive(Clone)]
@@ -276,9 +315,11 @@ impl AppState {
         });
 
         let notify_state = Arc::downgrade(&state);
-        state.agents.set_on_complete(move || {
+        state.agents.set_on_complete(move |notice| {
             if let Some(state) = notify_state.upgrade() {
-                state.emit_ai_response();
+                tokio::spawn(async move {
+                    state.emit_agent_completion(notice).await;
+                });
             }
         });
         if state.store.list_projects().await?.is_empty() {
@@ -320,6 +361,8 @@ impl AppState {
             created_at: chrono::Utc::now().timestamp_millis(),
             notification_id: None,
             project_id: None,
+            project_name: None,
+            chat_id: None,
             bot_id: None,
             bot_name: None,
             bot_role: None,
@@ -330,6 +373,58 @@ impl AppState {
         if self.push.enabled() {
             let push = self.push.clone();
             tokio::spawn(async move { push.notify_ai().await });
+        }
+    }
+
+    pub async fn emit_agent_completion(&self, notice: CompletionNotice) {
+        let project_name = self
+            .store
+            .project(&notice.project_id)
+            .await
+            .map(|project| project.name)
+            .unwrap_or_default();
+        let title = if project_name.is_empty() {
+            notice.agent_name.clone()
+        } else {
+            format!("{} · {}", notice.agent_name, project_name)
+        };
+        let body = notification_preview(&notice.text);
+        let notification_id = crate::crypto::new_id();
+        let tab_id = format!("bots:{}", notice.project_id);
+        let event = NotificationEvent {
+            event_type: "ai.done".into(),
+            title: title.clone(),
+            body: body.clone(),
+            created_at: chrono::Utc::now().timestamp_millis(),
+            notification_id: Some(notification_id.clone()),
+            project_id: Some(notice.project_id.clone()),
+            project_name: Some(project_name.clone()),
+            chat_id: Some(notice.chat_id.clone()),
+            bot_id: Some(notice.agent_id.clone()),
+            bot_name: Some(notice.agent_name.clone()),
+            bot_role: (!notice.agent_role.is_empty()).then(|| notice.agent_role.clone()),
+            session_id: Some(notice.session_id.clone()),
+            tab_id: Some(tab_id.clone()),
+        };
+        let _ = self.notifications.send(event);
+        if self.push.enabled() {
+            let message = PushMessage {
+                title,
+                body,
+                data: vec![
+                    ("projectId".into(), notice.project_id),
+                    ("projectName".into(), project_name),
+                    ("chatId".into(), notice.chat_id),
+                    ("botId".into(), notice.agent_id),
+                    ("botName".into(), notice.agent_name),
+                    ("botRole".into(), notice.agent_role),
+                    ("sessionId".into(), notice.session_id),
+                    ("tabId".into(), tab_id),
+                    ("notificationId".into(), notification_id),
+                ],
+            };
+            let push = self.push.clone();
+            tokio::spawn(async move { push.notify(&message).await });
         }
     }
 
@@ -1039,6 +1134,60 @@ mod lifecycle_tests {
         })
         .await
         .expect("maintenance retained the entire application after shutdown");
+    }
+
+    #[test]
+    fn notification_preview_strips_markdown_fences() {
+        let preview = notification_preview("```sh\nnpm test\n```\nTudo passou no teste final.");
+        assert_eq!(preview, "Tudo passou no teste final.");
+    }
+
+    #[tokio::test]
+    async fn agent_completion_notification_carries_project_toph_and_content() {
+        let dir = tempfile::tempdir().unwrap();
+        let workspace = dir.path().join("workspace");
+        std::fs::create_dir_all(&workspace).unwrap();
+        let config = Config::local(
+            dir.path().join("data"),
+            workspace,
+            "secret".into(),
+            "127.0.0.1:0".into(),
+        );
+        let state = AppState::build(config).await.unwrap();
+        let project = state
+            .store
+            .list_projects()
+            .await
+            .unwrap()
+            .into_iter()
+            .next()
+            .unwrap();
+        let mut events = state.notifications.subscribe();
+
+        state
+            .emit_agent_completion(CompletionNotice {
+                project_id: project.id.clone(),
+                chat_id: "chat-1".into(),
+                session_id: "session-1".into(),
+                agent_id: "toph-1".into(),
+                agent_name: "Beto".into(),
+                agent_role: "Dev".into(),
+                text: "```sh\nnpm test\n```\nTudo passou no teste final.".into(),
+            })
+            .await;
+
+        let event = tokio::time::timeout(Duration::from_secs(1), events.recv())
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(event.project_name.as_deref(), Some(project.name.as_str()));
+        assert_eq!(event.bot_name.as_deref(), Some("Beto"));
+        assert_eq!(event.bot_role.as_deref(), Some("Dev"));
+        assert_eq!(event.chat_id.as_deref(), Some("chat-1"));
+        assert_eq!(event.title, format!("Beto · {}", project.name));
+        assert!(event.body.contains("Tudo passou no teste final."));
+        state.agents.shutdown();
+        state.watcher.stop_all();
     }
 
     #[test]

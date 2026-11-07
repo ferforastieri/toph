@@ -1,8 +1,8 @@
-import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { ArrowDown, Bot, ChevronDown, LoaderCircle, MessageSquarePlus, Plus } from "@toph/icons";
+import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { ArrowDown, Bot, ChevronDown, LoaderCircle, MessageSquarePlus, Plus, Settings2 } from "@toph/icons";
 import type { Project } from "../../../shared/api";
-import { activeChat, chatCoordinator, chatTophs, useChats } from "../store";
-import { useAI } from "../../providers/store";
+import { activeChat, chatCoordinator, chatTophs, tophForChat, useChats } from "../store";
+import { modelDisplay, useAI } from "../../providers/store";
 import { useTophDrafts } from "../../agents/drafts";
 import { agentApi, isActive, type AgentSession } from "../../agents/api";
 import { useAgentChat } from "../../agents/useAgentChat";
@@ -10,20 +10,22 @@ import { AgentComposer, type AgentAttachment } from "./AgentComposer";
 import ChatMessages from "./ChatMessages";
 import ChatUsageMeter from "./ChatUsageMeter";
 import ComposerMenu from "./ComposerMenu";
+import TophSwitcher from "./TophSwitcher";
 import BotAvatar from "../../agents/components/BotAvatar";
 import { unlockBotSound } from "../sound";
 import { Button } from "@/shared/boardui/base/buttons/button";
 import { DropdownItem } from "@/shared/boardui/base/dropdown/dropdown";
 import { Modal } from "@/shared/boardui/base/modal/modal";
+import { cx } from "@/shared/boardui/utils/cx";
 
 const BotConfig = lazy(() => import("../../agents/components/BotConfig"));
 const TophGallery = lazy(() => import("../../agents/components/TophGallery"));
 const TophSessionsSheet = lazy(() => import("./TophSessionsSheet"));
 
 export interface TophActionRequest { tophId: string; action: "config" | "sessions" }
-interface Props { project: Project; mobile?: boolean; externalAction?: TophActionRequest | null; onExternalActionHandled?: () => void }
+interface Props { project: Project; mobile?: boolean; embedded?: boolean; compact?: boolean; headerControl?: ReactNode; externalAction?: TophActionRequest | null; onExternalActionHandled?: () => void }
 
-export default function BotStudioTab({ project, mobile = false, externalAction, onExternalActionHandled }: Props) {
+export default function BotStudioTab({ project, mobile = false, embedded = false, compact = false, headerControl, externalAction, onExternalActionHandled }: Props) {
   const stored = useChats((s) => s.byProject[project.id]);
   const chat = activeChat(stored);
   const tophs = useMemo(() => chatTophs(stored, chat?.id), [stored?.tophs, chat?.id]);
@@ -32,14 +34,18 @@ export default function BotStudioTab({ project, mobile = false, externalAction, 
   const models = useAI((s) => s.models);
   const modelError = useAI((s) => s.error);
   const updateToph = useChats((s) => s.updateToph);
+  const createChat = useChats((s) => s.createChat);
+  const setActiveChat = useChats((s) => s.setActiveChat);
   const native = useAgentChat(project.id, chat?.id);
   const [sending, setSending] = useState(false);
   const [gallery, setGallery] = useState(false);
+  const [galleryChatId, setGalleryChatId] = useState<string | null>(null);
   const [configId, setConfigId] = useState<string | null>(null);
   const [sessionsId, setSessionsId] = useState<string | null>(null);
   const [atBottom, setAtBottom] = useState(true);
   const selected = tophs.find((a) => a.id === configId);
   const sessionToph = tophs.find((a) => a.id === sessionsId) ?? null;
+  const currentToph = tophForChat(stored, chat?.id);
   const draftKey = `${project.id}:${chat?.id ?? ""}:native`;
   const text = useTophDrafts((s) => s.drafts[draftKey] ?? "");
   const setDraft = useTophDrafts((s) => s.setDraft);
@@ -53,6 +59,7 @@ export default function BotStudioTab({ project, mobile = false, externalAction, 
   const pendingRequest = useRef<{ text: string; id: string } | null>(null);
   const activeModel = coordinator?.model || config?.model || "";
   const activeModelInfo = models.find((model) => model.id === activeModel);
+  const modelLabel = modelDisplay(activeModelInfo);
   const lastRun = native.runs.find((run) => !run.parentId);
   const lastError = lastRun && ["failed", "interrupted"].includes(lastRun.state) ? lastRun.error : "";
 
@@ -116,27 +123,54 @@ export default function BotStudioTab({ project, mobile = false, externalAction, 
     void native.older();
   }
 
+  function createTophChat() {
+    const created = createChat(project.id, "Toph");
+    setActiveChat(project.id, created.id);
+    setGalleryChatId(created.id);
+    setGallery(true);
+  }
+
+  function openGalleryFor(chatId: string | null) {
+    setGalleryChatId(chatId);
+    setGallery(true);
+  }
+
+  function closeGallery() {
+    setGallery(false);
+    setGalleryChatId(null);
+  }
+
   return <div className="flex h-full min-h-0 w-full flex-1 gap-0 overflow-hidden" onPointerDown={unlockBotSound}>
-    <section className="relative flex min-w-0 flex-1 flex-col overflow-hidden bg-background-full max-[900px]:rounded-none max-[900px]:border-0 max-[900px]:shadow-none min-[901px]:rounded-3xl min-[901px]:border min-[901px]:border-border-button-white min-[901px]:shadow-sidebar">
-      {chat && <div className="flex h-12 shrink-0 items-center gap-2 border-b border-separator-border bg-background-secondary-default px-2.5">
-        <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-background-tertiary-default text-caption-1-semibold text-text-tertiary">#</span>
-        <div className="flex min-w-0 flex-1 flex-col"><strong className="truncate text-caption-1-semibold text-text-primary">{chat.name}</strong><span className="truncate text-caption-2-regular text-text-tertiary">{chat.description || (chat.kind === "team" ? "Equipe de Tophs" : "Conversa individual")}</span></div>
-        <div className="flex shrink-0 items-center -space-x-2">{tophs.slice(0, 4).map((toph) => <button key={toph.id} type="button" aria-label={`Configurar ${toph.name}`} onClick={() => setConfigId(toph.id)} className="rounded-full ring-2 ring-background-secondary-default transition-transform hover:-translate-y-0.5" title={`${toph.name} · ${toph.role}`}><BotAvatar bot={toph} size={28} /></button>)}{tophs.length > 4 && <span className="flex size-7 items-center justify-center rounded-full bg-background-tertiary-default text-[10px] text-text-tertiary">+{tophs.length - 4}</span>}</div>
-        {chat.kind === "team" && <Button variant="ghost" size="small" iconOnly={mobile} leadingIcon={mobile ? Plus : MessageSquarePlus} aria-label="Adicionar Toph" onClick={() => setGallery(true)}>{mobile ? null : "Adicionar Toph"}</Button>}
-      </div>}
+    <section className={cx(
+      "relative flex min-w-0 flex-1 flex-col overflow-hidden bg-background-full",
+      !embedded && "max-[900px]:rounded-none max-[900px]:border-0 max-[900px]:shadow-none min-[901px]:rounded-3xl min-[901px]:border min-[901px]:border-border-button-white min-[901px]:shadow-sidebar",
+    )}>
+      <div className={cx("flex shrink-0 items-center gap-2 border-b border-separator-border bg-background-secondary-default", compact ? "h-10 px-2" : "h-12 px-2.5")}>
+        <TophSwitcher project={project} chat={chat} modelLabel={modelLabel} compact={compact || mobile} onCreateToph={createTophChat} />
+        <span className="min-w-0 flex-1" />
+        {chat?.kind === "team" ? (
+          <>
+            <div className="hidden shrink-0 items-center -space-x-2 sm:flex">{tophs.slice(0, 4).map((toph) => <button key={toph.id} type="button" aria-label={`Configurar ${toph.name}`} onClick={() => setConfigId(toph.id)} className="rounded-full ring-2 ring-background-secondary-default transition-transform hover:-translate-y-0.5" title={`${toph.name} · ${toph.role}`}><BotAvatar bot={toph} size={26} /></button>)}{tophs.length > 4 && <span className="flex size-7 items-center justify-center rounded-full bg-background-tertiary-default text-[10px] text-text-tertiary">+{tophs.length - 4}</span>}</div>
+            <Button variant="ghost" size="small" iconOnly leadingIcon={MessageSquarePlus} aria-label="Adicionar Toph à equipe" title="Adicionar Toph à equipe" onClick={() => openGalleryFor(chat.id)} />
+          </>
+        ) : currentToph ? (
+          <Button variant="ghost" size="small" iconOnly leadingIcon={Settings2} aria-label={`Configurar ${currentToph.name}`} title="Configurar Toph" onClick={() => setConfigId(currentToph.id)} />
+        ) : null}
+        {headerControl}
+      </div>
       <div className="relative flex min-h-0 flex-1 flex-col">
         <div ref={scroller} className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-x-none" onScroll={(event) => {
           const el = event.currentTarget; const movedUp = el.scrollTop < lastTop.current - 1; lastTop.current = el.scrollTop;
           follow.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80 && !movedUp; setAtBottom(follow.current);
         }}>
-          <div key={chat?.id ?? "none"} className="toph-view-in mx-auto flex min-h-full w-full min-w-0 max-w-[760px] flex-col gap-4 overflow-x-hidden p-4 [&_img]:max-w-full [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_table]:block [&_table]:max-w-full [&_table]:overflow-x-auto">
+          <div key={chat?.id ?? "none"} className={cx("toph-view-in mx-auto flex min-h-full w-full min-w-0 max-w-[760px] flex-col gap-4 overflow-x-hidden [&_img]:max-w-full [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_table]:block [&_table]:max-w-full [&_table]:overflow-x-auto", compact ? "p-2.5" : "p-4")}>
             {native.hasMore && <Button variant="ghost" size="small" disabled={native.loading} onClick={older}>{native.loading ? <><LoaderCircle size={14} className="animate-spin" /> Carregando mensagens antigas…</> : "Carregar mensagens anteriores"}</Button>}
             {!native.hasMore && native.messages.length > 0 && <p className="py-1 text-center text-[11px] text-text-tertiary">Início da conversa</p>}
             {!stored?.hydrated ? <div className="my-auto flex items-center justify-center gap-2 py-8 text-caption-1-regular text-text-tertiary"><LoaderCircle size={16} className="animate-spin" /> Carregando chats…</div>
-              : !chat ? <div className="my-auto flex flex-col items-center gap-3 px-6 py-10 text-center"><Bot size={22} /><strong>Escolha Individual ou Equipe.</strong><p className="text-text-secondary">Cada projeto tem suas conversas individuais e sua equipe de Tophs.</p></div>
-              : !tophs.length ? <div className="my-auto flex flex-col items-center gap-3 px-6 py-10 text-center"><span className="flex size-12 items-center justify-center rounded-2xl bg-accent-500/10 text-accent-500"><Bot size={22} /></span><strong className="text-title-3-medium">Adicione o primeiro Toph.</strong><p className="max-w-sm text-caption-1-regular text-text-secondary">Escolha um Toph pronto ou crie um livre com o papel que você precisar.</p><Button variant="secondary" size="small" leadingIcon={MessageSquarePlus} onClick={() => setGallery(true)}>Escolher Toph</Button></div>
+              : !chat ? <div className="my-auto flex flex-col items-center gap-3 px-6 py-10 text-center"><Bot size={22} /><strong>Escolha um Toph.</strong><p className="text-text-secondary">Cada Toph tem a própria conversa.</p><Button variant="secondary" size="small" leadingIcon={Plus} onClick={createTophChat}>Novo Toph</Button></div>
+              : !tophs.length ? <div className="my-auto flex flex-col items-center gap-3 px-6 py-10 text-center"><span className="flex size-12 items-center justify-center rounded-2xl bg-accent-500/10 text-accent-500"><Bot size={22} /></span><strong className="text-title-3-medium">Escolha um Toph.</strong><p className="max-w-sm text-caption-1-regular text-text-secondary">Cada Toph tem a própria conversa. Escolha um pronto ou crie um livre.</p><Button variant="secondary" size="small" leadingIcon={MessageSquarePlus} onClick={() => openGalleryFor(chat.id)}>Escolher Toph</Button></div>
               : !native.messages.length && !busy ? <div className="my-auto flex flex-col items-center gap-3 px-6 py-10 text-center"><div className="flex -space-x-2">{tophs.slice(0, 4).map((toph) => <BotAvatar key={toph.id} bot={toph} size={38} className="rounded-full bg-background-primary-default ring-2 ring-background-primary-default" />)}</div><strong className="text-title-3-medium">O chat está pronto.</strong><p className="max-w-md text-caption-1-regular text-text-secondary">{chat.kind === "team" ? `Fale com ${coordinator?.name ?? "o coordenador"}; ele distribui o trabalho e consolida a resposta.` : `Converse com ${coordinator?.name ?? "seu Toph"}.`}</p></div> : null}
-            <ChatMessages messages={native.messages} tophs={tophs} coordinator={coordinator} runs={native.runs} models={models} defaultModel={config?.model ?? ""} project={project} mobile={mobile} questions={native.questions} onAnswer={(id, answer) => { void agentApi.answer(project.id, id, answer).catch((e) => native.setError(String(e))); }} />
+            <ChatMessages messages={native.messages} tophs={tophs} runs={native.runs} models={models} defaultModel={config?.model ?? ""} project={project} mobile={mobile} compact={compact} questions={native.questions} onAnswer={(id, answer) => { void agentApi.answer(project.id, id, answer).catch((e) => native.setError(String(e))); }} />
             {native.approvals.map((approval) => <section key={approval.id} className="rounded-2xl border border-accent-500/25 bg-accent-500/5 p-3"><strong>{tophs.find((a) => a.id === approval.agentId)?.name ?? "Toph"} · Autorizar {approval.name}?</strong><pre className="my-2 max-h-48 overflow-auto whitespace-pre-wrap text-xs">{approval.arguments}</pre><div className="flex gap-2"><Button size="small" onClick={() => void agentApi.approve(project.id, approval.id, true).catch((e) => native.setError(String(e)))}>Autorizar uma vez</Button><Button size="small" variant="secondary" onClick={() => void agentApi.approve(project.id, approval.id, false).catch((e) => native.setError(String(e)))}>Recusar</Button></div></section>)}
             {native.compacting && <p role="status" className="text-center text-caption-2-regular text-text-tertiary">Compactando contexto; histórico preservado…</p>}
             {(native.error || lastError) && <p role="alert" className="rounded-xl border border-red-500/30 p-3 text-sm text-red-500">{native.error || `Última execução: ${lastError}`}</p>}
@@ -149,11 +183,11 @@ export default function BotStudioTab({ project, mobile = false, externalAction, 
         <AgentComposer value={text} onChange={(value) => setDraft(draftKey, value)} onSend={(value, files) => void send(value, files)} onStop={() => void stop()} busy={busy}
           models={models} model={activeModel} onModelChange={(model) => updateToph(project.id, coordinator.id, { model })}
           effort={coordinator.effort ?? ""} efforts={activeModelInfo?.variants ?? []} onEffortChange={(effort) => updateToph(project.id, coordinator.id, { effort })}
-          placeholder={`Mensagem em #${chat.name}`} history={native.messages.filter((m) => m.role === "user").map((m) => m.content)}
-          modeControls={<><ComposerMenu label="Modo do agente" trigger={<><span>{coordinator.agentMode === "plan" ? "Plano" : "Build"}</span><ChevronDown size={12} className="size-3 text-foreground-icon-tertiary" /></>} popoverClassName="w-[300px] p-0" contentClassName="flex flex-col gap-1 p-1.5">{(close) => <><DropdownItem selected={coordinator.agentMode !== "plan"} onSelect={() => { updateToph(project.id, coordinator.id, { agentMode: "build" }); close(); }}>Build</DropdownItem><DropdownItem selected={coordinator.agentMode === "plan"} onSelect={() => { updateToph(project.id, coordinator.id, { agentMode: "plan" }); close(); }}>Plano</DropdownItem></>}</ComposerMenu><ChatUsageMeter usage={native.usage} chatName={chat.name} tophs={tophs} model={activeModelInfo} /></>} />
+          placeholder={currentToph ? `Mensagem para ${currentToph.name}` : "Mensagem para a equipe"} history={native.messages.filter((m) => m.role === "user").map((m) => m.content)}
+          modeControls={<><ComposerMenu label="Modo do agente" trigger={<><span>{coordinator.agentMode === "plan" ? "Plano" : "Build"}</span><ChevronDown size={12} className="size-3 text-foreground-icon-tertiary" /></>} popoverClassName="w-[300px] p-0" contentClassName="flex flex-col gap-1 p-1.5">{(close) => <><DropdownItem selected={coordinator.agentMode !== "plan"} onSelect={() => { updateToph(project.id, coordinator.id, { agentMode: "build" }); close(); }}>Build</DropdownItem><DropdownItem selected={coordinator.agentMode === "plan"} onSelect={() => { updateToph(project.id, coordinator.id, { agentMode: "plan" }); close(); }}>Plano</DropdownItem></>}</ComposerMenu><ChatUsageMeter usage={native.usage} chatName={currentToph?.name ?? chat.name} tophs={tophs} model={activeModelInfo} /></>} />
       </div>}
     </section>
     <Modal isOpen={Boolean(selected)} onClose={() => setConfigId(null)} title={selected?.name ?? "Toph"} description="Configure identidade, prompt, modelo e ferramentas deste Toph." size="xl" placement={mobile ? "bottom" : "center"} bodyClassName="p-0" swipeToClose={mobile}><Suspense fallback={<p>Carregando…</p>}>{selected && <BotConfig projectId={project.id} projectRoot={project.root} bot={selected} />}</Suspense></Modal>
-    <Suspense fallback={null}>{sessionToph && <TophSessionsSheet open project={project} toph={sessionToph} onClose={() => setSessionsId(null)} onSelect={(session) => void selectSession(session)} onNew={() => { void newSession(sessionToph.id); setSessionsId(null); }} />}{gallery && <TophGallery open projectId={project.id} chatId={chat?.id ?? null} onClose={() => setGallery(false)} onCreated={setConfigId} />}</Suspense>
+    <Suspense fallback={null}>{sessionToph && <TophSessionsSheet open project={project} toph={sessionToph} onClose={() => setSessionsId(null)} onSelect={(session) => void selectSession(session)} onNew={() => { void newSession(sessionToph.id); setSessionsId(null); }} />}{gallery && <TophGallery open projectId={project.id} chatId={galleryChatId} onClose={closeGallery} onCreated={(tophId) => { closeGallery(); setConfigId(tophId); }} />}</Suspense>
   </div>;
 }
