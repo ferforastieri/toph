@@ -88,6 +88,7 @@ records the covered sequence. Original messages remain searchable using FTS5.
 | Resource | Limit |
 | --- | --- |
 | Input context | 128,000 estimated tokens; compact at 96,000 |
+| OpenCode Go gateway | 16,000 estimated tokens; compact at 14,000 (prefill cap) |
 | Recent verbatim window | 32,000 estimated tokens |
 | History summary | 4,000 estimated tokens target; 48,000 input budget |
 | Loop guard | repeated identical tool batches, not a fixed step count |
@@ -110,7 +111,9 @@ working context, incremental summaries, repeated-batch loop detection,
 tool-output artifacts and the 15-minute run timeout. The newest ~32,000 tokens
 stay verbatim; the soft compaction point is 96,000 tokens when the cache is
 cold, while a warm prompt cache can use the full 128,000-token budget before
-compacting. A deterministic ledger preserves exact file paths, commands and
+compacting. The hosted OpenCode Go gateway has a much smaller measured prefill
+capacity, so that connection uses a 16,000-token budget and 14,000-token soft
+compaction point; this is a gateway limit, not the model window. A deterministic ledger preserves exact file paths, commands and
 recent errors across compaction. Pending calls count toward the optional
 configured weekly limit using their estimate. Autocomplete is disabled
 initially and capped at 512 output tokens when enabled. Utility completions also

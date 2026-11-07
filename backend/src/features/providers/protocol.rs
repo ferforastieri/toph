@@ -332,7 +332,7 @@ impl AiService {
         // Go routes and rate-limits by this header. A reused internal Toph id
         // can be permanently throttled by the gateway, so every run gets a
         // fresh `ses_` id instead of the long-lived chat/session id.
-        let provider_session = if gateway {
+        let base_session = if gateway {
             provider_session(session)
         } else {
             session.to_string()
@@ -341,9 +341,18 @@ impl AiService {
         for attempt in 0..3 {
             let mut request = self.client.post(&url).json(&body);
             if gateway {
+                // A 429 is often a capacity decision for the cell that owns
+                // the session. Retry on a fresh routing id so the gateway can
+                // place the request on another cell; the model and connection
+                // stay exactly the same.
+                let attempt_session = if attempt == 0 {
+                    base_session.clone()
+                } else {
+                    format!("{base_session}_r{attempt}")
+                };
                 request = request
                     .bearer_auth(&config.api_key)
-                    .header("x-opencode-session", &provider_session);
+                    .header("x-opencode-session", &attempt_session);
                 if anthropic {
                     request = request.header("anthropic-version", "2023-06-01");
                 }

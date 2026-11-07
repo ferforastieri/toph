@@ -6,6 +6,14 @@ pub const SOFT_BUDGET: usize = 96_000;
 pub const RECENT_BUDGET: usize = 32_000;
 pub const SUMMARY_BUDGET: usize = 4_000;
 pub const SUMMARY_INPUT_BUDGET: usize = 48_000;
+/// The hosted OpenCode Go gateway refuses large prefills long before the
+/// model's 1M window. These limits are measured against the gateway, not the
+/// model, and keep requests inside a cell that can actually serve them.
+pub const GATEWAY_INPUT_BUDGET: usize = 16_000;
+pub const GATEWAY_SOFT_BUDGET: usize = 14_000;
+pub const GATEWAY_RECENT_BUDGET: usize = 8_000;
+pub const GATEWAY_SUMMARY_BUDGET: usize = 2_000;
+pub const GATEWAY_SUMMARY_INPUT_BUDGET: usize = 8_000;
 pub const TOOL_PREVIEW_CHARS: usize = 2_400;
 
 /// Model-independent estimate, not billed usage. The margin covers wire-format

@@ -414,6 +414,26 @@ impl Runtime {
         Box::pin(async move {
             this.inner.repo.state(&ctx.run.id, "running", "").await?;
             this.event(&ctx,"run",json!({"id":ctx.run.id,"chatId":ctx.run.chat_id,"sessionId":ctx.run.session_id,"agentId":ctx.agent.id,"state":"running","error":"","parentId":ctx.run.parent_id,"createdAt":ctx.run.created_at}));
+            let gateway =
+                crate::features::providers::protocol::console_gateway(&config.base_url).is_some();
+            let (input_budget, soft_budget, recent_budget, summary_budget, summary_input_budget) =
+                if gateway {
+                    (
+                        context::GATEWAY_INPUT_BUDGET,
+                        context::GATEWAY_SOFT_BUDGET,
+                        context::GATEWAY_RECENT_BUDGET,
+                        context::GATEWAY_SUMMARY_BUDGET,
+                        context::GATEWAY_SUMMARY_INPUT_BUDGET,
+                    )
+                } else {
+                    (
+                        context::INPUT_BUDGET,
+                        context::SOFT_BUDGET,
+                        context::RECENT_BUDGET,
+                        context::SUMMARY_BUDGET,
+                        context::SUMMARY_INPUT_BUDGET,
+                    )
+                };
             let mut tools = tools::definitions(&ctx.agent, ctx.depth);
             if ctx.roster.len() < 2 {
                 tools.retain(|t| t["function"]["name"] != "delegate");
@@ -515,7 +535,7 @@ impl Runtime {
                 &config.connection_name(),
                 &config.provider,
             );
-            if context::estimate(&json!([system, tools])) > context::INPUT_BUDGET / 2 {
+            if context::estimate(&json!([system, tools])) > input_budget / 2 {
                 return Err(bad_request(
                     "Agent instructions and tool schemas exceed half the context budget",
                 ));
@@ -604,12 +624,22 @@ impl Runtime {
                     return Err(bad_request("Execution cancelled"));
                 }
                 let compact_at = if first_turn || last_turn.elapsed() >= Duration::from_secs(300) {
-                    context::SOFT_BUDGET
+                    soft_budget
                 } else {
-                    context::INPUT_BUDGET
+                    input_budget
                 };
                 let mut messages = this
-                    .build_context(&ctx, &config, &system, &tools, &cancel, compact_at)
+                    .build_context(
+                        &ctx,
+                        &config,
+                        &system,
+                        &tools,
+                        &cancel,
+                        compact_at,
+                        recent_budget,
+                        summary_input_budget,
+                        summary_budget,
+                    )
                     .await?;
                 let estimated = context::estimate(&json!([messages, tools]));
                 this.hydrate_images(&ctx, &mut messages).await?;
@@ -1035,6 +1065,9 @@ impl Runtime {
         tools: &[Value],
         cancel: &CancellationToken,
         compact_at: usize,
+        recent_budget: usize,
+        summary_input_budget: usize,
+        summary_budget: usize,
     ) -> AppResult<Vec<Value>> {
         loop {
             let (through, summary) = self.inner.repo.checkpoint(&ctx.run.session_id).await?;
@@ -1055,13 +1088,13 @@ impl Runtime {
                     "The latest request/tool batch exceeds the context budget",
                 ));
             }
-            let keep = context::recent_boundary(&rows, &ends, context::RECENT_BUDGET)
+            let keep = context::recent_boundary(&rows, &ends, recent_budget)
                 .max(ends[0])
                 .min(rows.len() - 1);
             let mut count = 0;
             for end in ends.iter().copied().filter(|end| *end <= keep) {
                 let data = json!({"previous":summary,"ledger":ledger,"messages":rows[..end].iter().map(|r|json!({"seq":r.seq,"message":context::summary_message(&r.body)})).collect::<Vec<_>>()});
-                if context::estimate(&data) > context::SUMMARY_INPUT_BUDGET {
+                if context::estimate(&data) > summary_input_budget {
                     break;
                 }
                 count = end;
@@ -1104,8 +1137,8 @@ impl Runtime {
                     summary.clone()
                 };
             }
-            if context::estimate(&json!(summary_text)) > context::SUMMARY_BUDGET * 2 {
-                summary_text = context::truncate_text(&summary_text, context::SUMMARY_BUDGET);
+            if context::estimate(&json!(summary_text)) > summary_budget * 2 {
+                summary_text = context::truncate_text(&summary_text, summary_budget);
             }
             let next_ledger = context::ledger(&ledger, &rows[..count]);
             self.inner
