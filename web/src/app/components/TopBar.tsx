@@ -24,6 +24,7 @@ interface Props {
   onCloseProject: (projectId: string) => void;
   onGoHome: () => void;
   onQuickOpen: () => void;
+  onOpenAuxiliary?: (sidebar: Sidebar) => void;
   project?: Project | null;
   onOpenFile?: (path: string, line?: number) => void;
   quickOpenToken?: number;
@@ -49,7 +50,7 @@ function ThemeToggle() {
   );
 }
 
-function WorkspaceOptions({ vertical = false, onQuickOpen }: { vertical?: boolean; onQuickOpen?: () => void }) {
+function WorkspaceOptions({ vertical = false, onQuickOpen, onOpenAuxiliary }: { vertical?: boolean; onQuickOpen?: () => void; onOpenAuxiliary?: (sidebar: Sidebar) => void }) {
   const sidebar = useApp((state) => state.sidebar);
   const setSidebar = useApp((state) => state.setSidebar);
   const toggleTerminal = useApp((state) => state.toggleTerminal);
@@ -73,8 +74,20 @@ function WorkspaceOptions({ vertical = false, onQuickOpen }: { vertical?: boolea
               className={cx(buttonClass, active && "text-accent-500")}
               aria-label={item.label}
               aria-pressed={active}
-              title={item.label}
-              onClick={() => setSidebar(item.id)}
+              title={`${item.label} · botão direito ou Alt+clique abre na área auxiliar`}
+              onClick={(event) => {
+                if (event.altKey && onOpenAuxiliary) {
+                  event.preventDefault();
+                  onOpenAuxiliary(item.id);
+                  return;
+                }
+                setSidebar(item.id);
+              }}
+              onContextMenu={(event) => {
+                if (!onOpenAuxiliary) return;
+                event.preventDefault();
+                onOpenAuxiliary(item.id);
+              }}
             />
           );
         })}
@@ -149,7 +162,7 @@ function ProjectPicker({ open, onClose, onSelect }: { open: boolean; onClose: ()
 }
 
 /** Fixed workspace bar: open projects on the left, actions and Toph on the right. */
-export default function TopBar({ onOpenProject, onCloseProject, onGoHome, project = null, onOpenFile = () => undefined, quickOpenToken = 0, tophControl }: Props) {
+export default function TopBar({ onOpenProject, onCloseProject, onGoHome, project = null, onOpenFile = () => undefined, quickOpenToken = 0, onOpenAuxiliary, tophControl }: Props) {
   const projects = useApp((state) => state.projects);
   const openProjectIds = useApp((state) => state.openProjectIds);
   const activeProjectId = useApp((state) => state.activeProjectId);
@@ -260,7 +273,7 @@ export default function TopBar({ onOpenProject, onCloseProject, onGoHome, projec
         </div>
 
         <div className="flex shrink-0 items-center gap-1">
-          <WorkspaceOptions />
+          <WorkspaceOptions onOpenAuxiliary={onOpenAuxiliary} />
           <span className="h-5 w-px shrink-0 bg-separator-border" aria-hidden="true" />
           <ThemeToggle />
           {tophControl}
@@ -273,7 +286,7 @@ export default function TopBar({ onOpenProject, onCloseProject, onGoHome, projec
 }
 
 /** Vertical project bar used when the header is configured to the left. */
-export function ProjectRail({ onOpenProject, onCloseProject, onGoHome, onQuickOpen, tophControl }: Props) {
+export function ProjectRail({ onOpenProject, onCloseProject, onGoHome, onQuickOpen, onOpenAuxiliary, tophControl }: Props) {
   const projects = useApp((state) => state.projects);
   const openProjectIds = useApp((state) => state.openProjectIds);
   const activeProjectId = useApp((state) => state.activeProjectId);
@@ -358,7 +371,7 @@ export function ProjectRail({ onOpenProject, onCloseProject, onGoHome, onQuickOp
           })}
         </div>
         <span className="h-px w-8 shrink-0 bg-separator-border" aria-hidden="true" />
-        <WorkspaceOptions vertical onQuickOpen={onQuickOpen} />
+        <WorkspaceOptions vertical onQuickOpen={onQuickOpen} onOpenAuxiliary={onOpenAuxiliary} />
         <div className="mt-auto flex flex-col items-center gap-2">
           <ThemeToggle />
           {tophControl}

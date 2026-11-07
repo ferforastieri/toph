@@ -1,7 +1,7 @@
 import { useProjectStream } from "../../features/projects/hooks/useProjectStream";
 import { useLayoutTabs, useWorkspacePersistence } from "../../features/projects/hooks/useWorkspacePersistence";
 import { lazy, Suspense, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { Bot, Bug, ChevronDown, ChevronRight, Database, Files, GitBranch, Globe2, PanelLeftClose, PanelLeftOpen, TerminalSquare, X } from "@toph/icons";
+import { Bot, ChevronDown, ChevronRight, GitBranch, PanelLeftClose, PanelLeftOpen, X } from "@toph/icons";
 import { api, getApiBase, type Project, type SchemaTable, type WebTarget } from "../../shared/api";
 import { basename, expandGitPattern, quoteIdentifier, sanitizeBranchName } from "../../shared/lib";
 import { useApp, MAX_OPEN_PROJECTS, type Sidebar, type Tab } from "../store";
@@ -50,32 +50,26 @@ const TerminalPanel = lazy(() => import("../../features/terminal/components/Term
 const SourceControlPanel = lazy(() => import("../../features/git/components/SourceControlPanel"));
 
 type RightPanel = "files" | "scm" | "db" | "web" | "debug" | "bots";
-const RIGHT_PANEL_STORAGE_KEY = "toph_right_panel";
-const RIGHT_PANEL_OPEN_STORAGE_KEY = "toph_right_panel_open";
-const rightPanelItems: Array<{ id: RightPanel; label: string; icon: typeof Files; feature: WorkspaceFeature | null }> = [
-  { id: "files", label: "Arquivos", icon: Files, feature: "files" },
-  { id: "scm", label: "Source control", icon: GitBranch, feature: "sourceControl" },
-  { id: "db", label: "Bancos de dados", icon: Database, feature: "databases" },
-  { id: "web", label: "Web apps", icon: Globe2, feature: "webApps" },
-  { id: "debug", label: "Debug", icon: Bug, feature: "debug" },
-  { id: "bots", label: "Toph", icon: Bot, feature: null },
-];
+const rightPanelFeatures: Record<RightPanel, WorkspaceFeature | null> = {
+  files: "files",
+  scm: "sourceControl",
+  db: "databases",
+  web: "webApps",
+  debug: "debug",
+  bots: null,
+};
 
-function readRightPanel(): RightPanel {
-  try {
-    const stored = localStorage.getItem(RIGHT_PANEL_STORAGE_KEY);
-    if (stored && rightPanelItems.some((item) => item.id === stored)) return stored as RightPanel;
-  } catch {
-    // Storage is optional.
-  }
-  return "files";
-}
-
-function readRightPanelOpen(): boolean {
-  try {
-    return localStorage.getItem(RIGHT_PANEL_OPEN_STORAGE_KEY) === "1";
-  } catch {
-    return false;
+function rightPanelForSidebar(sidebar: Sidebar): RightPanel | null {
+  switch (sidebar) {
+    case "files":
+    case "scm":
+    case "db":
+    case "web":
+    case "debug":
+    case "bots":
+      return sidebar;
+    default:
+      return null;
   }
 }
 
@@ -147,8 +141,8 @@ export default function Workbench() {
   const [branchCreateOpen, setBranchCreateOpen] = useState(false);
   const [quickOpenToken, setQuickOpenToken] = useState(0);
   const [layoutOpen, setLayoutOpen] = useState(false);
-  const [rightPanel, setRightPanel] = useState<RightPanel>(readRightPanel);
-  const [rightPanelOpen, setRightPanelOpen] = useState(readRightPanelOpen);
+  const [rightPanel, setRightPanel] = useState<RightPanel>("files");
+  const [rightPanelOpen, setRightPanelOpen] = useState(false);
   const tabsVisible = workspaceFeatures.tabs;
   const effectiveSidebarVisible = true;
   const panelAlignment = useSettings((state) => state.panelAlignment);
@@ -185,7 +179,7 @@ export default function Workbench() {
   const visibleBranches = sortedBranches.filter((name) =>
     name.toLowerCase().includes(branchFilter.trim().toLowerCase()),
   );
-  const rightPanelFeature = rightPanelItems.find((item) => item.id === rightPanel)?.feature ?? null;
+  const rightPanelFeature = rightPanelFeatures[rightPanel];
   const rightPanelAvailable = !rightPanelFeature || featureEnabled(workspaceFeatures, rightPanelFeature);
 
   function featureIsEnabled(feature: WorkspaceFeature): boolean {
@@ -198,12 +192,12 @@ export default function Workbench() {
     setSidebar(next);
   }
 
-  function selectRightPanel(panel: RightPanel): void {
-    if (rightPanelOpen && rightPanel === panel) {
-      setRightPanelOpen(false);
-      return;
-    }
-    setRightPanel(panel);
+  function openAuxiliary(panel: Sidebar): void {
+    const target = rightPanelForSidebar(panel);
+    if (!target) return;
+    const feature = rightPanelFeatures[target];
+    if (feature && !featureIsEnabled(feature)) return;
+    setRightPanel(target);
     setRightPanelOpen(true);
   }
 
@@ -244,15 +238,6 @@ export default function Workbench() {
       setRightPanelOpen(false);
     }
   }, [workspaceFeatures, sidebar, terminalOpen, terminalEnabled, rightPanel, rightPanelOpen, rightPanelFeature, setSidebar, setTerminalOpen]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(RIGHT_PANEL_STORAGE_KEY, rightPanel);
-      localStorage.setItem(RIGHT_PANEL_OPEN_STORAGE_KEY, rightPanelOpen ? "1" : "0");
-    } catch {
-      // Storage is optional.
-    }
-  }, [rightPanel, rightPanelOpen]);
 
   useEffect(() => {
     if (!activeProjectId) return;
@@ -1007,6 +992,7 @@ export default function Workbench() {
           onCloseProject={requestCloseProject}
           onGoHome={() => setSidebar("bots")}
           onQuickOpen={() => setQuickOpenToken((current) => current + 1)}
+          onOpenAuxiliary={openAuxiliary}
           project={project}
           onOpenFile={openFile}
           quickOpenToken={quickOpenToken}
@@ -1025,6 +1011,7 @@ export default function Workbench() {
             onCloseProject={requestCloseProject}
             onGoHome={() => setSidebar("bots")}
             onQuickOpen={() => setQuickOpenToken((current) => current + 1)}
+            onOpenAuxiliary={openAuxiliary}
             tophControl={<Suspense fallback={null}><TophSettings user={user} projectRoot={project.root} /></Suspense>}
           />
         ) : null}
@@ -1108,53 +1095,6 @@ export default function Workbench() {
             </div>
           </>
         ) : null}
-
-        <aside
-          className="relative z-40 ms-1 flex w-12 shrink-0 flex-col items-center rounded-3xl border border-border-button-white bg-background-primary-default px-0 py-3 shadow-sidebar"
-          aria-label="Painéis auxiliares"
-        >
-          <div className="flex w-full flex-col items-center gap-1.5">
-            {rightPanelItems
-              .filter((item) => !item.feature || featureIsEnabled(item.feature))
-              .map((item) => {
-                const active = rightPanelOpen && rightPanelAvailable && rightPanel === item.id;
-                return (
-                  <IconButton
-                    key={item.id}
-                    icon={item.icon}
-                    size="medium"
-                    className={cx(
-                      "size-10 rounded-xl border-transparent bg-transparent shadow-none [&_svg]:size-5",
-                      active && "border-accent-500/40 bg-accent-500/10 text-accent-500",
-                    )}
-                    aria-label={item.label}
-                    aria-pressed={active}
-                    title={item.label}
-                    onClick={() => selectRightPanel(item.id)}
-                  />
-                );
-              })}
-          </div>
-          <div className="mt-auto flex w-full flex-col items-center gap-1.5">
-            {terminalEnabled ? (
-              <>
-                <span className="mb-0.5 h-px w-8 shrink-0 bg-separator-border" aria-hidden="true" />
-                <IconButton
-                  icon={TerminalSquare}
-                  size="medium"
-                  className={cx(
-                    "size-10 rounded-xl border-transparent bg-transparent shadow-none [&_svg]:size-5",
-                    terminalOpen && "border-accent-500/40 bg-accent-500/10 text-accent-500",
-                  )}
-                  aria-label={terminalOpen ? "Fechar terminal" : "Abrir terminal"}
-                  aria-pressed={terminalOpen}
-                  title={terminalOpen ? "Fechar terminal" : "Abrir terminal"}
-                  onClick={() => setTerminalOpen(!terminalOpen)}
-                />
-              </>
-            ) : null}
-          </div>
-        </aside>
       </div>
 
       <Modal

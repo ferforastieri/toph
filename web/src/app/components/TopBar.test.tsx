@@ -76,4 +76,23 @@ describe("TopBar", () => {
     expect(useApp.getState().sidebar).toBe("db");
     expect(screen.getByPlaceholderText("Buscar por nome ou conteúdo...")).toBeInTheDocument();
   });
+
+  it("opens a nav item in the auxiliary area without changing the center", () => {
+    useApp.setState({ sidebar: "bots" });
+    const openAuxiliary = vi.fn();
+    render(<TopBar onOpenProject={() => undefined} onCloseProject={() => undefined} onGoHome={() => undefined} onQuickOpen={() => undefined} onOpenAuxiliary={openAuxiliary} />);
+
+    const databases = screen.getByRole("button", { name: "Databases" });
+    fireEvent.contextMenu(databases);
+    expect(openAuxiliary).toHaveBeenCalledWith("db");
+    expect(useApp.getState().sidebar).toBe("bots");
+
+    fireEvent.click(databases, { altKey: true });
+    expect(openAuxiliary).toHaveBeenCalledTimes(2);
+    expect(openAuxiliary).toHaveBeenLastCalledWith("db");
+    expect(useApp.getState().sidebar).toBe("bots");
+
+    fireEvent.click(databases);
+    expect(useApp.getState().sidebar).toBe("db");
+  });
 });
