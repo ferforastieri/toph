@@ -29,7 +29,6 @@ fn config(provider: &str, url: String) -> AiConfig {
         model: "chosen-model".into(),
         autocomplete_model: String::new(),
         max_tokens: 1024,
-        weekly_token_limit: 0,
         temperature: 0.0,
         autocomplete: false,
         system_prompt: String::new(),

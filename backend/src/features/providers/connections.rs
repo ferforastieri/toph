@@ -160,7 +160,6 @@ impl AiService {
                 model: input.model,
                 autocomplete_model: String::new(),
                 max_tokens: 4096,
-                weekly_token_limit: 0,
                 temperature: 0.0,
                 autocomplete: false,
                 system_prompt: String::new(),

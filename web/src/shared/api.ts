@@ -118,7 +118,6 @@ export interface AIConfig {
   model: string;
   autocompleteModel: string;
   maxTokens: number;
-  weeklyTokenLimit: number;
   temperature: number;
   autocomplete: boolean;
   systemPrompt: string;
@@ -135,7 +134,6 @@ export interface AIConfigInput {
   model: string;
   autocompleteModel: string;
   maxTokens: number;
-  weeklyTokenLimit: number;
   temperature: number;
   autocomplete: boolean;
   systemPrompt: string;

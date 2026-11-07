@@ -59,7 +59,7 @@ async fn old_layout_model_ids_migrate_to_their_own_connections_idempotently() {
     let dir = tempfile::tempdir().unwrap();
     let store = Store::open(&dir.path().join("db")).await.unwrap();
     let ai = AiService::new(store, &dir.path().join("key")).unwrap();
-    ai.save(serde_json::from_value(json!({"provider":"custom","baseUrl":"https://opencode.ai/inference/go/openai/v1","apiKey":"fixture","model":"deepseek-v4.1-flash","maxTokens":4096,"weeklyTokenLimit":0,"temperature":0,"autocomplete":false,"systemPrompt":"","imageProviders":[]})).unwrap()).await.unwrap();
+    ai.save(serde_json::from_value(json!({"provider":"custom","baseUrl":"https://opencode.ai/inference/go/openai/v1","apiKey":"fixture","model":"deepseek-v4.1-flash","maxTokens":4096,"temperature":0,"autocomplete":false,"systemPrompt":"","imageProviders":[]})).unwrap()).await.unwrap();
     ai.save_connection(serde_json::from_value(json!({"label":"OpenAI","provider":"openai","baseUrl":"https://api.openai.com/v1","apiKey":"fixture"})).unwrap()).await.unwrap();
     let connection = ai.connections().await.unwrap().remove(0);
     let mut layout = json!({"chats":{"tophs":[

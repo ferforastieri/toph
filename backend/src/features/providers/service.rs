@@ -33,8 +33,6 @@ pub struct AiConfig {
     pub autocomplete_model: String,
     #[serde(rename = "maxTokens")]
     pub max_tokens: i32,
-    #[serde(rename = "weeklyTokenLimit", default = "default_weekly_token_limit")]
-    pub weekly_token_limit: i64,
     pub temperature: f64,
     pub autocomplete: bool,
     #[serde(rename = "systemPrompt")]
@@ -109,7 +107,6 @@ pub struct PublicConfig {
     pub model: String,
     pub autocomplete_model: String,
     pub max_tokens: i32,
-    pub weekly_token_limit: i64,
     pub temperature: f64,
     pub autocomplete: bool,
     pub system_prompt: String,
@@ -130,8 +127,6 @@ pub struct AiConfigInput {
     #[serde(default)]
     pub autocomplete_model: String,
     pub max_tokens: i32,
-    #[serde(default = "default_weekly_token_limit")]
-    pub weekly_token_limit: i64,
     pub temperature: f64,
     pub autocomplete: bool,
     pub system_prompt: String,
@@ -208,7 +203,6 @@ impl AiService {
                     model: String::new(),
                     autocomplete_model: String::new(),
                     max_tokens: 4096,
-                    weekly_token_limit: default_weekly_token_limit(),
                     temperature: 0.0,
                     autocomplete: false,
                     system_prompt: String::new(),
@@ -244,7 +238,6 @@ impl AiService {
             model: config.model,
             autocomplete_model: config.autocomplete_model,
             max_tokens: config.max_tokens,
-            weekly_token_limit: config.weekly_token_limit,
             temperature: config.temperature,
             autocomplete: config.autocomplete,
             system_prompt: config.system_prompt,
@@ -357,7 +350,6 @@ impl AiService {
             model: input.model.trim().to_string(),
             autocomplete_model: input.autocomplete_model.trim().to_string(),
             max_tokens,
-            weekly_token_limit: input.weekly_token_limit.max(0),
             temperature,
             autocomplete: input.autocomplete,
             system_prompt: input.system_prompt,
@@ -1011,7 +1003,6 @@ impl AiConfig {
         if self.max_tokens <= 0 {
             self.max_tokens = 1024;
         }
-        self.weekly_token_limit = self.weekly_token_limit.clamp(0, 1_000_000_000);
         self.temperature = self.temperature.clamp(0.0, 2.0);
     }
 }
@@ -1043,10 +1034,6 @@ pub fn infer_connection_name(label: &str, provider: &str, base_url: &str) -> Str
         "ollama" => "Ollama".into(),
         _ => host.unwrap_or_else(|| "Conexão personalizada".into()),
     }
-}
-
-fn default_weekly_token_limit() -> i64 {
-    0
 }
 
 fn auth_headers(key: &str) -> Vec<(&'static str, String)> {
