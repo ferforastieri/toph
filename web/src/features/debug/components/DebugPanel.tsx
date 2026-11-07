@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   ArrowDownToLine,
   ArrowUpFromLine,
@@ -38,6 +38,7 @@ import { languageFor } from "../../../shared/lib";
 interface Props {
   project: Project;
   mobile?: boolean;
+  headerControl?: ReactNode;
 }
 
 interface CdpFrame {
@@ -168,7 +169,7 @@ class CdpClient {
   }
 }
 
-export default function DebugPanel({ project, mobile = false }: Props) {
+export default function DebugPanel({ project, mobile = false, headerControl }: Props) {
   const notify = useApp((state) => state.notify);
   const config = useDebug((state) => state.byProject[project.id]);
   const loadConfig = useDebug((state) => state.load);
@@ -1033,6 +1034,7 @@ export default function DebugPanel({ project, mobile = false }: Props) {
   return (
     <div className={cx("flex h-full min-h-0 flex-col bg-background-primary-default", mobile && "pb-1")}>
       <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-separator-border p-2">
+        {headerControl}
         <span className="flex items-center gap-1.5 text-body-2-medium text-text-primary"><span className="flex size-7 items-center justify-center rounded-xl bg-accent-500/10 text-accent-500"><Bug className="size-4" /></span> Debug</span>
         <Select
           size="sm"

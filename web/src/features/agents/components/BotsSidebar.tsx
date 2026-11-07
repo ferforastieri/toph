@@ -14,13 +14,14 @@ import { cx } from "@/shared/boardui/utils/cx";
 interface Props {
   project: Project;
   headerControl?: ReactNode;
+  onSelectChat?: () => void;
 }
 
 function fireTophAction(action: "config" | "sessions", tophId: string) {
   window.dispatchEvent(new CustomEvent("toph:toph-action", { detail: { action, tophId } }));
 }
 
-export default function BotsSidebar({ project, headerControl }: Props) {
+export default function BotsSidebar({ project, headerControl, onSelectChat }: Props) {
   const chats = useChats((state) => state.byProject[project.id]);
   const ensure = useChats((state) => state.ensure);
   const setActiveChat = useChats((state) => state.setActiveChat);
@@ -58,11 +59,17 @@ export default function BotsSidebar({ project, headerControl }: Props) {
     setActiveChat(project.id, created.id);
     setGalleryChatId(created.id);
     setGalleryOpen(true);
+    onSelectChat?.();
   }
 
   function openGallery() {
     setGalleryChatId(chat?.id ?? null);
     setGalleryOpen(true);
+  }
+
+  function openChat(id: string) {
+    setActiveChat(project.id, id);
+    onSelectChat?.();
   }
 
   function renameChat(id: string, current: string) {
@@ -108,7 +115,7 @@ export default function BotsSidebar({ project, headerControl }: Props) {
                 const selected = chat?.id === item.id;
                 return (
                   <div key={item.id} className={cx("group flex w-full items-center rounded-xl pe-1 transition-colors", selected ? "bg-background-tertiary-default" : "hover:bg-background-primary-hover")}>
-                    <button type="button" onClick={() => setActiveChat(project.id, item.id)} className="flex min-w-0 flex-1 items-center gap-2.5 px-2 py-2 text-start">
+                    <button type="button" onClick={() => openChat(item.id)} className="flex min-w-0 flex-1 items-center gap-2.5 px-2 py-2 text-start">
                       <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-background-secondary-default text-text-tertiary"><UserRound size={14} /></span>
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-caption-1-medium text-text-primary">{item.name}</span>
@@ -136,7 +143,7 @@ export default function BotsSidebar({ project, headerControl }: Props) {
                 </div>
                 <div className="mb-4 flex flex-col gap-0.5">
                   <div className={cx("flex w-full items-center rounded-xl pe-1 transition-colors", chat?.id === team.id ? "bg-background-tertiary-default" : "hover:bg-background-primary-hover")}>
-                    <button type="button" onClick={() => setActiveChat(project.id, team.id)} className="flex min-w-0 flex-1 items-center gap-2.5 px-2 py-2 text-start">
+                    <button type="button" onClick={() => openChat(team.id)} className="flex min-w-0 flex-1 items-center gap-2.5 px-2 py-2 text-start">
                       <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-background-secondary-default text-text-tertiary"><Bot size={14} /></span>
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-caption-1-medium text-text-primary">{team.name}</span>

@@ -1,7 +1,7 @@
 import { useProjectStream } from "../../features/projects/hooks/useProjectStream";
 import { useLayoutTabs, useWorkspacePersistence } from "../../features/projects/hooks/useWorkspacePersistence";
 import { lazy, Suspense, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { Bot, ChevronDown, ChevronRight, GitBranch, PanelLeftClose, PanelLeftOpen } from "@toph/icons";
+import { Bot, Bug, ChevronDown, ChevronRight, Database, Files, GitBranch, Globe2, PanelLeftClose, PanelLeftOpen, TerminalSquare, X } from "@toph/icons";
 import { api, getApiBase, type Project, type SchemaTable, type WebTarget } from "../../shared/api";
 import { basename, expandGitPattern, quoteIdentifier, sanitizeBranchName } from "../../shared/lib";
 import { useApp, MAX_OPEN_PROJECTS, type Sidebar, type Tab } from "../store";
@@ -48,6 +48,36 @@ const WebPanelTab = lazy(() => import("../../features/previews/components/WebPan
 const DiffPanelTab = lazy(() => import("../../features/editor/components/DiffPanelTab"));
 const TerminalPanel = lazy(() => import("../../features/terminal/components/TerminalPanel"));
 const SourceControlPanel = lazy(() => import("../../features/git/components/SourceControlPanel"));
+
+type RightPanel = "files" | "scm" | "db" | "web" | "debug" | "bots";
+const RIGHT_PANEL_STORAGE_KEY = "toph_right_panel";
+const RIGHT_PANEL_OPEN_STORAGE_KEY = "toph_right_panel_open";
+const rightPanelItems: Array<{ id: RightPanel; label: string; icon: typeof Files; feature: WorkspaceFeature | null }> = [
+  { id: "files", label: "Arquivos", icon: Files, feature: "files" },
+  { id: "scm", label: "Source control", icon: GitBranch, feature: "sourceControl" },
+  { id: "db", label: "Bancos de dados", icon: Database, feature: "databases" },
+  { id: "web", label: "Web apps", icon: Globe2, feature: "webApps" },
+  { id: "debug", label: "Debug", icon: Bug, feature: "debug" },
+  { id: "bots", label: "Toph", icon: Bot, feature: null },
+];
+
+function readRightPanel(): RightPanel {
+  try {
+    const stored = localStorage.getItem(RIGHT_PANEL_STORAGE_KEY);
+    if (stored && rightPanelItems.some((item) => item.id === stored)) return stored as RightPanel;
+  } catch {
+    // Storage is optional.
+  }
+  return "files";
+}
+
+function readRightPanelOpen(): boolean {
+  try {
+    return localStorage.getItem(RIGHT_PANEL_OPEN_STORAGE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
 
 function tabFeature(tab: Tab): WorkspaceFeature | null {
   switch (tab.kind) {
@@ -104,6 +134,7 @@ export default function Workbench() {
   const branchPattern = useSettings((state) => state.gitBranchPattern);
   const aiConfig = useAI((state) => state.config);
   const sidebarWidth = useSettings((state) => state.sidebarWidth);
+  const rightPanelWidth = useSettings((state) => state.aiPanelWidth);
   const updateSettings = useSettings((state) => state.update);
   const workspaceFeatures = useSettings((state) => state.workspaceFeatures);
   const confirm = useConfirm();
@@ -116,6 +147,8 @@ export default function Workbench() {
   const [branchCreateOpen, setBranchCreateOpen] = useState(false);
   const [quickOpenToken, setQuickOpenToken] = useState(0);
   const [layoutOpen, setLayoutOpen] = useState(false);
+  const [rightPanel, setRightPanel] = useState<RightPanel>(readRightPanel);
+  const [rightPanelOpen, setRightPanelOpen] = useState(readRightPanelOpen);
   const tabsVisible = workspaceFeatures.tabs;
   const effectiveSidebarVisible = true;
   const panelAlignment = useSettings((state) => state.panelAlignment);
@@ -152,6 +185,8 @@ export default function Workbench() {
   const visibleBranches = sortedBranches.filter((name) =>
     name.toLowerCase().includes(branchFilter.trim().toLowerCase()),
   );
+  const rightPanelFeature = rightPanelItems.find((item) => item.id === rightPanel)?.feature ?? null;
+  const rightPanelAvailable = !rightPanelFeature || featureEnabled(workspaceFeatures, rightPanelFeature);
 
   function featureIsEnabled(feature: WorkspaceFeature): boolean {
     return featureEnabled(workspaceFeatures, feature);
@@ -161,6 +196,15 @@ export default function Workbench() {
     const feature = sidebarFeature(next);
     if (feature && !featureIsEnabled(feature)) return;
     setSidebar(next);
+  }
+
+  function selectRightPanel(panel: RightPanel): void {
+    if (rightPanelOpen && rightPanel === panel) {
+      setRightPanelOpen(false);
+      return;
+    }
+    setRightPanel(panel);
+    setRightPanelOpen(true);
   }
 
   function setWorkspaceFeature(feature: WorkspaceFeature, enabled: boolean): void {
@@ -196,7 +240,19 @@ export default function Workbench() {
     if (!terminalEnabled && terminalOpen) {
       setTerminalOpen(false);
     }
-  }, [workspaceFeatures, sidebar, terminalOpen, terminalEnabled, setSidebar, setTerminalOpen]);
+    if (rightPanelOpen && rightPanelFeature && !featureEnabled(workspaceFeatures, rightPanelFeature)) {
+      setRightPanelOpen(false);
+    }
+  }, [workspaceFeatures, sidebar, terminalOpen, terminalEnabled, rightPanel, rightPanelOpen, rightPanelFeature, setSidebar, setTerminalOpen]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(RIGHT_PANEL_STORAGE_KEY, rightPanel);
+      localStorage.setItem(RIGHT_PANEL_OPEN_STORAGE_KEY, rightPanelOpen ? "1" : "0");
+    } catch {
+      // Storage is optional.
+    }
+  }, [rightPanel, rightPanelOpen]);
 
   useEffect(() => {
     if (!activeProjectId) return;
@@ -892,6 +948,40 @@ export default function Workbench() {
     </>
   );
 
+  const rightPanelControl = (
+    <IconButton
+      icon={X}
+      size="xs"
+      className="border-transparent bg-transparent shadow-none"
+      aria-label="Fechar painel direito"
+      title="Fechar painel direito"
+      onClick={() => setRightPanelOpen(false)}
+    />
+  );
+
+  const rightPanelContent = project ? (
+    <Suspense fallback={null}>
+      {rightPanel === "files" && featureIsEnabled("files") && (
+        <ExplorerPanel project={project} headerControl={rightPanelControl} onOpenFile={openFile} onStatusChange={setGitStatus} />
+      )}
+      {rightPanel === "scm" && featureIsEnabled("sourceControl") && (
+        <SourceControlPanel project={project} view="scm" headerControl={rightPanelControl} onOpenDiff={openDiff} onStatusChange={setGitStatus} />
+      )}
+      {rightPanel === "db" && featureIsEnabled("databases") && (
+        <DatabasesPanel project={project} headerControl={rightPanelControl} onOpenQuery={openQuery} onOpenTable={openTable} />
+      )}
+      {rightPanel === "web" && featureIsEnabled("webApps") && (
+        <WebSidebar headerControl={rightPanelControl} onOpenWeb={openWeb} />
+      )}
+      {rightPanel === "debug" && featureIsEnabled("debug") && (
+        <DebugPanel project={project} headerControl={rightPanelControl} />
+      )}
+      {rightPanel === "bots" && (
+        <BotsSidebar project={project} headerControl={rightPanelControl} onSelectChat={() => selectSidebar("bots")} />
+      )}
+    </Suspense>
+  ) : null;
+
   const primarySidebar = (
     <Suspense fallback={null}>
       <div className="relative z-40 flex min-h-0 shrink-0 overflow-visible rounded-3xl border border-border-button-white bg-background-primary-default shadow-sidebar">
@@ -940,6 +1030,17 @@ export default function Workbench() {
         ) : null}
         {primarySidebar}
         {primaryResize}
+        {projectBar === "left" && projectRailCollapsed ? (
+          <div className="flex w-8 shrink-0 flex-col items-center pt-1">
+            <IconButton
+              icon={PanelLeftOpen}
+              size="small"
+              aria-label="Mostrar barra de projetos"
+              title="Mostrar barra de projetos"
+              onClick={() => setProjectRailCollapsed(false)}
+            />
+          </div>
+        ) : null}
 
         <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-1 overflow-hidden">
           <main className={cx(
@@ -977,7 +1078,7 @@ export default function Workbench() {
             )}
           </main>
 
-          {project && sidebar !== "bots" && featureIsEnabled("terminal") && terminalOpen ? (
+          {project && terminalEnabled && terminalOpen ? (
             <Suspense fallback={null}>
               <div className="flex w-full min-w-0 shrink-0 overflow-hidden">
                 <TerminalPanel key={project.id} project={project} onOpenFile={openFile} />
@@ -986,17 +1087,74 @@ export default function Workbench() {
           ) : null}
         </div>
 
-        {projectBar === "left" && projectRailCollapsed ? (
-          <div className="flex w-8 shrink-0 flex-col items-center pt-1">
-            <IconButton
-              icon={PanelLeftOpen}
-              size="small"
-              aria-label="Mostrar barra de projetos"
-              title="Mostrar barra de projetos"
-              onClick={() => setProjectRailCollapsed(false)}
+        {project && rightPanelOpen && rightPanelAvailable ? (
+          <>
+            <ResizeHandle
+              className="right-panel-resize"
+              orientation="vertical"
+              value={rightPanelWidth}
+              min={300}
+              max={620}
+              invert
+              label="Redimensionar painel direito"
+              onChange={(width) => document.documentElement.style.setProperty("--ai-panel-width", `${width}px`)}
+              onCommit={(width) => updateSettings({ aiPanelWidth: width })}
             />
-          </div>
+            <div
+              className="relative z-40 flex min-h-0 w-[var(--ai-panel-width)] shrink-0 flex-col overflow-hidden rounded-3xl border border-border-button-white bg-background-primary-default shadow-sidebar [&>*]:min-h-0 [&>*]:flex-1"
+              aria-label="Painel auxiliar"
+            >
+              {rightPanelContent}
+            </div>
+          </>
         ) : null}
+
+        <aside
+          className="relative z-40 ms-1 flex w-12 shrink-0 flex-col items-center rounded-3xl border border-border-button-white bg-background-primary-default px-0 py-3 shadow-sidebar"
+          aria-label="Painéis auxiliares"
+        >
+          <div className="flex w-full flex-col items-center gap-1.5">
+            {rightPanelItems
+              .filter((item) => !item.feature || featureIsEnabled(item.feature))
+              .map((item) => {
+                const active = rightPanelOpen && rightPanelAvailable && rightPanel === item.id;
+                return (
+                  <IconButton
+                    key={item.id}
+                    icon={item.icon}
+                    size="medium"
+                    className={cx(
+                      "size-10 rounded-xl border-transparent bg-transparent shadow-none [&_svg]:size-5",
+                      active && "border-accent-500/40 bg-accent-500/10 text-accent-500",
+                    )}
+                    aria-label={item.label}
+                    aria-pressed={active}
+                    title={item.label}
+                    onClick={() => selectRightPanel(item.id)}
+                  />
+                );
+              })}
+          </div>
+          <div className="mt-auto flex w-full flex-col items-center gap-1.5">
+            {terminalEnabled ? (
+              <>
+                <span className="mb-0.5 h-px w-8 shrink-0 bg-separator-border" aria-hidden="true" />
+                <IconButton
+                  icon={TerminalSquare}
+                  size="medium"
+                  className={cx(
+                    "size-10 rounded-xl border-transparent bg-transparent shadow-none [&_svg]:size-5",
+                    terminalOpen && "border-accent-500/40 bg-accent-500/10 text-accent-500",
+                  )}
+                  aria-label={terminalOpen ? "Fechar terminal" : "Abrir terminal"}
+                  aria-pressed={terminalOpen}
+                  title={terminalOpen ? "Fechar terminal" : "Abrir terminal"}
+                  onClick={() => setTerminalOpen(!terminalOpen)}
+                />
+              </>
+            ) : null}
+          </div>
+        </aside>
       </div>
 
       <Modal
