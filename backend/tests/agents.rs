@@ -668,3 +668,30 @@ async fn empty_reasoning_only_answer_retries_with_more_output() {
         requests[1]["max_tokens"].as_i64().unwrap() > requests[0]["max_tokens"].as_i64().unwrap()
     );
 }
+
+#[tokio::test]
+async fn repeated_reads_without_edits_are_nudged_to_start_editing() {
+    let fixture = Fixture::new(vec![
+        Reply::Tool("read_file", json!({"path":"input.txt","offset":1})),
+        Reply::Tool("read_file", json!({"path":"input.txt","offset":2})),
+        Reply::Answer("Implementação iniciada."),
+    ])
+    .await;
+    let run = fixture
+        .start("nudge", vec![Fixture::agent("toph", "yolo")], "Implemente")
+        .await;
+    fixture.wait(run["id"].as_str().unwrap(), "completed").await;
+    let requests = fixture.mock.requests.lock().unwrap();
+    assert!(requests.iter().any(|request| {
+        request["messages"]
+            .as_array()
+            .map(|messages| {
+                messages.iter().any(|message| {
+                    message["content"]
+                        .as_str()
+                        .is_some_and(|content| content.contains("pare de investigar e implemente"))
+                })
+            })
+            .unwrap_or(false)
+    }));
+}

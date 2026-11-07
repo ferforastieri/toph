@@ -619,6 +619,10 @@ impl Runtime {
             let mut repeated_batches = 0usize;
             let mut first_turn = true;
             let mut last_turn = Instant::now();
+            let mut read_paths: std::collections::HashSet<String> =
+                std::collections::HashSet::new();
+            let mut nudged_for_repeat = false;
+            let mut pending_nudge = false;
             loop {
                 if cancel.is_cancelled() {
                     return Err(bad_request("Execution cancelled"));
@@ -641,6 +645,13 @@ impl Runtime {
                         summary_budget,
                     )
                     .await?;
+                if pending_nudge {
+                    messages.insert(
+                        1,
+                        json!({"role":"system","content":"Você já releu informação que já tinha sem editar nada. O plano está no ledger: pare de investigar e implemente agora usando write_file/edit_file. Só releia algo se houver uma mudança concreta."}),
+                    );
+                    pending_nudge = false;
+                }
                 let estimated = context::estimate(&json!([messages, tools]));
                 this.hydrate_images(&ctx, &mut messages).await?;
                 let mid = format!("{}-{step}", ctx.run.id);
@@ -772,6 +783,28 @@ impl Runtime {
                     }
                     return Ok(turn.text);
                 }
+                if turn.calls.iter().any(|call| {
+                    matches!(
+                        call.name.as_str(),
+                        "write_file" | "edit_file" | "generate_image"
+                    )
+                }) {
+                    read_paths.clear();
+                    nudged_for_repeat = false;
+                } else {
+                    let mut repeated_read = false;
+                    for call in &turn.calls {
+                        if let Some(signature) = Self::read_signature(&call.name, &call.arguments) {
+                            if !read_paths.insert(signature) {
+                                repeated_read = true;
+                            }
+                        }
+                    }
+                    if repeated_read && !nudged_for_repeat {
+                        pending_nudge = true;
+                        nudged_for_repeat = true;
+                    }
+                }
                 for call in turn.calls {
                     if cancel.is_cancelled() {
                         return Err(bad_request("Execution cancelled"));
@@ -858,6 +891,28 @@ impl Runtime {
                 step += 1;
             }
         })
+    }
+
+    fn read_signature(name: &str, raw: &str) -> Option<String> {
+        let value: Value = serde_json::from_str(raw).ok()?;
+        match name {
+            "read_file" => value["path"]
+                .as_str()
+                .map(|path| format!("read_file:{path}")),
+            "read_skill" => value["id"].as_str().map(|id| format!("read_skill:{id}")),
+            "list_files" => value["query"]
+                .as_str()
+                .map(|query| format!("list_files:{query}")),
+            "search" | "grep" => {
+                let path = value["path"].as_str().unwrap_or("");
+                let query = value["query"].as_str().unwrap_or("");
+                Some(format!("{name}:{path}:{query}"))
+            }
+            "shell" => value["command"]
+                .as_str()
+                .map(|command| format!("shell:{command}")),
+            _ => None,
+        }
     }
 
     async fn permission(
