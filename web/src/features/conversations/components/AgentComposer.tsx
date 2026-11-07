@@ -12,6 +12,20 @@ import { useAudioRecorder, type AgentAttachment } from "../../../shared/ui/useAu
 
 export type { AgentAttachment } from "../../../shared/ui/useAudioRecorder";
 
+const EFFORT_LABELS: Record<string, string> = {
+  minimal: "Mínimo",
+  low: "Baixo",
+  medium: "Médio",
+  high: "Alto",
+  max: "Max",
+  xhigh: "Máximo",
+  none: "Nenhum",
+};
+
+function effortLabel(value: string): string {
+  return value ? EFFORT_LABELS[value] ?? value : "Padrão";
+}
+
 interface Props {
   value: string;
   onChange: (value: string) => void;
@@ -206,6 +220,24 @@ export function AgentComposer({ value, onChange, onSend, onStop, busy, models, m
             <div className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
               {models && model !== undefined && onModelChange ? (
                 <ModelPicker models={models} model={model} onModelChange={onModelChange} effort={effort ?? ""} efforts={efforts ?? []} onEffortChange={onEffortChange} />
+              ) : null}
+              {efforts && efforts.length > 0 && onEffortChange ? (
+                <ComposerMenu
+                  label="Esforço do modelo"
+                  trigger={<><span className="truncate">Esforço · {effortLabel(effort ?? "")}</span><ChevronDown size={12} className="size-3 shrink-0 text-foreground-icon-tertiary" /></>}
+                  triggerClassName="max-w-[170px]"
+                  popoverClassName="w-[220px] p-0"
+                  contentClassName="flex flex-col gap-1 p-1.5"
+                >
+                  {(close) => (
+                    <>
+                      <DropdownItem selected={!effort} onSelect={() => { onEffortChange(""); close(); }}>Padrão</DropdownItem>
+                      {efforts.map((value) => (
+                        <DropdownItem key={value} selected={effort === value} onSelect={() => { onEffortChange(value); close(); }}>{effortLabel(value)}</DropdownItem>
+                      ))}
+                    </>
+                  )}
+                </ComposerMenu>
               ) : null}
               {modeControls && <div className="flex shrink-0 items-center gap-0.5">{modeControls}</div>}
             </div>

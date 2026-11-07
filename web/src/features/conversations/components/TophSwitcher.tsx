@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Bot, ChevronDown, Plus } from "@toph/icons";
+import { ChevronDown, Plus } from "@toph/icons";
+import BrandMark from "@toph/brand";
 import type { Project } from "../../../shared/api";
 import {
   individualTophs,
@@ -48,20 +49,21 @@ export default function TophSwitcher({ project, chat, modelLabel = "", compact =
     <Dropdown isOpen={open} onOpenChange={setOpen}>
       <DropdownTrigger
         className={cx(
-          "flex min-w-0 max-w-full items-center gap-2 rounded-xl px-1.5 text-start text-text-primary hover:bg-background-primary-hover",
+          "flex min-w-0 max-w-[min(420px,70vw)] items-center gap-2 rounded-xl px-1.5 text-start text-text-primary hover:bg-background-primary-hover",
           compact ? "py-1" : "py-1.5",
+          !compact && "sm:min-w-[240px]",
         )}
         aria-label={`Trocar Toph. Atual: ${title}`}
       >
         {isTeam ? (
           <span className={cx("flex shrink-0 items-center justify-center rounded-full bg-accent-500/12 text-accent-500", compact ? "size-7" : "size-8")}>
-            <Bot className={compact ? "size-4" : "size-5"} />
+            <BrandMark size="small" className={compact ? "size-4" : "size-5"} />
           </span>
         ) : current ? (
           <BotAvatar bot={current} size={compact ? 28 : 32} />
         ) : (
           <span className={cx("flex shrink-0 items-center justify-center rounded-full bg-background-tertiary-default text-text-tertiary", compact ? "size-7" : "size-8")}>
-            <Bot className={compact ? "size-4" : "size-5"} />
+            <BrandMark size="small" className={compact ? "size-4" : "size-5"} />
           </span>
         )}
         <span className="flex min-w-0 flex-col">
@@ -91,7 +93,7 @@ export default function TophSwitcher({ project, chat, modelLabel = "", compact =
             onSelect={() => select(team.id)}
             className="gap-2.5"
           >
-            <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-accent-500/12 text-accent-500"><Bot className="size-4" /></span>
+            <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-accent-500/12 text-accent-500"><BrandMark size="small" className="size-4" /></span>
             <span className="flex min-w-0 flex-1 flex-col">
               <span className="truncate text-caption-1-semibold text-text-primary">{team.name || "Equipe"}</span>
               <span className="truncate text-caption-2-regular text-text-tertiary">Conversa compartilhada</span>

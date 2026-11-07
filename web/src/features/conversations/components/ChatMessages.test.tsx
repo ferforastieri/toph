@@ -34,7 +34,7 @@ const toph: ChatToph = {
 afterEach(cleanup);
 
 describe("ChatMessages timeline", () => {
-  it("renders messages and tool steps in seq order instead of grouped under a thinking card", () => {
+  it("renders messages and activity in seq order without tool cards", () => {
     const messages: NativeMessage[] = [
       { id: "third", chatId: "chat", tophId: "toph", role: "assistant", content: "terceira resposta", status: "complete", createdAt: 3, seq: 30 },
       { id: "first", chatId: "chat", tophId: "toph", role: "assistant", content: "primeira resposta", status: "complete", createdAt: 1, seq: 10 },
@@ -54,10 +54,31 @@ describe("ChatMessages timeline", () => {
     );
 
     const first = screen.getByText("primeira resposta");
-    const read = screen.getByText("Read");
+    const read = screen.getByText("leu `src/a.ts`");
     const third = screen.getByText("terceira resposta");
     expect(first.compareDocumentPosition(read) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(read.compareDocumentPosition(third) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(screen.getByText("Beto")).toBeInTheDocument();
+    expect(screen.getAllByText("Beto").length).toBeGreaterThan(0);
+  });
+
+  it("never shows a raw shell command", () => {
+    const messages: NativeMessage[] = [
+      { id: "shell", chatId: "chat", tophId: "toph", role: "tool", title: "shell", content: JSON.stringify({ command: "rm -rf /" }), status: "complete", createdAt: 1, seq: 10 },
+    ];
+
+    render(
+      <ChatMessages
+        messages={messages}
+        tophs={[toph]}
+        runs={[]}
+        models={[]}
+        defaultModel=""
+        project={project}
+        mobile={false}
+      />,
+    );
+
+    expect(screen.getByText("executou um comando no projeto")).toBeInTheDocument();
+    expect(screen.queryByText(/rm -rf/)).not.toBeInTheDocument();
   });
 });

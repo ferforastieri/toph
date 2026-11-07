@@ -14,7 +14,7 @@ export interface AgentQuestionPrompt {
   id: string; runId: string; agentId: string; name: string; arguments: string;
   questions: AgentQuestion[];
 }
-export interface NativeMessage extends ChatMessage { seq?: number; model?: string; agentMode?: "build" | "plan" }
+export interface NativeMessage extends ChatMessage { seq?: number; model?: string; agentMode?: "build" | "plan"; activity?: string; phase?: string }
 export interface AgentSnapshot { messages: NativeMessage[]; drafts: NativeMessage[]; runs: AgentRun[]; approvals: Approval[]; questions: AgentQuestionPrompt[]; hasMore: boolean; cursor: number | null }
 export interface TophUsage { agentId: string; inputTokens: number; outputTokens: number; cachedTokens: number; calls: number }
 export interface AgentUsage { inputTokens: number; outputTokens: number; cachedTokens: number; calls: number; byAgent?: TophUsage[]; contextTokens?: number; contextBudget?: number; contextAgentId?: string | null }

@@ -43,7 +43,7 @@ describe("Toph chat controls", () => {
     render(<BotStudioTab project={project} mobile={mobile} />);
     expect(screen.getByRole("button", { name: "Modelo e esforço" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Modo do agente" })).toHaveTextContent("Build");
-    expect(screen.getByRole("button", { name: "Uso da IA" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Consumo do modelo" })).toBeVisible();
     expect(screen.queryByText("Harness Toph · execução no servidor")).not.toBeInTheDocument();
   });
 
@@ -97,8 +97,8 @@ describe("Toph chat controls", () => {
 
   it("shows chat totals and the breakdown for individual Tophs", async () => {
     render(<BotStudioTab project={project} />);
-    fireEvent.click(screen.getByRole("button", { name: "Uso da IA" }));
-    const dialog = await screen.findByRole("dialog", { name: "Uso da IA" });
+    fireEvent.click(screen.getByRole("button", { name: "Consumo do modelo" }));
+    const dialog = await screen.findByRole("dialog", { name: "Consumo do modelo" });
     expect(within(dialog).getByText("Por Toph")).toBeVisible();
     expect(within(dialog).getByText("Fernando · coordenador")).toBeVisible();
     expect(within(dialog).getByText("Beto")).toBeVisible();

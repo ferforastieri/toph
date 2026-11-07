@@ -456,7 +456,7 @@ export const TranscriptMessage = memo(function TranscriptMessage({ message, show
   );
   if (bubble) {
     return (
-      <div data-transcript-bubble className="w-fit min-w-0 max-w-full overflow-hidden rounded-2xl rounded-tl-md border border-separator-border bg-background-secondary-default px-3.5 py-1.5 shadow-sm [&>ol:first-child]:mt-0 [&>p:first-child]:mt-0 [&>pre:first-child]:mt-0 [&>ul:first-child]:mt-0 [&>*:last-child]:mb-0">
+      <div data-transcript-bubble className="w-fit min-w-0 max-w-full overflow-hidden rounded-2xl rounded-tl-md bg-background-secondary-default px-3.5 py-2 [&>ol:first-child]:mt-0 [&>p:first-child]:mt-0 [&>pre:first-child]:mt-0 [&>ul:first-child]:mt-0 [&>*:last-child]:mb-0">
         {body}
       </div>
     );

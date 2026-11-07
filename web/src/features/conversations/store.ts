@@ -52,7 +52,7 @@ export interface TophChat {
 export interface ChatMessage {
   id: string;
   chatId: string;
-  role: "user" | "assistant" | "reasoning" | "tool" | "system" | "error";
+  role: "user" | "assistant" | "reasoning" | "tool" | "system" | "error" | "activity";
   tophId?: string;
   content: string;
   title?: string;

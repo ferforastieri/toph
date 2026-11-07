@@ -94,11 +94,11 @@ export default function ModelPicker({ models, model, onModelChange, effort, effo
         <>
           <ProviderIcon provider={selectedProvider} className="size-3.5 text-foreground-icon-tertiary" />
           <span className="truncate" title={modelTitle(selectedInfo)}>{modelDisplay(selectedInfo)}</span>
-          {fullWidth && variants.length > 0 ? <span className="shrink-0 text-caption-2-regular text-text-tertiary">· {effortLabel(effort)}</span> : null}
+          {variants.length > 0 ? <span className="shrink-0 text-caption-2-regular text-text-tertiary">· {effortLabel(effort)}</span> : null}
           <ChevronDown size={12} className="size-3 shrink-0 text-foreground-icon-tertiary" />
         </>
       }
-      triggerClassName={fullWidth ? "w-full max-w-none justify-start border border-border-button-default bg-background-primary-default" : "max-w-[150px]"}
+      triggerClassName={fullWidth ? "w-full max-w-none justify-start border border-border-button-default bg-background-primary-default" : "min-w-[160px] max-w-[240px]"}
       popoverClassName="w-[300px] max-w-[calc(100vw-24px)] p-0"
       contentClassName="max-h-[min(56vh,420px)] overflow-y-auto p-1.5"
     >
