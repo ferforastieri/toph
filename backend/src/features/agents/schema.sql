@@ -25,6 +25,14 @@ CREATE TABLE IF NOT EXISTS agent_messages (
  estimated_tokens INTEGER NOT NULL, created_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS agent_message_page ON agent_messages(session_id,seq);
+CREATE TABLE IF NOT EXISTS agent_events (
+ seq INTEGER PRIMARY KEY AUTOINCREMENT, id TEXT NOT NULL UNIQUE,
+ session_id TEXT NOT NULL REFERENCES agent_sessions(id), run_id TEXT REFERENCES agent_runs(id),
+ kind TEXT NOT NULL, payload TEXT NOT NULL, created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS agent_event_session ON agent_events(session_id,seq);
+CREATE INDEX IF NOT EXISTS agent_event_run ON agent_events(run_id,seq);
+CREATE INDEX IF NOT EXISTS agent_event_kind ON agent_events(session_id,kind,seq);
 CREATE VIRTUAL TABLE IF NOT EXISTS agent_history_fts USING fts5(content_text, content='agent_messages',content_rowid='seq');
 CREATE TRIGGER IF NOT EXISTS agent_history_insert AFTER INSERT ON agent_messages BEGIN
  INSERT INTO agent_history_fts(rowid,content_text) VALUES (new.seq,new.content_text);

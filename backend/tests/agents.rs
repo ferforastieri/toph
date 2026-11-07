@@ -24,14 +24,26 @@ enum Reply {
 struct Mock {
     replies: Arc<Mutex<VecDeque<Reply>>>,
     requests: Arc<Mutex<Vec<Value>>>,
+    plan_kind: &'static str,
 }
+const PLAN_CONVERSATION: &str =
+    "{\"kind\":\"conversation\",\"goal\":\"Responder\",\"acceptance\":[],\"steps\":[]}";
+const PLAN_INVESTIGATION: &str = "{\"kind\":\"investigation\",\"goal\":\"Investigar\",\"acceptance\":[\"evidência concreta\"],\"steps\":[\"usar ferramentas\"]}";
+const PLAN_CHANGE: &str = "{\"kind\":\"change\",\"goal\":\"Alterar\",\"acceptance\":[\"alteração verificada\"],\"steps\":[\"editar\",\"verificar\"]}";
 async fn model(State(mock): State<Mock>, Json(body): Json<Value>) -> Response {
-    mock.requests.lock().unwrap().push(body.clone());
-    let summary = body["messages"][0]["content"]
-        .as_str()
-        .unwrap_or("")
-        .starts_with("Summarize this history");
-    let reply = if summary {
+    let first = body["messages"][0]["content"].as_str().unwrap_or("");
+    let planner = first.starts_with("You are the planning component");
+    let summary = first.starts_with("Summarize this history");
+    if !planner {
+        mock.requests.lock().unwrap().push(body.clone());
+    }
+    let reply = if planner {
+        Some(Reply::Answer(match mock.plan_kind {
+            "investigation" => PLAN_INVESTIGATION,
+            "change" => PLAN_CHANGE,
+            _ => PLAN_CONVERSATION,
+        }))
+    } else if summary {
         Some(Reply::Answer("Objetivo preservado. Arquivos: input.txt. Decisão: manter SQLite. Consulte search_history para fontes."))
     } else {
         mock.replies.lock().unwrap().pop_front()
@@ -80,6 +92,10 @@ impl Drop for Fixture {
 }
 impl Fixture {
     async fn new(replies: Vec<Reply>) -> Self {
+        Self::new_with_plan(replies, "investigation").await
+    }
+
+    async fn new_with_plan(replies: Vec<Reply>, plan_kind: &'static str) -> Self {
         let dir = tempfile::tempdir().unwrap();
         let workspace = dir.path().join("workspace");
         std::fs::create_dir_all(&workspace).unwrap();
@@ -91,6 +107,7 @@ impl Fixture {
         let mock = Mock {
             replies: Arc::new(Mutex::new(replies.into())),
             requests: Arc::new(Mutex::new(vec![])),
+            plan_kind,
         };
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let model_url = format!("http://{}", listener.local_addr().unwrap());
@@ -135,7 +152,7 @@ impl Fixture {
             .await
             .unwrap();
         let project = projects[0]["id"].as_str().unwrap().to_owned();
-        let response=client.put(format!("{base}/api/ai/config")).header("X-Toph-CSRF",&csrf).json(&json!({"provider":"custom","baseUrl":model_url,"apiKey":"fixture-key","model":"fixture-model","autocompleteModel":"","maxTokens":4096,"weeklyTokenLimit":0,"temperature":0,"autocomplete":false,"systemPrompt":"","imageProviders":[]})).send().await.unwrap();
+        let response=client.put(format!("{base}/api/ai/config")).header("X-Toph-CSRF",&csrf).json(&json!({"provider":"custom","baseUrl":model_url,"apiKey":"fixture-key","model":"fixture-model","autocompleteModel":"","maxTokens":4096,"temperature":0,"autocomplete":false,"systemPrompt":"","imageProviders":[]})).send().await.unwrap();
         assert!(
             response.status().is_success(),
             "{}",
@@ -262,17 +279,18 @@ async fn native_run_uses_tools_persists_usage_and_is_idempotent() {
     );
     drop(requests);
     let count: i64 = sqlx::query_scalar(
-        "SELECT count(*) FROM agent_model_calls WHERE finish='stop' OR finish='tool_calls'",
+        "SELECT count(*) FROM agent_model_calls WHERE (finish='stop' OR finish='tool_calls') AND kind<>'plan'",
     )
     .fetch_one(fixture.store.pool())
     .await
     .unwrap();
     assert_eq!(count, 2);
-    let tokens: i64 =
-        sqlx::query_scalar("SELECT sum(input_tokens+output_tokens) FROM agent_model_calls")
-            .fetch_one(fixture.store.pool())
-            .await
-            .unwrap();
+    let tokens: i64 = sqlx::query_scalar(
+        "SELECT sum(input_tokens+output_tokens) FROM agent_model_calls WHERE kind<>'plan'",
+    )
+    .fetch_one(fixture.store.pool())
+    .await
+    .unwrap();
     assert_eq!(tokens, 240);
 }
 
@@ -347,22 +365,30 @@ async fn cancellation_releases_a_pending_model_request() {
 #[tokio::test]
 async fn compaction_preserves_original_history_and_records_its_cost() {
     let fixture = Fixture::new(vec![
+        Reply::Tool("read_file", json!({"path":"input.txt","offset":1})),
         Reply::Answer("Primeiro turno."),
+        Reply::Tool("read_file", json!({"path":"input.txt","offset":1})),
         Reply::Answer("Segundo turno."),
     ])
     .await;
     let agents = vec![Fixture::agent("toph", "yolo")];
-    let first = fixture.start("first", agents.clone(), "Início").await;
+    let first = fixture
+        .start("first", agents.clone(), "Leia input.txt")
+        .await;
     fixture
         .wait(first["id"].as_str().unwrap(), "completed")
         .await;
     let session = first["sessionId"].as_str().unwrap();
-    for index in 0..120 {
+    for index in 0..160 {
         let text = format!("Decisão {index}: {}", "a".repeat(3000));
         let id = format!("history-{index}");
         let role = if index % 2 == 0 { "user" } else { "assistant" };
         sqlx::query("INSERT INTO agent_messages(id,session_id,role,body,display,content_text,estimated_tokens,created_at) VALUES(?,?,?,?,?,?,?,?)")
             .bind(&id).bind(session).bind(role).bind(json!({"role":role,"content":text}).to_string()).bind(json!({"id":id,"chatId":"chat","role":role,"content":text,"createdAt":index}).to_string()).bind(&text).bind(1000i64).bind(index).execute(fixture.store.pool()).await.unwrap();
+        sqlx::query("INSERT INTO agent_events(id,session_id,run_id,kind,payload,created_at) VALUES(?,?,?,?,?,?)")
+            .bind(format!("event-{id}")).bind(session).bind(first["id"].as_str().unwrap()).bind(if role == "user" { "user_task" } else { "assistant" })
+            .bind(json!({"body":{"role":role,"content":text},"display":{"role":role,"content":text}}).to_string())
+            .bind(index).execute(fixture.store.pool()).await.unwrap();
     }
     let second = fixture
         .start("second", agents, "Continue sem perder as decisões")
@@ -375,25 +401,15 @@ async fn compaction_preserves_original_history_and_records_its_cost() {
             .fetch_one(fixture.store.pool())
             .await
             .unwrap();
-    assert_eq!(original, 120);
-    let summaries: i64 =
-        sqlx::query_scalar("SELECT count(*) FROM agent_model_calls WHERE kind='summary'")
-            .fetch_one(fixture.store.pool())
-            .await
-            .unwrap();
-    assert!(summaries > 0);
-    let checkpoint: i64 = sqlx::query_scalar("SELECT max(through_seq) FROM agent_checkpoints")
-        .fetch_one(fixture.store.pool())
-        .await
-        .unwrap();
-    assert!(checkpoint > 0);
-    let ledger: String =
-        sqlx::query_scalar("SELECT ledger FROM agent_session_state WHERE session_id=?")
-            .bind(session)
-            .fetch_one(fixture.store.pool())
-            .await
-            .unwrap();
-    assert!(ledger.contains("objective"));
+    assert_eq!(original, 160);
+    let condensations: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM agent_events WHERE session_id=? AND kind='condensation'",
+    )
+    .bind(session)
+    .fetch_one(fixture.store.pool())
+    .await
+    .unwrap();
+    assert!(condensations > 0);
     let requests = fixture.mock.requests.lock().unwrap();
     let last = requests.last().unwrap();
     assert!(last["messages"].to_string().len() < 400_000);
@@ -406,6 +422,7 @@ async fn delegation_has_its_own_run_and_only_the_task_context() {
             "delegate",
             json!({"agent":"reviewer","task":"Revise input.txt"}),
         ),
+        Reply::Tool("read_file", json!({"path":"input.txt","offset":1})),
         Reply::Answer("Revisão concluída."),
         Reply::Answer("Consolidação concluída."),
     ])
@@ -430,7 +447,7 @@ async fn delegation_has_its_own_run_and_only_the_task_context() {
     .unwrap();
     assert_eq!(children, 1);
     let requests = fixture.mock.requests.lock().unwrap();
-    assert_eq!(requests.len(), 3);
+    assert_eq!(requests.len(), 4);
     assert!(!requests[1]["messages"]
         .to_string()
         .contains("UNIQUE_PARENT_ONLY_MARKER"));
@@ -478,7 +495,7 @@ async fn imported_local_history_is_searchable_without_replaying_it() {
 async fn shell_timeout_kills_background_process_group() {
     let dir = tempfile::tempdir().unwrap();
     let result =
-        toph_server::features::agents::tools::shell(dir.path(), "sleep 10 & wait", 30).await;
+        toph_server::features::agents::tools::shell(dir.path(), "sleep 10 & wait", Some(30)).await;
     assert!(result.unwrap_err().to_string().contains("timed out"));
 }
 
@@ -503,55 +520,25 @@ async fn plan_mode_rejects_mutating_calls_even_if_the_model_requests_them() {
 }
 
 #[tokio::test]
-async fn weekly_budget_stops_before_a_provider_call() {
-    let fixture = Fixture::new(vec![Reply::Answer("Should not be requested")]).await;
-    let mut saved: Value = fixture
-        .client
-        .get(format!("{}/api/ai/config", fixture.base))
-        .send()
-        .await
-        .unwrap()
-        .json()
-        .await
-        .unwrap();
-    saved["weeklyTokenLimit"] = json!(1);
-    fixture
-        .client
-        .put(format!("{}/api/ai/config", fixture.base))
-        .header("X-Toph-CSRF", &fixture.csrf)
-        .json(&saved)
-        .send()
-        .await
-        .unwrap()
-        .error_for_status()
-        .unwrap();
-    let run = fixture
-        .start("budget", vec![Fixture::agent("toph", "yolo")], "Responda")
-        .await;
-    let snapshot = fixture.wait(run["id"].as_str().unwrap(), "failed").await;
-    assert!(snapshot["runs"][0]["error"]
-        .as_str()
-        .unwrap()
-        .contains("Weekly token budget"));
-    assert!(fixture.mock.requests.lock().unwrap().is_empty());
-}
-
-#[tokio::test]
 async fn interrupted_tool_calls_are_repaired_without_reexecution() {
     let fixture = Fixture::new(vec![
+        Reply::Tool("read_file", json!({"path":"input.txt","offset":1})),
         Reply::Answer("Primeira resposta"),
+        Reply::Tool("read_file", json!({"path":"input.txt","offset":1})),
         Reply::Answer("Retomado sem repetir efeitos"),
     ])
     .await;
     let agents = vec![Fixture::agent("toph", "yolo")];
     let run = fixture
-        .start("before-crash", agents.clone(), "Início")
+        .start("before-crash", agents.clone(), "Leia input.txt")
         .await;
     let id = run["id"].as_str().unwrap();
     fixture.wait(id, "completed").await;
     let body = json!({"role":"assistant","tool_calls":[{"id":"unknown-effect","type":"function","function":{"name":"write_file","arguments":"{\"path\":\"never-replayed.txt\",\"content\":\"no\"}"}}]});
     sqlx::query("INSERT INTO agent_messages(id,session_id,run_id,role,body,display,content_text,estimated_tokens,created_at) VALUES('interrupted-message',?,?,'assistant',?,'{}','',100,?)")
         .bind(run["sessionId"].as_str().unwrap()).bind(id).bind(body.to_string()).bind(chrono::Utc::now().timestamp_millis()).execute(fixture.store.pool()).await.unwrap();
+    sqlx::query("INSERT INTO agent_events(id,session_id,run_id,kind,payload,created_at) VALUES('interrupted-event',?,?,'assistant',?,?)")
+        .bind(run["sessionId"].as_str().unwrap()).bind(id).bind(json!({"body":body,"display":{}}).to_string()).bind(chrono::Utc::now().timestamp_millis()).execute(fixture.store.pool()).await.unwrap();
     sqlx::query("UPDATE agent_runs SET state='running' WHERE id=?")
         .bind(id)
         .execute(fixture.store.pool())
@@ -573,12 +560,54 @@ async fn interrupted_tool_calls_are_repaired_without_reexecution() {
         .join("workspace/never-replayed.txt")
         .exists());
     let requests = fixture.mock.requests.lock().unwrap();
-    assert_eq!(requests.len(), 2);
-    assert!(requests[1]["messages"]
+    assert_eq!(requests.len(), 4);
+    assert!(requests
+        .iter()
+        .any(|request| request["messages"].to_string().contains("unknown-effect")));
+}
+
+#[tokio::test]
+async fn generic_greeting_is_rejected_and_the_task_continues() {
+    let fixture = Fixture::new_with_plan(
+        vec![
+            Reply::Answer("Oi! 👋 Tô aqui. Em que posso ajudar?"),
+            Reply::Tool("read_file", json!({"path":"input.txt","offset":1})),
+            Reply::Answer("A investigação confirmou o conteúdo de input.txt."),
+        ],
+        "investigation",
+    )
+    .await;
+    let agents = vec![Fixture::agent("toph", "yolo")];
+    let run = fixture
+        .start(
+            "generic-answer",
+            agents,
+            "Leia input.txt e confirme o conteúdo.",
+        )
+        .await;
+    let snapshot = fixture.wait(run["id"].as_str().unwrap(), "completed").await;
+    let messages = snapshot["messages"].as_array().unwrap();
+    assert!(messages.iter().any(|message| message["role"] == "assistant"
+        && message["content"]
+            .as_str()
+            .is_some_and(|content| content.contains("A investigação confirmou"))));
+    assert!(
+        !messages.iter().any(|message| message["role"] == "assistant"
+            && message["content"]
+                .as_str()
+                .is_some_and(|content| content.contains("Em que posso ajudar")))
+    );
+
+    let requests = fixture.mock.requests.lock().unwrap();
+    assert_eq!(requests.len(), 3);
+    let reminder = requests[1]["messages"]
         .as_array()
         .unwrap()
         .iter()
-        .any(|m| m["role"] == "tool" && m["tool_call_id"] == "unknown-effect"));
+        .filter_map(|message| message["content"].as_str())
+        .find(|content| content.contains("Completion Gate"))
+        .expect("the runtime must return concrete completion blockers");
+    assert!(reminder.contains("investigação") || reminder.contains("ferramenta"));
 }
 
 #[tokio::test]
@@ -627,28 +656,13 @@ async fn long_runs_are_not_cut_at_a_fixed_step_count() {
 }
 
 #[tokio::test]
-async fn identical_tool_batches_are_stopped_as_a_loop() {
+async fn empty_reasoning_only_answer_retries_with_more_output() {
     let fixture = Fixture::new(vec![
-        Reply::Tool("shell", json!({"command": "echo same"})),
-        Reply::Tool("shell", json!({"command": "echo same"})),
-        Reply::Tool("shell", json!({"command": "echo same"})),
-        Reply::Tool("shell", json!({"command": "echo same"})),
+        Reply::EmptyLength,
+        Reply::Tool("read_file", json!({"path":"input.txt","offset":1})),
+        Reply::Answer("Resposta final."),
     ])
     .await;
-    let run = fixture
-        .start("loop", vec![Fixture::agent("toph", "yolo")], "Repita")
-        .await;
-    let snapshot = fixture.wait(run["id"].as_str().unwrap(), "failed").await;
-    assert!(snapshot["runs"][0]["error"]
-        .as_str()
-        .unwrap()
-        .contains("repetido 4 vezes"));
-    assert_eq!(fixture.mock.requests.lock().unwrap().len(), 4);
-}
-
-#[tokio::test]
-async fn empty_reasoning_only_answer_retries_with_more_output() {
-    let fixture = Fixture::new(vec![Reply::EmptyLength, Reply::Answer("Resposta final.")]).await;
     let run = fixture
         .start(
             "empty-retry",
@@ -663,35 +677,46 @@ async fn empty_reasoning_only_answer_retries_with_more_output() {
         .iter()
         .any(|message| message["content"] == "Resposta final."));
     let requests = fixture.mock.requests.lock().unwrap();
-    assert_eq!(requests.len(), 2);
+    assert_eq!(requests.len(), 3);
     assert!(
         requests[1]["max_tokens"].as_i64().unwrap() > requests[0]["max_tokens"].as_i64().unwrap()
     );
 }
 
 #[tokio::test]
-async fn repeated_reads_without_edits_are_nudged_to_start_editing() {
-    let fixture = Fixture::new(vec![
-        Reply::Tool("read_file", json!({"path":"input.txt","offset":1})),
-        Reply::Tool("read_file", json!({"path":"input.txt","offset":2})),
-        Reply::Answer("Implementação iniciada."),
-    ])
+async fn change_tasks_require_edit_and_verification_before_completion() {
+    let fixture = Fixture::new_with_plan(
+        vec![
+            Reply::Answer("Concluído."),
+            Reply::Tool("write_file", json!({"path":"created.txt","content":"ok"})),
+            Reply::Tool("verify", json!({"commands":["true"]})),
+            Reply::Answer("Implementei e verifiquei a alteração."),
+        ],
+        "change",
+    )
     .await;
     let run = fixture
-        .start("nudge", vec![Fixture::agent("toph", "yolo")], "Implemente")
+        .start(
+            "change-gate",
+            vec![Fixture::agent("toph", "yolo")],
+            "Crie o arquivo created.txt",
+        )
         .await;
-    fixture.wait(run["id"].as_str().unwrap(), "completed").await;
-    let requests = fixture.mock.requests.lock().unwrap();
-    assert!(requests.iter().any(|request| {
-        request["messages"]
-            .as_array()
-            .map(|messages| {
-                messages.iter().any(|message| {
-                    message["content"]
-                        .as_str()
-                        .is_some_and(|content| content.contains("pare de investigar e implemente"))
-                })
-            })
-            .unwrap_or(false)
-    }));
+    let snapshot = fixture.wait(run["id"].as_str().unwrap(), "completed").await;
+    assert!(fixture.dir.path().join("workspace/created.txt").exists());
+    assert!(snapshot["messages"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|m| m["content"]
+            .as_str()
+            .is_some_and(|content| content.contains("Implementei e verifiquei"))));
+    let rejections: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM agent_events WHERE run_id=? AND kind='completion_rejected'",
+    )
+    .bind(run["id"].as_str().unwrap())
+    .fetch_one(fixture.store.pool())
+    .await
+    .unwrap();
+    assert!(rejections > 0);
 }

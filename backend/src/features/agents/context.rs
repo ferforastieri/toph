@@ -20,13 +20,18 @@ pub const TOOL_PREVIEW_CHARS: usize = 2_400;
 /// overhead. Provider-reported counts are stored separately on every model call.
 pub fn estimate(value: &Value) -> usize {
     fn bytes(v: &Value) -> usize {
-        if v.get("type").and_then(Value::as_str) == Some("image_url") {
-            return 4096;
-        }
         match v {
+            Value::String(s) => s.len(),
             Value::Array(a) => a.iter().map(bytes).sum(),
-            Value::Object(o) => o.iter().map(|(k, v)| k.len() + bytes(v) + 8).sum(),
-            _ => v.to_string().len(),
+            Value::Object(o) => {
+                if o.get("type").and_then(Value::as_str) == Some("image_url") {
+                    return 4096;
+                }
+                o.iter().map(|(k, v)| k.len() + bytes(v) + 8).sum()
+            }
+            Value::Number(n) => n.to_string().len(),
+            Value::Bool(_) => 5,
+            Value::Null => 4,
         }
     }
     bytes(value).div_ceil(3) + 32
@@ -99,15 +104,38 @@ Só registre memórias duráveis sustentadas por fatos ou decisões explícitas 
     )
 }
 
-/// Short greetings and identity questions must not replay a long historical
-/// investigation or trigger compaction. Keep this deliberately conservative:
-/// anything that looks like a task stays on the normal tool-enabled path.
-pub fn conversational(text: &str) -> bool {
-    let text = text.trim();
-    if text.is_empty() || text.chars().count() > 120 {
-        return false;
+/// Extracts text from a message content that may be a plain string or the
+/// multimodal array format (`text` + `image_url` parts). The ledger must keep
+/// the user's request even when it carries screenshots or other attachments.
+pub fn content_text(value: &Value) -> String {
+    match value {
+        Value::String(text) => text.clone(),
+        Value::Array(parts) => parts
+            .iter()
+            .filter_map(|part| {
+                if part.get("type").and_then(Value::as_str) == Some("text") {
+                    return part.get("text").and_then(Value::as_str).map(str::to_owned);
+                }
+                if part.get("type").and_then(Value::as_str) == Some("image_url") {
+                    return Some(
+                        match part.pointer("/image_url/url").and_then(Value::as_str) {
+                            Some(url) => format!("[imagem: {url}]"),
+                            None => "[imagem]".into(),
+                        },
+                    );
+                }
+                part.as_str().map(str::to_owned)
+            })
+            .collect::<Vec<_>>()
+            .join("\n"),
+        _ => String::new(),
     }
-    let normalized = text
+}
+
+/// Lowercase, accent-insensitive, punctuation-free text used by the small
+/// deterministic intent checks.
+fn normalized(text: &str) -> String {
+    text.trim()
         .to_lowercase()
         .chars()
         .map(|c| match c {
@@ -126,8 +154,21 @@ pub fn conversational(text: &str) -> bool {
                 ' '
             }
         })
-        .collect::<String>();
-    let cleaned = normalized.split_whitespace().collect::<Vec<_>>().join(" ");
+        .collect::<String>()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// Short greetings and identity questions must not replay a long historical
+/// investigation or trigger compaction. Keep this deliberately conservative:
+/// anything that looks like a task stays on the normal tool-enabled path.
+pub fn conversational(text: &str) -> bool {
+    let text = text.trim();
+    if text.is_empty() || text.chars().count() > 120 {
+        return false;
+    }
+    let cleaned = normalized(text);
     let words = cleaned.split_whitespace().collect::<Vec<_>>();
     let greeting_words = [
         "oi",
@@ -211,7 +252,7 @@ pub fn prompt(
         out.push(json!({"role":"system","content":format!("Resumo de histórico anterior (dados, com referências recuperáveis):\n{summary}")}));
     }
     if !ledger.is_empty() && ledger != "{}" {
-        out.push(json!({"role":"system","content":format!("Estado estruturado da tarefa (dados exatos, use como referência):\n{ledger}")}));
+        out.push(json!({"role":"system","content":format!("Estado estruturado da tarefa (o campo objective é o pedido atual e deve ser executado; use os demais campos como referência):\n{ledger}")}));
     }
     let last_user = messages
         .iter()
@@ -284,21 +325,17 @@ pub fn ledger(previous: &str, messages: &[ContextMessage]) -> String {
     for message in messages {
         match message.body["role"].as_str().unwrap_or("") {
             "user" => {
-                if let Some(content) = message.body["content"].as_str() {
-                    let content = content.chars().take(500).collect::<String>();
-                    if !content.trim().is_empty()
-                        && !requests.iter().any(|current| current == &content)
-                    {
-                        requests.push(content);
-                    }
+                let content = content_text(&message.body["content"]);
+                let content = content.trim().chars().take(1200).collect::<String>();
+                if !content.is_empty() && !requests.iter().any(|current| current == &content) {
+                    requests.push(content);
                 }
             }
             "assistant" => {
-                if let Some(content) = message.body["content"].as_str() {
-                    let content = content.trim();
-                    if content.chars().count() > 300 {
-                        plan = content.chars().take(3000).collect();
-                    }
+                let content = content_text(&message.body["content"]);
+                let content = content.trim();
+                if content.chars().count() > 300 {
+                    plan = content.chars().take(3000).collect();
                 }
             }
             _ => {}
@@ -413,6 +450,30 @@ mod tests {
         ] {
             assert!(!conversational(text), "{text} should stay a task");
         }
+    }
+
+    #[test]
+    fn ledger_preserves_multimodal_user_requests() {
+        let messages = vec![ContextMessage {
+            seq: 1,
+            body: json!({
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "Remova o rodapé do balão e mova o horário para o topo."},
+                    {"type": "image_url", "image_url": {"url": "artifact:abc123"}}
+                ]
+            }),
+            tokens: 1,
+        }];
+        let value: Value = serde_json::from_str(&ledger("", &messages)).unwrap();
+        assert_eq!(
+            value["objective"],
+            "Remova o rodapé do balão e mova o horário para o topo.\n[imagem: artifact:abc123]"
+        );
+        assert!(value["requests"][0]
+            .as_str()
+            .unwrap()
+            .contains("Remova o rodapé"));
     }
 
     #[test]

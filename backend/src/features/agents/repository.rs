@@ -1,4 +1,4 @@
-use super::{context::estimate, models::*};
+use super::{context::estimate, harness::event, models::*};
 use crate::{
     crypto::new_id,
     errors::{AppError, AppResult},
@@ -11,6 +11,116 @@ use sqlx::Row;
 pub struct Repository(pub Store);
 
 impl Repository {
+    pub async fn append_event(
+        &self,
+        ctx: &RunContext,
+        kind: &str,
+        payload: Value,
+    ) -> AppResult<i64> {
+        let id = new_id();
+        sqlx::query("INSERT INTO agent_events(id,session_id,run_id,kind,payload,created_at) VALUES(?,?,?,?,?,?)")
+            .bind(&id)
+            .bind(&ctx.run.session_id)
+            .bind(&ctx.run.id)
+            .bind(kind)
+            .bind(payload.to_string())
+            .bind(now())
+            .execute(self.0.pool())
+            .await?;
+        Ok(
+            sqlx::query_scalar("SELECT seq FROM agent_events WHERE id=?")
+                .bind(id)
+                .fetch_one(self.0.pool())
+                .await?,
+        )
+    }
+
+    pub async fn events(
+        &self,
+        session: &str,
+        after_seq: i64,
+        limit: i64,
+    ) -> AppResult<Vec<event::StoredEvent>> {
+        let rows = sqlx::query("SELECT seq,id,session_id,run_id,kind,payload,created_at FROM agent_events WHERE session_id=? AND seq>? ORDER BY seq LIMIT ?")
+            .bind(session)
+            .bind(after_seq)
+            .bind(limit)
+            .fetch_all(self.0.pool())
+            .await?;
+        rows.into_iter()
+            .map(|row| {
+                Ok(event::StoredEvent {
+                    seq: row.get("seq"),
+                    id: row.get("id"),
+                    session_id: row.get("session_id"),
+                    run_id: row.get("run_id"),
+                    kind: row.get("kind"),
+                    payload: serde_json::from_str(row.get::<String, _>("payload").as_str())?,
+                    created_at: row.get("created_at"),
+                })
+            })
+            .collect()
+    }
+
+    pub async fn run_events(&self, run: &str) -> AppResult<Vec<event::StoredEvent>> {
+        let rows = sqlx::query("SELECT seq,id,session_id,run_id,kind,payload,created_at FROM agent_events WHERE run_id=? ORDER BY seq")
+            .bind(run)
+            .fetch_all(self.0.pool())
+            .await?;
+        rows.into_iter()
+            .map(|row| {
+                Ok(event::StoredEvent {
+                    seq: row.get("seq"),
+                    id: row.get("id"),
+                    session_id: row.get("session_id"),
+                    run_id: row.get("run_id"),
+                    kind: row.get("kind"),
+                    payload: serde_json::from_str(row.get::<String, _>("payload").as_str())?,
+                    created_at: row.get("created_at"),
+                })
+            })
+            .collect()
+    }
+
+    pub async fn latest_condensation(
+        &self,
+        session: &str,
+    ) -> AppResult<Option<event::StoredEvent>> {
+        let row = sqlx::query("SELECT seq,id,session_id,run_id,kind,payload,created_at FROM agent_events WHERE session_id=? AND kind=? ORDER BY seq DESC LIMIT 1")
+            .bind(session)
+            .bind(event::kind::CONDENSATION)
+            .fetch_optional(self.0.pool())
+            .await?;
+        row.map(|row| {
+            Ok(event::StoredEvent {
+                seq: row.get("seq"),
+                id: row.get("id"),
+                session_id: row.get("session_id"),
+                run_id: row.get("run_id"),
+                kind: row.get("kind"),
+                payload: serde_json::from_str(row.get::<String, _>("payload").as_str())?,
+                created_at: row.get("created_at"),
+            })
+        })
+        .transpose()
+    }
+
+    pub async fn backfill_events(&self) -> AppResult<()> {
+        sqlx::query(
+            "INSERT INTO agent_events(id,session_id,run_id,kind,payload,created_at)
+             SELECT 'legacy:'||m.id, m.session_id, m.run_id,
+                    CASE m.role WHEN 'user' THEN 'user_task' WHEN 'tool' THEN 'tool' ELSE 'assistant' END,
+                    json_object('body', json(m.body), 'display', json(m.display)),
+                    m.created_at
+             FROM agent_messages m
+             WHERE m.id NOT LIKE 'import-%'
+               AND NOT EXISTS (SELECT 1 FROM agent_events e WHERE e.id='msg:'||m.id OR e.id='legacy:'||m.id)"
+        )
+        .execute(self.0.pool())
+        .await?;
+        Ok(())
+    }
+
     pub async fn import_local_history(&self, ctx: &RunContext) -> AppResult<()> {
         if ctx.depth != 0 {
             return Ok(());
@@ -195,9 +305,21 @@ impl Repository {
         sqlx::query("INSERT INTO agent_messages(id,session_id,run_id,role,body,display,content_text,estimated_tokens,created_at) VALUES(?,?,?,?,?,?,?,?,?)")
             .bind(id).bind(&ctx.run.session_id).bind(&ctx.run.id).bind(body["role"].as_str().unwrap_or("assistant"))
             .bind(body.to_string()).bind(display.to_string()).bind(text).bind(estimate(&body) as i64).bind(now()).execute(&mut *tx).await?;
+        // The UI orders by the message sequence; the event sequence is an
+        // internal harness detail and must not leak into snapshots.
         let seq: i64 = sqlx::query_scalar("SELECT seq FROM agent_messages WHERE id=?")
             .bind(id)
             .fetch_one(&mut *tx)
+            .await?;
+        let event_id = format!("msg:{id}");
+        sqlx::query("INSERT INTO agent_events(id,session_id,run_id,kind,payload,created_at) VALUES(?,?,?,?,?,?)")
+            .bind(&event_id)
+            .bind(&ctx.run.session_id)
+            .bind(&ctx.run.id)
+            .bind(event::message_kind(body["role"].as_str().unwrap_or("assistant")))
+            .bind(json!({"body": body, "display": display}).to_string())
+            .bind(now())
+            .execute(&mut *tx)
             .await?;
         // Keep the existing chat transcript as an archive, in the same transaction.
         sqlx::query("INSERT INTO bot_messages(user_id,project_id,message_id,mode,channel,role,bot_id,created_at,payload,updated_at) VALUES(?,?,?,'chat',?,?,?,?,?,?) ON CONFLICT(user_id,project_id,mode,channel,message_id) DO UPDATE SET payload=excluded.payload,updated_at=excluded.updated_at")

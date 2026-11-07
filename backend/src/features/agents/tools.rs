@@ -39,7 +39,7 @@ pub fn definitions(agent: &AgentSpec, depth: usize) -> Vec<Value> {
         definition("fetch_url","Fetch a public HTTP(S) document. Large results are saved as artifacts.",json!({"url":string()}),&["url"]),
         definition(
             "ask_user",
-            "Ask the user a blocking question and wait for the answer. Use it when a decision cannot be inferred safely. Provide 2-4 concrete options; the user may also type a free answer. If the user does not answer in time the result is {\"answers\":null} and you must continue with your best assumption.",
+            "Ask the user a blocking question and wait for the answer. Use it when a decision cannot be inferred safely. Provide 2-4 concrete options; the user may also type a free answer. The question stays open until the user answers or cancels the run.",
             json!({"questions":{"type":"array","items":{"type":"object","properties":{"header":string(),"question":string(),"options":{"type":"array","items":{"type":"object","properties":{"label":string(),"description":string()},"required":["label"]}},"multiple":{"type":"boolean"}},"required":["question","options"]}}}),
             &["questions"],
         ),
@@ -48,7 +48,8 @@ pub fn definitions(agent: &AgentSpec, depth: usize) -> Vec<Value> {
         tools.extend([
             definition("write_file","Create a file or replace it. For an existing file, expectedHash from read_file is required.",json!({"path":string(),"content":string(),"expectedHash":string()}),&["path","content"]),
             definition("edit_file","Replace exactly one occurrence of oldText in a file. Fails when ambiguous or stale.",json!({"path":string(),"oldText":string(),"newText":string()}),&["path","oldText","newText"]),
-            definition("shell","Run a finite shell command in the project. timeoutMs defaults to 30000, maximum 120000. Output is bounded; never use watch or tail -f.",json!({"command":string(),"timeoutMs":integer()}),&["command"]),
+            definition("shell","Run a shell command in the project. It has no default timeout; pass timeoutMs only when the command must be bounded. Output is bounded; never use watch or tail -f.",json!({"command":string(),"timeoutMs":integer()}),&["command"]),
+            definition("verify","Run verification commands (tests/build/lint) after changes. Returns a structured pass/fail result. Required before finishing a change task.",json!({"commands":{"type":"array","items":{"type":"string"}},"reason":string()}),&["commands"]),
             definition("remember","Save an explicit durable project fact with its source message id.",json!({"content":string(),"sourceId":string()}),&["content","sourceId"]),
         ]);
         if agent.tools.iter().any(|s| s == "generate_image") {
@@ -107,6 +108,10 @@ pub fn mutating(name: &str) -> bool {
         name,
         "write_file" | "edit_file" | "shell" | "remember" | "generate_image" | "email_send"
     )
+}
+
+pub fn needs_permission(name: &str) -> bool {
+    mutating(name) || name == "verify"
 }
 
 /// `mcp_call` prompts once per server instead of once per call when that
@@ -266,9 +271,39 @@ impl Tools {
                 shell(
                     &ctx.root,
                     text(args, "command")?,
-                    args["timeoutMs"].as_u64().unwrap_or(30000).clamp(1, 120000),
+                    args.get("timeoutMs").and_then(Value::as_u64),
                 )
                 .await
+            }
+            "verify" => {
+                let commands = args["commands"]
+                    .as_array()
+                    .ok_or_else(|| bad_request("commands is required"))?
+                    .iter()
+                    .filter_map(Value::as_str)
+                    .map(str::trim)
+                    .filter(|command| !command.is_empty())
+                    .map(str::to_owned)
+                    .collect::<Vec<_>>();
+                if commands.is_empty() {
+                    return Err(bad_request("verify requires at least one command"));
+                }
+                let mut results = Vec::new();
+                let mut ok = true;
+                for command in &commands {
+                    let result = shell(&ctx.root, command, None).await?;
+                    let passed = result["exitCode"].as_i64() == Some(0);
+                    results.push(json!({"command":command,"result":result}));
+                    if !passed {
+                        ok = false;
+                        break;
+                    }
+                }
+                Ok(json!({
+                    "ok": ok,
+                    "results": results,
+                    "summary": if ok { "Todos os comandos de verificação passaram." } else { "Um comando de verificação falhou." },
+                }))
             }
             "read_artifact" => {
                 let id = text(args, "id")?;
@@ -456,7 +491,11 @@ async fn bounded<R: AsyncRead + Unpin>(mut reader: R) -> std::io::Result<(String
     }
     Ok((String::from_utf8_lossy(&output).into_owned(), total))
 }
-pub async fn shell(root: &std::path::Path, command: &str, timeout_ms: u64) -> AppResult<Value> {
+pub async fn shell(
+    root: &std::path::Path,
+    command: &str,
+    timeout_ms: Option<u64>,
+) -> AppResult<Value> {
     #[cfg(unix)]
     let mut cmd = {
         let mut c = tokio::process::Command::new("/bin/sh");
@@ -485,9 +524,17 @@ pub async fn shell(root: &std::path::Path, command: &str, timeout_ms: u64) -> Ap
         .stderr
         .take()
         .ok_or_else(|| bad_request("Missing stderr"))?;
-    let result=tokio::time::timeout(Duration::from_millis(timeout_ms),async {
-        let (status,out,err)=tokio::try_join!(child.wait(),bounded(out),bounded(err))?;
-        Ok::<_,std::io::Error>(json!({"exitCode":status.code(),"stdout":out.0,"stderr":err.0,"stdoutBytes":out.1,"stderrBytes":err.1,"truncated":out.1>65536||err.1>65536}))
-    }).await.map_err(|_|bad_request(format!("Command timed out after {timeout_ms}ms")))??;
-    Ok(result)
+    let wait = async {
+        let (status, out, err) = tokio::try_join!(child.wait(), bounded(out), bounded(err))?;
+        Ok::<_, std::io::Error>(
+            json!({"exitCode":status.code(),"stdout":out.0,"stderr":err.0,"stdoutBytes":out.1,"stderrBytes":err.1,"truncated":out.1>65536||err.1>65536}),
+        )
+    };
+    match timeout_ms.filter(|ms| *ms > 0) {
+        Some(ms) => tokio::time::timeout(Duration::from_millis(ms), wait)
+            .await
+            .map_err(|_| bad_request(format!("Command timed out after {ms}ms")))?
+            .map_err(AppError::Io),
+        None => wait.await.map_err(AppError::Io),
+    }
 }
