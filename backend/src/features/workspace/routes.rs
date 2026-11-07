@@ -132,6 +132,20 @@ pub(super) async fn move_path(
     Ok(Json(json!({ "ok": true })))
 }
 
+pub(super) async fn delete_path(
+    State(state): State<Arc<AppState>>,
+    Path(project_id): Path<String>,
+    Query(query): Query<HashMap<String, String>>,
+) -> AppResult<Json<Value>> {
+    let project = state.store.project(&project_id).await?;
+    let path = query.get("path").map(String::as_str).unwrap_or("");
+    state.workspace.delete(FsPath::new(&project.root), path)?;
+    state
+        .events
+        .publish(&project_id, "files", Some(path.to_string()));
+    Ok(Json(json!({ "ok": true })))
+}
+
 pub(super) async fn raw_file(
     State(state): State<Arc<AppState>>,
     Path(project_id): Path<String>,

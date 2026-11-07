@@ -56,6 +56,17 @@ async fn workspace_rejects_escapes_and_handles_conflicts() {
         Err(toph_server::errors::AppError::FileConflict)
     ));
     assert!(workspace.read(Path::new(&root), "../outside").is_err());
+
+    std::fs::create_dir_all(root.join("src/temp")).unwrap();
+    std::fs::write(root.join("src/temp/old.txt"), "old\n").unwrap();
+    workspace.delete(Path::new(&root), "src/temp").unwrap();
+    assert!(!root.join("src/temp").exists());
+
+    std::fs::write(root.join("src/old.txt"), "old\n").unwrap();
+    workspace.delete(Path::new(&root), "src/old.txt").unwrap();
+    assert!(!root.join("src/old.txt").exists());
+    assert!(workspace.delete(Path::new(&root), "").is_err());
+    assert!(workspace.delete(Path::new(&root), "../outside").is_err());
 }
 
 #[tokio::test]

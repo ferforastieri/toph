@@ -630,6 +630,12 @@ export const api = {
     });
   },
 
+  async deletePath(projectId: string, path: string): Promise<void> {
+    await request(`/projects/${encodeURIComponent(projectId)}/file?path=${encodeURIComponent(path)}`, {
+      method: "DELETE",
+    });
+  },
+
   async uploadFile(projectId: string, path: string, data: string): Promise<void> {
     await request(`/projects/${encodeURIComponent(projectId)}/upload`, {
       method: "POST",

@@ -13,6 +13,7 @@ import FileTree, { clearTreeExpansion } from "./FileTree";
 import FileIcon from "./FileIcon";
 import { basename, dirname } from "../../../shared/lib";
 import LoadingState from "../../../shared/ui/LoadingState";
+import { useConfirm } from "../../../shared/ui/confirm";
 import SidebarHeader from "../../../app/components/SidebarHeader";
 import { ProgressBar } from "@/shared/boardui/base/progress/progress";
 import { Accordion, AccordionItem } from "@/shared/boardui/base/accordion/accordion";
@@ -130,6 +131,7 @@ export default function ExplorerPanel({
   const setSidebar = useApp((state) => state.setSidebar);
   const setTerminalOpen = useApp((state) => state.setTerminalOpen);
   const setAiPanelOpen = useApp((state) => state.setAiPanelOpen);
+  const confirm = useConfirm();
   const [gitStatus, setGitStatus] = useState("");
   const [rootOpen, setRootOpen] = useState(true);
   const [treeKey, setTreeKey] = useState(0);
@@ -187,7 +189,11 @@ export default function ExplorerPanel({
   function openContextMenu(entry: FileEntry, event: React.MouseEvent) {
     event.preventDefault();
     setSelected(entry);
-    setContextMenu({ entry, x: Math.min(event.clientX, window.innerWidth - 290), y: Math.min(event.clientY, window.innerHeight - 460) });
+    setContextMenu({
+      entry,
+      x: Math.max(8, Math.min(event.clientX, window.innerWidth - 290)),
+      y: Math.max(8, Math.min(event.clientY, window.innerHeight - 560)),
+    });
   }
 
   async function newFile(target = selected) {
@@ -213,6 +219,37 @@ export default function ExplorerPanel({
       notify("success", `Pasta ${path} criada.`);
     } catch (error) {
       notify("error", error instanceof Error ? error.message : "Não foi possível criar a pasta.");
+    }
+  }
+
+  async function deleteEntry(entry: FileEntry) {
+    if (!entry.path) return;
+    const ok = await confirm({
+      title: entry.dir ? "Excluir pasta?" : "Excluir arquivo?",
+      message: entry.dir
+        ? `Excluir ${entry.path} e todo o seu conteúdo? Essa ação não pode ser desfeita.`
+        : `Excluir ${entry.path}? Essa ação não pode ser desfeita.`,
+      confirmLabel: "Excluir",
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      await api.deletePath(project.id, entry.path);
+      const state = useApp.getState();
+      for (const tab of state.tabs) {
+        if (tab.projectId !== project.id || !tab.path) continue;
+        if (tab.path === entry.path || (entry.dir && tab.path.startsWith(`${entry.path}/`))) {
+          state.closeTab(tab.id);
+        }
+      }
+      setSelected(null);
+      publishFiles(parentPath(entry.path));
+      window.dispatchEvent(new Event("toph:git-changed"));
+      notify("success", entry.dir
+        ? `Pasta ${entry.path} excluída com o conteúdo.`
+        : `Arquivo ${entry.path} excluído.`);
+    } catch (error) {
+      notify("error", error instanceof Error ? error.message : "Não foi possível excluir.");
     }
   }
 
@@ -466,7 +503,7 @@ export default function ExplorerPanel({
         if ((event.target as HTMLElement).closest("[data-tree-item], .project-search, .explorer-changes")) return;
         event.preventDefault();
         setSelected(rootEntry);
-        setContextMenu({ entry: rootEntry, x: Math.min(event.clientX, window.innerWidth - 290), y: Math.min(event.clientY, window.innerHeight - 460) });
+        setContextMenu({ entry: rootEntry, x: Math.min(event.clientX, window.innerWidth - 290), y: Math.min(event.clientY, window.innerHeight - 560) });
       }}
       onPaste={(event) => {
         const target = event.target as HTMLElement;
@@ -531,7 +568,7 @@ export default function ExplorerPanel({
     {contextMenu && createPortal(
       <div className="fixed inset-0 z-100" onMouseDown={() => setContextMenu(null)}>
         <div
-          className="bg-background-primary-default shadow-dropdown absolute w-64 rounded-lg border p-1.5"
+          className="bg-background-primary-default shadow-dropdown absolute max-h-[calc(100dvh-16px)] w-64 overflow-y-auto rounded-lg border p-1.5"
           style={{ left: contextMenu.x, top: contextMenu.y }}
           onMouseDown={(event) => event.stopPropagation()}
           onContextMenu={(event) => event.preventDefault()}
@@ -552,6 +589,12 @@ export default function ExplorerPanel({
           <ActionItem label="Paste" shortcut="Ctrl+V" onSelect={() => menuAction(() => void pasteImage(contextMenu.entry))} />
           <ActionItem label="Upload..." onSelect={() => menuAction(() => uploadRef.current?.click())} />
           <ActionItem label="Download..." disabled={contextMenu.entry.dir} onSelect={() => menuAction(() => download(contextMenu.entry))} />
+          <div className="my-1 h-px bg-separator-border" />
+          <ActionItem
+            label={contextMenu.entry.dir ? "Excluir pasta" : "Excluir arquivo"}
+            disabled={!contextMenu.entry.path}
+            onSelect={() => menuAction(() => void deleteEntry(contextMenu.entry))}
+          />
           <div className="my-1 h-px bg-separator-border" />
           <ActionItem label="Copy Path" shortcut="Shift+Alt+C" onSelect={() => menuAction(() => copy(absolutePath(contextMenu.entry)))} />
           <ActionItem label="Copy Relative Path" onSelect={() => menuAction(() => copy(contextMenu.entry.path))} />

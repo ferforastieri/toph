@@ -510,7 +510,7 @@ fn router(state: Arc<AppState>) -> Router {
         .route("/api/projects/{project_id}/tree", get(tree))
         .route(
             "/api/projects/{project_id}/file",
-            get(read_file).put(write_file),
+            get(read_file).put(write_file).delete(delete_path),
         )
         .route("/api/projects/{project_id}/files", get(files))
         .route("/api/projects/{project_id}/mkdir", post(make_dir))

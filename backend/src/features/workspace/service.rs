@@ -182,6 +182,23 @@ impl WorkspaceService {
         Ok(())
     }
 
+    pub fn delete(&self, root: &Path, relative: &str) -> AppResult<()> {
+        let path = resolve_for_write(root, relative)?;
+        let metadata = fs::symlink_metadata(&path).map_err(|error| {
+            if error.kind() == std::io::ErrorKind::NotFound {
+                AppError::NotFound
+            } else {
+                AppError::Io(error)
+            }
+        })?;
+        if metadata.is_dir() {
+            fs::remove_dir_all(&path)?;
+        } else {
+            fs::remove_file(&path)?;
+        }
+        Ok(())
+    }
+
     pub fn write(
         &self,
         root: &Path,
