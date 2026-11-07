@@ -76,7 +76,7 @@ impl ResearchReport {
     }
 }
 
-pub const PLAN_ACTIONS: [&str; 3] = ["edit", "create", "delete"];
+pub const PLAN_ACTIONS: [&str; 4] = ["edit", "create", "delete", "image"];
 
 /// Structured plan produced by the architect phase and executed by the editor
 /// phase. It is the only source of files the editor may touch.

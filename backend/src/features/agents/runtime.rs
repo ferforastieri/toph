@@ -55,14 +55,14 @@ const PLAN_PROMPT: &str = "FASE DE PLANO (arquiteto).\n\
 Com base no pedido e no relatório de pesquisa, produza um plano de alteração executável.\n\
 Chame submit_plan com:\n\
 - goal: uma frase objetiva;\n\
-- files: para cada arquivo, path, action (edit, create ou delete) e instructions com a mudança exata (inclua oldText/newText quando possível);\n\
+- files: para cada arquivo, path, action (edit, create, delete ou image) e instructions com a mudança exata (inclua oldText/newText quando possível);\n\
 - verification: os comandos reais de teste/build/lint que provam a conclusão;\n\
 - acceptance: critérios verificáveis.\n\
 Use apenas arquivos do relatório. Não invente comandos. A fase só termina com submit_plan.";
 
 const IMPLEMENT_PROMPT: &str = "FASE DE IMPLEMENTAÇÃO (editor).\n\
 Execute o plano aprovado. O conteúdo atual dos arquivos do plano está no contexto abaixo.\n\
-Ferramentas permitidas: read_file apenas nos arquivos do plano; edit_file; write_file; delete_file; verify; ask_user; report_blocked.\n\
+Ferramentas permitidas: read_file apenas nos arquivos do plano; edit_file; write_file; delete_file; generate_image quando o plano pedir uma imagem; verify; ask_user; report_blocked.\n\
 Não pesquise o repositório, não abra arquivos fora do plano e não execute comandos fora de verify.\n\
 Aplique as edições, chame verify depois da última edição e só então responda.\n\
 Se o plano não puder ser aplicado com segurança, chame report_blocked com o motivo concreto.";
@@ -987,6 +987,14 @@ impl Runtime {
     ) -> AppResult<String> {
         let tools = tools::implementation_definitions(&ctx.agent, plan);
         let file_context = self.plan_file_context(ctx, plan).await?;
+        let file_context = format!(
+            "{file_context}\nFerramentas de imagem disponíveis: {}",
+            if ctx.agent.tools.iter().any(|tool| tool == "generate_image") {
+                "sim (use generate_image com o filename do plano)"
+            } else {
+                "não"
+            }
+        );
         let mut messages = vec![
             json!({"role":"system","content":format!("{system}\n\n{IMPLEMENT_PROMPT}")}),
             json!({"role":"system","content":contract.system_message()}),
@@ -1121,6 +1129,23 @@ impl Runtime {
                                 )));
                             }
                         }
+                    }
+                    "generate_image" => {
+                        let filename = args["filename"].as_str().unwrap_or("");
+                        if !plan.allows(filename) {
+                            let text = format!("{filename} is not in the approved plan");
+                            self.record_tool_error(ctx, Phase::Implement, &call, &args, &text)
+                                .await?;
+                            messages.push(tool_message(&call, &json!({"error": text})));
+                            continue;
+                        }
+                        let outcome = self
+                            .execute_tool_call(ctx, Phase::Implement, &call, &args, &tools, cancel)
+                            .await?;
+                        if !outcome.failed {
+                            progress.record_edit(tool_seq);
+                        }
+                        messages.push(tool_message(&call, &outcome.visible));
                     }
                     "edit_file" | "write_file" | "delete_file" => {
                         let path = args["path"].as_str().unwrap_or("");
@@ -1339,7 +1364,10 @@ impl Runtime {
                     ctx,
                     event::kind::EDIT_APPLIED,
                     json!({
-                        "path": args["path"].as_str().unwrap_or(""),
+                        "path": args["path"]
+                            .as_str()
+                            .or_else(|| args["filename"].as_str())
+                            .unwrap_or(""),
                         "tool": call.name,
                     }),
                 )
@@ -1465,6 +1493,10 @@ impl Runtime {
             }
             if file.action == "delete" {
                 out.push_str(&format!("\n--- {} (será removido) ---\n", file.path));
+                continue;
+            }
+            if file.action == "image" {
+                out.push_str(&format!("\n--- {} (imagem a gerar) ---\n", file.path));
                 continue;
             }
             match self.inner.tools.workspace.read(&ctx.root, &file.path) {

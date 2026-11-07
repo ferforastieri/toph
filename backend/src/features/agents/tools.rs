@@ -97,7 +97,7 @@ pub fn plan_definitions() -> Vec<Value> {
             "Finish the planning phase with an executable change plan. Name the exact files, the instructions for each one, and the real verification commands.",
             json!({
                 "goal": string(),
-                "files": {"type":"array","items":{"type":"object","properties":{"path":string(),"action":{"type":"string","enum":["edit","create","delete"]},"instructions":string()},"required":["path","action","instructions"]}},
+                "files": {"type":"array","items":{"type":"object","properties":{"path":string(),"action":{"type":"string","enum":["edit","create","delete","image"]},"instructions":string()},"required":["path","action","instructions"]}},
                 "verification": {"type":"array","items":{"type":"string"}},
                 "acceptance": {"type":"array","items":{"type":"string"}}
             }),
@@ -131,6 +131,9 @@ pub fn implementation_definitions(
             definition("delete_file","Delete one of the planned files.",json!({"path":string()}),&["path"]),
             definition("verify","Run the verification commands from the plan. Call it after the last edit. It is the only way to prove completion.",json!({"reason":string()}),&[]),
         ]);
+        if agent.tools.iter().any(|s| s == "generate_image") {
+            tools.push(definition("generate_image","Generate the image named by the plan. Provider id is required when several are configured.",json!({"prompt":string(),"provider":string(),"model":string(),"size":string(),"filename":string()}),&["prompt"]));
+        }
     }
     tools.push(definition(
         "report_blocked",
