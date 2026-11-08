@@ -123,6 +123,11 @@ pub fn find_binary(binary: &str) -> Option<PathBuf> {
         candidates.push(home.join(".opencode/bin").join(binary));
         candidates.push(home.join(".local/bin").join(binary));
         candidates.push(home.join(".cargo/bin").join(binary));
+        candidates.push(home.join(".claude/local").join(binary));
+        candidates.push(home.join(".npm-global/bin").join(binary));
+        candidates.push(home.join(".bun/bin").join(binary));
+        candidates.push(home.join(".volta/bin").join(binary));
+        candidates.push(home.join(".local/share/pnpm").join(binary));
     }
     candidates.push(PathBuf::from("/usr/local/bin").join(binary));
     candidates.push(PathBuf::from("/usr/bin").join(binary));
