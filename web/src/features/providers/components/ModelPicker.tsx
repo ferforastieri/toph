@@ -93,10 +93,10 @@ export default function ModelPicker({ models, model, onModelChange, effort, effo
       onOpenChange={setOpen}
       trigger={
         <>
-          <ProviderIcon provider={selectedProvider} className="size-3.5 text-foreground-icon-tertiary" />
+          <ProviderIcon provider={selectedProvider} className="size-3.5 text-text-tertiary" />
           <span className="truncate" title={modelTitle(selectedInfo)}>{modelDisplay(selectedInfo)}</span>
           {variants.length > 0 ? <span className="shrink-0 text-caption-2-regular text-text-tertiary">· {effortLabel(effort)}</span> : null}
-          <ChevronDown size={12} className="size-3 shrink-0 text-foreground-icon-tertiary" />
+          <ChevronDown size={12} className="size-3 shrink-0 text-text-tertiary" />
         </>
       }
       triggerClassName={fullWidth ? "w-full max-w-none justify-start border border-border-button-default bg-background-primary-default" : "min-w-0 max-w-[340px] sm:min-w-[220px]"}
@@ -141,7 +141,7 @@ export default function ModelPicker({ models, model, onModelChange, effort, effo
                                {item.label !== item.id ? <span className="truncate text-caption-2-regular text-text-tertiary">{item.id}</span> : null}
                              </span>
                             {active ? <Check size={14} className="shrink-0 text-accent-500" /> : null}
-                            {itemVariants.length > 0 && inlineEffort ? <ChevronDown size={12} className={cx("shrink-0 text-foreground-icon-tertiary transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]", effortOpen ? "rotate-180" : "")} /> : null}
+                            {itemVariants.length > 0 && inlineEffort ? <ChevronDown size={12} className={cx("shrink-0 text-text-tertiary transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]", effortOpen ? "rotate-180" : "")} /> : null}
                           </button>
                           {effortOpen ? (
                             <div className="px-2 pb-3 pt-1">

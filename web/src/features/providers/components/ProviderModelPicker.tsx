@@ -56,9 +56,9 @@ export default function ProviderModelPicker({ models, model, onChange, placehold
           className,
         )}
       >
-        <ProviderIcon provider={selectedProvider} className="size-3.5 text-foreground-icon-tertiary" />
+        <ProviderIcon provider={selectedProvider} className="size-3.5 text-text-tertiary" />
         <span className="min-w-0 flex-1 truncate" title={selectedInfo ? modelTitle(selectedInfo) : placeholder}>{selectedInfo ? modelDisplay(selectedInfo) : placeholder}</span>
-        <ChevronDown size={13} className="size-3.5 shrink-0 text-foreground-icon-tertiary" />
+        <ChevronDown size={13} className="size-3.5 shrink-0 text-text-tertiary" />
       </DropdownTrigger>
       <DropdownPopover aria-label="Modelos por provedor" placement="bottom start" className="w-[320px] max-w-[calc(100vw-24px)] p-0" dialogClassName="gap-0">
         <div className="max-h-[min(52vh,380px)] overflow-y-auto p-1.5">

@@ -4,6 +4,7 @@ import type { Project } from "../../../shared/api";
 import { activeChat, chatTophs, teamChats, useChats } from "../../conversations/store";
 import { agentApi } from "../api";
 import TophGallery from "./TophGallery";
+import CreateTeamModal from "../../conversations/components/CreateTeamModal";
 import TeamAvatar from "./TeamAvatar";
 import TophRow from "./TophRow";
 import { Button } from "@/shared/boardui/base/buttons/button";
@@ -35,6 +36,7 @@ export default function BotsSidebar({ project, headerControl, onSelectChat }: Pr
   const confirm = useConfirm();
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [galleryChatId, setGalleryChatId] = useState<string | null>(null);
+  const [createTeamOpen, setCreateTeamOpen] = useState(false);
   const [teamOpen, setTeamOpen] = useState(false);
   const [teamInfo, setTeamInfo] = useState("");
 
@@ -52,8 +54,13 @@ export default function BotsSidebar({ project, headerControl, onSelectChat }: Pr
   }
 
   function addTeam() {
-    const created = createChat(project.id, "Equipe");
+    setCreateTeamOpen(true);
+  }
+
+  function createTeam(name: string, description: string) {
+    const created = createChat(project.id, name, description);
     setActiveChat(project.id, created.id);
+    setCreateTeamOpen(false);
     setGalleryChatId(created.id);
     setGalleryOpen(true);
     onSelectChat?.();
@@ -112,7 +119,6 @@ export default function BotsSidebar({ project, headerControl, onSelectChat }: Pr
         icon={<Bot size={15} className="text-accent-500" />}
         title="Tophs"
         count={<span className="rounded-full bg-background-tertiary-default px-1.5 text-caption-2-regular text-text-tertiary">{teams.length}</span>}
-        actions={<Button variant="ghost" size="xs" iconOnly leadingIcon={Plus} aria-label="Nova equipe" title="Nova equipe" onClick={addTeam} />}
       />
       <div className="min-h-0 flex-1 overflow-y-auto p-2.5">
         {!chats?.hydrated ? (
@@ -201,6 +207,8 @@ export default function BotsSidebar({ project, headerControl, onSelectChat }: Pr
           placeholder="Contexto do projeto, padrões, tecnologias, regras que todos os Tophs devem seguir."
         />
       </Modal>
+
+      <CreateTeamModal open={createTeamOpen} onClose={() => setCreateTeamOpen(false)} onCreate={createTeam} />
 
       <TophGallery
         open={galleryOpen}

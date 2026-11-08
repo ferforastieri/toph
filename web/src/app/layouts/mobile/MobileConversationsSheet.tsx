@@ -4,6 +4,7 @@ import type { Project } from "../../../shared/api";
 import { activeChat, chatTophs, teamChats, useChats } from "../../../features/conversations/store";
 import { agentApi } from "../../../features/agents/api";
 import TophGallery from "../../../features/agents/components/TophGallery";
+import CreateTeamModal from "../../../features/conversations/components/CreateTeamModal";
 import TeamAvatar from "../../../features/agents/components/TeamAvatar";
 import TophRow from "../../../features/agents/components/TophRow";
 import { Button } from "@/shared/boardui/base/buttons/button";
@@ -29,6 +30,7 @@ export default function MobileConversationsSheet({ open, project, onClose, onSel
   const confirm = useConfirm();
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [galleryChatId, setGalleryChatId] = useState<string | null>(null);
+  const [createTeamOpen, setCreateTeamOpen] = useState(false);
 
   useEffect(() => {
     ensure(project.id);
@@ -45,8 +47,13 @@ export default function MobileConversationsSheet({ open, project, onClose, onSel
   }
 
   function addTeam() {
-    const created = createChat(project.id, "Equipe");
+    setCreateTeamOpen(true);
+  }
+
+  function createTeam(name: string, description: string) {
+    const created = createChat(project.id, name, description);
     setActiveChat(project.id, created.id);
+    setCreateTeamOpen(false);
     setGalleryChatId(created.id);
     setGalleryOpen(true);
   }
@@ -143,6 +150,8 @@ export default function MobileConversationsSheet({ open, project, onClose, onSel
           ))}
         </div>
       </Modal>
+
+      <CreateTeamModal open={createTeamOpen} onClose={() => setCreateTeamOpen(false)} onCreate={createTeam} />
 
       <TophGallery
         open={galleryOpen}

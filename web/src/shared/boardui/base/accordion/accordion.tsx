@@ -147,7 +147,7 @@ export function AccordionItem({
             )
           }
         >
-          {Icon ? <Icon className="size-5 shrink-0 text-foreground-icon-secondary" aria-hidden /> : null}
+          {Icon ? <Icon className="size-4 shrink-0 text-text-tertiary" aria-hidden /> : null}
           <span className="flex min-w-0 flex-1 flex-col gap-0.5">
             <span className="text-headline-medium text-text-primary">{title}</span>
             {description ? <span className="text-body-regular text-text-secondary">{description}</span> : null}
@@ -155,9 +155,9 @@ export function AccordionItem({
           <Indicator
             aria-hidden
             className={cx(
-              "size-5 shrink-0 text-foreground-icon-tertiary transition-[rotate,color] duration-300 motion-reduce:transition-none",
+              "size-3.5 shrink-0 text-text-tertiary transition-[rotate,color] duration-300 motion-reduce:transition-none",
               EASE,
-              "group-hover/trigger:text-foreground-icon-secondary group-data-[expanded]/item:text-foreground-icon-primary",
+              "group-hover/trigger:text-text-secondary group-data-[expanded]/item:text-text-primary",
               indicator === "plus" ? "group-data-[expanded]/item:rotate-45" : "group-data-[expanded]/item:rotate-180",
             )}
           />
