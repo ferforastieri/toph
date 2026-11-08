@@ -253,10 +253,10 @@ export function AgentComposer({ value, onChange, onSend, onStop, busy, placehold
                 onPointerDown={(event) => { event.preventDefault(); event.stopPropagation(); }}
                 onClick={(event) => { event.preventDefault(); event.stopPropagation(); onStop(); }}
                 aria-label="Parar"
-                className="shrink-0"
+                className="shrink-0 rounded-full"
               />
             ) : (
-              <Button type="submit" variant="primary" size="small" iconOnly leadingIcon={ArrowUp} disabled={audio.recording || audio.processing || (!value.trim() && attachments.length === 0)} aria-label="Enviar" className="shrink-0" />
+              <Button type="submit" variant="primary" size="small" iconOnly leadingIcon={ArrowUp} disabled={audio.recording || audio.processing || (!value.trim() && attachments.length === 0)} aria-label="Enviar" className="shrink-0 rounded-full" />
             )}
           </div>
         </form>

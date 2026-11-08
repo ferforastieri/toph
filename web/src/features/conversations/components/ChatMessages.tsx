@@ -201,9 +201,12 @@ function RunSteps({ steps, working }: { steps: NativeMessage[]; working: boolean
   const labels = [...new Set(steps.map(stepLabel))];
   const current = [...steps].reverse().find((message) => message.status === "running");
   const failed = steps.some((message) => message.status === "error");
+  const first = steps.reduce((value, message) => Math.min(value, message.createdAt), Number.POSITIVE_INFINITY);
+  const last = steps.reduce((value, message) => Math.max(value, message.createdAt), 0);
+  const elapsed = last > first ? Math.max(0, Math.round((last - first) / 1000)) : 0;
   const summary = working
     ? current ? `${stepLabel(current)}…` : "Trabalhando…"
-    : `${failed ? "" : "Pronto · "}${steps.length} ${steps.length === 1 ? "passo" : "passos"}`;
+    : `${failed ? "" : "Pronto · "}${steps.length} ${steps.length === 1 ? "passo" : "passos"}${elapsed > 0 ? ` · ${elapsed < 60 ? `${elapsed}s` : `${Math.floor(elapsed / 60)}m ${String(elapsed % 60).padStart(2, "0")}s`}` : ""}`;
   return (
     <div className="my-0.5 max-w-[600px] text-[12.5px]">
       <button
@@ -218,7 +221,7 @@ function RunSteps({ steps, working }: { steps: NativeMessage[]; working: boolean
           <ChevronDown className={cx("size-3 shrink-0 transition-transform duration-300", open ? "rotate-0" : "-rotate-90")} />
         )}
         <span className={cx("shrink-0", working && "text-accent-500")}>{summary}</span>
-        {!working && labels.length > 0 ? <span className="min-w-0 truncate text-text-tertiary">{labels.slice(0, 3).join(", ")}</span> : null}
+        {working && labels.length > 0 ? <span className="min-w-0 truncate text-text-tertiary">{labels.slice(0, 3).join(", ")}</span> : null}
       </button>
       {open ? (
         <div className="ms-1 mt-0.5 flex flex-col gap-0.5 border-s-2 border-separator-border py-1 ps-3">
