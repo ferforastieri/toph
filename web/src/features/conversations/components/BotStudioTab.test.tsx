@@ -27,10 +27,10 @@ beforeAll(() => {
 beforeEach(() => {
   useChats.setState({ byProject: {}, messageWrites: {} });
   useChats.getState().load(project.id);
-  chatId = useChats.getState().byProject[project.id].chat.id;
+  chatId = useChats.getState().byProject[project.id].chats[0].id;
   useChats.getState().updateChat(project.id, chatId, { description: "Preservar os contratos da equipe" });
-  coordinatorId = useChats.getState().addToph(project.id, { ...TOPH_PRESETS[0], name: "Fernando", coordinator: true, model: "go::deepseek", agentMode: "build" })!.id;
-  memberId = useChats.getState().addToph(project.id, { ...TOPH_PRESETS[1], name: "Beto", coordinator: false, model: "openai::review", agentMode: "build" })!.id;
+  coordinatorId = useChats.getState().addToph(project.id, chatId, { ...TOPH_PRESETS[0], name: "Fernando", coordinator: true, model: "go::deepseek", agentMode: "build" })!.id;
+  memberId = useChats.getState().addToph(project.id, chatId, { ...TOPH_PRESETS[1], name: "Beto", coordinator: false, model: "openai::review", agentMode: "build" })!.id;
   useAI.setState({ config: null, error: "", models: [{ id: "go::deepseek", label: "DeepSeek", provider: "custom" }, { id: "openai::gpt", label: "GPT", provider: "openai" }, { id: "openai::review", label: "Review", provider: "openai" }] });
   useTophDrafts.setState({ drafts: {} });
   native.refresh.mockResolvedValue(undefined);
@@ -75,7 +75,7 @@ describe("Toph chat controls", () => {
   });
 
   it("shows the single team conversation and its members", () => {
-    useChats.getState().addToph(project.id, { ...TOPH_PRESETS[1], name: "Leo", role: "Dev" });
+    useChats.getState().addToph(project.id, chatId, { ...TOPH_PRESETS[1], name: "Leo", role: "Dev" });
 
     render(<BotStudioTab project={project} />);
 

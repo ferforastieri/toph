@@ -13,6 +13,7 @@ use crate::{
     store::Store,
 };
 use base64::{engine::general_purpose::STANDARD, Engine};
+use futures_util::future::BoxFuture;
 use serde_json::{json, Value};
 use sqlx::Row;
 use std::{
@@ -198,11 +199,26 @@ impl Runtime {
             .workspace
             .validate_root(std::path::Path::new(&project_row.root))?;
         self.inner.repo.profiles(user, project, &roster).await?;
-        let session = self
+        let mut session = self
             .inner
             .repo
             .session(user, project, &agent, input.session_id.as_deref())
             .await?;
+        // Layouts created before the single-conversation migration kept the
+        // active session under an old individual chat id. Moving it to the
+        // team chat makes its history visible and keeps new runs there.
+        if session.chat_id != agent.chat_id {
+            sqlx::query(
+                "UPDATE agent_sessions SET chat_id=? WHERE id=? AND user_id=? AND project_id=?",
+            )
+            .bind(&agent.chat_id)
+            .bind(&session.id)
+            .bind(user)
+            .bind(project)
+            .execute(self.inner.repo.0.pool())
+            .await?;
+            session.chat_id = agent.chat_id.clone();
+        }
         // Reserve admission before any run is committed; never queue without a bound.
         let token = CancellationToken::new();
         let admission = new_id();
@@ -459,106 +475,110 @@ impl Runtime {
 
     /// Runs one turn on an external CLI. The CLI owns the agent loop; Toph owns
     /// the context, the gateway tools and the approvals.
-    async fn execute_cli(
-        &self,
-        ctx: &RunContext,
-        config: &AiConfig,
-        cancel: &CancellationToken,
-    ) -> AppResult<String> {
-        self.inner.repo.state(&ctx.run.id, "running", "").await?;
-        self.event(ctx,"run",json!({"id":ctx.run.id,"chatId":ctx.run.chat_id,"sessionId":ctx.run.session_id,"agentId":ctx.agent.id,"state":"running","error":"","parentId":ctx.run.parent_id,"createdAt":ctx.run.created_at}));
-        let mut system = self.build_system(ctx, config).await?;
-        let gateway_tools = tools::gateway_definitions(&ctx.agent);
-        let available = gateway_tools
-            .iter()
-            .filter_map(|tool| tool["name"].as_str())
-            .map(|name| format!("`toph_{name}`"))
-            .collect::<Vec<_>>()
-            .join(", ");
-        system.push_str(&format!(
+    fn execute_cli<'a>(
+        &'a self,
+        ctx: &'a RunContext,
+        config: &'a AiConfig,
+        cancel: &'a CancellationToken,
+    ) -> BoxFuture<'a, AppResult<String>> {
+        Box::pin(async move {
+            self.inner.repo.state(&ctx.run.id, "running", "").await?;
+            self.event(ctx,"run",json!({"id":ctx.run.id,"chatId":ctx.run.chat_id,"sessionId":ctx.run.session_id,"agentId":ctx.agent.id,"state":"running","error":"","parentId":ctx.run.parent_id,"createdAt":ctx.run.created_at}));
+            let mut system = self.build_system(ctx, config).await?;
+            let mut gateway_tools = tools::gateway_definitions(&ctx.agent);
+            if ctx.roster.len() > 1 && ctx.depth < 3 {
+                gateway_tools.push(tools::delegate_definition());
+            }
+            let available = gateway_tools
+                .iter()
+                .filter_map(|tool| tool["name"].as_str())
+                .map(|name| format!("`toph_{name}`"))
+                .collect::<Vec<_>>()
+                .join(", ");
+            system.push_str(&format!(
             "\n\n## Ferramentas\n\
 Você está rodando via OpenCode. As ferramentas embutidas da CLI estão desligadas. \
 Suas únicas ferramentas são as do gateway Toph: {available}. \
 Use-as para ler, editar e rodar comandos. Não diga que usou uma ferramenta que não chamou. \
 Trabalhe no projeto atual. Para concluir uma alteração, rode os testes ou o build com `toph_shell` e mostre o resultado."
         ));
-        let model = cli::opencode_model(&ctx.agent, config);
-        let (gateway_url, gateway_task) =
-            Gateway::start(self.clone(), ctx.clone(), gateway_tools, cancel.clone()).await?;
-        let prompt = self.cli_transcript(ctx).await?;
-        let work = std::env::temp_dir().join(format!("toph-cli-{}", ctx.run.id));
-        let _ = tokio::fs::remove_dir_all(&work).await;
-        tokio::fs::create_dir_all(&work).await?;
-        let mid = format!("{}-engine", ctx.run.id);
-        let display = json!({"id":mid,"userId":ctx.user_id,"projectId":ctx.project_id,"chatId":ctx.run.chat_id,"tophId":ctx.agent.id,"sessionId":ctx.run.session_id,"model":model,"agentMode":ctx.agent.agent_mode,"role":"assistant","content":"","status":"running","createdAt":now()});
-        self.inner
-            .drafts
-            .lock()
-            .unwrap()
-            .insert(ctx.run.id.clone(), display.clone());
-        self.event(ctx, "message", display.clone());
-        let runtime = self.clone();
-        let live_ctx = ctx.clone();
-        let mut draft = display.clone();
-        let mut full = String::new();
-        let mut last_event = Instant::now();
-        let started = Instant::now();
-        let result = {
-            let mut on_text = |chunk: &str| {
-                let offset = full.encode_utf16().count();
-                full.push_str(chunk);
-                if let Value::String(content) = &mut draft["content"] {
-                    content.push_str(chunk);
-                }
-                if last_event.elapsed() >= Duration::from_millis(80) {
-                    runtime
-                        .inner
-                        .drafts
-                        .lock()
-                        .unwrap()
-                        .insert(live_ctx.run.id.clone(), draft.clone());
-                    runtime.event(
-                        &live_ctx,
-                        "delta",
-                        json!({"id":draft["id"],"offset":offset,"text":chunk}),
-                    );
-                    last_event = Instant::now();
-                }
+            let model = cli::opencode_model(&ctx.agent, config);
+            let (gateway_url, gateway_task) =
+                Gateway::start(self.clone(), ctx.clone(), gateway_tools, cancel.clone()).await?;
+            let prompt = self.cli_transcript(ctx).await?;
+            let work = std::env::temp_dir().join(format!("toph-cli-{}", ctx.run.id));
+            let _ = tokio::fs::remove_dir_all(&work).await;
+            tokio::fs::create_dir_all(&work).await?;
+            let mid = format!("{}-engine", ctx.run.id);
+            let display = json!({"id":mid,"userId":ctx.user_id,"projectId":ctx.project_id,"chatId":ctx.run.chat_id,"tophId":ctx.agent.id,"sessionId":ctx.run.session_id,"model":model,"agentMode":ctx.agent.agent_mode,"role":"assistant","content":"","status":"running","createdAt":now()});
+            self.inner
+                .drafts
+                .lock()
+                .unwrap()
+                .insert(ctx.run.id.clone(), display.clone());
+            self.event(ctx, "message", display.clone());
+            let runtime = self.clone();
+            let live_ctx = ctx.clone();
+            let mut draft = display.clone();
+            let mut full = String::new();
+            let mut last_event = Instant::now();
+            let started = Instant::now();
+            let result = {
+                let mut on_text = |chunk: &str| {
+                    let offset = full.encode_utf16().count();
+                    full.push_str(chunk);
+                    if let Value::String(content) = &mut draft["content"] {
+                        content.push_str(chunk);
+                    }
+                    if last_event.elapsed() >= Duration::from_millis(80) {
+                        runtime
+                            .inner
+                            .drafts
+                            .lock()
+                            .unwrap()
+                            .insert(live_ctx.run.id.clone(), draft.clone());
+                        runtime.event(
+                            &live_ctx,
+                            "delta",
+                            json!({"id":draft["id"],"offset":offset,"text":chunk}),
+                        );
+                        last_event = Instant::now();
+                    }
+                };
+                cli::run_opencode(
+                    &model,
+                    &system,
+                    &prompt,
+                    &gateway_url,
+                    &work,
+                    cancel,
+                    &mut on_text,
+                )
+                .await
             };
-            cli::run_opencode(
-                &model,
-                &system,
-                &prompt,
-                &gateway_url,
-                &work,
-                cancel,
-                &mut on_text,
-            )
-            .await
-        };
-        gateway_task.abort();
-        let _ = tokio::fs::remove_dir_all(&work).await;
-        self.inner.drafts.lock().unwrap().remove(&ctx.run.id);
-        let (text, usage) = result?;
-        if text.trim().is_empty() {
-            return Err(bad_request("O OpenCode terminou sem resposta."));
-        }
-        let mut done = display;
-        done["content"] = json!(text);
-        done["status"] = json!("complete");
-        let seq = self
-            .inner
-            .repo
-            .message(
-                ctx,
-                &mid,
-                json!({"role":"assistant","content":text}),
-                done.clone(),
-            )
-            .await?;
-        done["seq"] = json!(seq);
-        self.event(ctx, "message", done);
-        let _ = sqlx::query(
+            gateway_task.abort();
+            let _ = tokio::fs::remove_dir_all(&work).await;
+            self.inner.drafts.lock().unwrap().remove(&ctx.run.id);
+            let (text, usage) = result?;
+            if text.trim().is_empty() {
+                return Err(bad_request("O OpenCode terminou sem resposta."));
+            }
+            let mut done = display;
+            done["content"] = json!(text);
+            done["status"] = json!("complete");
+            let seq = self
+                .inner
+                .repo
+                .message(
+                    ctx,
+                    &mid,
+                    json!({"role":"assistant","content":text}),
+                    done.clone(),
+                )
+                .await?;
+            done["seq"] = json!(seq);
+            self.event(ctx, "message", done);
+            let _ = sqlx::query(
             "INSERT INTO agent_model_calls(id,run_id,kind,provider,model,input_tokens,output_tokens,cached_tokens,reasoning_tokens,estimated_input,duration_ms,finish,created_at) VALUES(?,?,?,?,?,?,?,?,0,0,?,'stop',?)",
         )
         .bind(new_id())
@@ -573,7 +593,8 @@ Trabalhe no projeto atual. Para concluir uma alteração, rode os testes ou o bu
         .bind(now())
         .execute(self.inner.repo.0.pool())
         .await;
-        Ok(text)
+            Ok(text)
+        })
     }
 
     /// Compact transcript for the CLI. Tool output already went through the
@@ -681,7 +702,13 @@ Trabalhe no projeto atual. Para concluir uma alteração, rode os testes ou o bu
         } else {
             tokio::select! {
                 _=cancel.cancelled()=>Err(bad_request("Execution cancelled")),
-                result=self.inner.tools.execute(ctx,name,&args)=>result,
+                result=async {
+                    if name == "delegate" {
+                        self.delegate(ctx, &args, cancel).await
+                    } else {
+                        self.inner.tools.execute(ctx, name, &args).await
+                    }
+                }=>result,
             }
         };
         let failed = result.is_err();
@@ -738,6 +765,140 @@ Trabalhe no projeto atual. Para concluir uma alteração, rode os testes ou o bu
         display["seq"] = json!(seq);
         self.event(ctx, "message", display);
         Ok(result)
+    }
+
+    /// Runs a child turn for another Toph in the same team. The child uses its
+    /// own session, model, prompt and permissions; its messages join the same
+    /// conversation, and the answer comes back to the caller.
+    async fn delegate(
+        &self,
+        parent: &RunContext,
+        args: &Value,
+        cancel: &CancellationToken,
+    ) -> AppResult<Value> {
+        if parent.depth >= 3 {
+            return Err(bad_request(
+                "A conversa entre Tophs chegou ao limite de três trocas. Responda ao usuário.",
+            ));
+        }
+        let handle = args["agent"]
+            .as_str()
+            .unwrap_or("")
+            .trim()
+            .trim_start_matches('@');
+        let task = args["task"].as_str().unwrap_or("").trim();
+        if handle.is_empty() || task.is_empty() {
+            return Err(bad_request("agent and task are required"));
+        }
+        let mut target = parent
+            .roster
+            .iter()
+            .find(|agent| {
+                agent.id != parent.agent.id
+                    && (agent.handle.eq_ignore_ascii_case(handle)
+                        || agent.name.eq_ignore_ascii_case(handle))
+            })
+            .cloned()
+            .ok_or_else(|| bad_request(format!("Toph @{handle} não está nesta equipe.")))?;
+        target.chat_id = parent.run.chat_id.clone();
+        let model = self.inner.ai.migrate_agent_model(&target.model).await?;
+        let config = self.inner.ai.resolve(&model).await?;
+        let mut session = self
+            .inner
+            .repo
+            .session(parent.user_id, &parent.project_id, &target, None)
+            .await?;
+        if session.chat_id != parent.run.chat_id {
+            sqlx::query(
+                "UPDATE agent_sessions SET chat_id=? WHERE id=? AND user_id=? AND project_id=?",
+            )
+            .bind(&parent.run.chat_id)
+            .bind(&session.id)
+            .bind(parent.user_id)
+            .bind(&parent.project_id)
+            .execute(self.inner.repo.0.pool())
+            .await?;
+            session.chat_id = parent.run.chat_id.clone();
+        }
+        let run = self
+            .inner
+            .repo
+            .create_run(
+                parent.user_id,
+                &parent.project_id,
+                &session,
+                &format!("delegate-{}-{}", parent.run.id, new_id()),
+                Some(&parent.run.id),
+                &target,
+            )
+            .await?;
+        let ctx = RunContext {
+            run: run.clone(),
+            user_id: parent.user_id,
+            project_id: parent.project_id.clone(),
+            root: parent.root.clone(),
+            agent: target,
+            roster: parent.roster.clone(),
+            chat_description: parent.chat_description.clone(),
+            depth: parent.depth + 1,
+            request: task.to_string(),
+        };
+        self.inner
+            .runs
+            .lock()
+            .unwrap()
+            .insert(run.id.clone(), cancel.clone());
+        let runtime = self.clone();
+        let child_ctx = ctx.clone();
+        let child_cancel = cancel.clone();
+        let child_task = task.to_string();
+        let result = match tokio::spawn(async move {
+            runtime.prepare(&child_ctx, &child_task, &[]).await?;
+            runtime
+                .execute_cli(&child_ctx, &config, &child_cancel)
+                .await
+        })
+        .await
+        {
+            Ok(result) => result,
+            Err(error) => Err(crate::errors::internal(error.to_string())),
+        };
+        self.inner.runs.lock().unwrap().remove(&run.id);
+        match &result {
+            Ok(text) => {
+                let _ = self.inner.repo.state(&run.id, "completed", "").await;
+                self.event(&ctx, "run", json!({"id":run.id,"chatId":ctx.run.chat_id,"sessionId":ctx.run.session_id,"agentId":ctx.agent.id,"state":"completed","error":"","parentId":ctx.run.parent_id,"createdAt":ctx.run.created_at,"finishedAt":now()}));
+                let _ = self
+                    .inner
+                    .repo
+                    .append_event(
+                        &ctx,
+                        event::kind::RUN_COMPLETED,
+                        json!({"state":"completed","answer":text}),
+                    )
+                    .await;
+            }
+            Err(error) => {
+                let (state, message) = if cancel.is_cancelled() {
+                    ("cancelled", "Execution cancelled".to_string())
+                } else {
+                    ("failed", error.to_string())
+                };
+                let _ = self.inner.repo.state(&run.id, state, &message).await;
+                self.event(&ctx, "run", json!({"id":run.id,"chatId":ctx.run.chat_id,"sessionId":ctx.run.session_id,"agentId":ctx.agent.id,"state":state,"error":message,"parentId":ctx.run.parent_id,"createdAt":ctx.run.created_at,"finishedAt":now()}));
+                let _ = self
+                    .inner
+                    .repo
+                    .append_event(
+                        &ctx,
+                        event::kind::RUN_FAILED,
+                        json!({"state":state,"error":message}),
+                    )
+                    .await;
+            }
+        }
+        let text = result?;
+        Ok(json!({"agent": ctx.agent.handle, "text": text}))
     }
 
     async fn permission(

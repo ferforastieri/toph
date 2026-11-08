@@ -66,6 +66,7 @@ function fallbackActivity(message: NativeMessage): string {
   if (name === "remember") return "salvou uma memória do projeto";
   if (name === "fetch_url") return "consultou um link";
   if (name === "read_artifact") return "leu um anexo";
+  if (name === "delegate") return "passou uma tarefa para outro Toph";
   if (name === "generate_image") return "gerou uma imagem";
   if (name.startsWith("email_")) return "consultou o e-mail";
   if (name === "mcp_list") return "listou as ferramentas da integração";

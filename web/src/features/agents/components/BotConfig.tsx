@@ -135,9 +135,9 @@ export default function BotConfig({ projectId, projectRoot, bot }: Props) {
 
   async function remove() {
     const ok = await confirm({
-      title: "Remover Toph?",
-      message: `Remover ${bot.name} deste chat? O histórico permanece salvo no servidor.`,
-      confirmLabel: "Remover Toph",
+      title: "Remover da equipe?",
+      message: `Remover ${bot.name} desta equipe? O histórico no servidor permanece.`,
+      confirmLabel: "Remover da equipe",
       danger: true,
     });
     if (ok) {
@@ -418,7 +418,7 @@ export default function BotConfig({ projectId, projectRoot, bot }: Props) {
 
       <div className="flex flex-col gap-2 px-1 pt-1">
         <Button type="button" variant="ghost" size="small" leadingIcon={Trash2} className="justify-start text-status-rose-text" onClick={() => void remove()}>
-          Remover Toph do chat
+          Remover da equipe
         </Button>
         <p className="flex items-center gap-1 text-caption-2-regular text-text-tertiary"><Bot size={11} /> As alterações são aplicadas nas próximas respostas.</p>
       </div>

@@ -101,6 +101,17 @@ pub fn gateway_definitions(agent: &AgentSpec) -> Vec<Value> {
     tools
 }
 
+/// Lets one Toph ask another Toph in the same team to do a piece of work.
+/// The child answer is returned to the caller, which can then consolidate.
+pub fn delegate_definition() -> Value {
+    mcp_definition(
+        "delegate",
+        "Ask another Toph in this team to do a specific piece of work. Pass their @handle and a complete task with the context they need. Wait for their answer, then consolidate it. Do not answer on their behalf.",
+        json!({"agent": json!({"type":"string"}), "task": json!({"type":"string"})}),
+        &["agent", "task"],
+    )
+}
+
 pub fn mutating(name: &str) -> bool {
     matches!(
         name,

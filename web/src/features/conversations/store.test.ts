@@ -54,12 +54,13 @@ beforeEach(() => {
 });
 
 describe("useChats", () => {
-  it("creates exactly one normal conversation per project", () => {
+  it("starts every project with one normal team conversation", () => {
     const project = useChats.getState().ensure("p");
-    expect(project.version).toBe(3);
-    expect(project.chat.name).toBe("Equipe");
+    expect(project.version).toBe(4);
+    expect(project.chats).toHaveLength(1);
+    expect(project.chats[0].name).toBe("Equipe");
     expect(project.tophs).toHaveLength(0);
-    expect(activeChat(project)?.id).toBe(project.chat.id);
+    expect(activeChat(project)?.id).toBe(project.chats[0].id);
   });
 
   it("merges the old individual and team chats into one team", () => {
@@ -78,16 +79,17 @@ describe("useChats", () => {
     } as never);
 
     const project = useChats.getState().byProject.p;
-    expect(project.version).toBe(3);
-    expect(project.chat.name).toBe("Equipe");
+    expect(project.version).toBe(4);
+    expect(project.chats).toHaveLength(1);
+    expect(project.chats[0].name).toBe("Equipe");
     expect(project.tophs).toHaveLength(2);
-    expect(project.tophs.every((toph) => toph.chatId === project.chat.id)).toBe(true);
+    expect(project.tophs.every((toph) => toph.chatId === project.chats[0].id)).toBe(true);
     expect(project.tophs.filter((toph) => toph.coordinator)).toHaveLength(1);
     expect(project.messages).toHaveLength(2);
-    expect(project.messages.every((message) => message.chatId === project.chat.id)).toBe(true);
+    expect(project.messages.every((message) => message.chatId === project.chats[0].id)).toBe(true);
   });
 
-  it("creates the normal conversation when an old layout has no team", () => {
+  it("creates the normal team when an old layout has no team", () => {
     useChats.getState().load("p", {
       version: 2,
       chats: [{ id: "individual", name: "Leo", description: "", kind: "individual", createdAt: 1, updatedAt: 1 }],
@@ -97,28 +99,42 @@ describe("useChats", () => {
     } as never);
 
     const project = useChats.getState().byProject.p;
-    expect(project.chat.name).toBe("Equipe");
-    expect(project.tophs[0].chatId).toBe(project.chat.id);
-    expect(project.messages[0].chatId).toBe(project.chat.id);
+    expect(project.chats).toHaveLength(1);
+    expect(project.chats[0].name).toBe("Equipe");
+    expect(project.tophs[0].chatId).toBe(project.chats[0].id);
+    expect(project.messages[0].chatId).toBe(project.chats[0].id);
   });
 
-  it("adds any number of Tophs to the single conversation", () => {
-    useChats.getState().ensure("p");
-    expect(useChats.getState().addToph("p", preset("Leo", "Dev"))).not.toBeNull();
-    expect(useChats.getState().addToph("p", preset("Nico", "Revisor"))).not.toBeNull();
+  it("creates teams and keeps each team's Tophs separate", () => {
+    const first = useChats.getState().ensure("p").chats[0];
+    const second = useChats.getState().createChat("p", "Produto");
+    useChats.getState().addToph("p", first.id, preset("Leo", "Dev"));
+    useChats.getState().addToph("p", second.id, preset("Nico", "Revisor"));
 
-    const project = useChats.getState().byProject.p;
-    expect(chatTophs(project)).toHaveLength(2);
-    expect(chatTophs(project).every((toph) => toph.chatId === project.chat.id)).toBe(true);
-    expect(chatCoordinator(chatTophs(project))).not.toBeNull();
+    let project = useChats.getState().byProject.p;
+    expect(project.chats).toHaveLength(2);
+    expect(chatTophs(project, first.id)).toHaveLength(1);
+    expect(chatTophs(project, second.id)).toHaveLength(1);
+    expect(chatTophs(project, first.id)[0].name).toBe("Leo");
+    expect(chatTophs(project, second.id)[0].name).toBe("Nico");
+
+    useChats.getState().setActiveChat("p", second.id);
+    expect(activeChat(useChats.getState().byProject.p)?.id).toBe(second.id);
+
+    const nico = chatTophs(project, second.id)[0];
+    useChats.getState().removeToph("p", nico.id);
+    project = useChats.getState().byProject.p;
+    expect(chatTophs(project, first.id)).toHaveLength(1);
+    expect(chatTophs(project, second.id)).toHaveLength(0);
   });
 
-  it("keeps messages in the conversation and removes them with their Toph", () => {
+  it("keeps messages in their team and removes them with their Toph", () => {
     const project = useChats.getState().ensure("p");
-    const toph = useChats.getState().addToph("p", preset("Leo", "Dev"))!;
+    const chat = project.chats[0];
+    const toph = useChats.getState().addToph("p", chat.id, preset("Leo", "Dev"))!;
     const message: ChatMessage = {
       id: "m1",
-      chatId: project.chat.id,
+      chatId: chat.id,
       tophId: toph.id,
       role: "assistant",
       content: "feito",
@@ -133,58 +149,55 @@ describe("useChats", () => {
     expect(useChats.getState().byProject.p.messages).toHaveLength(0);
   });
 
-  it("resolves a Toph to the single conversation", () => {
-    useChats.getState().ensure("p");
-    const toph = useChats.getState().addToph("p", preset("Leo", "Dev"))!;
-    const project = useChats.getState().byProject.p;
-
-    expect(chatForToph(project, toph.id)?.id).toBe(project.chat.id);
-    expect(tophForChat(project)?.id).toBe(toph.id);
+  it("resolves a Toph to its team", () => {
+    const project = useChats.getState().ensure("p");
+    const chat = project.chats[0];
+    const toph = useChats.getState().addToph("p", chat.id, preset("Leo", "Dev"))!;
+    expect(chatForToph(useChats.getState().byProject.p, toph.id)?.id).toBe(chat.id);
+    expect(tophForChat(useChats.getState().byProject.p, chat.id)?.id).toBe(toph.id);
   });
 
-  it("lets the user add Tophs with any role", () => {
-    useChats.getState().ensure("p");
-    expect(useChats.getState().addToph("p", preset("Leo", "Dev"))).not.toBeNull();
-    expect(useChats.getState().addToph("p", preset("Outro", "Dev"))).not.toBeNull();
-  });
-
-  it("hydrates a server snapshot with the single conversation model", () => {
+  it("hydrates a server snapshot with the multi-team model", () => {
     useChats.getState().load("p", {
-      version: 3,
-      chat: { id: "chat", name: "Equipe", description: "", createdAt: 1, updatedAt: 1 },
+      version: 4,
+      chats: [{ id: "chat", name: "Equipe", description: "", createdAt: 1, updatedAt: 1 }],
       tophs: [],
       messages: [],
+      activeChatId: "chat",
     });
     const project = useChats.getState().byProject.p;
     expect(project.hydrated).toBe(true);
-    expect(project.chat.id).toBe("chat");
+    expect(project.chats[0].id).toBe("chat");
+    expect(project.activeChatId).toBe("chat");
   });
 
-  it("replaces the coordinator when the current one leaves", () => {
-    useChats.getState().ensure("p");
-    useChats.getState().addToph("p", preset("Leo", "Dev"));
-    useChats.getState().addToph("p", preset("Nico", "Revisor"));
-    const coordinator = chatCoordinator(chatTophs(useChats.getState().byProject.p))!;
+  it("replaces the coordinator when the current one leaves its team", () => {
+    const project = useChats.getState().ensure("p");
+    const chat = project.chats[0];
+    useChats.getState().addToph("p", chat.id, preset("Leo", "Dev"));
+    useChats.getState().addToph("p", chat.id, preset("Nico", "Revisor"));
+    const coordinator = chatCoordinator(chatTophs(useChats.getState().byProject.p, chat.id))!;
 
     useChats.getState().removeToph("p", coordinator.id);
 
-    const members = chatTophs(useChats.getState().byProject.p);
+    const members = chatTophs(useChats.getState().byProject.p, chat.id);
     expect(members.length).toBeGreaterThan(0);
     expect(members.filter((member) => member.coordinator)).toHaveLength(1);
   });
 
   it("keeps shared user messages but gives a reset Toph a clean prompt", () => {
     const project = useChats.getState().ensure("p");
-    const first = useChats.getState().addToph("p", preset("Leo", "Dev"))!;
-    const second = useChats.getState().addToph("p", preset("Nico", "Revisor"))!;
+    const chat = project.chats[0];
+    const first = useChats.getState().addToph("p", chat.id, preset("Leo", "Dev"))!;
+    const second = useChats.getState().addToph("p", chat.id, preset("Nico", "Revisor"))!;
     const oldAt = Date.now() - 5_000;
-    useChats.getState().addMessage("p", { id: "u1", chatId: project.chat.id, role: "user", content: "contexto compartilhado", createdAt: oldAt });
-    useChats.getState().addMessage("p", { id: "a1", chatId: project.chat.id, tophId: first.id, role: "assistant", content: "resposta do primeiro", createdAt: oldAt + 1 });
-    useChats.getState().addMessage("p", { id: "a2", chatId: project.chat.id, tophId: second.id, role: "assistant", content: "resposta do segundo", createdAt: oldAt + 2 });
+    useChats.getState().addMessage("p", { id: "u1", chatId: chat.id, role: "user", content: "contexto compartilhado", createdAt: oldAt });
+    useChats.getState().addMessage("p", { id: "a1", chatId: chat.id, tophId: first.id, role: "assistant", content: "resposta do primeiro", createdAt: oldAt + 1 });
+    useChats.getState().addMessage("p", { id: "a2", chatId: chat.id, tophId: second.id, role: "assistant", content: "resposta do segundo", createdAt: oldAt + 2 });
 
     const reset = useChats.getState().resetTophSession("p", first.id)!;
     expect(reset.clearChat).toBe(false);
-    expect(messagesForChat(useChats.getState().byProject.p, project.chat.id).map((message) => message.id)).toEqual(["u1", "a2"]);
-    expect(messagesForToph(useChats.getState().byProject.p, project.chat.id, first.id)).toHaveLength(0);
+    expect(messagesForChat(useChats.getState().byProject.p, chat.id).map((message) => message.id)).toEqual(["u1", "a2"]);
+    expect(messagesForToph(useChats.getState().byProject.p, chat.id, first.id)).toHaveLength(0);
   });
 });

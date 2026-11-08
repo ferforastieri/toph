@@ -32,8 +32,9 @@ export function useWorkspacePersistence(
     const unsubscribe = useChats.subscribe((state, previous) => {
       const current = state.byProject[projectId];
       const before = previous.byProject[projectId];
-      if (current === before || (current?.chat === before?.chat
-        && current?.tophs === before?.tophs)) return;
+      if (current === before || (current?.chats === before?.chats
+        && current?.tophs === before?.tophs
+        && current?.activeChatId === before?.activeChatId)) return;
       schedule();
     });
     return () => {

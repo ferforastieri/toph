@@ -25,7 +25,8 @@ beforeAll(() => {
 beforeEach(() => {
   useChats.setState({ byProject: {}, messageWrites: {} });
   useChats.getState().load(projectId);
-  tophId = useChats.getState().addToph(projectId, {
+  const chat = useChats.getState().byProject[projectId].chats[0];
+  tophId = useChats.getState().addToph(projectId, chat.id, {
     ...TOPH_PRESETS[0],
     name: "Toph",
     model: "openai::gpt",

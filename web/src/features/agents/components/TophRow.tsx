@@ -1,4 +1,4 @@
-import { History, Settings2 } from "@toph/icons";
+import { History, Settings2, Trash2 } from "@toph/icons";
 import type { ChatToph } from "../../conversations/store";
 import BotAvatar from "./BotAvatar";
 import { Button } from "@/shared/boardui/base/buttons/button";
@@ -9,12 +9,13 @@ interface Props {
   onOpen: () => void;
   onConfig?: () => void;
   onSessions: () => void;
+  onRemove?: () => void;
   compact?: boolean;
   selected?: boolean;
 }
 
 /** Toph row used by the desktop sidebar and the mobile chat sheet. */
-export default function TophRow({ toph, onOpen, onConfig, onSessions, compact = false, selected = false }: Props) {
+export default function TophRow({ toph, onOpen, onConfig, onSessions, onRemove, compact = false, selected = false }: Props) {
   return (
     <div className={cx("flex w-full items-center rounded-xl pe-1 transition-colors", selected ? "bg-background-tertiary-default" : "hover:bg-background-primary-hover")}>
       <button
@@ -33,6 +34,7 @@ export default function TophRow({ toph, onOpen, onConfig, onSessions, compact = 
       </button>
       {onConfig ? <Button variant="ghost" size={compact ? "small" : "xs"} iconOnly leadingIcon={Settings2} aria-label={`Configurar ${toph.name}`} title="Configurar Toph" onClick={onConfig} /> : null}
       <Button variant="ghost" size={compact ? "small" : "xs"} iconOnly leadingIcon={History} aria-label={`Sessões de ${toph.name}`} title="Sessões do Toph" onClick={onSessions} />
+      {onRemove ? <Button variant="ghost" size={compact ? "small" : "xs"} iconOnly leadingIcon={Trash2} aria-label={`Remover ${toph.name} da equipe`} title="Remover da equipe" className="text-status-rose-text" onClick={onRemove} /> : null}
     </div>
   );
 }
