@@ -154,7 +154,14 @@ where
     let real_home = std::env::var("HOME").unwrap_or_else(|_| "/home/fernando".into());
     let data_home =
         std::env::var("XDG_DATA_HOME").unwrap_or_else(|_| format!("{real_home}/.local/share"));
-    let mut command = Command::new("opencode");
+    // systemd starts Toph with a minimal PATH; resolve the CLI the same way the
+    // Settings detector does instead of relying on PATH containing ~/.local/bin.
+    let binary = super::engines::find_binary("opencode").ok_or_else(|| {
+        bad_request(
+            "O OpenCode não está instalado. Instale em Configurações → CLIs e tente de novo.",
+        )
+    })?;
+    let mut command = Command::new(&binary);
     command
         // A private server keeps this run's config and permissions out of the
         // user's shared OpenCode service.

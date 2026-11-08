@@ -1,30 +1,12 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { ArrowUp, AtSign, ChevronDown, FilePlus2, ImagePlus, LoaderCircle, Mic, Plus, SlidersHorizontal, Square, TerminalSquare, X } from "@toph/icons";
-import type { AIModel } from "../../../shared/api";
+import { ArrowUp, FilePlus2, ImagePlus, LoaderCircle, Mic, Square, X } from "@toph/icons";
 import { Button } from "@/shared/boardui/base/buttons/button";
 import { IconButton } from "@/shared/boardui/base/buttons/icon-button";
 import { Textarea } from "@/shared/boardui/base/textarea/textarea";
-import { DropdownDivider, DropdownGroup, DropdownItem } from "@/shared/boardui/base/dropdown/dropdown";
-import ComposerMenu from "./ComposerMenu";
 import { ComposerLoader } from "@/shared/boardui/application/composer-loader/composer-loader";
-import ModelPicker from "../../providers/components/ModelPicker";
 import { useAudioRecorder, type AgentAttachment } from "../../../shared/ui/useAudioRecorder";
 
 export type { AgentAttachment } from "../../../shared/ui/useAudioRecorder";
-
-const EFFORT_LABELS: Record<string, string> = {
-  minimal: "Mínimo",
-  low: "Baixo",
-  medium: "Médio",
-  high: "Alto",
-  max: "Max",
-  xhigh: "Máximo",
-  none: "Nenhum",
-};
-
-function effortLabel(value: string): string {
-  return value ? EFFORT_LABELS[value] ?? value : "Padrão";
-}
 
 interface Props {
   value: string;
@@ -32,22 +14,16 @@ interface Props {
   onSend: (value: string, attachments: AgentAttachment[]) => void;
   onStop?: () => void;
   busy: boolean;
-  models?: AIModel[];
-  model?: string;
-  onModelChange?: (value: string) => void;
-  effort?: string;
-  efforts?: string[];
-  onEffortChange?: (value: string) => void;
   placeholder: string;
+  hint?: string;
   allowAttachments?: boolean;
   modeControls?: ReactNode;
   history?: string[];
 }
 
-export function AgentComposer({ value, onChange, onSend, onStop, busy, models, model, onModelChange, effort, efforts, onEffortChange, placeholder, allowAttachments = true, modeControls, history = [] }: Props) {
+export function AgentComposer({ value, onChange, onSend, onStop, busy, placeholder, hint = "", allowAttachments = true, modeControls, history = [] }: Props) {
   const [attachments, setAttachments] = useState<AgentAttachment[]>([]);
   const [error, setError] = useState("");
-  const [addMenuOpen, setAddMenuOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const areaRef = useRef<HTMLTextAreaElement>(null);
   const localHistory = useRef<string[]>([]);
@@ -72,13 +48,6 @@ export function AgentComposer({ value, onChange, onSend, onStop, busy, models, m
     window.addEventListener("keydown", key);
     return () => window.removeEventListener("keydown", key);
   }, []);
-
-  function insert(prefix: string) {
-    const area = areaRef.current;
-    const start = area?.selectionStart ?? value.length;
-    onChange(`${value.slice(0, start)}${prefix}${value.slice(start)}`);
-    window.setTimeout(() => { area?.focus(); area?.setSelectionRange(start + prefix.length, start + prefix.length); }, 0);
-  }
 
   async function pickFiles(files: FileList | File[] | null) {
     if (!files) return;
@@ -135,11 +104,11 @@ export function AgentComposer({ value, onChange, onSend, onStop, busy, models, m
   }
 
   return (
-    <div className="flex w-full flex-col p-2">
-      <ComposerLoader active={busy} radius={14} surface={false}>
+    <div className="mx-auto flex w-full max-w-[860px] flex-col px-3 pt-1.5 pb-[18px] sm:px-7">
+      <ComposerLoader active={busy} radius={20} surface={false}>
         <form
           onSubmit={(event) => { event.preventDefault(); event.stopPropagation(); if (!busy) submit(); }}
-          className="flex flex-col gap-2 rounded-[14px] border border-border-button-default bg-background-primary-default p-3 pb-2 shadow-xs"
+          className="flex flex-col gap-0 overflow-hidden rounded-[20px] border border-border-button-default bg-background-primary-default shadow-sm transition-[border-color,box-shadow] duration-200 focus-within:border-border-button-hover focus-within:ring-4 focus-within:ring-accent-500/10"
           onKeyDownCapture={(event) => {
             if (event.target !== areaRef.current) return;
             if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); submit(); return; }
@@ -156,7 +125,7 @@ export function AgentComposer({ value, onChange, onSend, onStop, busy, models, m
           }}
         >
           {attachments.length > 0 && (
-            <div className="flex flex-wrap items-start gap-2">
+            <div className="flex flex-wrap items-start gap-2 px-4 pt-3">
               {attachments.map((file, index) => file.mime.startsWith("image/") ? (
                 <figure key={`${file.name}-${file.size}-${index}`} className="group relative w-24 overflow-hidden rounded-xl border border-border-button-default bg-background-secondary-default">
                   <img src={file.uri} alt={file.name} className="h-20 w-full object-cover" />
@@ -191,62 +160,13 @@ export function AgentComposer({ value, onChange, onSend, onStop, busy, models, m
             autoResize
             maxRows={6}
             resize="none"
-            fieldClassName="flex min-h-[38px] items-start rounded-none bg-transparent p-0 ring-0 shadow-none"
-            className="min-h-[38px] px-0 py-0 text-[13.5px] leading-[1.5]"
+            fieldClassName="flex min-h-[50px] items-start rounded-none bg-transparent p-0 ring-0 shadow-none"
+            className="min-h-[50px] px-4 pt-[13px] pb-1 text-[14px] leading-[1.55]"
           />
-          <div className="flex min-w-0 items-center gap-1">
-            <ComposerMenu
-              label="Adicionar contexto ou arquivo"
-              isOpen={addMenuOpen}
-              onOpenChange={setAddMenuOpen}
-              trigger={<><Plus size={15} /><ChevronDown size={12} className="size-3 text-foreground-icon-tertiary" /></>}
-              popoverClassName="w-[300px] p-0"
-              contentClassName="flex flex-col gap-1 p-1.5"
-            >
-              {(close) => (
-                <>
-                  <DropdownGroup>
-                    {allowAttachments && <DropdownItem onSelect={() => { close(); fileRef.current?.click(); }}><ImagePlus size={15} /> Imagens, áudios e arquivos <span className="ms-auto text-caption-2-regular text-text-tertiary">Ctrl+U</span></DropdownItem>}
-                    <DropdownItem onSelect={() => { close(); insert("/"); }}><TerminalSquare size={15} /> Comandos <span className="ms-auto text-caption-2-regular text-text-tertiary">/</span></DropdownItem>
-                    <DropdownItem onSelect={() => { close(); insert("@"); }}><AtSign size={15} /> Contexto <span className="ms-auto text-caption-2-regular text-text-tertiary">@</span></DropdownItem>
-                  </DropdownGroup>
-                  <DropdownDivider />
-                  <DropdownGroup>
-                    <DropdownItem onSelect={() => { close(); insert("!"); }}><TerminalSquare size={15} /> Comando do shell <span className="ms-auto text-caption-2-regular text-text-tertiary">!</span></DropdownItem>
-                  </DropdownGroup>
-                </>
-              )}
-            </ComposerMenu>
-            <div className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
-              {models && model !== undefined && onModelChange ? (
-                <ModelPicker models={models} model={model} onModelChange={onModelChange} effort={effort ?? ""} efforts={efforts ?? []} onEffortChange={onEffortChange} />
-              ) : null}
-              {efforts && efforts.length > 0 && onEffortChange ? (
-                <ComposerMenu
-                  label="Esforço do modelo"
-                  trigger={<><SlidersHorizontal size={13} className="shrink-0 text-foreground-icon-tertiary" /><span className="truncate">Esforço · {effortLabel(effort ?? "")}</span><ChevronDown size={12} className="size-3 shrink-0 text-foreground-icon-tertiary" /></>}
-                  triggerClassName="max-w-[230px]"
-                  popoverClassName="w-[240px] p-0"
-                  contentClassName="flex flex-col gap-1 p-1.5"
-                >
-                  {(close) => (
-                    <>
-                      <DropdownGroup>
-                        <p className="px-2 pb-1 pt-0.5 text-caption-2-regular text-text-tertiary">Nível de raciocínio</p>
-                      </DropdownGroup>
-                      <DropdownItem selected={!effort} onSelect={() => { onEffortChange(""); close(); }}>Padrão do modelo</DropdownItem>
-                      {efforts.map((value) => (
-                        <DropdownItem key={value} selected={effort === value} onSelect={() => { onEffortChange(value); close(); }}>{effortLabel(value)}</DropdownItem>
-                      ))}
-                    </>
-                  )}
-                </ComposerMenu>
-              ) : null}
-              {modeControls && <div className="flex shrink-0 items-center gap-0.5">{modeControls}</div>}
-            </div>
+          <div className="flex min-w-0 items-center gap-2 px-3 pb-2 pt-1">
             <Button
               type="button"
-              variant={audio.recording ? "danger" : "secondary"}
+              variant={audio.recording ? "danger" : "ghost"}
               size="small"
               iconOnly
               leadingIcon={audio.processing ? LoaderCircle : audio.recording ? Square : Mic}
@@ -256,6 +176,9 @@ export function AgentComposer({ value, onChange, onSend, onStop, busy, models, m
               title={audio.supported ? (audio.recording ? "Parar gravação" : "Gravar áudio") : "Gravação de áudio indisponível"}
               className={audio.processing ? "shrink-0 [&_svg]:animate-spin" : "shrink-0"}
             />
+            {allowAttachments ? <IconButton icon={ImagePlus} size="small" aria-label="Anexar arquivo" title="Anexar arquivo (Ctrl+U)" onClick={() => fileRef.current?.click()} /> : null}
+            <span className="min-w-0 flex-1 truncate text-[11.5px] text-text-tertiary">{hint}</span>
+            {modeControls ? <div className="flex shrink-0 items-center gap-0.5">{modeControls}</div> : null}
             {busy && onStop ? (
               <Button
                 type="button"

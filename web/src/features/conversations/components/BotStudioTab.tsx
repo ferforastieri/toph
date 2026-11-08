@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { ArrowDown, Bot, ChevronDown, LoaderCircle, MessageSquarePlus, Plus, Settings2 } from "@toph/icons";
+import { ArrowDown, Bot, LoaderCircle, MessageSquarePlus, Plus, Settings2 } from "@toph/icons";
 import type { Project } from "../../../shared/api";
 import { activeChat, chatCoordinator, chatTophs, tophForChat, useChats } from "../store";
 import { findModel, modelDisplay, useAI } from "../../providers/store";
@@ -9,12 +9,10 @@ import { useAgentChat } from "../../agents/useAgentChat";
 import { AgentComposer, type AgentAttachment } from "./AgentComposer";
 import ChatMessages from "./ChatMessages";
 import ChatUsageMeter from "./ChatUsageMeter";
-import ComposerMenu from "./ComposerMenu";
 import TophSwitcher from "./TophSwitcher";
 import BotAvatar from "../../agents/components/BotAvatar";
 import { unlockBotSound } from "../sound";
 import { Button } from "@/shared/boardui/base/buttons/button";
-import { DropdownItem } from "@/shared/boardui/base/dropdown/dropdown";
 import { Modal } from "@/shared/boardui/base/modal/modal";
 import { cx } from "@/shared/boardui/utils/cx";
 
@@ -33,7 +31,6 @@ export default function BotStudioTab({ project, mobile = false, embedded = false
   const config = useAI((s) => s.config);
   const models = useAI((s) => s.models);
   const modelError = useAI((s) => s.error);
-  const updateToph = useChats((s) => s.updateToph);
   const createChat = useChats((s) => s.createChat);
   const setActiveChat = useChats((s) => s.setActiveChat);
   const native = useAgentChat(project.id, chat?.id);
@@ -146,7 +143,7 @@ export default function BotStudioTab({ project, mobile = false, embedded = false
       "relative flex min-w-0 flex-1 flex-col overflow-hidden bg-background-full",
       !embedded && "max-[900px]:rounded-none max-[900px]:border-0 max-[900px]:shadow-none min-[901px]:rounded-3xl min-[901px]:border min-[901px]:border-border-button-white min-[901px]:shadow-sidebar",
     )}>
-      <div className={cx("flex shrink-0 items-center gap-2 border-b border-separator-border bg-background-secondary-default", compact ? "h-10 px-2" : "h-12 px-2.5")}>
+      <div className={cx("flex shrink-0 items-center gap-4 border-b border-separator-border/70 bg-background-secondary-default", compact ? "h-[52px] px-3" : "h-[52px] px-5")}>
         <TophSwitcher project={project} chat={chat} modelLabel={modelLabel} compact={compact || mobile} onCreateToph={createTophChat} />
         <span className="min-w-0 flex-1" />
         {chat?.kind === "team" ? (
@@ -164,7 +161,7 @@ export default function BotStudioTab({ project, mobile = false, embedded = false
           const el = event.currentTarget; const movedUp = el.scrollTop < lastTop.current - 1; lastTop.current = el.scrollTop;
           follow.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80 && !movedUp; setAtBottom(follow.current);
         }}>
-          <div key={chat?.id ?? "none"} className={cx("toph-view-in mx-auto flex min-h-full w-full min-w-0 max-w-[760px] flex-col gap-4 overflow-x-hidden [&_img]:max-w-full [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_table]:block [&_table]:max-w-full [&_table]:overflow-x-auto", compact ? "p-2.5" : "p-4")}>
+          <div key={chat?.id ?? "none"} className={cx("toph-view-in mx-auto flex min-h-full w-full min-w-0 max-w-[860px] flex-col gap-2 overflow-x-hidden [&_img]:max-w-full [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_table]:block [&_table]:max-w-full [&_table]:overflow-x-auto", compact ? "px-4 pt-4 pb-2" : "px-7 pt-6 pb-3")}>
             {native.hasMore && <Button variant="ghost" size="small" disabled={native.loading} onClick={older}>{native.loading ? <><LoaderCircle size={14} className="animate-spin" /> Carregando mensagens antigas…</> : "Carregar mensagens anteriores"}</Button>}
             {!native.hasMore && native.messages.length > 0 && <p className="py-1 text-center text-[11px] text-text-tertiary">Início da conversa</p>}
             {!stored?.hydrated ? <div className="my-auto flex items-center justify-center gap-2 py-8 text-caption-1-regular text-text-tertiary"><LoaderCircle size={16} className="animate-spin" /> Carregando chats…</div>
@@ -182,10 +179,10 @@ export default function BotStudioTab({ project, mobile = false, embedded = false
       {chat && coordinator && <div className="shrink-0">
         {modelError && <p role="alert" className="px-3 text-xs text-text-error-primary">{modelError}</p>}
         <AgentComposer value={text} onChange={(value) => setDraft(draftKey, value)} onSend={(value, files) => void send(value, files)} onStop={() => void stop()} busy={busy}
-          models={models} model={activeModel} onModelChange={(model) => updateToph(project.id, coordinator.id, { model })}
-          effort={coordinator.effort ?? ""} efforts={activeModelInfo?.variants ?? []} onEffortChange={(effort) => updateToph(project.id, coordinator.id, { effort })}
-          placeholder={currentToph ? `Mensagem para ${currentToph.name}` : "Mensagem para a equipe"} history={native.messages.filter((m) => m.role === "user").map((m) => m.content)}
-          modeControls={<><ComposerMenu label="Modo do agente" trigger={<><span>{coordinator.agentMode === "plan" ? "Plano" : "Build"}</span><ChevronDown size={12} className="size-3 text-foreground-icon-tertiary" /></>} popoverClassName="w-[300px] p-0" contentClassName="flex flex-col gap-1 p-1.5">{(close) => <><DropdownItem selected={coordinator.agentMode !== "plan"} onSelect={() => { updateToph(project.id, coordinator.id, { agentMode: "build" }); close(); }}>Build</DropdownItem><DropdownItem selected={coordinator.agentMode === "plan"} onSelect={() => { updateToph(project.id, coordinator.id, { agentMode: "plan" }); close(); }}>Plano</DropdownItem></>}</ComposerMenu><ChatUsageMeter usage={native.usage} chatName={currentToph?.name ?? chat.name} tophs={tophs} model={activeModelDisplay} /></>} />
+          placeholder={currentToph ? `Mensagem para ${currentToph.name}` : "Mensagem para a equipe"}
+          hint={chat.kind === "team" ? "Quem estiver na equipe responde · use @ para chamar alguém" : `${currentToph?.name ?? "O Toph"} sempre responde aqui`}
+          history={native.messages.filter((m) => m.role === "user").map((m) => m.content)}
+          modeControls={<ChatUsageMeter chatName={currentToph?.name ?? chat.name} model={activeModelDisplay} />} />
       </div>}
     </section>
     <Modal isOpen={Boolean(selected)} onClose={() => setConfigId(null)} title={selected?.name ?? "Toph"} description="Configure identidade, prompt, modelo e ferramentas deste Toph." size="xl" placement={mobile ? "bottom" : "center"} bodyClassName="p-0" swipeToClose={mobile}><Suspense fallback={<p>Carregando…</p>}>{selected && <BotConfig projectId={project.id} projectRoot={project.root} bot={selected} />}</Suspense></Modal>

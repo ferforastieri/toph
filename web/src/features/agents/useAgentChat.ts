@@ -127,14 +127,14 @@ export function useAgentChat(project: string, chat: string | undefined) {
         setState((current) => ({ ...current, approvals: current.approvals.filter((a) => a.id !== id), questions: current.questions.filter((q) => q.id !== id) }));
       } else if (event.type === "compacting") setCompacting(true);
       else if (event.type === "usage") {
-        const value = event.data as { input: number; output: number; cached: number; agentId?: string; kind?: string; estimatedInput?: number };
+        const value = event.data as { input: number; output: number; cached: number; agentId?: string };
         setUsage((current) => {
           const agents = new Map((current.byAgent ?? []).map((a) => [a.agentId, a]));
           if (value.agentId) {
             const old = agents.get(value.agentId) ?? { agentId: value.agentId, inputTokens: 0, outputTokens: 0, cachedTokens: 0, calls: 0 };
             agents.set(value.agentId, { ...old, inputTokens: old.inputTokens + value.input, outputTokens: old.outputTokens + value.output, cachedTokens: old.cachedTokens + value.cached, calls: old.calls + 1 });
           }
-          return { ...current, inputTokens: current.inputTokens + value.input, outputTokens: current.outputTokens + value.output, cachedTokens: current.cachedTokens + value.cached, calls: current.calls + 1, byAgent: [...agents.values()], ...(value.kind === "turn" ? { contextTokens: value.estimatedInput, contextAgentId: value.agentId } : {}) };
+          return { ...current, inputTokens: current.inputTokens + value.input, outputTokens: current.outputTokens + value.output, cachedTokens: current.cachedTokens + value.cached, calls: current.calls + 1, byAgent: [...agents.values()] };
         });
       }
     });

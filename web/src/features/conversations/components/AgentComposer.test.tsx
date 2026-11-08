@@ -21,10 +21,6 @@ beforeAll(() => {
 afterEach(cleanup);
 
 describe("AgentComposer actions", () => {
-  it("keeps the model selector visible when no effort callback is provided", () => {
-    render(<AgentComposer value="" onChange={vi.fn()} onSend={vi.fn()} busy={false} models={[{ id: "account::model", label: "Model", provider: "openai" }]} model="account::model" onModelChange={vi.fn()} placeholder="Mensagem" />);
-    expect(screen.getByRole("button", { name: "Modelo e esforço" })).toBeVisible();
-  });
   it("uses BoardUI buttons for audio and send", () => {
     render(
       <AgentComposer
@@ -32,19 +28,13 @@ describe("AgentComposer actions", () => {
         onChange={vi.fn()}
         onSend={vi.fn()}
         busy={false}
-        models={[]}
-        model=""
-        onModelChange={vi.fn()}
-        effort=""
-        efforts={[]}
-        onEffortChange={vi.fn()}
         placeholder="Mensagem"
       />,
     );
 
     const audio = screen.getByRole("button", { name: "Gravar áudio" });
     const send = screen.getByRole("button", { name: "Enviar" });
-    expect(audio).toHaveClass("border-border-button-default");
+    expect(audio).toBeVisible();
     expect(send).toHaveClass("bg-button-primary");
   });
 
@@ -55,12 +45,6 @@ describe("AgentComposer actions", () => {
         onChange={vi.fn()}
         onSend={vi.fn()}
         busy={false}
-        models={[]}
-        model=""
-        onModelChange={vi.fn()}
-        effort=""
-        efforts={[]}
-        onEffortChange={vi.fn()}
         placeholder="Mensagem"
       />,
     );
@@ -82,12 +66,6 @@ describe("AgentComposer actions", () => {
         onSend={onSend}
         onStop={onStop}
         busy
-        models={[]}
-        model=""
-        onModelChange={vi.fn()}
-        effort=""
-        efforts={[]}
-        onEffortChange={vi.fn()}
         placeholder="Mensagem"
       />,
     );
@@ -105,12 +83,6 @@ describe("AgentComposer actions", () => {
         onChange={vi.fn()}
         onSend={onSend}
         busy={false}
-        models={[]}
-        model=""
-        onModelChange={vi.fn()}
-        effort=""
-        efforts={[]}
-        onEffortChange={vi.fn()}
         placeholder="Mensagem"
       />,
     );
@@ -128,12 +100,6 @@ describe("AgentComposer actions", () => {
         onChange={onChange}
         onSend={vi.fn()}
         busy={false}
-        models={[]}
-        model=""
-        onModelChange={vi.fn()}
-        effort=""
-        efforts={[]}
-        onEffortChange={vi.fn()}
         placeholder="Mensagem"
         history={["mensagem anterior"]}
       />,

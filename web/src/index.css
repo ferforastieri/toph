@@ -740,12 +740,19 @@
   from { opacity: 0; transform: translateX(10px); }
   to { opacity: 1; transform: translateX(0); }
 }
+@keyframes toph-msg-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
 .toph-view-in {
   animation: toph-view-in 200ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 .toph-panel-in {
   animation: toph-panel-in 220ms cubic-bezier(0.22, 1, 0.36, 1);
 }
+.toph-msg-in {
+  animation: toph-msg-in 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
 @media (prefers-reduced-motion: reduce) {
-  .toph-view-in, .toph-panel-in { animation: none; }
+  .toph-view-in, .toph-panel-in, .toph-msg-in { animation: none; }
 }

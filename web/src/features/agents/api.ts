@@ -17,7 +17,7 @@ export interface AgentQuestionPrompt {
 export interface NativeMessage extends ChatMessage { seq?: number; model?: string; agentMode?: "build" | "plan"; activity?: string; phase?: string }
 export interface AgentSnapshot { messages: NativeMessage[]; drafts: NativeMessage[]; runs: AgentRun[]; approvals: Approval[]; questions: AgentQuestionPrompt[]; hasMore: boolean; cursor: number | null }
 export interface TophUsage { agentId: string; inputTokens: number; outputTokens: number; cachedTokens: number; calls: number }
-export interface AgentUsage { inputTokens: number; outputTokens: number; cachedTokens: number; calls: number; byAgent?: TophUsage[]; contextTokens?: number; contextBudget?: number; contextAgentId?: string | null }
+export interface AgentUsage { inputTokens: number; outputTokens: number; cachedTokens: number; calls: number; byAgent?: TophUsage[] }
 export interface Connection { id: string; label: string; provider: string; baseUrl: string; model: string; hasKey: boolean }
 export interface McpServer { id: string; name: string; transport: "stdio" | "http"; url: string; command: string[]; token?: string; env?: Record<string, string>; envKeys?: string[]; hasToken: boolean; timeoutSeconds?: number; autoApprove?: boolean }
 
@@ -49,6 +49,21 @@ export interface EngineInstall {
   output: string;
   message: string;
 }
+export interface UsageWindow {
+  percent: number;
+  limited: boolean;
+  resetsAt: number;
+}
+export interface UsageLimits {
+  workspace?: { id: string; name: string; usageURL: string };
+  go?: { rolling: UsageWindow; weekly: UsageWindow; monthly: UsageWindow };
+  budgets?: unknown[];
+}
+export interface EngineLimits {
+  ok: boolean;
+  data?: UsageLimits | null;
+  message?: string;
+}
 
 export interface ProjectSkill { id: string; name: string; description: string }
 
@@ -79,6 +94,7 @@ export const engineApi = {
   list: () => request<EngineInfo[]>("/engines"),
   test: (id: string) => request<EngineTest>(`/engines/${encodeURIComponent(id)}/test`, post({})),
   install: (id: string) => request<EngineInstall>(`/engines/${encodeURIComponent(id)}/install`, post({})),
+  limits: (id: string) => request<EngineLimits>(`/engines/${encodeURIComponent(id)}/limits`),
 };
 
 export function isActive(run: AgentRun): boolean { return ["queued", "running", "waiting"].includes(run.state); }

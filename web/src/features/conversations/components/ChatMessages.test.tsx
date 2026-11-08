@@ -62,6 +62,43 @@ describe("ChatMessages timeline", () => {
     expect(screen.getAllByText("Beto").length).toBeGreaterThan(0);
   });
 
+  it("renders agent replies as plain markdown, without a speech bubble", () => {
+    render(
+      <ChatMessages
+        messages={[{ id: "reply", chatId: "chat", tophId: "toph", role: "assistant", content: "**Resposta** do agente", status: "complete", createdAt: 1, seq: 10 }]}
+        tophs={[toph]}
+        runs={[]}
+        models={[]}
+        defaultModel=""
+        project={project}
+        mobile={false}
+      />,
+    );
+
+    const agent = screen.getByTestId("chat-agent-message");
+    expect(agent).toHaveTextContent("Resposta do agente");
+    expect(agent.querySelector(".md")).not.toBeNull();
+    expect(agent.querySelector("[data-transcript-bubble]")).toBeNull();
+  });
+
+  it("renders the user on the right in the neutral chat bubble", () => {
+    render(
+      <ChatMessages
+        messages={[{ id: "mine", chatId: "chat", role: "user", content: "Olá", status: "complete", createdAt: 1, seq: 10 }]}
+        tophs={[toph]}
+        runs={[]}
+        models={[]}
+        defaultModel=""
+        project={project}
+        mobile={false}
+      />,
+    );
+
+    const mine = screen.getByTestId("chat-user-message");
+    expect(mine).toHaveClass("justify-end");
+    expect(mine.querySelector("p")).toHaveClass("bg-background-tertiary-default");
+  });
+
   it("never shows a raw shell command", () => {
     const messages: NativeMessage[] = [
       { id: "shell", chatId: "chat", tophId: "toph", role: "tool", title: "shell", content: JSON.stringify({ command: "rm -rf /" }), status: "complete", createdAt: 1, seq: 10 },
