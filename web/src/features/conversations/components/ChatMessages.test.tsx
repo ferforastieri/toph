@@ -45,8 +45,6 @@ describe("ChatMessages timeline", () => {
         messages={messages}
         tophs={[toph]}
         runs={[]}
-        models={[]}
-        defaultModel=""
         project={project}
         mobile={false}
       />,
@@ -66,8 +64,6 @@ describe("ChatMessages timeline", () => {
         messages={[{ id: "reply", chatId: "chat", tophId: "toph", role: "assistant", content: "**Resposta** do agente", status: "complete", createdAt: 1, seq: 10 }]}
         tophs={[toph]}
         runs={[]}
-        models={[]}
-        defaultModel=""
         project={project}
         mobile={false}
       />,
@@ -85,8 +81,6 @@ describe("ChatMessages timeline", () => {
         messages={[{ id: "mine", chatId: "chat", role: "user", content: "Olá", status: "complete", createdAt: 1, seq: 10 }]}
         tophs={[toph]}
         runs={[]}
-        models={[]}
-        defaultModel=""
         project={project}
         mobile={false}
       />,
@@ -107,8 +101,6 @@ describe("ChatMessages timeline", () => {
         messages={messages}
         tophs={[toph]}
         runs={[]}
-        models={[]}
-        defaultModel=""
         project={project}
         mobile={false}
       />,

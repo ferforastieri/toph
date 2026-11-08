@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Copy, LoaderCircle } from "@toph/icons";
+import { ChevronDown, Copy, LoaderCircle } from "@toph/icons";
 import type { AiMessage } from "../../../app/store";
-import type { Project, AIModel } from "../../../shared/api";
+import type { Project } from "../../../shared/api";
 import type { ChatToph } from "../store";
 import { isActive, type AgentQuestionPrompt, type AgentRun, type NativeMessage } from "../../agents/api";
-import { modelDisplay } from "../../providers/store";
 import { TranscriptMessage, toolLabel } from "./AgentTranscript";
 import AgentQuestionCard from "./AgentQuestionCard";
 import BotAvatar from "../../agents/components/BotAvatar";
@@ -78,8 +77,6 @@ interface Props {
   messages: NativeMessage[];
   tophs: ChatToph[];
   runs: AgentRun[];
-  models: AIModel[];
-  defaultModel: string;
   project: Project;
   mobile: boolean;
   compact?: boolean;
@@ -142,10 +139,9 @@ function UserMessage({ message }: { message: NativeMessage }) {
   );
 }
 
-function AgentMessage({ message, toph, label, project, grouped }: {
+function AgentMessage({ message, toph, project, grouped }: {
   message: NativeMessage;
   toph: ChatToph;
-  label: string;
   project: Project;
   grouped: boolean;
 }) {
@@ -156,9 +152,7 @@ function AgentMessage({ message, toph, label, project, grouped }: {
         {grouped ? null : (
           <div className="mb-0.5 flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
             <strong className="truncate text-[13.5px] font-semibold text-text-primary">{toph.name}</strong>
-            <span className="rounded-full bg-background-tertiary-default px-1.5 py-0.5 text-[9px] font-medium text-text-secondary">{toph.role || "Toph"}</span>
-            <span className="text-[10px] text-text-tertiary">{timeLabel(message.createdAt)}</span>
-            <span className="min-w-0 truncate text-[10px] text-text-tertiary">{label}</span>
+            <span className="text-[11px] text-text-tertiary">{timeLabel(message.createdAt)}</span>
             <Button
               variant="ghost"
               size="xs"
@@ -179,15 +173,47 @@ function AgentMessage({ message, toph, label, project, grouped }: {
   );
 }
 
-function StepRow({ message, toph, showAvatar }: { message: NativeMessage; toph?: ChatToph; showAvatar: boolean }) {
+function stepLabel(message: NativeMessage): string {
+  if (message.activity) return message.activity;
+  if (message.role === "reasoning") return message.content || "analisou o problema";
+  return fallbackActivity(message);
+}
+
+function StepItem({ message }: { message: NativeMessage }) {
   const failed = message.status === "error";
   return (
-    <div data-testid="chat-step" className="toph-msg-in flex min-w-0 gap-3 py-0.5">
-      <div className="flex w-[34px] shrink-0 justify-center">{showAvatar && toph ? <BotAvatar bot={toph} size={18} /> : null}</div>
-      <div className="flex min-w-0 flex-1 items-center gap-2 text-[12.5px] leading-relaxed text-text-secondary">
-        <span className={cx("size-1.5 shrink-0 rounded-full", failed ? "bg-status-rose-text" : "bg-accent-500/50")} />
-        <span className={cx("min-w-0 truncate", failed && "text-status-rose-text")}>{message.activity || fallbackActivity(message)}</span>
-        {message.status === "running" ? <LoaderCircle className="size-3.5 shrink-0 animate-spin text-accent-500" /> : null}
+    <div data-testid="chat-step" className="flex min-w-0 items-center gap-2 py-0.5 text-[12.5px] leading-relaxed text-text-secondary">
+      <span className={cx("size-1.5 shrink-0 rounded-full", failed ? "bg-status-rose-text" : "bg-accent-500/50")} />
+      <span className={cx("min-w-0 truncate", failed && "text-status-rose-text")}>{stepLabel(message)}</span>
+      {message.status === "running" ? <LoaderCircle className="size-3.5 shrink-0 animate-spin text-accent-500" /> : null}
+    </div>
+  );
+}
+
+function StepGroup({ messages, toph, showAvatar }: { messages: NativeMessage[]; toph: ChatToph; showAvatar: boolean }) {
+  const running = messages.some((message) => message.status === "running");
+  const [open, setOpen] = useState(running);
+  useEffect(() => {
+    if (running) setOpen(true);
+  }, [running]);
+  const toolCount = messages.filter((message) => message.role === "tool").length;
+  const labels = [...new Set(messages.map(stepLabel))];
+  return (
+    <div data-testid="chat-step-group" className="toph-msg-in flex min-w-0 gap-3 py-0.5">
+      <div className="flex w-[34px] shrink-0 justify-center">{showAvatar ? <BotAvatar bot={toph} size={18} /> : null}</div>
+      <div className="min-w-0 flex-1">
+        <button
+          type="button"
+          onClick={() => setOpen((value) => !value)}
+          aria-expanded={open}
+          className="toph-tool-row group flex w-full min-w-0 items-center gap-1.5 rounded-lg px-1 py-1 text-start text-[12.5px] text-text-tertiary transition-colors hover:bg-background-primary-hover hover:text-text-secondary"
+        >
+          {running ? <LoaderCircle className="size-3 shrink-0 animate-spin text-accent-500" /> : <span className="size-1.5 shrink-0 rounded-full bg-accent-500/50" />}
+          <span className="shrink-0">{toolCount > 0 ? `Usou ${toolCount} ferramenta${toolCount === 1 ? "" : "s"}` : "Raciocinou"}</span>
+          <span className="min-w-0 truncate text-text-tertiary">{labels.join(", ")}</span>
+          <ChevronDown className={cx("size-3 shrink-0 transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]", open ? "rotate-180" : "-rotate-90")} />
+        </button>
+        {open ? <div className="flex flex-col gap-0.5 ps-2 pt-0.5">{messages.map((message) => <StepItem key={message.id} message={message} />)}</div> : null}
       </div>
     </div>
   );
@@ -212,20 +238,12 @@ export default function ChatMessages({
   messages,
   tophs,
   runs,
-  models,
-  defaultModel,
   project,
-  mobile,
-  compact = false,
   questions = [],
   onAnswer,
 }: Props) {
   const ordered = useMemo(() => [...messages].sort(messageOrder), [messages]);
   const activeRuns = runs.filter(isActive);
-  const label = (toph: ChatToph | undefined, message?: NativeMessage) => {
-    const id = message?.model || toph?.model || defaultModel;
-    return modelDisplay(models.find((m) => m.id === id) ?? (id ? { id, label: id.split("::").pop()?.split("/").pop() ?? id } : undefined));
-  };
 
   function currentActivity(toph: ChatToph, run: AgentRun): { label: string; detail?: string } {
     const own = ordered.filter((message) => message.tophId === toph.id && message.createdAt >= run.createdAt);
@@ -244,19 +262,32 @@ export default function ChatMessages({
   const groupWindow = 5 * 60 * 1000;
   let lastTophId: string | null = null;
   let lastTophAt = 0;
+  let pendingSteps: NativeMessage[] = [];
+  let pendingToph: ChatToph | null = null;
+  let pendingShowAvatar = false;
+
+  function flushSteps() {
+    if (!pendingToph || pendingSteps.length === 0) return;
+    rows.push(<StepGroup key={`steps-${pendingSteps[0].id}`} messages={pendingSteps} toph={pendingToph} showAvatar={pendingShowAvatar} />);
+    pendingSteps = [];
+    pendingToph = null;
+  }
 
   for (const message of ordered) {
     if (message.role === "user") {
+      flushSteps();
       lastTophId = null;
       rows.push(<UserMessage key={message.id} message={message} />);
       continue;
     }
     if (message.role === "system") {
+      flushSteps();
       lastTophId = null;
       rows.push(<p key={message.id} className="py-1 text-center text-[11px] text-text-tertiary">{message.content}</p>);
       continue;
     }
     if (message.role === "error") {
+      flushSteps();
       lastTophId = null;
       rows.push(<p key={message.id} className="rounded-xl bg-status-rose-background px-3 py-2 text-[12px] text-status-rose-text">{message.content}</p>);
       continue;
@@ -264,6 +295,7 @@ export default function ChatMessages({
 
     const toph = tophs.find((item) => item.id === message.tophId);
     if (!toph) {
+      flushSteps();
       const value = toTranscriptMessage(message);
       rows.push(
         <div key={message.id} className="toph-msg-in min-w-0">
@@ -274,33 +306,25 @@ export default function ChatMessages({
     }
 
     const grouped = lastTophId === toph.id && message.createdAt - lastTophAt < groupWindow;
-    if (message.role === "activity" || message.role === "tool") {
-      rows.push(<StepRow key={message.id} message={message} toph={toph} showAvatar={!grouped} />);
-      lastTophId = toph.id;
-      lastTophAt = message.createdAt;
-      continue;
-    }
-    if (message.role === "reasoning") {
-      rows.push(
-        <StepRow
-          key={message.id}
-          message={{ ...message, activity: message.content || "analisou o problema" }}
-          toph={toph}
-          showAvatar={!grouped}
-        />,
-      );
+    if (message.role === "activity" || message.role === "tool" || message.role === "reasoning") {
+      if (!pendingToph || pendingToph.id !== toph.id) {
+        flushSteps();
+        pendingToph = toph;
+        pendingShowAvatar = !grouped;
+      }
+      pendingSteps.push(message);
       lastTophId = toph.id;
       lastTophAt = message.createdAt;
       continue;
     }
     if (message.role === "assistant") {
       if (!message.content && message.status !== "running") continue;
+      flushSteps();
       rows.push(
         <AgentMessage
           key={message.id}
           message={message}
           toph={toph}
-          label={label(toph, message)}
           project={project}
           grouped={grouped}
         />,
@@ -309,6 +333,8 @@ export default function ChatMessages({
       lastTophAt = message.createdAt;
     }
   }
+
+  flushSteps();
 
   for (const run of activeRuns) {
     const toph = tophs.find((item) => item.id === run.agentId);
@@ -340,5 +366,5 @@ export default function ChatMessages({
     );
   }
 
-  return <div className={cx("flex min-w-0 flex-col", compact || mobile ? "gap-0.5" : "gap-1")}>{rows}</div>;
+  return <div className="flex min-w-0 flex-col">{rows}</div>;
 }

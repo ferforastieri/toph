@@ -2,6 +2,7 @@ import { Plus } from "@toph/icons";
 import { TOPH_PRESETS, chatTophs, useChats, type TophPreset } from "../../conversations/store";
 import BotAvatar from "./BotAvatar";
 import { Modal } from "@/shared/boardui/base/modal/modal";
+import { useIsMobile } from "../../../shared/ui/useIsMobile";
 
 interface Props {
   open: boolean;
@@ -29,6 +30,7 @@ const CUSTOM_PRESET: TophPreset = {
 
 /** Adds a pre-made Toph or a blank custom Toph to the active chat. */
 export default function TophGallery({ open, projectId, chatId, onClose, onCreated }: Props) {
+  const mobile = useIsMobile();
   const project = useChats((state) => state.byProject[projectId]);
   const addToph = useChats((state) => state.addToph);
   const existing = chatTophs(project, chatId);
@@ -58,10 +60,10 @@ export default function TophGallery({ open, projectId, chatId, onClose, onCreate
       onClose={onClose}
       title="Adicionar Toph à equipe"
       description="Sugestões prontas — escolha uma e ajuste nome, papel, cor, prompt e ferramentas."
-      placement="bottom"
-      size="lg"
+      placement={mobile ? "bottom" : "center"}
+      size={mobile ? "lg" : "md"}
       bodyClassName="p-3"
-      swipeToClose
+      swipeToClose={mobile}
     >
       <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
         <button

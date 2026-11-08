@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Stdio;
 
 use serde_json::{json, Value};
@@ -10,6 +10,23 @@ use crate::ai::AiConfig;
 use crate::errors::{bad_request, AppResult};
 
 use super::models::AgentSpec;
+
+/// A stable empty working directory per Toph session. OpenCode stores the
+/// session's cwd, so deleting it between turns makes a resumed session fail
+/// with "Location not found". It is cleaned only when the team is deleted.
+pub fn work_dir(session_id: &str) -> PathBuf {
+    let safe: String = session_id
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '-' || c == '_' {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect();
+    std::env::temp_dir().join(format!("toph-cli-{safe}"))
+}
 
 #[derive(Clone, Debug, Default)]
 pub struct CliUsage {

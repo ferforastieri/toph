@@ -27,10 +27,10 @@ export interface ModalProps {
 }
 
 const sizes: Record<ModalSize, string> = {
-  sm: "max-w-md",
-  md: "max-w-xl",
-  lg: "max-w-3xl",
-  xl: "max-w-5xl",
+  sm: "max-w-sm",
+  md: "max-w-lg",
+  lg: "max-w-2xl",
+  xl: "max-w-4xl",
   full: "max-w-[calc(100vw-32px)]",
 };
 
@@ -127,7 +127,7 @@ export function Modal({
         aria-label="Fechar"
         onClick={onClose}
         className={cx(
-          "toph-modal-backdrop absolute inset-0 cursor-default bg-black/60 transition-opacity duration-200",
+          "toph-modal-backdrop absolute inset-0 cursor-default bg-black/55 backdrop-blur-[2px] transition-opacity duration-200",
           visible ? "opacity-100" : "opacity-0",
         )}
       />
@@ -144,7 +144,7 @@ export function Modal({
         onTouchCancel={onSheetTouchEnd}
         className={cx(
           "relative flex w-full flex-col overflow-clip outline-none",
-          "bg-background-primary-default shadow-xs",
+          "border border-border-button-white bg-background-primary-default shadow-sidebar",
           "transform-gpu transition-[opacity,transform,filter] duration-200 ease-[cubic-bezier(0.32,0.72,0,1)]",
           visible ? "scale-100 opacity-100 blur-0" : "scale-[0.97] opacity-0 blur-[3px]",
           placement === "bottom"
@@ -159,23 +159,32 @@ export function Modal({
           </div>
         ) : null}
         {(title || description) && (
-          <header data-sheet-drag={swipeToClose ? true : undefined} className="flex shrink-0 touch-none items-start justify-between gap-4 border-b border-border-button-default px-5 py-4">
+          <header data-sheet-drag={swipeToClose ? true : undefined} className="flex shrink-0 touch-none items-start justify-between gap-4 px-5 pb-2 pt-5">
             <div className="flex min-w-0 flex-col gap-1">
               {title ? <h2 className="text-title-3-medium text-text-primary">{title}</h2> : null}
-              {description ? <p className="text-body-regular text-text-secondary">{description}</p> : null}
+              {description ? <p className="text-caption-1-regular leading-relaxed text-text-secondary">{description}</p> : null}
             </div>
             <IconButton
               icon={RiCloseLine}
               size="small"
               aria-label="Fechar"
               onClick={onClose}
-              className="rounded-full border-0 bg-background-tertiary-default text-foreground-icon-secondary shadow-none hover:bg-background-tertiary-hover"
+              className="rounded-full border-0 bg-background-tertiary-default/70 text-text-tertiary shadow-none hover:bg-background-tertiary-hover hover:text-text-primary"
             />
           </header>
         )}
+        {!title && !description ? (
+          <IconButton
+            icon={RiCloseLine}
+            size="small"
+            aria-label="Fechar"
+            onClick={onClose}
+            className="absolute end-3 top-3 z-10 rounded-full border-0 bg-background-tertiary-default/70 text-text-tertiary shadow-none hover:bg-background-tertiary-hover hover:text-text-primary"
+          />
+        ) : null}
         <div className={cx("min-h-0 flex-1 overflow-y-auto p-5", bodyClassName)}>{children}</div>
         {footer ? (
-          <footer className="flex shrink-0 items-center justify-end gap-2 border-t border-border-button-default px-5 py-3">
+          <footer className="flex shrink-0 items-center justify-end gap-2 px-5 pb-5 pt-1">
             {footer}
           </footer>
         ) : null}

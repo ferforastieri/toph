@@ -127,7 +127,7 @@ export function Select<T extends object>({
             <ChevronDownSmall
               className={cx(
                 "shrink-0 text-text-secondary transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
-                size === "sm" ? "size-3.5" : "size-4",
+                size === "sm" ? "size-3" : "size-3.5",
                 isOpen && "rotate-180",
               )}
             />

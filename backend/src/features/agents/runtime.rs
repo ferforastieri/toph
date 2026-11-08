@@ -631,6 +631,9 @@ impl Runtime {
             .lock()
             .unwrap()
             .drop_where(|key| session_ids.iter().any(|id| id == key));
+        for id in &session_ids {
+            let _ = tokio::fs::remove_dir_all(super::cli::work_dir(id)).await;
+        }
         Ok(())
     }
 
@@ -789,11 +792,14 @@ Trabalhe no projeto atual. Para concluir uma alteração, rode os testes ou o bu
                 })
                 .to_string(),
             );
+            let work = cli::work_dir(&ctx.run.session_id);
+            let work_existed = tokio::fs::metadata(&work).await.is_ok();
+            tokio::fs::create_dir_all(&work).await?;
             let plan = self.inner.sessions.lock().unwrap().begin(
                 &ctx.run.session_id,
                 &session_config,
                 &shown,
-                false,
+                !work_existed,
             );
             tracing::debug!(session = %plan.id, resume = plan.resume, "engine session");
             let prompt = if plan.resume {
@@ -801,9 +807,6 @@ Trabalhe no projeto atual. Para concluir uma alteração, rode os testes ou o bu
             } else {
                 self.cli_transcript(ctx).await?
             };
-            let work = std::env::temp_dir().join(format!("toph-cli-{}", ctx.run.id));
-            let _ = tokio::fs::remove_dir_all(&work).await;
-            tokio::fs::create_dir_all(&work).await?;
             let mid = format!("{}-engine", ctx.run.id);
             let display = json!({"id":mid,"userId":ctx.user_id,"projectId":ctx.project_id,"chatId":ctx.run.chat_id,"tophId":ctx.agent.id,"sessionId":ctx.run.session_id,"model":model,"agentMode":ctx.agent.agent_mode,"role":"assistant","content":"","status":"running","createdAt":now()});
             self.inner
@@ -853,7 +856,6 @@ Trabalhe no projeto atual. Para concluir uma alteração, rode os testes ou o bu
                 .await
             };
             gateway_task.abort();
-            let _ = tokio::fs::remove_dir_all(&work).await;
             self.inner.drafts.lock().unwrap().remove(&ctx.run.id);
             let (text, usage) = match result {
                 Ok(value) => value,

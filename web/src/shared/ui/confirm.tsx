@@ -48,6 +48,7 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
         }
         description={options?.message}
         size="sm"
+        bodyClassName="p-0"
         footer={
           <>
             <Button variant="secondary" onClick={() => close(false)}>{options?.cancelLabel ?? "Cancelar"}</Button>
