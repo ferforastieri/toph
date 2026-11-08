@@ -216,6 +216,102 @@ pub(super) async fn project_skills(
     .map(|skill| json!({"id":skill.id,"name":skill.name,"description":skill.description}))
     .collect::<Vec<_>>())))
 }
+pub(super) async fn skills_list(
+    State(state): State<Arc<AppState>>,
+    Path(project): Path<String>,
+    Extension(_auth): Extension<AuthContext>,
+) -> AppResult<Json<Value>> {
+    state.store.project(&project).await?;
+    Ok(Json(json!(state.agents.skills().list(&project).await?)))
+}
+pub(super) async fn save_skill(
+    State(state): State<Arc<AppState>>,
+    Path(project): Path<String>,
+    Extension(_auth): Extension<AuthContext>,
+    Json(input): Json<crate::features::agents::skill_service::ManagedSkillInput>,
+) -> AppResult<Json<Value>> {
+    state.store.project(&project).await?;
+    Ok(Json(json!(
+        state.agents.skills().save(&project, input).await?
+    )))
+}
+#[derive(Deserialize)]
+pub(super) struct SkillDecision {
+    approve: bool,
+}
+pub(super) async fn decide_skill(
+    State(state): State<Arc<AppState>>,
+    Path((project, skill)): Path<(String, String)>,
+    Extension(_auth): Extension<AuthContext>,
+    Json(input): Json<SkillDecision>,
+) -> AppResult<Json<Value>> {
+    state.store.project(&project).await?;
+    Ok(Json(json!(
+        state
+            .agents
+            .skills()
+            .decide(&project, &skill, input.approve)
+            .await?
+    )))
+}
+#[derive(Deserialize)]
+pub(super) struct SkillArchive {
+    archived: bool,
+}
+pub(super) async fn archive_skill(
+    State(state): State<Arc<AppState>>,
+    Path((project, skill)): Path<(String, String)>,
+    Extension(_auth): Extension<AuthContext>,
+    Json(input): Json<SkillArchive>,
+) -> AppResult<Json<Value>> {
+    state.store.project(&project).await?;
+    Ok(Json(json!(
+        state
+            .agents
+            .skills()
+            .archive(&project, &skill, input.archived)
+            .await?
+    )))
+}
+pub(super) async fn remove_skill(
+    State(state): State<Arc<AppState>>,
+    Path((project, skill)): Path<(String, String)>,
+    Extension(_auth): Extension<AuthContext>,
+) -> AppResult<Json<Value>> {
+    state.store.project(&project).await?;
+    state.agents.skills().remove(&project, &skill).await?;
+    Ok(Json(json!({"ok":true})))
+}
+pub(super) async fn skill_versions(
+    State(state): State<Arc<AppState>>,
+    Path((project, skill)): Path<(String, String)>,
+    Extension(_auth): Extension<AuthContext>,
+) -> AppResult<Json<Value>> {
+    state.store.project(&project).await?;
+    Ok(Json(json!(
+        state.agents.skills().versions(&project, &skill).await?
+    )))
+}
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct SkillRestore {
+    version_id: i64,
+}
+pub(super) async fn restore_skill(
+    State(state): State<Arc<AppState>>,
+    Path((project, skill)): Path<(String, String)>,
+    Extension(_auth): Extension<AuthContext>,
+    Json(input): Json<SkillRestore>,
+) -> AppResult<Json<Value>> {
+    state.store.project(&project).await?;
+    Ok(Json(json!(
+        state
+            .agents
+            .skills()
+            .restore(&project, &skill, input.version_id)
+            .await?
+    )))
+}
 pub(super) async fn save_mcp_server(
     State(state): State<Arc<AppState>>,
     Json(input): Json<crate::features::integrations::mcp::Server>,

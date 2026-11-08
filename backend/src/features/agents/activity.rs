@@ -31,6 +31,10 @@ pub fn tool_activity(name: &str, args: &Value) -> String {
             "carregou a skill `{}`",
             short(args["name"].as_str().unwrap_or("skill"))
         ),
+        "propose_skill" => format!(
+            "propôs a skill `{}`",
+            short(args["name"].as_str().unwrap_or("skill"))
+        ),
         "mcp_list" => format!(
             "listou as ferramentas de `{}`",
             short(args["server"].as_str().unwrap_or("MCP"))

@@ -67,3 +67,17 @@ CREATE TABLE IF NOT EXISTS agent_memories (
  source_id TEXT NOT NULL, created_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS agent_memory_project ON agent_memories(user_id,project_id,created_at DESC);
+CREATE TABLE IF NOT EXISTS agent_skills (
+ id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id),
+ name TEXT NOT NULL, description TEXT NOT NULL, body TEXT NOT NULL,
+ agents TEXT NOT NULL DEFAULT '[]', state TEXT NOT NULL DEFAULT 'active',
+ replaces TEXT, proposed_by TEXT, reason TEXT, source TEXT,
+ created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS agent_skill_active_name ON agent_skills(project_id,name) WHERE state='active';
+CREATE INDEX IF NOT EXISTS agent_skill_project ON agent_skills(project_id,state,name);
+CREATE TABLE IF NOT EXISTS agent_skill_versions (
+ id INTEGER PRIMARY KEY AUTOINCREMENT, skill_id TEXT NOT NULL REFERENCES agent_skills(id) ON DELETE CASCADE,
+ name TEXT NOT NULL, description TEXT NOT NULL, body TEXT NOT NULL, by TEXT NOT NULL, at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS agent_skill_versions_skill ON agent_skill_versions(skill_id,at DESC);

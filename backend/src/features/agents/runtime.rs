@@ -40,6 +40,7 @@ pub struct CompletionNotice {
 struct Inner {
     repo: Repository,
     tools: Tools,
+    skills: super::skill_service::Service,
     ai: AiService,
     events: broadcast::Sender<AgentEvent>,
     workspace_events: EventHub,
@@ -54,7 +55,8 @@ pub struct Runtime {
     inner: Arc<Inner>,
 }
 
-fn mentioned_agent(text: &str, roster: &[AgentSpec]) -> Option<AgentSpec> {
+fn mentioned_agents(text: &str, roster: &[AgentSpec], exclude: &str) -> Vec<AgentSpec> {
+    let mut found: Vec<AgentSpec> = Vec::new();
     for word in text.split_whitespace() {
         if !word.starts_with('@') {
             continue;
@@ -64,16 +66,54 @@ fn mentioned_agent(text: &str, roster: &[AgentSpec]) -> Option<AgentSpec> {
             .trim_end_matches(|c: char| !c.is_alphanumeric() && c != '-' && c != '_');
         if let Some(agent) = roster
             .iter()
-            .find(|agent| agent.handle.eq_ignore_ascii_case(handle))
+            .find(|agent| agent.id != exclude && agent.handle.eq_ignore_ascii_case(handle))
         {
-            return Some(agent.clone());
+            if !found.iter().any(|seen| seen.id == agent.id) {
+                found.push(agent.clone());
+            }
         }
     }
-    None
+    found
+}
+
+fn mentioned_agent(text: &str, roster: &[AgentSpec]) -> Option<AgentSpec> {
+    mentioned_agents(text, roster, "").into_iter().next()
+}
+
+/// The handoff screen replies with JSON; models sometimes wrap it in a fence.
+fn parse_handles(text: &str) -> Vec<String> {
+    let Some(start) = text.find('{') else {
+        return Vec::new();
+    };
+    let Some(end) = text.rfind('}') else {
+        return Vec::new();
+    };
+    let Ok(value) = serde_json::from_str::<Value>(&text[start..=end]) else {
+        return Vec::new();
+    };
+    value
+        .get("handles")
+        .and_then(Value::as_array)
+        .map(|handles| {
+            handles
+                .iter()
+                .filter_map(Value::as_str)
+                .map(|handle| {
+                    handle
+                        .trim()
+                        .trim_start_matches('@')
+                        .trim_matches(|c: char| !c.is_alphanumeric() && c != '-' && c != '_')
+                        .to_lowercase()
+                })
+                .filter(|handle| !handle.is_empty())
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 impl Runtime {
     pub async fn new(store: Store, tools: Tools, workspace_events: EventHub) -> AppResult<Self> {
+        let skills = super::skill_service::Service::new(store.clone());
         let repo = Repository(store);
         repo.recover().await?;
         repo.backfill_events().await?;
@@ -83,6 +123,7 @@ impl Runtime {
                 ai: tools.ai.clone(),
                 repo,
                 tools,
+                skills,
                 events,
                 workspace_events,
                 runs: Mutex::new(HashMap::new()),
@@ -99,6 +140,10 @@ impl Runtime {
 
     pub fn tools(&self) -> &Tools {
         &self.inner.tools
+    }
+
+    pub fn skills(&self) -> super::skill_service::Service {
+        self.inner.skills.clone()
     }
 
     pub fn subscribe(&self) -> broadcast::Receiver<AgentEvent> {
@@ -276,6 +321,7 @@ impl Runtime {
             .lock()
             .unwrap()
             .insert(run.id.clone(), token.clone());
+        let skills = self.inner.skills.for_agent(project, &agent.id).await?;
         let ctx = RunContext {
             run: run.clone(),
             user_id: user,
@@ -283,6 +329,7 @@ impl Runtime {
             root,
             agent,
             roster,
+            skills,
             chat_description: input.chat_description,
             depth: 0,
             request: input.text.clone(),
@@ -298,6 +345,11 @@ impl Runtime {
                 Ok(()) => runtime.execute_cli(&ctx, &config, &token).await,
                 Err(error) => Err(error),
             };
+            if let Ok(text) = &result {
+                if !token.is_cancelled() {
+                    runtime.auto_handoff(&ctx, text, &token).await;
+                }
+            }
             runtime.finish(&ctx, result, token.is_cancelled()).await;
         });
         Ok(run)
@@ -568,7 +620,7 @@ impl Runtime {
             self.inner.repo.state(&ctx.run.id, "running", "").await?;
             self.event(ctx,"run",json!({"id":ctx.run.id,"chatId":ctx.run.chat_id,"sessionId":ctx.run.session_id,"agentId":ctx.agent.id,"state":"running","error":"","parentId":ctx.run.parent_id,"createdAt":ctx.run.created_at}));
             let mut system = self.build_system(ctx, config).await?;
-            let mut gateway_tools = tools::gateway_definitions(&ctx.agent);
+            let mut gateway_tools = tools::gateway_definitions(&ctx.agent, &ctx.skills);
             if ctx.roster.len() > 1 && ctx.depth < 2 {
                 gateway_tools.push(tools::delegate_definition());
             }
@@ -715,6 +767,14 @@ Trabalhe no projeto atual. Para concluir uma alteração, rode os testes ou o bu
             extra.push_str("\nContexto compartilhado do chat:\n");
             extra.push_str(&ctx.chat_description);
         }
+        if !ctx.skills.is_empty() {
+            extra.push_str(
+                "\n## Suas skills\nReceitas que o usuário aprovou para tipos de tarefa. Quando a tarefa bater com o \"quando usar\", leia a receita com `toph_read_skill` antes de começar e siga.\n",
+            );
+            for skill in &ctx.skills {
+                extra.push_str(&format!("- {}: {}\n", skill.name, skill.description));
+            }
+        }
         if !ctx.agent.skills.is_empty() {
             let selected = super::skills::enabled(&ctx.root, &ctx.agent.skills);
             if !selected.is_empty() {
@@ -788,6 +848,35 @@ Trabalhe no projeto atual. Para concluir uma alteração, rode os testes ou o bu
                 result=async {
                     if name == "delegate" {
                         self.delegate(ctx, &args, cancel).await
+                    } else if name == "read_skill" {
+                        let wanted = args["name"].as_str().unwrap_or("");
+                        match self
+                            .inner
+                            .skills
+                            .read_for_agent(&ctx.project_id, &ctx.agent.id, wanted)
+                            .await?
+                        {
+                            Some(skill) => Ok(json!({
+                                "name": skill.name,
+                                "description": skill.description,
+                                "content": skill.body,
+                            })),
+                            None => self.inner.tools.execute(ctx, name, &args).await,
+                        }
+                    } else if name == "propose_skill" {
+                        self.inner
+                            .skills
+                            .propose(
+                                &ctx.project_id,
+                                &ctx.agent.id,
+                                super::skill_service::ProposalInput {
+                                    name: args["name"].as_str().unwrap_or("").into(),
+                                    description: args["description"].as_str().unwrap_or("").into(),
+                                    body: args["recipe"].as_str().unwrap_or("").into(),
+                                    reason: args["reason"].as_str().unwrap_or("").into(),
+                                },
+                            )
+                            .await
                     } else {
                         self.inner.tools.execute(ctx, name, &args).await
                     }
@@ -853,135 +942,286 @@ Trabalhe no projeto atual. Para concluir uma alteração, rode os testes ou o bu
     /// Runs a child turn for another Toph in the same team. The child uses its
     /// own session, model, prompt and permissions; its messages join the same
     /// conversation, and the answer comes back to the caller.
-    async fn delegate(
-        &self,
-        parent: &RunContext,
-        args: &Value,
-        cancel: &CancellationToken,
-    ) -> AppResult<Value> {
-        if parent.depth >= 2 {
-            return Err(bad_request(
-                "A conversa entre Tophs chegou ao limite de três trocas. Responda ao usuário.",
-            ));
-        }
-        let handle = args["agent"]
-            .as_str()
-            .unwrap_or("")
-            .trim()
-            .trim_start_matches('@');
-        let task = args["task"].as_str().unwrap_or("").trim();
-        if handle.is_empty() || task.is_empty() {
-            return Err(bad_request("agent and task are required"));
-        }
-        let mut target = parent
-            .roster
-            .iter()
-            .find(|agent| {
-                agent.id != parent.agent.id
-                    && (agent.handle.eq_ignore_ascii_case(handle)
-                        || agent.name.eq_ignore_ascii_case(handle))
+    fn delegate<'a>(
+        &'a self,
+        parent: &'a RunContext,
+        args: &'a Value,
+        cancel: &'a CancellationToken,
+    ) -> BoxFuture<'a, AppResult<Value>> {
+        Box::pin(async move {
+            if parent.depth >= 2 {
+                return Err(bad_request(
+                    "A conversa entre Tophs chegou ao limite de três trocas. Responda ao usuário.",
+                ));
+            }
+            let handle = args["agent"]
+                .as_str()
+                .unwrap_or("")
+                .trim()
+                .trim_start_matches('@');
+            let task = args["task"].as_str().unwrap_or("").trim();
+            if handle.is_empty() || task.is_empty() {
+                return Err(bad_request("agent and task are required"));
+            }
+            let mut target = parent
+                .roster
+                .iter()
+                .find(|agent| {
+                    agent.id != parent.agent.id
+                        && (agent.handle.eq_ignore_ascii_case(handle)
+                            || agent.name.eq_ignore_ascii_case(handle))
+                })
+                .cloned()
+                .ok_or_else(|| bad_request(format!("Toph @{handle} não está nesta equipe.")))?;
+            target.chat_id = parent.run.chat_id.clone();
+            let model = self.inner.ai.migrate_agent_model(&target.model).await?;
+            let config = self.inner.ai.resolve(&model).await?;
+            let mut session = self
+                .inner
+                .repo
+                .session(parent.user_id, &parent.project_id, &target, None)
+                .await?;
+            if session.chat_id != parent.run.chat_id {
+                sqlx::query(
+                    "UPDATE agent_sessions SET chat_id=? WHERE id=? AND user_id=? AND project_id=?",
+                )
+                .bind(&parent.run.chat_id)
+                .bind(&session.id)
+                .bind(parent.user_id)
+                .bind(&parent.project_id)
+                .execute(self.inner.repo.0.pool())
+                .await?;
+                session.chat_id = parent.run.chat_id.clone();
+            }
+            let run = self
+                .inner
+                .repo
+                .create_run(
+                    parent.user_id,
+                    &parent.project_id,
+                    &session,
+                    &format!("delegate-{}-{}", parent.run.id, new_id()),
+                    Some(&parent.run.id),
+                    &target,
+                )
+                .await?;
+            let skills = self
+                .inner
+                .skills
+                .for_agent(&parent.project_id, &target.id)
+                .await?;
+            let ctx = RunContext {
+                run: run.clone(),
+                user_id: parent.user_id,
+                project_id: parent.project_id.clone(),
+                root: parent.root.clone(),
+                agent: target,
+                roster: parent.roster.clone(),
+                skills,
+                chat_description: parent.chat_description.clone(),
+                depth: parent.depth + 1,
+                request: task.to_string(),
+            };
+            self.inner
+                .runs
+                .lock()
+                .unwrap()
+                .insert(run.id.clone(), cancel.clone());
+            let runtime = self.clone();
+            let child_ctx = ctx.clone();
+            let child_cancel = cancel.clone();
+            let child_task = task.to_string();
+            let result = match tokio::spawn(async move {
+                runtime.prepare(&child_ctx, &child_task, &[]).await?;
+                runtime
+                    .execute_cli(&child_ctx, &config, &child_cancel)
+                    .await
             })
-            .cloned()
-            .ok_or_else(|| bad_request(format!("Toph @{handle} não está nesta equipe.")))?;
-        target.chat_id = parent.run.chat_id.clone();
-        let model = self.inner.ai.migrate_agent_model(&target.model).await?;
-        let config = self.inner.ai.resolve(&model).await?;
-        let mut session = self
-            .inner
-            .repo
-            .session(parent.user_id, &parent.project_id, &target, None)
-            .await?;
-        if session.chat_id != parent.run.chat_id {
-            sqlx::query(
-                "UPDATE agent_sessions SET chat_id=? WHERE id=? AND user_id=? AND project_id=?",
-            )
-            .bind(&parent.run.chat_id)
-            .bind(&session.id)
-            .bind(parent.user_id)
-            .bind(&parent.project_id)
-            .execute(self.inner.repo.0.pool())
-            .await?;
-            session.chat_id = parent.run.chat_id.clone();
-        }
-        let run = self
-            .inner
-            .repo
-            .create_run(
-                parent.user_id,
-                &parent.project_id,
-                &session,
-                &format!("delegate-{}-{}", parent.run.id, new_id()),
-                Some(&parent.run.id),
-                &target,
-            )
-            .await?;
-        let ctx = RunContext {
-            run: run.clone(),
-            user_id: parent.user_id,
-            project_id: parent.project_id.clone(),
-            root: parent.root.clone(),
-            agent: target,
-            roster: parent.roster.clone(),
-            chat_description: parent.chat_description.clone(),
-            depth: parent.depth + 1,
-            request: task.to_string(),
-        };
-        self.inner
-            .runs
-            .lock()
-            .unwrap()
-            .insert(run.id.clone(), cancel.clone());
-        let runtime = self.clone();
-        let child_ctx = ctx.clone();
-        let child_cancel = cancel.clone();
-        let child_task = task.to_string();
-        let result = match tokio::spawn(async move {
-            runtime.prepare(&child_ctx, &child_task, &[]).await?;
-            runtime
-                .execute_cli(&child_ctx, &config, &child_cancel)
-                .await
+            .await
+            {
+                Ok(result) => result,
+                Err(error) => Err(crate::errors::internal(error.to_string())),
+            };
+            self.inner.runs.lock().unwrap().remove(&run.id);
+            // A delegated Toph can mention another one too. The chain stops at
+            // depth 2, so a user message gets at most three agent answers in a row.
+            if let Ok(text) = &result {
+                if !cancel.is_cancelled() {
+                    self.auto_handoff(&ctx, text, cancel).await;
+                }
+            }
+            match &result {
+                Ok(text) => {
+                    let _ = self.inner.repo.state(&run.id, "completed", "").await;
+                    self.event(&ctx, "run", json!({"id":run.id,"chatId":ctx.run.chat_id,"sessionId":ctx.run.session_id,"agentId":ctx.agent.id,"state":"completed","error":"","parentId":ctx.run.parent_id,"createdAt":ctx.run.created_at,"finishedAt":now()}));
+                    let _ = self
+                        .inner
+                        .repo
+                        .append_event(
+                            &ctx,
+                            event::kind::RUN_COMPLETED,
+                            json!({"state":"completed","answer":text}),
+                        )
+                        .await;
+                }
+                Err(error) => {
+                    let (state, message) = if cancel.is_cancelled() {
+                        ("cancelled", "Execution cancelled".to_string())
+                    } else {
+                        ("failed", error.to_string())
+                    };
+                    let _ = self.inner.repo.state(&run.id, state, &message).await;
+                    self.event(&ctx, "run", json!({"id":run.id,"chatId":ctx.run.chat_id,"sessionId":ctx.run.session_id,"agentId":ctx.agent.id,"state":state,"error":message,"parentId":ctx.run.parent_id,"createdAt":ctx.run.created_at,"finishedAt":now()}));
+                    let _ = self
+                        .inner
+                        .repo
+                        .append_event(
+                            &ctx,
+                            event::kind::RUN_FAILED,
+                            json!({"state":state,"error":message}),
+                        )
+                        .await;
+                }
+            }
+            let text = result?;
+            Ok(json!({"agent": ctx.agent.handle, "text": text}))
         })
+    }
+
+    /// After a reply, mentions of other Tophs can hand the turn over without
+    /// the caller needing a `delegate` call. A small router turn decides if
+    /// the mention is actually asking for work: "thanks, @beto" wakes nobody.
+    async fn auto_handoff(&self, ctx: &RunContext, text: &str, cancel: &CancellationToken) {
+        if ctx.depth >= 2 || ctx.roster.len() < 2 || cancel.is_cancelled() || text.trim().is_empty()
+        {
+            return;
+        }
+        // An explicit delegate already ran the other Toph and brought the
+        // answer back; running the mention again would duplicate it.
+        let used_delegate: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM agent_tool_calls WHERE run_id=? AND name='delegate' AND state='completed'",
+        )
+        .bind(&ctx.run.id)
+        .fetch_one(self.inner.repo.0.pool())
+        .await
+        .unwrap_or(0);
+        if used_delegate > 0 {
+            return;
+        }
+        let mut candidates = mentioned_agents(text, &ctx.roster, &ctx.agent.id);
+        // A delegated child does not hand work back to its caller: the caller
+        // already receives the child's answer through the delegate tool.
+        if let Some(parent_id) = &ctx.run.parent_id {
+            if let Ok(parent) = self
+                .inner
+                .repo
+                .get_run(ctx.user_id, &ctx.project_id, parent_id)
+                .await
+            {
+                candidates.retain(|agent| agent.id != parent.agent_id);
+            }
+        }
+        if candidates.is_empty() {
+            return;
+        }
+        let mut available = Vec::new();
+        for agent in candidates {
+            let busy: i64 = sqlx::query_scalar(
+                "SELECT count(*) FROM agent_runs WHERE user_id=? AND project_id=? AND chat_id=? AND agent_id=? AND state IN ('queued','running','waiting')",
+            )
+            .bind(ctx.user_id)
+            .bind(&ctx.project_id)
+            .bind(&ctx.run.chat_id)
+            .bind(&agent.id)
+            .fetch_one(self.inner.repo.0.pool())
+            .await
+            .unwrap_or(0);
+            if busy == 0 {
+                available.push(agent);
+            }
+        }
+        if available.is_empty() {
+            return;
+        }
+        let chosen = self.handoff_choice(ctx, text, &available).await;
+        for agent in chosen {
+            let reply = text.chars().take(4_000).collect::<String>();
+            let task = format!(
+                "{} (@{}) respondeu:\n\n{}\n\nContinue a conversa respondendo à parte que é sua. Não repita o que já foi respondido.",
+                ctx.agent.name, ctx.agent.handle, reply
+            );
+            if let Err(error) = self
+                .delegate(ctx, &json!({"agent":agent.handle,"task":task}), cancel)
+                .await
+            {
+                tracing::warn!(%error, agent = %agent.handle, "automatic handoff failed");
+            }
+        }
+    }
+
+    async fn handoff_choice(
+        &self,
+        ctx: &RunContext,
+        text: &str,
+        candidates: &[AgentSpec],
+    ) -> Vec<AgentSpec> {
+        let team = candidates
+            .iter()
+            .map(|agent| {
+                format!(
+                    "@{} — {} — {}",
+                    agent.handle,
+                    agent.role,
+                    agent.description.chars().take(180).collect::<String>()
+                )
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        let history = self
+            .inner
+            .repo
+            .recent_text(&ctx.run.session_id, "", 8)
+            .await
+            .unwrap_or_default()
+            .chars()
+            .take(6_000)
+            .collect::<String>();
+        let reply = text.chars().take(6_000).collect::<String>();
+        let messages = vec![
+            crate::ai::Message {
+                role: "system".into(),
+                content: json!(
+                    "Você decide a passagem de vez entre Tophs. Um Toph respondeu e mencionou outros. Escolha só os mencionados que precisam agir por causa da resposta. Responda SOMENTE com JSON no formato {\"handles\":[\"...\"]}, usando os handles da lista. Passe a vez para pedido, pergunta, tarefa, revisão ou decisão. Não passe para agradecimento, confirmação, menção que só credita ou informa. Na dúvida, não passe."
+                ),
+            },
+            crate::ai::Message {
+                role: "user".into(),
+                content: json!(format!(
+                    "Mencionados:\n{team}\n\nConversa recente:\n{history}\n\nResposta de @{}:\n<reply>\n{}\n</reply>\n\nQuais mencionados precisam agir?",
+                    ctx.agent.handle, reply
+                )),
+            },
+        ];
+        let answer = match tokio::time::timeout(
+            Duration::from_secs(20),
+            self.inner.ai.chat(messages, None, None, None, vec![]),
+        )
         .await
         {
-            Ok(result) => result,
-            Err(error) => Err(crate::errors::internal(error.to_string())),
+            Ok(Ok(answer)) => answer,
+            _ => return Vec::new(),
         };
-        self.inner.runs.lock().unwrap().remove(&run.id);
-        match &result {
-            Ok(text) => {
-                let _ = self.inner.repo.state(&run.id, "completed", "").await;
-                self.event(&ctx, "run", json!({"id":run.id,"chatId":ctx.run.chat_id,"sessionId":ctx.run.session_id,"agentId":ctx.agent.id,"state":"completed","error":"","parentId":ctx.run.parent_id,"createdAt":ctx.run.created_at,"finishedAt":now()}));
-                let _ = self
-                    .inner
-                    .repo
-                    .append_event(
-                        &ctx,
-                        event::kind::RUN_COMPLETED,
-                        json!({"state":"completed","answer":text}),
-                    )
-                    .await;
-            }
-            Err(error) => {
-                let (state, message) = if cancel.is_cancelled() {
-                    ("cancelled", "Execution cancelled".to_string())
-                } else {
-                    ("failed", error.to_string())
-                };
-                let _ = self.inner.repo.state(&run.id, state, &message).await;
-                self.event(&ctx, "run", json!({"id":run.id,"chatId":ctx.run.chat_id,"sessionId":ctx.run.session_id,"agentId":ctx.agent.id,"state":state,"error":message,"parentId":ctx.run.parent_id,"createdAt":ctx.run.created_at,"finishedAt":now()}));
-                let _ = self
-                    .inner
-                    .repo
-                    .append_event(
-                        &ctx,
-                        event::kind::RUN_FAILED,
-                        json!({"state":state,"error":message}),
-                    )
-                    .await;
-            }
-        }
-        let text = result?;
-        Ok(json!({"agent": ctx.agent.handle, "text": text}))
+        let handles = parse_handles(&answer);
+        candidates
+            .iter()
+            .filter(|agent| {
+                handles
+                    .iter()
+                    .any(|handle| handle == &agent.handle.to_lowercase())
+            })
+            .take(2)
+            .cloned()
+            .collect()
     }
 
     async fn permission(
@@ -1009,5 +1249,43 @@ Trabalhe no projeto atual. Para concluir uma alteração, rode os testes ou o bu
         self.inner.repo.state(&ctx.run.id, "running", "").await?;
         self.event(ctx, "approval.resolved", json!({"id":id}));
         Ok(result?["approved"].as_bool() == Some(true))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn agent(id: &str, handle: &str) -> AgentSpec {
+        serde_json::from_value(json!({
+            "id": id,
+            "chatId": "chat",
+            "name": handle,
+            "handle": handle
+        }))
+        .unwrap()
+    }
+
+    #[test]
+    fn handoff_handles_are_read_from_a_json_reply() {
+        assert_eq!(
+            parse_handles("```json\n{\"handles\":[\"@Beto\",\"nico,\"]}\n```"),
+            vec!["beto".to_string(), "nico".to_string()]
+        );
+        assert!(parse_handles("ninguém").is_empty());
+        assert!(parse_handles("{\"handles\":[]}").is_empty());
+    }
+
+    #[test]
+    fn mentions_skip_the_speaker_and_duplicates() {
+        let roster = vec![agent("a", "ana"), agent("b", "beto"), agent("c", "nico")];
+        let found = mentioned_agents("@beto e @beto, depois @ana e @nico.", &roster, "a");
+        assert_eq!(
+            found
+                .iter()
+                .map(|item| item.handle.as_str())
+                .collect::<Vec<_>>(),
+            vec!["beto", "nico"]
+        );
     }
 }

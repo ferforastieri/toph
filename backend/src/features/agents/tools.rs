@@ -30,7 +30,10 @@ fn mcp_definition(name: &str, description: &str, properties: Value, required: &[
 
 /// Tools exposed to the external CLI through the local MCP gateway. The CLI's
 /// built-in tools are disabled; these are the only actions it can take.
-pub fn gateway_definitions(agent: &AgentSpec) -> Vec<Value> {
+pub fn gateway_definitions(
+    agent: &AgentSpec,
+    managed_skills: &[super::skill_service::ManagedSkill],
+) -> Vec<Value> {
     let string = || json!({"type":"string"});
     let integer = || json!({"type":"integer"});
     let mut tools = vec![
@@ -42,14 +45,20 @@ pub fn gateway_definitions(agent: &AgentSpec) -> Vec<Value> {
         mcp_definition("search_memory","Find durable project facts by a keyword.",json!({"query":string()}),&["query"]),
         mcp_definition("fetch_url","Fetch a public HTTP(S) document. Use it to read documentation or a link the user sent.",json!({"url":string()}),&["url"]),
     ];
-    if !agent.skills.is_empty() {
+    if !agent.skills.is_empty() || !managed_skills.is_empty() {
         tools.push(mcp_definition(
             "read_skill",
-            "Load the full instructions of an enabled project skill.",
+            "Load the full recipe of one of your skills. Read it before a task that matches its description, and follow it.",
             json!({"name":string()}),
             &["name"],
         ));
     }
+    tools.push(mcp_definition(
+        "propose_skill",
+        "Propose a new skill, or a change to one of yours, when you find a way of doing something worth repeating. It only counts after the user approves it.",
+        json!({"name":string(),"description":string(),"recipe":string(),"reason":string()}),
+        &["name","description","recipe"],
+    ));
     if agent.agent_mode != "plan" && agent.permission_mode != "deny" {
         tools.extend([
             mcp_definition("write_file","Create a file or replace it. For an existing file, expectedHash from read_file is required.",json!({"path":string(),"content":string(),"expectedHash":string()}),&["path","content"]),

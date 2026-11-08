@@ -1012,7 +1012,7 @@ export default function Workbench() {
           project={project}
           onOpenFile={openFile}
           quickOpenToken={quickOpenToken}
-          tophControl={<Suspense fallback={null}><TophSettings user={user} projectRoot={project.root} /></Suspense>}
+          tophControl={<Suspense fallback={null}><TophSettings user={user} projectRoot={project.root} projectId={project.id} /></Suspense>}
         />
       ) : null}
       {projectBar === "left" ? (
@@ -1028,7 +1028,7 @@ export default function Workbench() {
             onGoHome={() => setSidebar("bots")}
             onQuickOpen={() => setQuickOpenToken((current) => current + 1)}
             onOpenAuxiliary={openAuxiliary}
-            tophControl={<Suspense fallback={null}><TophSettings user={user} projectRoot={project.root} /></Suspense>}
+            tophControl={<Suspense fallback={null}><TophSettings user={user} projectRoot={project.root} projectId={project.id} /></Suspense>}
           />
         ) : null}
         {primarySidebar}

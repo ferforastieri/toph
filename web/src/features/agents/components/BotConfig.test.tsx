@@ -4,6 +4,7 @@ import BotConfig from "./BotConfig";
 import { TOPH_PRESETS, useChats } from "../../conversations/store";
 import { useAI } from "../../providers/store";
 import { agentApi } from "../api";
+import { skillApi } from "../../skills/api";
 import { api } from "../../../shared/api";
 
 const projectId = "project";
@@ -48,6 +49,7 @@ beforeEach(() => {
   vi.spyOn(agentApi, "skills").mockResolvedValue([
     { id: "chrome-devtools", name: "Chrome DevTools", description: "Inspeciona páginas e o console." },
   ]);
+  vi.spyOn(skillApi, "list").mockResolvedValue([]);
   vi.spyOn(api, "emailAccounts").mockResolvedValue([
     {
       id: "work",

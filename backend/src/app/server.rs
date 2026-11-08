@@ -738,6 +738,30 @@ fn router(state: Arc<AppState>) -> Router {
             "/api/projects/{project_id}/agent/skills",
             get(project_skills),
         )
+        .route(
+            "/api/projects/{project_id}/skills",
+            get(skills_list).post(save_skill),
+        )
+        .route(
+            "/api/projects/{project_id}/skills/{skill_id}",
+            delete(remove_skill),
+        )
+        .route(
+            "/api/projects/{project_id}/skills/{skill_id}/decide",
+            post(decide_skill),
+        )
+        .route(
+            "/api/projects/{project_id}/skills/{skill_id}/archive",
+            post(archive_skill),
+        )
+        .route(
+            "/api/projects/{project_id}/skills/{skill_id}/versions",
+            get(skill_versions),
+        )
+        .route(
+            "/api/projects/{project_id}/skills/{skill_id}/restore",
+            post(restore_skill),
+        )
         .route("/api/projects/{project_id}/agent/runs", post(start_agent))
         .route(
             "/api/projects/{project_id}/agent/cancel",

@@ -50,7 +50,7 @@ fn config(model: &str) -> AiConfig {
 
 #[test]
 fn gateway_tools_use_the_mcp_envelope() {
-    let tools = gateway_definitions(&agent(json!({})));
+    let tools = gateway_definitions(&agent(json!({})), &[]);
     assert!(!tools.is_empty());
     for tool in &tools {
         assert!(tool["name"].is_string(), "missing MCP name: {tool}");
@@ -69,11 +69,11 @@ fn gateway_tools_use_the_mcp_envelope() {
 
 #[test]
 fn plan_mode_and_deny_remove_mutating_tools() {
-    let plan = gateway_definitions(&agent(json!({"agentMode":"plan"})));
+    let plan = gateway_definitions(&agent(json!({"agentMode":"plan"})), &[]);
     assert!(!names(&plan).contains(&"write_file"));
     assert!(!names(&plan).contains(&"shell"));
     assert!(names(&plan).contains(&"read_file"));
-    let deny = gateway_definitions(&agent(json!({"permissionMode":"deny"})));
+    let deny = gateway_definitions(&agent(json!({"permissionMode":"deny"})), &[]);
     assert!(!names(&deny).contains(&"write_file"));
     assert!(!names(&deny).contains(&"shell"));
     assert!(names(&deny).contains(&"search"));
@@ -81,26 +81,32 @@ fn plan_mode_and_deny_remove_mutating_tools() {
 
 #[test]
 fn capabilities_add_their_gateway_tools_only_when_selected() {
-    let plain = gateway_definitions(&agent(json!({})));
+    let plain = gateway_definitions(&agent(json!({})), &[]);
     assert!(!names(&plain).contains(&"read_skill"));
     assert!(!names(&plain).contains(&"mcp_call"));
     assert!(!names(&plain).contains(&"email_send"));
 
-    let full = gateway_definitions(&agent(json!({
-        "skills": ["frontend"],
-        "mcpServers": ["stripe"],
-        "emailAccountIds": ["mail"]
-    })));
+    let full = gateway_definitions(
+        &agent(json!({
+            "skills": ["frontend"],
+            "mcpServers": ["stripe"],
+            "emailAccountIds": ["mail"]
+        })),
+        &[],
+    );
     assert!(names(&full).contains(&"read_skill"));
     assert!(names(&full).contains(&"mcp_list"));
     assert!(names(&full).contains(&"mcp_call"));
     assert!(names(&full).contains(&"email_list"));
     assert!(names(&full).contains(&"email_send"));
 
-    let read_only_mail = gateway_definitions(&agent(json!({
-        "permissionMode": "deny",
-        "emailAccountIds": ["mail"]
-    })));
+    let read_only_mail = gateway_definitions(
+        &agent(json!({
+            "permissionMode": "deny",
+            "emailAccountIds": ["mail"]
+        })),
+        &[],
+    );
     assert!(names(&read_only_mail).contains(&"email_read"));
     assert!(!names(&read_only_mail).contains(&"email_send"));
 }

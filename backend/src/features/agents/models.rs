@@ -128,6 +128,9 @@ pub struct RunContext {
     pub root: std::path::PathBuf,
     pub agent: AgentSpec,
     pub roster: Vec<AgentSpec>,
+    /// Managed skills assigned to this agent. Only names and descriptions go
+    /// into the prompt; the body is read on demand through `toph_read_skill`.
+    pub skills: Vec<super::skill_service::ManagedSkill>,
     pub chat_description: String,
     pub depth: usize,
     /// The current request text, used when the session has no transcript yet.
