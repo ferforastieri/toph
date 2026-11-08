@@ -7,6 +7,7 @@ pub mod gateway;
 pub mod models;
 pub mod repository;
 pub mod runtime;
+pub mod skill_catalog;
 pub mod skill_service;
 pub mod skills;
 pub mod tools;

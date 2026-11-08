@@ -48,8 +48,8 @@ pub fn gateway_definitions(
     if !agent.skills.is_empty() || !managed_skills.is_empty() {
         tools.push(mcp_definition(
             "read_skill",
-            "Load the full recipe of one of your skills. Read it before a task that matches its description, and follow it.",
-            json!({"name":string()}),
+            "Load the full recipe of one of your skills, or one of its supporting text files. Read it before a task that matches its description, and follow it.",
+            json!({"name":string(),"file":string()}),
             &["name"],
         ));
     }

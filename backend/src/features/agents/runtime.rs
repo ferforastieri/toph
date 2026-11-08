@@ -856,11 +856,23 @@ Trabalhe no projeto atual. Para concluir uma alteração, rode os testes ou o bu
                             .read_for_agent(&ctx.project_id, &ctx.agent.id, wanted)
                             .await?
                         {
-                            Some(skill) => Ok(json!({
-                                "name": skill.name,
-                                "description": skill.description,
-                                "content": skill.body,
-                            })),
+                            Some(skill) => {
+                                let file = args["file"].as_str();
+                                let content = if let Some(source) = skill.source.as_deref() {
+                                    super::skills::read_local(source, file)?
+                                } else if file.is_some() {
+                                    return Err(bad_request(
+                                        "Essa skill não tem arquivos de apoio.",
+                                    ));
+                                } else {
+                                    skill.body.clone()
+                                };
+                                Ok(json!({
+                                    "name": skill.name,
+                                    "description": skill.description,
+                                    "content": content,
+                                }))
+                            }
                             None => self.inner.tools.execute(ctx, name, &args).await,
                         }
                     } else if name == "propose_skill" {

@@ -38,6 +38,25 @@ export interface SkillDraft {
   source?: string | null;
 }
 
+export interface LocalSkill {
+  source: string;
+  name: string;
+  description: string;
+  origin: string;
+  bodyLength: number;
+  files: string[];
+  scripts: boolean;
+}
+
+export interface SuggestedSkill {
+  key: string;
+  name: string;
+  description: string;
+  body: string;
+  category: string;
+  source: string;
+}
+
 const root = (project: string) => `/projects/${encodeURIComponent(project)}/skills`;
 const post = (body: unknown): RequestInit => ({ method: "POST", body: JSON.stringify(body) });
 
@@ -54,4 +73,8 @@ export const skillApi = {
     request<SkillVersion[]>(`${root(project)}/${encodeURIComponent(id)}/versions`),
   restore: (project: string, id: string, versionId: number) =>
     request<SkillRecord>(`${root(project)}/${encodeURIComponent(id)}/restore`, post({ versionId })),
+  local: (project: string) => request<LocalSkill[]>(`${root(project)}/local`),
+  catalog: (project: string) => request<SuggestedSkill[]>(`${root(project)}/catalog`),
+  link: (project: string, source: string, agents: string[]) =>
+    request<SkillRecord>(`${root(project)}/link`, post({ source, agents })),
 };

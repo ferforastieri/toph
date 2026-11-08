@@ -312,6 +312,52 @@ pub(super) async fn restore_skill(
             .await?
     )))
 }
+pub(super) async fn local_skills(
+    State(state): State<Arc<AppState>>,
+    Path(project): Path<String>,
+    Extension(_auth): Extension<AuthContext>,
+) -> AppResult<Json<Value>> {
+    let root = state.store.project(&project).await?.root;
+    Ok(Json(json!(crate::features::agents::skills::local(
+        std::path::Path::new(&root)
+    ))))
+}
+pub(super) async fn suggested_skills(
+    State(state): State<Arc<AppState>>,
+    Path(project): Path<String>,
+    Extension(_auth): Extension<AuthContext>,
+) -> AppResult<Json<Value>> {
+    state.store.project(&project).await?;
+    Ok(Json(json!(
+        crate::features::agents::skill_catalog::suggested_skills()
+    )))
+}
+#[derive(Deserialize)]
+pub(super) struct SkillLink {
+    source: String,
+    #[serde(default)]
+    agents: Vec<String>,
+}
+pub(super) async fn link_skill(
+    State(state): State<Arc<AppState>>,
+    Path(project): Path<String>,
+    Extension(_auth): Extension<AuthContext>,
+    Json(input): Json<SkillLink>,
+) -> AppResult<Json<Value>> {
+    let root = state.store.project(&project).await?.root;
+    Ok(Json(json!(
+        state
+            .agents
+            .skills()
+            .link(
+                &project,
+                std::path::Path::new(&root),
+                &input.source,
+                input.agents
+            )
+            .await?
+    )))
+}
 pub(super) async fn save_mcp_server(
     State(state): State<Arc<AppState>>,
     Json(input): Json<crate::features::integrations::mcp::Server>,

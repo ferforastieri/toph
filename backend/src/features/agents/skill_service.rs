@@ -272,6 +272,69 @@ impl Service {
         self.get(project, &id).await
     }
 
+    /// Links a `SKILL.md` that already exists on the machine. The recipe is
+    /// read from the file on every use, so an edit in Claude Code, Codex or
+    /// OpenCode applies to the next read; the database keeps the agent list.
+    pub async fn link(
+        &self,
+        project: &str,
+        root: &std::path::Path,
+        source: &str,
+        agents: Vec<String>,
+    ) -> AppResult<ManagedSkill> {
+        let found = super::skills::find_local(root, source).ok_or(AppError::NotFound)?;
+        let canonical = std::fs::canonicalize(&found.source).map_err(|_| AppError::NotFound)?;
+        let canonical = canonical.display().to_string();
+        let agents = unique(&agents);
+        if let Some(existing) = self
+            .list(project)
+            .await?
+            .into_iter()
+            .find(|skill| skill.source.as_deref() == Some(canonical.as_str()))
+        {
+            sqlx::query(
+                "UPDATE agent_skills SET agents=?,state='active',updated_at=? WHERE id=? AND project_id=?",
+            )
+            .bind(json!(agents).to_string())
+            .bind(now())
+            .bind(&existing.id)
+            .bind(project)
+            .execute(self.0.pool())
+            .await?;
+            return self.get(project, &existing.id).await;
+        }
+        let name = normalize_name(&found.name)?;
+        if self.active_by_name(project, &name).await?.is_some() {
+            return Err(bad_request(
+                "Já existe uma skill ativa com esse nome. Renomeie uma das duas.",
+            ));
+        }
+        let description = if found.description.trim().is_empty() {
+            format!("Skill de {}", found.origin)
+        } else {
+            found.description.clone()
+        };
+        let body = super::skills::read_local(&canonical, None)?;
+        let at = now();
+        let id = new_id();
+        sqlx::query(
+            "INSERT INTO agent_skills(id,project_id,name,description,body,agents,state,source,created_at,updated_at) \
+             VALUES(?,?,?,?,?,?,'active',?,?,?)",
+        )
+        .bind(&id)
+        .bind(project)
+        .bind(&name)
+        .bind(&description)
+        .bind(&body)
+        .bind(json!(agents).to_string())
+        .bind(&canonical)
+        .bind(at)
+        .bind(at)
+        .execute(self.0.pool())
+        .await?;
+        self.get(project, &id).await
+    }
+
     /// `toph_propose_skill`: an agent proposes a new skill or a change to one
     /// of its own. The proposal only becomes active after the user approves it.
     pub async fn propose(
