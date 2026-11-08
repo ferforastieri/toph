@@ -335,6 +335,65 @@ impl Service {
         self.get(project, &id).await
     }
 
+    /// Migrates a skill enabled through the old per-agent project list into a
+    /// managed skill. It is idempotent: an existing skill with the same name
+    /// only gains the agent, so the old toggle keeps working and shows up in
+    /// the Skills screen.
+    pub async fn ensure_legacy(
+        &self,
+        project: &str,
+        agent: &str,
+        name: &str,
+        description: &str,
+        body: &str,
+        source: Option<&str>,
+    ) -> AppResult<()> {
+        let name = normalize_name(name)?;
+        if let Some(existing) = self.active_by_name(project, &name).await? {
+            let same_source = match (existing.source.as_deref(), source) {
+                (None, None) => true,
+                (Some(left), Some(right)) => left == right,
+                _ => false,
+            };
+            if !same_source {
+                return Ok(());
+            }
+            if existing.agents.is_empty() || existing.agents.iter().any(|id| id == agent) {
+                return Ok(());
+            }
+            let mut agents = existing.agents.clone();
+            agents.push(agent.to_string());
+            sqlx::query(
+                "UPDATE agent_skills SET agents=?,state='active',updated_at=? WHERE id=? AND project_id=?",
+            )
+            .bind(json!(agents).to_string())
+            .bind(now())
+            .bind(&existing.id)
+            .bind(project)
+            .execute(self.0.pool())
+            .await?;
+            return Ok(());
+        }
+        let at = now();
+        let id = new_id();
+        sqlx::query(
+            "INSERT INTO agent_skills(id,project_id,name,description,body,agents,state,source,created_at,updated_at) \
+             VALUES(?,?,?,?,?,?,'active',?,?,?)",
+        )
+        .bind(&id)
+        .bind(project)
+        .bind(&name)
+        .bind(description.trim())
+        .bind(body.trim())
+        .bind(json!([agent]).to_string())
+        .bind(source)
+        .bind(at)
+        .bind(at)
+        .execute(self.0.pool())
+        .await?;
+        Ok(())
+    }
+
     /// `toph_propose_skill`: an agent proposes a new skill or a change to one
     /// of its own. The proposal only becomes active after the user approves it.
     pub async fn propose(

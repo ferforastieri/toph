@@ -22,7 +22,6 @@ const CUSTOM_PRESET: TophPreset = {
   agentMode: "build",
   permissionMode: "yolo",
   mcpServers: [],
-  skills: [],
   emailAccountIds: [],
   tools: ["generate_image"],
   language: "auto",

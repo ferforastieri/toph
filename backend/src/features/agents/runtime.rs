@@ -118,7 +118,7 @@ impl Runtime {
         repo.recover().await?;
         repo.backfill_events().await?;
         let (events, _) = broadcast::channel(256);
-        Ok(Self {
+        let runtime = Self {
             inner: Arc::new(Inner {
                 ai: tools.ai.clone(),
                 repo,
@@ -131,7 +131,69 @@ impl Runtime {
                 drafts: Mutex::new(HashMap::new()),
                 on_complete: RwLock::new(None),
             }),
-        })
+        };
+        // Profiles written before managed skills had a per-agent list of
+        // project skill ids. Turn each one into a real managed skill so the
+        // old toggle keeps working and appears on the Skills screen.
+        runtime.migrate_legacy_skills().await?;
+        Ok(runtime)
+    }
+
+    async fn migrate_legacy_skills(&self) -> AppResult<()> {
+        let rows = sqlx::query("SELECT id, project_id, config FROM agent_profiles")
+            .fetch_all(self.inner.repo.0.pool())
+            .await?;
+        for row in rows {
+            let raw: String = row.get("config");
+            let config: Value = serde_json::from_str(&raw).unwrap_or(Value::Null);
+            let ids: Vec<String> = config
+                .get("skills")
+                .and_then(Value::as_array)
+                .map(|items| {
+                    items
+                        .iter()
+                        .filter_map(Value::as_str)
+                        .map(str::to_owned)
+                        .collect()
+                })
+                .unwrap_or_default();
+            if ids.is_empty() {
+                continue;
+            }
+            let project_id: String = row.get("project_id");
+            let agent_id: String = row.get("id");
+            let Ok(project) = self.inner.repo.0.project(&project_id).await else {
+                continue;
+            };
+            let root = std::path::Path::new(&project.root);
+            for skill in super::skills::enabled(root, &ids) {
+                let Ok(body) = super::skills::read(&self.inner.tools.workspace, root, &skill.id)
+                else {
+                    continue;
+                };
+                let source = if skill.is_builtin() {
+                    None
+                } else {
+                    Some(root.join(&skill.path).display().to_string())
+                };
+                if let Err(error) = self
+                    .inner
+                    .skills
+                    .ensure_legacy(
+                        &project_id,
+                        &agent_id,
+                        &skill.name,
+                        &skill.description,
+                        &body,
+                        source.as_deref(),
+                    )
+                    .await
+                {
+                    tracing::warn!(%error, project = %project_id, skill = %skill.name, "legacy skill migration failed");
+                }
+            }
+        }
+        Ok(())
     }
 
     pub fn repository(&self) -> &Repository {
@@ -775,17 +837,6 @@ Trabalhe no projeto atual. Para concluir uma alteração, rode os testes ou o bu
                 extra.push_str(&format!("- {}: {}\n", skill.name, skill.description));
             }
         }
-        if !ctx.agent.skills.is_empty() {
-            let selected = super::skills::enabled(&ctx.root, &ctx.agent.skills);
-            if !selected.is_empty() {
-                extra.push_str(
-                    "\nSkills habilitadas (use toph_read_skill antes de agir no domínio delas):\n",
-                );
-                for skill in selected {
-                    extra.push_str(&format!("- {}: {}\n", skill.id, skill.description));
-                }
-            }
-        }
         match self.inner.tools.workspace.read(&ctx.root, "AGENTS.md") {
             Ok(file) => {
                 if file.content.len() > 12000 {
@@ -873,7 +924,9 @@ Trabalhe no projeto atual. Para concluir uma alteração, rode os testes ou o bu
                                     "content": content,
                                 }))
                             }
-                            None => self.inner.tools.execute(ctx, name, &args).await,
+                            None => Err(bad_request(format!(
+                                "Você não tem uma skill chamada \"{wanted}\"."
+                            ))),
                         }
                     } else if name == "propose_skill" {
                         self.inner

@@ -735,10 +735,6 @@ fn router(state: Arc<AppState>) -> Router {
         .route("/api/engines/{engine_id}/install", post(install_engine))
         .route("/api/engines/{engine_id}/limits", get(engine_limits))
         .route(
-            "/api/projects/{project_id}/agent/skills",
-            get(project_skills),
-        )
-        .route(
             "/api/projects/{project_id}/skills",
             get(skills_list).post(save_skill),
         )

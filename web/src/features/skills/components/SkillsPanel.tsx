@@ -286,7 +286,7 @@ export default function SkillsPanel({ projectId }: Props) {
         <div className="min-w-0">
           <p className="text-title-3-medium text-text-primary">Skills</p>
           <p className="mt-0.5 text-caption-1-regular text-text-secondary">
-            Receitas que os Tophs seguem para um tipo de tarefa. Só o nome e o “quando usar” entram no prompt; o Toph lê a receita quando precisa. Escreva, escolha uma sugerida ou vincule uma skill do Claude Code, Codex ou OpenCode.
+            Receitas que os Tophs seguem para um tipo de tarefa. Só o nome e o “quando usar” entram no prompt; o Toph lê a receita quando precisa. Escreva, escolha uma sugerida ou vincule uma skill do Claude Code, Codex, OpenCode ou do projeto.
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap justify-end gap-2">
@@ -356,7 +356,7 @@ export default function SkillsPanel({ projectId }: Props) {
         </section>
       ) : null}
 
-      <Modal isOpen={discover} onClose={closeDiscover} title="Encontrar skills" description="Sugeridas pelo Toph ou já instaladas no Claude Code, Codex e OpenCode." placement="center" size="lg" bodyClassName="p-4">
+      <Modal isOpen={discover} onClose={closeDiscover} title="Encontrar skills" description="Sugeridas pelo Toph ou já instaladas no Claude Code, Codex, OpenCode ou no projeto." placement="center" size="lg" bodyClassName="p-4">
         <div className="flex flex-col gap-3">
           <div className="flex flex-wrap items-center gap-2">
             <div className="flex gap-1">

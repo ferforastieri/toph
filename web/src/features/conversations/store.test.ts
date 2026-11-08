@@ -37,7 +37,6 @@ const legacyToph = (id: string, chatId: string, name: string): ChatToph => ({
   agentMode: "build",
   permissionMode: "yolo",
   mcpServers: [],
-  skills: [],
   emailAccountIds: [],
   tools: [],
   language: "auto",

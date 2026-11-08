@@ -45,7 +45,7 @@ pub fn gateway_definitions(
         mcp_definition("search_memory","Find durable project facts by a keyword.",json!({"query":string()}),&["query"]),
         mcp_definition("fetch_url","Fetch a public HTTP(S) document. Use it to read documentation or a link the user sent.",json!({"url":string()}),&["url"]),
     ];
-    if !agent.skills.is_empty() || !managed_skills.is_empty() {
+    if !managed_skills.is_empty() {
         tools.push(mcp_definition(
             "read_skill",
             "Load the full recipe of one of your skills, or one of its supporting text files. Read it before a task that matches its description, and follow it.",
@@ -425,15 +425,6 @@ impl Tools {
                     }
                 }
                 Ok(json!({"text":String::from_utf8_lossy(&bytes),"truncated":truncated}))
-            }
-            "read_skill" => {
-                let name = text(args, "name")?;
-                if !ctx.agent.skills.iter().any(|skill| skill == name) {
-                    return Err(AppError::Forbidden);
-                }
-                Ok(json!({
-                    "content": super::skills::read(&self.workspace, &ctx.root, name)?
-                }))
             }
             "mcp_list" | "mcp_call" => {
                 let server = text(args, "server")?;

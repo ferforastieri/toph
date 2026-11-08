@@ -31,9 +31,6 @@ pub struct AgentSpec {
     pub tools: Vec<String>,
     #[serde(default)]
     pub mcp_servers: Vec<String>,
-    /// Explicitly enabled project skills. Empty disables every skill.
-    #[serde(default)]
-    pub skills: Vec<String>,
     #[serde(default)]
     pub email_account_ids: Vec<String>,
     #[serde(default)]

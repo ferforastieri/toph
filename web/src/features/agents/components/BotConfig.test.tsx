@@ -32,8 +32,7 @@ beforeEach(() => {
     name: "Toph",
     model: "openai::gpt",
     tools: [],
-    skills: [],
-    mcpServers: [],
+      mcpServers: [],
     emailAccountIds: [],
   })!.id;
   useAI.setState({
@@ -45,9 +44,6 @@ beforeEach(() => {
   });
   vi.spyOn(agentApi, "mcpServers").mockResolvedValue([
     { id: "chrome", name: "Chrome DevTools", transport: "stdio", url: "", command: [], hasToken: false },
-  ]);
-  vi.spyOn(agentApi, "skills").mockResolvedValue([
-    { id: "chrome-devtools", name: "Chrome DevTools", description: "Inspeciona páginas e o console." },
   ]);
   vi.spyOn(skillApi, "list").mockResolvedValue([]);
   vi.spyOn(api, "emailAccounts").mockResolvedValue([
@@ -109,9 +105,6 @@ describe("BotConfig", () => {
     expect(await screen.findByRole("checkbox", { name: /Gerar imagens/ })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("checkbox", { name: /Gerar imagens/ }));
     await waitFor(() => expect(currentBot().tools).toContain("generate_image"));
-
-    fireEvent.click(await screen.findByRole("checkbox", { name: /Chrome DevTools.*Inspeciona/ }));
-    await waitFor(() => expect(currentBot().skills).toContain("chrome-devtools"));
 
     fireEvent.click(await screen.findByRole("checkbox", { name: "Chrome DevTools" }));
     await waitFor(() => expect(currentBot().mcpServers).toContain("chrome"));

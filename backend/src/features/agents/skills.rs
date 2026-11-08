@@ -35,9 +35,15 @@ pub struct Skill {
     pub name: String,
     pub description: String,
     /// Project-relative path to the `SKILL.md`, or the embedded path when
-    /// `builtin` is true. Reused by `read_skill`.
+    /// `builtin` is true. Reused by the legacy migration.
     pub path: String,
     builtin: bool,
+}
+
+impl Skill {
+    pub fn is_builtin(&self) -> bool {
+        self.builtin
+    }
 }
 
 /// The recipe without the YAML frontmatter, for the built-in catalog.

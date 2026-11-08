@@ -65,8 +65,6 @@ export interface EngineLimits {
   message?: string;
 }
 
-export interface ProjectSkill { id: string; name: string; description: string }
-
 const root = (project: string) => `/projects/${encodeURIComponent(project)}/agent`;
 const post = (body: unknown): RequestInit => ({ method: "POST", body: JSON.stringify(body) });
 export const agentApi = {
@@ -84,7 +82,6 @@ export const agentApi = {
   saveConnection: (input: Partial<Connection> & { apiKey?: string; clearKey?: boolean }) => request("/ai/connections", post(input)),
   deleteConnection: (id: string) => request(`/ai/connections/${encodeURIComponent(id)}`, { method: "DELETE" }),
   mcpServers: () => request<McpServer[]>("/mcp/servers"),
-  skills: (project: string) => request<ProjectSkill[]>(`${root(project)}/skills`),
   saveMcp: (input: Partial<McpServer> & { token?: string; env?: Record<string, string> }) => request<{ ok: boolean; id?: string }>("/mcp/servers", post(input)),
   deleteMcp: (id: string) => request(`/mcp/servers/${encodeURIComponent(id)}`, { method: "DELETE" }),
   testMcp: (id: string) => request<{ ok: boolean; tools: number }>(`/mcp/servers/${encodeURIComponent(id)}/test`, post({})),

@@ -22,8 +22,6 @@ export interface ChatToph {
   agentMode: TophAgentMode;
   permissionMode: TophPermissionMode;
   mcpServers: string[];
-  /** Enabled project skills; empty disables all skills for this Toph. */
-  skills: string[];
   emailAccountIds: string[];
   /** Optional tool ids enabled for this Toph. Empty disables all optional tools. */
   tools: string[];
@@ -92,7 +90,6 @@ export interface TophPreset {
   agentMode?: TophAgentMode;
   permissionMode?: TophPermissionMode;
   mcpServers?: string[];
-  skills?: string[];
   emailAccountIds?: string[];
   tools?: string[];
   language?: BotLanguage;
@@ -118,8 +115,7 @@ function preset(
     agentMode: "build",
     permissionMode: "yolo",
     mcpServers: [],
-    skills: [],
-    emailAccountIds: [],
+      emailAccountIds: [],
     tools: ["generate_image"],
     language: "auto",
     engine: "opencode",
@@ -560,7 +556,6 @@ export const useChats = create<ChatStore>((set, get) => ({
       agentMode: preset.agentMode === "plan" ? "plan" : "build",
       permissionMode: preset.permissionMode === "ask" || preset.permissionMode === "deny" ? preset.permissionMode : "yolo",
       mcpServers: [...(preset.mcpServers ?? [])],
-      skills: [...(preset.skills ?? [])],
       emailAccountIds: [...(preset.emailAccountIds ?? [])],
       tools: [...(preset.tools ?? ["generate_image"])],
       language: preset.language ?? "auto",

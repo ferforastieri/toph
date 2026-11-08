@@ -4,6 +4,7 @@ use toph_server::features::agents::{
     cli::opencode_model,
     engines,
     models::AgentSpec,
+    skill_service::ManagedSkill,
     tools::{gateway_definitions, mutating, needs_permission, shell},
 };
 
@@ -17,7 +18,6 @@ fn agent(extra: Value) -> AgentSpec {
         "agentMode": "build",
         "permissionMode": "yolo",
         "tools": ["generate_image"],
-        "skills": [],
         "mcpServers": [],
         "emailAccountIds": []
     });
@@ -25,6 +25,24 @@ fn agent(extra: Value) -> AgentSpec {
         value[key] = item.clone();
     }
     serde_json::from_value(value).unwrap()
+}
+
+fn managed(name: &str) -> ManagedSkill {
+    ManagedSkill {
+        id: name.into(),
+        project_id: "project".into(),
+        name: name.into(),
+        description: "When testing".into(),
+        body: "Do the thing.".into(),
+        agents: Vec::new(),
+        state: "active".into(),
+        replaces: None,
+        proposed_by: None,
+        reason: None,
+        source: None,
+        created_at: 0,
+        updated_at: 0,
+    }
 }
 
 fn names(tools: &[Value]) -> Vec<&str> {
@@ -88,11 +106,10 @@ fn capabilities_add_their_gateway_tools_only_when_selected() {
 
     let full = gateway_definitions(
         &agent(json!({
-            "skills": ["frontend"],
             "mcpServers": ["stripe"],
             "emailAccountIds": ["mail"]
         })),
-        &[],
+        &[managed("frontend")],
     );
     assert!(names(&full).contains(&"read_skill"));
     assert!(names(&full).contains(&"mcp_list"));

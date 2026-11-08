@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { BookOpen, Bot, Image, Settings2, Trash2, UserRound, Wrench } from "@toph/icons";
-import { agentApi, type ProjectSkill } from "../api";
+import { agentApi } from "../api";
 import { skillApi, type SkillRecord } from "../../skills/api";
 import { api, type EmailAccount } from "../../../shared/api";
 import type { ChatToph } from "../../conversations/store";
@@ -55,8 +55,6 @@ export default function BotConfig({ projectId, projectRoot, bot }: Props) {
   const [mcpLabels, setMcpLabels] = useState<Record<string, string>>({});
   const [mcpLoading, setMcpLoading] = useState(false);
   const [emailAccounts, setEmailAccounts] = useState<EmailAccount[]>([]);
-  const [skills, setSkills] = useState<ProjectSkill[]>([]);
-  const [skillsLoading, setSkillsLoading] = useState(false);
   const [managedSkills, setManagedSkills] = useState<SkillRecord[]>([]);
   const [managedLoading, setManagedLoading] = useState(false);
   const project = useChats((state) => state.byProject[projectId]);
@@ -91,21 +89,6 @@ export default function BotConfig({ projectId, projectRoot, bot }: Props) {
     void refreshMcpServers();
   }, [refreshMcpServers]);
 
-  const refreshSkills = useCallback(async () => {
-    if (!projectId) {
-      setSkills([]);
-      return;
-    }
-    setSkillsLoading(true);
-    try {
-      setSkills(await agentApi.skills(projectId));
-    } catch {
-      setSkills([]);
-    } finally {
-      setSkillsLoading(false);
-    }
-  }, [projectId]);
-
   const refreshManagedSkills = useCallback(async () => {
     setManagedLoading(true);
     try {
@@ -118,9 +101,8 @@ export default function BotConfig({ projectId, projectRoot, bot }: Props) {
   }, [projectId]);
 
   useEffect(() => {
-    void refreshSkills();
     void refreshManagedSkills();
-  }, [refreshSkills, refreshManagedSkills]);
+  }, [refreshManagedSkills]);
 
   useEffect(() => {
     if (models.length === 0) void loadModels();
@@ -133,11 +115,6 @@ export default function BotConfig({ projectId, projectRoot, bot }: Props) {
   function toggleTool(id: string) {
     const current = bot.tools ?? [];
     update({ tools: current.includes(id) ? current.filter((item) => item !== id) : [...current, id] });
-  }
-
-  function toggleSkill(id: string) {
-    const current = bot.skills ?? [];
-    update({ skills: current.includes(id) ? current.filter((item) => item !== id) : [...current, id] });
   }
 
   async function toggleManagedSkill(skill: SkillRecord) {
@@ -358,10 +335,10 @@ export default function BotConfig({ projectId, projectRoot, bot }: Props) {
             </section>
 
             <section className="flex flex-col gap-1.5">
-              <p className="text-caption-1-semibold text-text-primary">Skills da equipe</p>
-              <p className="text-caption-2-regular text-text-tertiary">Receitas gerenciadas em Configurações → Skills. A lista vazia em “quem usa” vale para todos os Tophs.</p>
-              {managedLoading ? <span className="text-caption-2-regular text-text-tertiary">Carregando skills da equipe...</span> : null}
-              {!managedLoading && managedSkills.length === 0 ? <span className="text-caption-2-regular text-text-tertiary">Nenhuma skill da equipe ainda. Crie e revise em Configurações → Skills.</span> : null}
+              <p className="text-caption-1-semibold text-text-primary">Skills</p>
+              <p className="text-caption-2-regular text-text-tertiary">Receitas atribuídas a este Toph. A lista vazia em “quem usa” vale para todos os Tophs. Gerencie em Configurações → Skills.</p>
+              {managedLoading ? <span className="text-caption-2-regular text-text-tertiary">Carregando skills...</span> : null}
+              {!managedLoading && managedSkills.length === 0 ? <span className="text-caption-2-regular text-text-tertiary">Nenhuma skill ainda. Crie, escolha uma sugerida ou vincule uma skill do Claude Code, Codex, OpenCode ou do projeto em Configurações → Skills.</span> : null}
               {managedSkills.length > 0 ? (
                 <div className="flex flex-col divide-y divide-separator-border">
                   {managedSkills.map((skill) => {
@@ -384,34 +361,6 @@ export default function BotConfig({ projectId, projectRoot, bot }: Props) {
                       </Checkbox>
                     );
                   })}
-                </div>
-              ) : null}
-            </section>
-
-            <section className="flex flex-col gap-1.5">
-              <p className="text-caption-1-semibold text-text-primary">Skills do projeto</p>
-              <p className="text-caption-2-regular text-text-tertiary">SKILL.md descobertos no projeto e nos diretórios de skills. Sem seleção, nenhuma skill do projeto fica disponível.</p>
-              {skillsLoading ? <span className="text-caption-2-regular text-text-tertiary">Carregando skills...</span> : null}
-              {!skillsLoading && skills.length === 0 ? <span className="text-caption-2-regular text-text-tertiary">Nenhuma skill encontrada neste projeto.</span> : null}
-              {skills.length > 0 ? (
-                <div className="flex flex-col divide-y divide-separator-border">
-                  {skills.map((skill) => (
-                    <Checkbox
-                      key={skill.id}
-                      size="sm"
-                      isSelected={Boolean(bot.skills?.includes(skill.id))}
-                      onChange={() => toggleSkill(skill.id)}
-                      className="w-full py-2"
-                    >
-                      <span className="flex items-start gap-2">
-                        <BookOpen size={15} className="mt-0.5 shrink-0 text-text-tertiary" />
-                        <span className="flex min-w-0 flex-col gap-0.5">
-                          <span className="text-caption-1-medium text-text-primary">{skill.name}</span>
-                          <span className="text-caption-2-regular text-text-tertiary">{skill.description}</span>
-                        </span>
-                      </span>
-                    </Checkbox>
-                  ))}
                 </div>
               ) : null}
             </section>
