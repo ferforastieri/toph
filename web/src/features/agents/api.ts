@@ -17,7 +17,7 @@ export interface AgentQuestionPrompt {
 export interface NativeMessage extends ChatMessage { seq?: number; model?: string; agentMode?: "build" | "plan"; activity?: string; phase?: string }
 export interface AgentSnapshot { messages: NativeMessage[]; drafts: NativeMessage[]; runs: AgentRun[]; approvals: Approval[]; questions: AgentQuestionPrompt[]; hasMore: boolean; cursor: number | null }
 export interface TophUsage { agentId: string; inputTokens: number; outputTokens: number; cachedTokens: number; calls: number }
-export interface AgentUsage { inputTokens: number; outputTokens: number; cachedTokens: number; calls: number; byAgent?: TophUsage[]; contextTokens?: number; contextBudget?: number; contextAgentId?: string | null }
+export interface AgentUsage { inputTokens: number; outputTokens: number; cachedTokens: number; calls: number; byAgent?: TophUsage[] }
 export interface Connection { id: string; label: string; provider: string; baseUrl: string; model: string; hasKey: boolean }
 export interface McpServer { id: string; name: string; transport: "stdio" | "http"; url: string; command: string[]; token?: string; env?: Record<string, string>; envKeys?: string[]; hasToken: boolean; timeoutSeconds?: number; autoApprove?: boolean }
 

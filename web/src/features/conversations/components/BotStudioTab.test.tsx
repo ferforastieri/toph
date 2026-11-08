@@ -10,7 +10,7 @@ import type { Project } from "../../../shared/api";
 const native = vi.hoisted(() => ({
   messages: [] as unknown[], drafts: [], runs: [], approvals: [], questions: [] as unknown[], hasMore: false, cursor: null,
   error: "", setError: vi.fn(), loading: false, older: vi.fn(), refresh: vi.fn(), compacting: false, busy: false,
-  usage: { inputTokens: 100, outputTokens: 20, cachedTokens: 40, calls: 1, byAgent: [], contextTokens: 3000, contextBudget: 12000 },
+  usage: { inputTokens: 100, outputTokens: 20, cachedTokens: 40, calls: 1, byAgent: [] },
 }));
 vi.mock("../../agents/useAgentChat", () => ({ useAgentChat: () => native }));
 vi.mock("../../agents/components/BotConfig", () => ({ default: ({ bot }: { bot: { name: string } }) => <div data-testid="toph-config">Configuração de {bot.name}</div> }));
@@ -43,7 +43,7 @@ describe("Toph chat controls", () => {
     render(<BotStudioTab project={project} mobile={mobile} />);
     expect(screen.getByRole("button", { name: "Modelo e esforço" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Modo do agente" })).toHaveTextContent("Build");
-    expect(screen.getByRole("button", { name: "Consumo do plano" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Consumo do modelo" })).toBeVisible();
     expect(screen.queryByText("Harness Toph · execução no servidor")).not.toBeInTheDocument();
   });
 
@@ -97,8 +97,8 @@ describe("Toph chat controls", () => {
 
   it("shows chat totals and the breakdown for individual Tophs", async () => {
     render(<BotStudioTab project={project} />);
-    fireEvent.click(screen.getByRole("button", { name: "Consumo do plano" }));
-    const dialog = await screen.findByRole("dialog", { name: "Consumo do plano" });
+    fireEvent.click(screen.getByRole("button", { name: "Consumo do modelo" }));
+    const dialog = await screen.findByRole("dialog", { name: "Consumo do modelo" });
     expect(within(dialog).getByText("Por Toph")).toBeVisible();
     expect(within(dialog).getByText("Fernando · coordenador")).toBeVisible();
     expect(within(dialog).getByText("Beto")).toBeVisible();
