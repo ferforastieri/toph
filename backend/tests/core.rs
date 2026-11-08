@@ -116,16 +116,15 @@ async fn chat_history_is_paginated_by_scope() {
         "tabs": [],
         "activeTabId": null,
         "chats": {
-            "version": 1,
-            "chats": [{
+            "version": 3,
+            "chat": {
                 "id": "chat-one",
                 "name": "checkout",
                 "description": "pagamentos",
                 "createdAt": 1,
                 "updatedAt": 1
-            }],
-            "tophs": [],
-            "activeChatId": "chat-one"
+            },
+            "tophs": []
         }
     });
     store
@@ -140,7 +139,7 @@ async fn chat_history_is_paginated_by_scope() {
             .unwrap(),
     )
     .unwrap();
-    assert_eq!(saved["chats"]["chats"][0]["name"], "checkout");
+    assert_eq!(saved["chats"]["chat"]["name"], "checkout");
 
     let mut messages = Vec::new();
     for index in 0..55 {

@@ -101,16 +101,15 @@ async fn embedded_server_serves_authenticated_api() {
             "tabs": [],
             "activeTabId": null,
             "chats": {
-                "version": 1,
-                "chats": [{
+                "version": 3,
+                "chat": {
                     "id": "chat-one",
                     "name": "checkout",
                     "description": "pagamentos",
                     "createdAt": 1,
                     "updatedAt": 1
-                }],
-                "tophs": [],
-                "activeChatId": "chat-one"
+                },
+                "tophs": []
             }
         }))
         .send()
@@ -126,7 +125,7 @@ async fn embedded_server_serves_authenticated_api() {
         .json()
         .await
         .unwrap();
-    assert_eq!(layout["chats"]["chats"][0]["name"], "checkout");
+    assert_eq!(layout["chats"]["chat"]["name"], "checkout");
     client
         .put(format!(
             "{base}/api/projects/{project_id}/workspace/messages"

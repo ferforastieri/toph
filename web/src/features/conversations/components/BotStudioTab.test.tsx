@@ -27,11 +27,10 @@ beforeAll(() => {
 beforeEach(() => {
   useChats.setState({ byProject: {}, messageWrites: {} });
   useChats.getState().load(project.id);
-  chatId = useChats.getState().byProject[project.id].chats.find((chat) => chat.kind === "team")!.id;
-  useChats.getState().setActiveChat(project.id, chatId);
+  chatId = useChats.getState().byProject[project.id].chat.id;
   useChats.getState().updateChat(project.id, chatId, { description: "Preservar os contratos da equipe" });
-  coordinatorId = useChats.getState().addToph(project.id, chatId, { ...TOPH_PRESETS[0], name: "Fernando", coordinator: true, model: "go::deepseek", agentMode: "build" })!.id;
-  memberId = useChats.getState().addToph(project.id, chatId, { ...TOPH_PRESETS[1], name: "Beto", coordinator: false, model: "openai::review", agentMode: "build" })!.id;
+  coordinatorId = useChats.getState().addToph(project.id, { ...TOPH_PRESETS[0], name: "Fernando", coordinator: true, model: "go::deepseek", agentMode: "build" })!.id;
+  memberId = useChats.getState().addToph(project.id, { ...TOPH_PRESETS[1], name: "Beto", coordinator: false, model: "openai::review", agentMode: "build" })!.id;
   useAI.setState({ config: null, error: "", models: [{ id: "go::deepseek", label: "DeepSeek", provider: "custom" }, { id: "openai::gpt", label: "GPT", provider: "openai" }, { id: "openai::review", label: "Review", provider: "openai" }] });
   useTophDrafts.setState({ drafts: {} });
   native.refresh.mockResolvedValue(undefined);
@@ -75,14 +74,13 @@ describe("Toph chat controls", () => {
     expect(input.agents.find((a) => a.id === memberId)).toMatchObject({ agentMode: "build", model: "openai::review", coordinator: false });
   });
 
-  it("uses the Toph identity as the chat title instead of the individual container", () => {
-    const individual = useChats.getState().createChat(project.id, "Toph");
-    useChats.getState().addToph(project.id, individual.id, { ...TOPH_PRESETS[1], name: "Leo", role: "Dev" });
-    useChats.getState().setActiveChat(project.id, individual.id);
+  it("shows the single team conversation and its members", () => {
+    useChats.getState().addToph(project.id, { ...TOPH_PRESETS[1], name: "Leo", role: "Dev" });
 
     render(<BotStudioTab project={project} />);
 
-    expect(screen.getByText("Leo")).toBeVisible();
+    expect(screen.getByText("Equipe")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Configurar Leo" })).toBeVisible();
     expect(screen.queryByText("Conversa individual")).not.toBeInTheDocument();
     expect(screen.queryByText("Individual")).not.toBeInTheDocument();
   });

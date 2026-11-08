@@ -6,7 +6,6 @@ import { Modal } from "@/shared/boardui/base/modal/modal";
 interface Props {
   open: boolean;
   projectId: string;
-  chatId: string | null;
   onClose: () => void;
   onCreated?: (tophId: string) => void;
 }
@@ -29,15 +28,14 @@ const CUSTOM_PRESET: TophPreset = {
 };
 
 /** Adds a pre-made Toph or a blank custom Toph to the active chat. */
-export default function TophGallery({ open, projectId, chatId, onClose, onCreated }: Props) {
+export default function TophGallery({ open, projectId, onClose, onCreated }: Props) {
   const project = useChats((state) => state.byProject[projectId]);
   const addToph = useChats((state) => state.addToph);
-  const existing = chatTophs(project, chatId);
+  const existing = chatTophs(project);
   const usedNames = new Set(existing.map((toph) => toph.name.toLowerCase()));
 
   function add(preset: TophPreset) {
-    if (!chatId) return;
-    const toph = addToph(projectId, chatId, preset);
+    const toph = addToph(projectId, preset);
     if (!toph) return;
     onClose();
     onCreated?.(toph.id);
@@ -57,7 +55,7 @@ export default function TophGallery({ open, projectId, chatId, onClose, onCreate
     <Modal
       isOpen={open}
       onClose={onClose}
-      title="Adicionar Toph ao chat"
+      title="Adicionar Toph à equipe"
       description="Sugestões prontas — escolha uma e ajuste nome, papel, cor, prompt e ferramentas."
       placement="bottom"
       size="lg"

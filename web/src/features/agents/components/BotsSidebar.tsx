@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Bot, Plus, Settings2 } from "@toph/icons";
 import type { Project } from "../../../shared/api";
-import { activeChat, chatTophs, individualTophs, teamChat, useChats } from "../../conversations/store";
+import { useChats } from "../../conversations/store";
 import TophGallery from "./TophGallery";
 import TophRow from "./TophRow";
 import { Button } from "@/shared/boardui/base/buttons/button";
@@ -20,15 +20,12 @@ function fireTophAction(action: "config" | "sessions", tophId: string) {
   window.dispatchEvent(new CustomEvent("toph:toph-action", { detail: { action, tophId } }));
 }
 
-/** Toph-first sidebar: one row per Toph plus the shared team conversation. */
+/** One normal conversation per project: a team with one or more Tophs. */
 export default function BotsSidebar({ project, headerControl, onSelectChat }: Props) {
   const chats = useChats((state) => state.byProject[project.id]);
   const ensure = useChats((state) => state.ensure);
-  const createChat = useChats((state) => state.createChat);
-  const setActiveChat = useChats((state) => state.setActiveChat);
   const updateChat = useChats((state) => state.updateChat);
   const [galleryOpen, setGalleryOpen] = useState(false);
-  const [galleryChatId, setGalleryChatId] = useState<string | null>(null);
   const [teamOpen, setTeamOpen] = useState(false);
   const [teamInfo, setTeamInfo] = useState("");
 
@@ -36,33 +33,27 @@ export default function BotsSidebar({ project, headerControl, onSelectChat }: Pr
     ensure(project.id);
   }, [ensure, project.id]);
 
-  const chat = activeChat(chats);
-  const tophs = individualTophs(chats);
-  const team = teamChat(chats);
-  const teamMembers = chatTophs(chats, team?.id);
+  const chat = chats?.chat ?? null;
+  const tophs = chats?.tophs ?? [];
 
-  function openChat(chatId: string) {
-    setActiveChat(project.id, chatId);
+  function openChat() {
     onSelectChat?.();
   }
 
   function addToph() {
-    const created = createChat(project.id, "Toph");
-    setActiveChat(project.id, created.id);
-    setGalleryChatId(created.id);
     setGalleryOpen(true);
     onSelectChat?.();
   }
 
   function openTeam() {
-    if (!team) return;
-    setTeamInfo(team.description);
+    if (!chat) return;
+    setTeamInfo(chat.description);
     setTeamOpen(true);
   }
 
   function saveTeam() {
-    if (!team) return;
-    updateChat(project.id, team.id, { description: teamInfo });
+    if (!chat) return;
+    updateChat(project.id, chat.id, { description: teamInfo });
     setTeamOpen(false);
   }
 
@@ -82,10 +73,26 @@ export default function BotsSidebar({ project, headerControl, onSelectChat }: Pr
             Carregando...
           </div>
         ) : null}
-        {chats?.hydrated ? (
+        {chats?.hydrated && chat ? (
           <>
             <div className="mb-1.5 flex items-center gap-2 px-1 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-tertiary">
+              <span className="flex-1">Conversa</span>
+              <span>{tophs.length}</span>
+            </div>
+            <div className={cx("mb-4 flex items-center gap-1 rounded-xl bg-background-tertiary-default pe-1")}>
+              <button type="button" onClick={openChat} className="flex min-w-0 flex-1 items-center gap-2.5 px-2 py-2 text-start">
+                <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-accent-500/12 text-accent-500"><Bot size={15} /></span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-caption-1-medium text-text-primary">{chat.name || "Equipe"}</span>
+                  <span className="block truncate text-caption-2-regular text-text-tertiary">{tophs.length === 0 ? "Sem Tophs" : `${tophs.length} Toph${tophs.length === 1 ? "" : "s"} · conversa compartilhada`}</span>
+                </span>
+              </button>
+              <Button variant="ghost" size="xs" iconOnly leadingIcon={Settings2} aria-label="Configurar conversa" title="Configurar conversa" onClick={openTeam} />
+            </div>
+
+            <div className="mb-1.5 flex items-center gap-2 px-1 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-tertiary">
               <span className="flex-1">Tophs</span>
+              <Button variant="ghost" size="xs" iconOnly leadingIcon={Plus} aria-label="Adicionar Toph" title="Adicionar Toph" onClick={addToph} />
             </div>
             {tophs.length === 0 ? (
               <button
@@ -97,38 +104,19 @@ export default function BotsSidebar({ project, headerControl, onSelectChat }: Pr
                 Escolher primeiro Toph
               </button>
             ) : (
-              <div className="mb-4 flex flex-col gap-0.5">
+              <div className="flex flex-col gap-0.5">
                 {tophs.map((toph) => (
                   <TophRow
                     key={toph.id}
                     toph={toph}
-                    selected={chat?.id === toph.chatId}
-                    onOpen={() => openChat(toph.chatId)}
+                    selected={Boolean(toph.coordinator)}
+                    onOpen={() => fireTophAction("config", toph.id)}
                     onConfig={() => fireTophAction("config", toph.id)}
                     onSessions={() => fireTophAction("sessions", toph.id)}
                   />
                 ))}
               </div>
             )}
-
-            {team ? (
-              <>
-                <div className="mb-1.5 flex items-center gap-2 px-1 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-tertiary">
-                  <span className="flex-1">Equipe</span>
-                  <span>{teamMembers.length}</span>
-                </div>
-                <div className={cx("flex items-center gap-1 rounded-xl pe-1 transition-colors", chat?.id === team.id ? "bg-background-tertiary-default" : "hover:bg-background-primary-hover")}>
-                  <button type="button" onClick={() => openChat(team.id)} className="flex min-w-0 flex-1 items-center gap-2.5 px-2 py-2 text-start">
-                    <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-accent-500/12 text-accent-500"><Bot size={15} /></span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-caption-1-medium text-text-primary">{team.name || "Equipe"}</span>
-                      <span className="block truncate text-caption-2-regular text-text-tertiary">{teamMembers.length === 0 ? "Sem membros" : "Conversa compartilhada"}</span>
-                    </span>
-                  </button>
-                  <Button variant="ghost" size="xs" iconOnly leadingIcon={Settings2} aria-label="Configurar equipe" title="Configurar equipe" onClick={openTeam} />
-                </div>
-              </>
-            ) : null}
           </>
         ) : null}
       </div>
@@ -136,8 +124,8 @@ export default function BotsSidebar({ project, headerControl, onSelectChat }: Pr
       <Modal
         isOpen={teamOpen}
         onClose={() => setTeamOpen(false)}
-        title="Configurar equipe"
-        description="Informações gerais compartilhadas com todos os Tophs da equipe."
+        title="Configurar conversa"
+        description="Informações gerais compartilhadas com todos os Tophs."
         placement="center"
         size="md"
         bodyClassName="p-4"
@@ -160,9 +148,8 @@ export default function BotsSidebar({ project, headerControl, onSelectChat }: Pr
       <TophGallery
         open={galleryOpen}
         projectId={project.id}
-        chatId={galleryChatId}
-        onClose={() => { setGalleryOpen(false); setGalleryChatId(null); }}
-        onCreated={(tophId) => { setGalleryOpen(false); setGalleryChatId(null); fireTophAction("config", tophId); }}
+        onClose={() => setGalleryOpen(false)}
+        onCreated={(tophId) => { setGalleryOpen(false); fireTophAction("config", tophId); }}
       />
     </div>
   );

@@ -46,7 +46,6 @@ export interface TophChat {
   id: string;
   name: string;
   description: string;
-  kind: "individual" | "team";
   createdAt: number;
   updatedAt: number;
 }
@@ -69,11 +68,11 @@ export interface ChatMessage {
 }
 
 export interface ProjectChats {
-  version: 2;
-  chats: TophChat[];
+  version: 3;
+  /** The project's single conversation. It is a team and can hold one or more Tophs. */
+  chat: TophChat;
   tophs: ChatToph[];
   messages: ChatMessage[];
-  activeChatId: string | null;
   hydrated?: boolean;
 }
 
@@ -293,106 +292,100 @@ function cappedMessage(message: ChatMessage): ChatMessage {
   };
 }
 
-/** Every project has exactly one fixed individual chat and one fixed team. */
+/** Every project has exactly one conversation: a team with one or more Tophs. */
 export function freshProject(hydrated = false): ProjectChats {
   const now = Date.now();
-  const individual: TophChat = {
-    id: newId("chat"),
-    name: "Toph",
-    description: "",
-    kind: "individual",
-    createdAt: now,
-    updatedAt: now,
-  };
-  const team: TophChat = {
-    id: newId("chat"),
-    name: "Equipe",
-    description: "",
-    kind: "team",
-    createdAt: now + 1,
-    updatedAt: now + 1,
-  };
   return {
-    version: 2,
-    chats: [individual, team],
+    version: 3,
+    chat: {
+      id: newId("chat"),
+      name: "Equipe",
+      description: "",
+      createdAt: now,
+      updatedAt: now,
+    },
     tophs: [],
     messages: [],
-    activeChatId: individual.id,
     hydrated,
   };
 }
 
 function sanitizeProject(input: ProjectChats | null | undefined): ProjectChats {
-  // Version 1 was the multi-chat model. History is intentionally discarded.
-  if (!input || input.version !== 2) return freshProject(true);
-  const chats = (Array.isArray(input.chats) ? input.chats : [])
-    .filter((chat): chat is TophChat => Boolean(chat && typeof chat.id === "string" && chat.id))
-    .map((chat) => ({
-      id: chat.id,
-      name: chat.name?.trim() || (chat.kind === "team" ? "Equipe" : "Toph"),
-      description: chat.description ?? "",
-      kind: chat.kind === "team" ? "team" as const : "individual" as const,
-      createdAt: Number.isFinite(chat.createdAt) ? chat.createdAt : Date.now(),
-      updatedAt: Number.isFinite(chat.updatedAt) ? chat.updatedAt : Date.now(),
-    }));
-  let individuals = chats.filter((chat) => chat.kind === "individual");
-  const team = chats.find((chat) => chat.kind === "team");
-  if (!team) return freshProject(true);
-  if (individuals.length === 0) {
-    individuals = [{
-      id: newId("chat"),
-      name: "Toph",
-      description: "",
-      kind: "individual",
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    }];
-  }
-  const fixedChats = [...individuals, team];
-  const chatIds = new Set(fixedChats.map((chat) => chat.id));
-  const tophs = (Array.isArray(input.tophs) ? input.tophs : [])
-    .filter((toph): toph is ChatToph => Boolean(toph && typeof toph.id === "string" && chatIds.has(toph.chatId)))
-    .map((toph) => normalizeToph(toph, toph.chatId));
+  if (!input) return freshProject(true);
+  const now = Date.now();
+  const raw = input as unknown as {
+    version?: number;
+    chat?: TophChat;
+    chats?: TophChat[];
+    tophs?: ChatToph[];
+    messages?: ChatMessage[];
+  };
 
-  for (const chat of fixedChats) {
-    const members = tophs.filter((toph) => toph.chatId === chat.id);
-    const handles = new Set<string>();
-    for (const toph of members) {
-      toph.handle = uniqueHandle(toph.handle || toph.name, handles);
-      handles.add(toph.handle);
-    }
-    if (members.length > 0) {
-      const coordinator = members.find((toph) => toph.coordinator) ?? members[0];
-      for (const toph of members) toph.coordinator = toph.id === coordinator.id;
-      // Toph-first migration: the individual conversation is named after its
-      // Toph instead of the legacy "Individual" container.
-      if (chat.kind === "individual") chat.name = members[0].name;
-    }
+  // Version 3 is already the single-conversation model. Older layouts had an
+  // individual chat per Toph plus a team; they are merged here so no Toph or
+  // message is lost when the concept disappears.
+  let chat: TophChat;
+  if (raw.version === 3 && raw.chat && typeof raw.chat.id === "string" && raw.chat.id) {
+    chat = {
+      id: raw.chat.id,
+      name: raw.chat.name?.trim() || "Equipe",
+      description: raw.chat.description ?? "",
+      createdAt: Number.isFinite(raw.chat.createdAt) ? raw.chat.createdAt : now,
+      updatedAt: Number.isFinite(raw.chat.updatedAt) ? raw.chat.updatedAt : now,
+    };
+  } else {
+    const legacy = (Array.isArray(raw.chats) ? raw.chats : [])
+      .filter((item): item is TophChat => Boolean(item && typeof item.id === "string" && item.id))
+      .map((item) => ({
+        id: item.id,
+        name: item.name?.trim() || "Equipe",
+        description: item.description ?? "",
+        createdAt: Number.isFinite(item.createdAt) ? item.createdAt : now,
+        updatedAt: Number.isFinite(item.updatedAt) ? item.updatedAt : now,
+        kind: (item as TophChat & { kind?: string }).kind,
+      }));
+    const team = legacy.find((item) => item.kind === "team");
+    chat = team
+      ? {
+          id: team.id,
+          name: team.name || "Equipe",
+          description: team.description,
+          createdAt: team.createdAt,
+          updatedAt: team.updatedAt,
+        }
+      : {
+          id: newId("chat"),
+          name: "Equipe",
+          description: "",
+          createdAt: now,
+          updatedAt: now,
+        };
+  }
+
+  const tophs = (Array.isArray(raw.tophs) ? raw.tophs : [])
+    .filter((toph): toph is ChatToph => Boolean(toph && typeof toph.id === "string"))
+    .map((toph) => normalizeToph({ ...toph, chatId: chat.id }, chat.id));
+  const handles = new Set<string>();
+  for (const toph of tophs) {
+    toph.handle = uniqueHandle(toph.handle || toph.name, handles);
+    handles.add(toph.handle);
+  }
+  if (tophs.length > 0) {
+    const coordinator = tophs.find((toph) => toph.coordinator) ?? tophs[0];
+    for (const toph of tophs) toph.coordinator = toph.id === coordinator.id;
   }
 
   const tophIds = new Set(tophs.map((toph) => toph.id));
-  const messages = (Array.isArray(input.messages) ? input.messages : [])
+  const messages = (Array.isArray(raw.messages) ? raw.messages : [])
     .filter((message): message is ChatMessage => Boolean(
       message &&
       typeof message.id === "string" &&
-      chatIds.has(message.chatId) &&
       (!message.tophId || tophIds.has(message.tophId)),
     ))
-    .map(normalizeMessage)
+    .map((message) => normalizeMessage({ ...message, chatId: chat.id }))
     .sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id));
 
-  const activeChatId = (() => {
-    const requested = fixedChats.find((chat) => chat.id === input.activeChatId);
-    const tophChatIds = new Set(tophs.map((toph) => toph.chatId));
-    const fallback =
-      individuals.find((chat) => tophChatIds.has(chat.id)) ?? team ?? individuals[0];
-    if (requested && (requested.kind === "team" || tophChatIds.has(requested.id))) {
-      return requested.id;
-    }
-    return fallback.id;
-  })();
-
-  return { version: 2, chats: fixedChats, tophs, messages, activeChatId, hydrated: true };
+  return { version: 3, chat, tophs, messages, hydrated: true };
 }
 
 function emptyProject(hydrated = false): ProjectChats {
@@ -427,11 +420,8 @@ interface ChatStore {
   snapshot: (projectId: string) => ProjectChatsSnapshot | null;
   unload: (projectId: string) => void;
   forget: (projectId: string) => void;
-  createChat: (projectId: string, name: string, description?: string) => TophChat;
   updateChat: (projectId: string, chatId: string, patch: Partial<Pick<TophChat, "name" | "description">>) => void;
-  deleteChat: (projectId: string, chatId: string) => void;
-  setActiveChat: (projectId: string, chatId: string | null) => void;
-  addToph: (projectId: string, chatId: string, preset: TophPreset) => ChatToph | null;
+  addToph: (projectId: string, preset: TophPreset) => ChatToph | null;
   updateToph: (projectId: string, tophId: string, patch: Partial<ChatToph>) => void;
   removeToph: (projectId: string, tophId: string) => void;
   setTophSession: (
@@ -440,11 +430,7 @@ interface ChatStore {
     sessionId: string | undefined,
     options?: { sessionPrimed?: boolean; messages?: ChatMessage[]; sessionClearedAt?: number | null },
   ) => void;
-  /**
-   * Starts a fresh agent session for one Toph. Individual chats are
-   * cleared entirely because user messages do not carry a Toph id; team
-   * chats keep the shared conversation and only drop that member's rows.
-   */
+  /** Starts a fresh agent session for one Toph in the shared conversation. */
   resetTophSession: (projectId: string, tophId: string) => { chatId: string; clearChat: boolean; cutoff: number } | null;
   addMessage: (projectId: string, message: ChatMessage) => void;
   appendMessage: (projectId: string, messageId: string, text: string) => void;
@@ -478,10 +464,9 @@ export const useChats = create<ChatStore>((set, get) => ({
     const project = get().byProject[projectId];
     if (!project) return null;
     return {
-      version: 2,
-      chats: project.chats,
+      version: 3,
+      chat: project.chat,
       tophs: project.tophs,
-      activeChatId: project.activeChatId,
     };
   },
 
@@ -501,91 +486,31 @@ export const useChats = create<ChatStore>((set, get) => ({
       return { byProject, messageWrites };
     }),
 
-  createChat: (projectId, name, description = "") => {
-    const project = get().ensure(projectId);
-    const now = Date.now();
-    const chat: TophChat = {
-      id: newId("chat"),
-      name: name.trim() || "Toph",
-      description: description.trim(),
-      kind: "individual",
-      createdAt: now,
-      updatedAt: now,
-    };
-    set((state) => ({
-      byProject: {
-        ...state.byProject,
-        [projectId]: {
-          ...project,
-          chats: [...project.chats, chat],
-          activeChatId: chat.id,
-        },
-      },
-    }));
-    return chat;
-  },
-
   updateChat: (projectId, chatId, patch) =>
     set((state) => {
       const project = state.byProject[projectId];
-      if (!project) return state;
+      if (!project || project.chat.id !== chatId) return state;
       return {
         byProject: {
           ...state.byProject,
           [projectId]: {
             ...project,
-            chats: project.chats.map((chat) =>
-              chat.id === chatId
-                ? {
-                    ...chat,
-                    ...patch,
-                    name: patch.name?.trim() || chat.name,
-                    description: patch.description === undefined ? chat.description : patch.description.trim(),
-                    updatedAt: Date.now(),
-                  }
-                : chat,
-            ),
+            chat: {
+              ...project.chat,
+              ...patch,
+              name: patch.name?.trim() || project.chat.name,
+              description: patch.description === undefined ? project.chat.description : patch.description.trim(),
+              updatedAt: Date.now(),
+            },
           },
         },
       };
     }),
 
-  deleteChat: (projectId, chatId) =>
-    set((state) => {
-      const project = state.byProject[projectId];
-      if (!project) return state;
-      const chats = project.chats.filter((chat) => chat.id !== chatId);
-      return {
-        byProject: {
-          ...state.byProject,
-          [projectId]: {
-            ...project,
-            chats,
-            tophs: project.tophs.filter((toph) => toph.chatId !== chatId),
-            messages: project.messages.filter((message) => message.chatId !== chatId),
-            activeChatId: project.activeChatId === chatId ? chats[0]?.id ?? null : project.activeChatId,
-          },
-        },
-        messageWrites: removeWritesForChat(state.messageWrites, projectId, chatId),
-      };
-    }),
-
-  setActiveChat: (projectId, chatId) =>
-    set((state) => {
-      const project = state.byProject[projectId];
-      if (!project || project.activeChatId === chatId) return state;
-      return {
-        byProject: { ...state.byProject, [projectId]: { ...project, activeChatId: chatId } },
-      };
-    }),
-
-  addToph: (projectId, chatId, preset) => {
+  addToph: (projectId, preset) => {
     const project = get().ensure(projectId);
-    const chat = project.chats.find((item) => item.id === chatId);
-    if (!chat) return null;
-    const members = project.tophs.filter((toph) => toph.chatId === chatId);
-    // The individual chat holds exactly one Toph.
-    if (chat.kind === "individual" && members.length > 0) return null;
+    const chat = project.chat;
+    const members = project.tophs;
     const role = preset.role.trim() || "Toph";
     const names = new Set(members.map((toph) => toph.name.toLowerCase()));
     const handles = new Set(members.map((toph) => toph.handle));
@@ -594,7 +519,7 @@ export const useChats = create<ChatStore>((set, get) => ({
     const coordinator = members.length === 0 || (preset.coordinator === true && !members.some((toph) => toph.coordinator));
     const toph: ChatToph = {
       id: newId("toph"),
-      chatId,
+      chatId: chat.id,
       name,
       handle,
       role,
@@ -624,7 +549,7 @@ export const useChats = create<ChatStore>((set, get) => ({
           ...project,
           tophs: [
             ...project.tophs.map((item) =>
-              coordinator && item.chatId === chatId ? { ...item, coordinator: false } : item,
+              coordinator && item.chatId === chat.id ? { ...item, coordinator: false } : item,
             ),
             toph,
           ],
@@ -733,10 +658,9 @@ export const useChats = create<ChatStore>((set, get) => ({
     if (!project) return null;
     const target = project.tophs.find((toph) => toph.id === tophId);
     if (!target) return null;
-    const chat = project.chats.find((item) => item.id === target.chatId);
-    if (!chat) return null;
+    const chat = project.chat;
     const cutoff = Date.now();
-    const clearChat = chat.kind === "individual";
+    const clearChat = false;
     set((state) => {
       const current = state.byProject[projectId];
       if (!current) return state;
@@ -913,53 +837,29 @@ export function chatSessionIds(project: ProjectChats | undefined): string[] {
   return [...ids];
 }
 
-export function chatTophs(project: ProjectChats | undefined, chatId: string | null | undefined): ChatToph[] {
-  if (!project || !chatId) return [];
-  return project.tophs.filter((toph) => toph.chatId === chatId);
-}
-
-/** Toph-first view: every individual Toph owns one conversation. */
-export function individualTophs(project: ProjectChats | undefined): ChatToph[] {
-  if (!project) return [];
-  const individualChats = new Set(
-    project.chats.filter((chat) => chat.kind === "individual").map((chat) => chat.id),
-  );
-  return project.tophs.filter((toph) => individualChats.has(toph.chatId));
-}
-
-export function teamChat(project: ProjectChats | undefined): TophChat | null {
-  return project?.chats.find((chat) => chat.kind === "team") ?? null;
+export function chatTophs(project: ProjectChats | undefined): ChatToph[] {
+  return project?.tophs ?? [];
 }
 
 export function chatForToph(project: ProjectChats | undefined, tophId: string | null | undefined): TophChat | null {
-  if (!project || !tophId) return null;
-  const toph = project.tophs.find((item) => item.id === tophId);
-  return toph ? project.chats.find((chat) => chat.id === toph.chatId) ?? null : null;
+  if (!project || !tophId || !project.tophs.some((item) => item.id === tophId)) return null;
+  return project.chat;
 }
 
-export function tophForChat(project: ProjectChats | undefined, chatId: string | null | undefined): ChatToph | null {
-  if (!project || !chatId) return null;
-  return project.tophs.find((toph) => toph.chatId === chatId) ?? null;
+export function tophForChat(project: ProjectChats | undefined): ChatToph | null {
+  return project ? chatCoordinator(project.tophs) : null;
 }
 
 /**
- * Messages that belong to the current session of a chat. A Toph's
+ * Messages that belong to the current session of the conversation. A Toph's
  * `sessionClearedAt` marks the boundary between its old and new agent
- * session. In an individual chat the boundary applies to user messages too,
- * because they carry no Toph id.
+ * session. The conversation itself is shared, so user messages stay.
  */
 export function messagesForChat(project: ProjectChats | undefined, chatId: string | null | undefined): ChatMessage[] {
   if (!project || !chatId) return [];
-  const chat = project.chats.find((item) => item.id === chatId);
   const tophs = new Map(project.tophs.map((toph) => [toph.id, toph]));
-  const wholeChatCutoff = chat?.kind === "individual"
-    ? project.tophs
-        .filter((toph) => toph.chatId === chatId)
-        .reduce((max, toph) => Math.max(max, toph.sessionClearedAt ?? 0), 0)
-    : 0;
   return project.messages.filter((message) => {
     if (message.chatId !== chatId) return false;
-    if (message.createdAt < wholeChatCutoff) return false;
     if (message.tophId) {
       const cutoff = tophs.get(message.tophId)?.sessionClearedAt ?? 0;
       if (message.createdAt < cutoff) return false;
@@ -980,8 +880,7 @@ export function messagesForToph(project: ProjectChats | undefined, chatId: strin
 }
 
 export function activeChat(project: ProjectChats | undefined): TophChat | null {
-  if (!project?.activeChatId) return null;
-  return project.chats.find((chat) => chat.id === project.activeChatId) ?? null;
+  return project?.chat ?? null;
 }
 
 export function chatCoordinator(tophs: ChatToph[]): ChatToph | null {

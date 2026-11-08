@@ -133,7 +133,7 @@ export default function MobileApp() {
         if (detail.botId) {
           const chats = useChats.getState().byProject[detail.projectId];
           const toph = chats?.tophs.find((item) => item.id === detail.botId);
-          if (chats?.hydrated && toph) useChats.getState().setActiveChat(detail.projectId, toph.chatId);
+          if (chats?.hydrated && toph) window.dispatchEvent(new CustomEvent("toph:toph-action", { detail: { action: "config", tophId: toph.id } }));
           else pendingBot.current = { projectId: detail.projectId, botId: detail.botId };
         }
       }
@@ -152,7 +152,7 @@ export default function MobileApp() {
     const pending = pendingBot.current;
     if (!pending || pending.projectId !== activeProjectId || !chatsHydrated) return;
     const toph = useChats.getState().byProject[pending.projectId]?.tophs.find((item) => item.id === pending.botId);
-    if (toph) useChats.getState().setActiveChat(pending.projectId, toph.chatId);
+    if (toph) window.dispatchEvent(new CustomEvent("toph:toph-action", { detail: { action: "config", tophId: toph.id } }));
     pendingBot.current = null;
   }, [activeProjectId, chatsHydrated]);
 

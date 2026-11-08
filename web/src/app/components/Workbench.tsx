@@ -347,11 +347,8 @@ export default function Workbench() {
       const projectId = payload.projectId || state.activeProjectId || undefined;
       if (!projectId) return;
       const chats = useChats.getState().byProject[projectId];
-      const active = chats?.chats.find((chat) => chat.id === chats.activeChatId);
       const activeHasBot = Boolean(
-        payload.botId &&
-        active &&
-        chats?.tophs.some((toph) => toph.id === payload.botId && toph.chatId === active.id),
+        payload.botId && chats?.tophs.some((toph) => toph.id === payload.botId),
       );
       if (
         document.visibilityState === "visible" &&
@@ -769,7 +766,7 @@ export default function Workbench() {
       pendingTophSelection.current = null;
       return;
     }
-    state.setActiveChat(projectId, toph.chatId);
+    window.dispatchEvent(new CustomEvent("toph:toph-action", { detail: { action: "config", tophId } }));
     pendingTophSelection.current = null;
   }
 

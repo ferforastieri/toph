@@ -15,7 +15,7 @@ it("persists layout changes without writing layout for typing or message streami
   vi.useFakeTimers();
   const save = vi.spyOn(api, "saveLayout").mockResolvedValue(undefined);
   useChats.getState().load("p");
-  const chat = useChats.getState().byProject.p.chats[0];
+  const chat = useChats.getState().byProject.p.chat;
   const tab = { id: "file", kind: "editor", projectId: "p", path: "main.rs", title: "main.rs", content: "a" } as Tab;
   const { rerender, unmount } = renderHook(({ tabs }) => {
     const layoutTabs = useLayoutTabs(tabs);
