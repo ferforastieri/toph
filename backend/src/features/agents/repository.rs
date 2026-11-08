@@ -384,6 +384,27 @@ impl Repository {
             })
             .collect()
     }
+    /// The text-only transcript, in order, with message ids. The harness
+    /// session manager uses the ids and block hashes to know what it saw.
+    pub async fn transcript(&self, session: &str) -> AppResult<Vec<(String, String, String)>> {
+        let rows = sqlx::query(
+            "SELECT id,role,content_text FROM agent_messages WHERE session_id=? AND role IN ('user','assistant') AND content_text<>'' AND id NOT LIKE 'import-%' ORDER BY seq",
+        )
+        .bind(session)
+        .fetch_all(self.0.pool())
+        .await?;
+        Ok(rows
+            .into_iter()
+            .map(|row| {
+                (
+                    row.get::<String, _>("id"),
+                    row.get::<String, _>("role"),
+                    row.get::<String, _>("content_text"),
+                )
+            })
+            .collect())
+    }
+
     pub async fn checkpoint(&self, session: &str) -> AppResult<(i64, String)> {
         Ok(sqlx::query_as("SELECT through_seq,summary FROM agent_checkpoints WHERE session_id=? ORDER BY through_seq DESC LIMIT 1").bind(session).fetch_optional(self.0.pool()).await?.unwrap_or((0,String::new())))
     }

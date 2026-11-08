@@ -138,6 +138,7 @@ pub async fn run_opencode<F>(
     system: &str,
     prompt: &str,
     gateway: &str,
+    session_id: &str,
     cwd: &Path,
     cancel: &CancellationToken,
     mut on_text: F,
@@ -169,6 +170,8 @@ where
         .arg("--log-level")
         .arg("error")
         .arg("run")
+        .arg("--session")
+        .arg(session_id)
         .arg("--format")
         .arg("json")
         .arg("--agent")

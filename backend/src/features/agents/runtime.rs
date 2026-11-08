@@ -47,6 +47,7 @@ struct Inner {
     runs: Mutex<HashMap<String, CancellationToken>>,
     approvals: Mutex<HashMap<String, oneshot::Sender<Value>>>,
     drafts: Mutex<HashMap<String, Value>>,
+    sessions: Mutex<super::session_manager::Sessions>,
     on_complete: RwLock<Option<CompletionHandler>>,
 }
 
@@ -129,6 +130,7 @@ impl Runtime {
                 runs: Mutex::new(HashMap::new()),
                 approvals: Mutex::new(HashMap::new()),
                 drafts: Mutex::new(HashMap::new()),
+                sessions: Mutex::new(super::session_manager::Sessions::default()),
                 on_complete: RwLock::new(None),
             }),
         };
@@ -575,6 +577,63 @@ impl Runtime {
         Ok(())
     }
 
+    /// Removes a team's agents, runs, messages, sessions and legacy archive.
+    /// The in-memory harness sessions for that chat are dropped too.
+    pub async fn delete_chat(&self, user: i64, project: &str, chat: &str) -> AppResult<()> {
+        let session_ids: Vec<String> = sqlx::query_scalar(
+            "SELECT id FROM agent_sessions WHERE user_id=? AND project_id=? AND chat_id=?",
+        )
+        .bind(user)
+        .bind(project)
+        .bind(chat)
+        .fetch_all(self.inner.repo.0.pool())
+        .await?;
+        let active: Vec<String> = sqlx::query_scalar(
+            "SELECT id FROM agent_runs WHERE user_id=? AND project_id=? AND chat_id=? AND state IN ('queued','running','waiting')",
+        )
+        .bind(user)
+        .bind(project)
+        .bind(chat)
+        .fetch_all(self.inner.repo.0.pool())
+        .await?;
+        {
+            let runs = self.inner.runs.lock().unwrap();
+            for id in &active {
+                if let Some(token) = runs.get(id) {
+                    token.cancel();
+                }
+            }
+        }
+        let mut tx = self.inner.repo.0.pool().begin().await?;
+        for statement in [
+            "DELETE FROM agent_tool_calls WHERE run_id IN (SELECT id FROM agent_runs WHERE user_id=? AND project_id=? AND chat_id=?)",
+            "DELETE FROM agent_model_calls WHERE run_id IN (SELECT id FROM agent_runs WHERE user_id=? AND project_id=? AND chat_id=?)",
+            "DELETE FROM agent_artifacts WHERE run_id IN (SELECT id FROM agent_runs WHERE user_id=? AND project_id=? AND chat_id=?)",
+            "DELETE FROM agent_events WHERE session_id IN (SELECT id FROM agent_sessions WHERE user_id=? AND project_id=? AND chat_id=?)",
+            "DELETE FROM agent_messages WHERE session_id IN (SELECT id FROM agent_sessions WHERE user_id=? AND project_id=? AND chat_id=?)",
+            "DELETE FROM agent_checkpoints WHERE session_id IN (SELECT id FROM agent_sessions WHERE user_id=? AND project_id=? AND chat_id=?)",
+            "DELETE FROM agent_session_state WHERE session_id IN (SELECT id FROM agent_sessions WHERE user_id=? AND project_id=? AND chat_id=?)",
+            "DELETE FROM agent_runs WHERE user_id=? AND project_id=? AND chat_id=?",
+            "DELETE FROM agent_sessions WHERE user_id=? AND project_id=? AND chat_id=?",
+            "DELETE FROM agent_profiles WHERE user_id=? AND project_id=? AND chat_id=?",
+            "DELETE FROM bot_messages WHERE user_id=? AND project_id=? AND channel=?",
+        ] {
+            sqlx::query(statement)
+                .bind(user)
+                .bind(project)
+                .bind(chat)
+                .execute(&mut *tx)
+                .await?;
+        }
+        tx.commit().await?;
+        self.inner
+            .sessions
+            .lock()
+            .unwrap()
+            .drop_where(|key| session_ids.iter().any(|id| id == key));
+        Ok(())
+    }
+
     pub async fn approve(&self, user: i64, project: &str, id: &str, value: Value) -> AppResult<()> {
         let count:i64=sqlx::query_scalar("SELECT count(*) FROM agent_tool_calls t JOIN agent_runs r ON r.id=t.run_id WHERE t.id=? AND r.user_id=? AND r.project_id=? AND t.state='waiting'")
             .bind(id).bind(user).bind(project).fetch_one(self.inner.repo.0.pool()).await?;
@@ -670,6 +729,9 @@ impl Runtime {
         }
     }
 
+    /// The tail instruction every fresh or resumed engine turn gets.
+    const CLI_INSTRUCTION: &'static str = "Responda à última mensagem do usuário. Use as ferramentas toph_* para ler, editar e rodar comandos; não use ferramentas embutidas da CLI. Se precisar de contexto antigo, use toph_search_history em vez de adivinhar.";
+
     /// Runs one turn on an external CLI. The CLI owns the agent loop; Toph owns
     /// the context, the gateway tools and the approvals.
     fn execute_cli<'a>(
@@ -700,9 +762,45 @@ Use-as para ler, editar e rodar comandos. Não diga que usou uma ferramenta que 
 Trabalhe no projeto atual. Para concluir uma alteração, rode os testes ou o build com `toph_shell` e mostre o resultado."
         ));
             let model = cli::opencode_model(&ctx.agent, config);
-            let (gateway_url, gateway_task) =
-                Gateway::start(self.clone(), ctx.clone(), gateway_tools, cancel.clone()).await?;
-            let prompt = self.cli_transcript(ctx).await?;
+            let (gateway_url, gateway_task) = Gateway::start(
+                self.clone(),
+                ctx.clone(),
+                gateway_tools.clone(),
+                cancel.clone(),
+            )
+            .await?;
+            self.inner.sessions.lock().unwrap().sweep();
+            let transcript = self.inner.repo.transcript(&ctx.run.session_id).await?;
+            let shown = transcript
+                .iter()
+                .map(|(id, role, text)| super::session_manager::Shown {
+                    id: id.clone(),
+                    block: format!("[{role}]\n{}", text.chars().take(2_500).collect::<String>()),
+                })
+                .collect::<Vec<_>>();
+            let session_config = super::session_manager::hash(
+                &json!({
+                    "engine": ctx.agent.engine,
+                    "model": model,
+                    "system": system,
+                    "tools": gateway_tools,
+                    "agentMode": ctx.agent.agent_mode,
+                    "permissionMode": ctx.agent.permission_mode,
+                })
+                .to_string(),
+            );
+            let plan = self.inner.sessions.lock().unwrap().begin(
+                &ctx.run.session_id,
+                &session_config,
+                &shown,
+                false,
+            );
+            tracing::debug!(session = %plan.id, resume = plan.resume, "engine session");
+            let prompt = if plan.resume {
+                Self::resume_prompt(&shown, &plan.send, &ctx.request)
+            } else {
+                self.cli_transcript(ctx).await?
+            };
             let work = std::env::temp_dir().join(format!("toph-cli-{}", ctx.run.id));
             let _ = tokio::fs::remove_dir_all(&work).await;
             tokio::fs::create_dir_all(&work).await?;
@@ -747,6 +845,7 @@ Trabalhe no projeto atual. Para concluir uma alteração, rode os testes ou o bu
                     &system,
                     &prompt,
                     &gateway_url,
+                    &plan.id,
                     &work,
                     cancel,
                     &mut on_text,
@@ -756,8 +855,31 @@ Trabalhe no projeto atual. Para concluir uma alteração, rode os testes ou o bu
             gateway_task.abort();
             let _ = tokio::fs::remove_dir_all(&work).await;
             self.inner.drafts.lock().unwrap().remove(&ctx.run.id);
-            let (text, usage) = result?;
+            let (text, usage) = match result {
+                Ok(value) => value,
+                Err(error) => {
+                    self.inner.sessions.lock().unwrap().end(
+                        &ctx.run.session_id,
+                        &plan,
+                        false,
+                        &session_config,
+                        &shown,
+                        None,
+                        0,
+                    );
+                    return Err(error);
+                }
+            };
             if text.trim().is_empty() {
+                self.inner.sessions.lock().unwrap().end(
+                    &ctx.run.session_id,
+                    &plan,
+                    false,
+                    &session_config,
+                    &shown,
+                    None,
+                    0,
+                );
                 return Err(bad_request("O OpenCode terminou sem resposta."));
             }
             let mut done = display;
@@ -775,6 +897,15 @@ Trabalhe no projeto atual. Para concluir uma alteração, rode os testes ou o bu
                 .await?;
             done["seq"] = json!(seq);
             self.event(ctx, "message", done);
+            self.inner.sessions.lock().unwrap().end(
+                &ctx.run.session_id,
+                &plan,
+                true,
+                &session_config,
+                &shown,
+                Some(&mid),
+                usage.input.saturating_add(usage.output) as usize,
+            );
             let _ = sqlx::query(
             "INSERT INTO agent_model_calls(id,run_id,kind,provider,model,input_tokens,output_tokens,cached_tokens,reasoning_tokens,estimated_input,duration_ms,finish,created_at) VALUES(?,?,?,?,?,?,?,?,0,0,?,'stop',?)",
         )
@@ -817,10 +948,31 @@ Trabalhe no projeto atual. Para concluir uma alteração, rode os testes ou o bu
         if blocks.is_empty() {
             blocks.push(format!("[user]\n{}", ctx.request));
         }
-        blocks.push(
-            "Responda à última mensagem do usuário. Use as ferramentas toph_* para ler, editar e rodar comandos; não use ferramentas embutidas da CLI. Se precisar de contexto antigo, use toph_search_history em vez de adivinhar.".into(),
-        );
+        blocks.push(Self::CLI_INSTRUCTION.into());
         Ok(blocks.join("\n\n"))
+    }
+
+    /// A resumed turn sends only the messages the engine has not seen, plus
+    /// the same closing instruction. The harness already holds the rest.
+    fn resume_prompt(
+        shown: &[super::session_manager::Shown],
+        send: &[String],
+        request: &str,
+    ) -> String {
+        let wanted = send
+            .iter()
+            .map(String::as_str)
+            .collect::<std::collections::HashSet<_>>();
+        let mut blocks = shown
+            .iter()
+            .filter(|item| wanted.contains(item.id.as_str()))
+            .map(|item| item.block.chars().take(2_500).collect::<String>())
+            .collect::<Vec<_>>();
+        if blocks.is_empty() {
+            blocks.push(format!("[user]\n{request}"));
+        }
+        blocks.push(Self::CLI_INSTRUCTION.into());
+        blocks.join("\n\n")
     }
 
     async fn build_system(&self, ctx: &RunContext, config: &AiConfig) -> AppResult<String> {

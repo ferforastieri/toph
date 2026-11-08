@@ -9,7 +9,6 @@ import { useAgentChat } from "../../agents/useAgentChat";
 import { AgentComposer, type AgentAttachment } from "./AgentComposer";
 import ChatMessages from "./ChatMessages";
 import ChatUsageMeter from "./ChatUsageMeter";
-import ChatTitle from "./ChatTitle";
 import BotAvatar from "../../agents/components/BotAvatar";
 import { unlockBotSound } from "../sound";
 import { Button } from "@/shared/boardui/base/buttons/button";
@@ -28,16 +27,9 @@ export default function BotStudioTab({ project, mobile = false, embedded = false
   const chats = teamChats(stored);
   const chat = activeChat(stored);
   const tophs = useMemo(() => chatTophs(stored, chat?.id), [stored?.tophs, chat?.id]);
-  const counts = useMemo(() => {
-    const map: Record<string, number> = {};
-    for (const toph of stored?.tophs ?? []) map[toph.chatId] = (map[toph.chatId] ?? 0) + 1;
-    return map;
-  }, [stored?.tophs]);
   const config = useAI((s) => s.config);
   const models = useAI((s) => s.models);
   const modelError = useAI((s) => s.error);
-  const createChat = useChats((s) => s.createChat);
-  const setActiveChat = useChats((s) => s.setActiveChat);
   const native = useAgentChat(project.id, chat?.id);
   const [sending, setSending] = useState(false);
   const [gallery, setGallery] = useState(false);
@@ -73,8 +65,7 @@ export default function BotStudioTab({ project, mobile = false, embedded = false
   useEffect(() => {
     const listener = (raw: Event) => {
       const value = (raw as CustomEvent<{ action: string; tophId?: string }>).detail;
-      if (value?.action === "add") setGallery(true);
-      else if (value?.action === "config") setConfigId(value.tophId ?? null);
+      if (value?.action === "config") setConfigId(value.tophId ?? null);
       else if (value?.action === "sessions") setSessionsId(value.tophId ?? null);
     };
     window.addEventListener("toph:toph-action", listener);
@@ -125,19 +116,6 @@ export default function BotStudioTab({ project, mobile = false, embedded = false
     void native.older();
   }
 
-  function switchTeam(chatId: string) {
-    setActiveChat(project.id, chatId);
-    setConfigId(null);
-    setSessionsId(null);
-  }
-
-  function createTeam() {
-    const created = createChat(project.id, "Equipe");
-    setActiveChat(project.id, created.id);
-    setGalleryChatId(created.id);
-    setGallery(true);
-  }
-
   function openGallery() {
     setGalleryChatId(chat?.id ?? chats[0]?.id ?? null);
     setGallery(true);
@@ -153,19 +131,13 @@ export default function BotStudioTab({ project, mobile = false, embedded = false
       "relative flex min-w-0 flex-1 flex-col overflow-hidden bg-background-full",
       !embedded && "max-[900px]:rounded-none max-[900px]:border-0 max-[900px]:shadow-none min-[901px]:rounded-3xl min-[901px]:border min-[901px]:border-border-button-white min-[901px]:shadow-sidebar",
     )}>
-      <div className={cx("flex shrink-0 items-center gap-4 border-b border-separator-border/70 bg-background-secondary-default", compact ? "h-[52px] px-3" : "h-[52px] px-5")}>
-        <ChatTitle chats={chats} chat={chat} counts={counts} compact={compact || mobile} onSelect={switchTeam} onCreate={createTeam} />
-        <span className="min-w-0 flex-1" />
-        <div className="hidden shrink-0 items-center -space-x-2 sm:flex">{tophs.slice(0, 4).map((toph) => <button key={toph.id} type="button" aria-label={`Configurar ${toph.name}`} onClick={() => setConfigId(toph.id)} className="rounded-full ring-2 ring-background-secondary-default transition-transform hover:-translate-y-0.5" title={`${toph.name} · ${toph.role}`}><BotAvatar bot={toph} size={26} /></button>)}{tophs.length > 4 && <span className="flex size-7 items-center justify-center rounded-full bg-background-tertiary-default text-[10px] text-text-tertiary">+{tophs.length - 4}</span>}</div>
-        <Button variant="ghost" size="small" iconOnly leadingIcon={MessageSquarePlus} aria-label="Adicionar Toph à equipe" title="Adicionar Toph à equipe" onClick={openGallery} />
-        {headerControl}
-      </div>
+      {embedded && headerControl ? <div className="absolute end-2 top-2 z-20">{headerControl}</div> : null}
       <div className="relative flex min-h-0 flex-1 flex-col">
         <div ref={scroller} className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-x-none" onScroll={(event) => {
           const el = event.currentTarget; const movedUp = el.scrollTop < lastTop.current - 1; lastTop.current = el.scrollTop;
           follow.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80 && !movedUp; setAtBottom(follow.current);
         }}>
-          <div key={chat?.id ?? "none"} className={cx("toph-view-in mx-auto flex min-h-full w-full min-w-0 max-w-[860px] flex-col gap-2 overflow-x-hidden [&_img]:max-w-full [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_table]:block [&_table]:max-w-full [&_table]:overflow-x-auto", compact ? "px-4 pt-4 pb-2" : "px-7 pt-6 pb-3")}>
+          <div key={chat?.id ?? "none"} className={cx("toph-view-in mx-auto flex min-h-full w-full min-w-0 max-w-[860px] flex-col gap-2 overflow-x-hidden [&_img]:max-w-full [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_table]:block [&_table]:max-w-full [&_table]:overflow-x-auto", compact ? (embedded ? "px-4 pt-10 pb-2" : "px-4 pt-4 pb-2") : "px-7 pt-6 pb-3")}>
             {native.hasMore && <Button variant="ghost" size="small" disabled={native.loading} onClick={older}>{native.loading ? <><LoaderCircle size={14} className="animate-spin" /> Carregando mensagens antigas…</> : "Carregar mensagens anteriores"}</Button>}
             {!native.hasMore && native.messages.length > 0 && <p className="py-1 text-center text-[11px] text-text-tertiary">Início da conversa</p>}
             {!stored?.hydrated ? <div className="my-auto flex items-center justify-center gap-2 py-8 text-caption-1-regular text-text-tertiary"><LoaderCircle size={16} className="animate-spin" /> Carregando chats…</div>

@@ -109,6 +109,18 @@ pub(super) async fn switch_agent_session(
         .await?;
     Ok(Json(json!({"ok":true})))
 }
+pub(super) async fn delete_chat(
+    State(state): State<Arc<AppState>>,
+    Path((project, chat)): Path<(String, String)>,
+    Extension(auth): Extension<AuthContext>,
+) -> AppResult<Json<Value>> {
+    state.store.project(&project).await?;
+    state
+        .agents
+        .delete_chat(auth.user.id, &project, &chat)
+        .await?;
+    Ok(Json(json!({"ok":true})))
+}
 pub(super) async fn approve_agent(
     State(state): State<Arc<AppState>>,
     Path((project, call)): Path<(String, String)>,

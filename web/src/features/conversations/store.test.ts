@@ -124,6 +124,33 @@ describe("useChats", () => {
     expect(chatTophs(project, second.id)).toHaveLength(0);
   });
 
+  it("deletes a team with its Tophs and messages, keeping one team", () => {
+    const first = useChats.getState().ensure("p").chats[0];
+    const second = useChats.getState().createChat("p", "Produto");
+    const toph = useChats.getState().addToph("p", second.id, preset("Nico", "Revisor"))!;
+    useChats.getState().addMessage("p", {
+      id: "m-delete",
+      chatId: second.id,
+      tophId: toph.id,
+      role: "assistant",
+      content: "some",
+      createdAt: 1,
+    });
+    useChats.getState().setActiveChat("p", second.id);
+    useChats.getState().deleteChat("p", second.id);
+
+    let project = useChats.getState().byProject.p;
+    expect(project.chats.map((chat) => chat.id)).toEqual([first.id]);
+    expect(project.tophs).toHaveLength(0);
+    expect(project.messages).toHaveLength(0);
+    expect(project.activeChatId).toBe(first.id);
+
+    useChats.getState().deleteChat("p", first.id);
+    project = useChats.getState().byProject.p;
+    expect(project.chats).toHaveLength(1);
+    expect(project.chats[0].id).not.toBe(first.id);
+  });
+
   it("keeps messages in their team and removes them with their Toph", () => {
     const project = useChats.getState().ensure("p");
     const chat = project.chats[0];

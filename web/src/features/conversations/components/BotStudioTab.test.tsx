@@ -51,7 +51,7 @@ afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 describe("Toph chat controls", () => {
   it.each([false, true])("uses the compact chat composer with only the plan limit (mobile=%s)", (mobile) => {
     render(<BotStudioTab project={project} mobile={mobile} />);
-    expect(screen.getByRole("button", { name: "Limite do plano" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Consumo do plano" })).toBeVisible();
     expect(screen.queryByRole("button", { name: "Modelo e esforço" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Modo do agente" })).not.toBeInTheDocument();
     expect(screen.queryByText("Harness Toph · execução no servidor")).not.toBeInTheDocument();
@@ -74,15 +74,12 @@ describe("Toph chat controls", () => {
     expect(input.agents.find((a) => a.id === memberId)).toMatchObject({ agentMode: "build", model: "openai::review" });
   });
 
-  it("shows the single team conversation and its members", () => {
-    useChats.getState().addToph(project.id, chatId, { ...TOPH_PRESETS[1], name: "Leo", role: "Dev" });
-
+  it("shows only the conversation, without a chat header", () => {
     render(<BotStudioTab project={project} />);
 
-    expect(screen.getByText("Equipe")).toBeVisible();
-    expect(screen.getByRole("button", { name: "Configurar Leo" })).toBeVisible();
-    expect(screen.queryByText("Conversa individual")).not.toBeInTheDocument();
-    expect(screen.queryByText("Individual")).not.toBeInTheDocument();
+    expect(screen.queryByText("Equipe", { exact: true })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Configurar Beto" })).not.toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Mensagem para o agente" })).toBeVisible();
   });
 
   it("opens the selected Toph from the sidebar action event", async () => {
@@ -93,8 +90,8 @@ describe("Toph chat controls", () => {
 
   it("shows how much of the plan limit is left", async () => {
     render(<BotStudioTab project={project} />);
-    fireEvent.click(screen.getByRole("button", { name: "Limite do plano" }));
-    const dialog = await screen.findByRole("dialog", { name: "Limite do plano" });
+    fireEvent.click(screen.getByRole("button", { name: "Consumo do plano" }));
+    const dialog = await screen.findByRole("dialog", { name: "Consumo do plano" });
     expect(within(dialog).getByText("Semana")).toBeVisible();
     expect(within(dialog).getByText("45% restante")).toBeVisible();
     expect(within(dialog).getByText("Mês")).toBeVisible();

@@ -782,6 +782,10 @@ fn router(state: Arc<AppState>) -> Router {
             get(agent_sessions).post(switch_agent_session),
         )
         .route(
+            "/api/projects/{project_id}/agent/chats/{chat_id}",
+            delete(delete_chat),
+        )
+        .route(
             "/api/projects/{project_id}/agent/approvals/{call_id}",
             post(approve_agent),
         )

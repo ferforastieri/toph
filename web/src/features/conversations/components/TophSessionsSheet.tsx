@@ -15,7 +15,7 @@ export default function TophSessionsSheet({ open, project, toph, onClose, onSele
     void agentApi.sessions(project.id, toph.id).then((items) => { if (!cancelled) setSessions(items); }).catch((e) => { if (!cancelled) setError(String(e)); });
     return () => { cancelled = true; };
   }, [open, project.id, toph?.id]);
-  return <Modal isOpen={open} onClose={onClose} title={`Sessões de ${toph?.name ?? "Toph"}`} description="Histórico nativo, preservado no servidor." size="lg" footer={<Button onClick={onNew}>Nova sessão</Button>}>
+  return <Modal isOpen={open} onClose={onClose} title={`Conversas de ${toph?.name ?? "Toph"}`} description="Histórico salvo no servidor. O Toph retoma o contexto do harness quando possível; se expirou, recomeça a partir deste histórico." size="lg" footer={<Button onClick={onNew}>Nova conversa</Button>}>
     {error && <p role="alert">{error}</p>}
     <div className="flex max-h-96 flex-col gap-2 overflow-auto">{sessions.map((session) => <Button key={session.id} variant="secondary" className="justify-between" onClick={() => onSelect(session)}><span>{session.title}{!session.archived ? " · atual" : ""}</span><span className="text-xs">{new Date(session.updatedAt).toLocaleString()}</span></Button>)}</div>
     {!sessions.length && <p>Nenhuma sessão salva ainda.</p>}

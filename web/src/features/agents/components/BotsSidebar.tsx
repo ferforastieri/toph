@@ -1,8 +1,10 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { Bot, Plus, Settings2 } from "@toph/icons";
+import { Bot, Plus, Settings2, Trash2 } from "@toph/icons";
 import type { Project } from "../../../shared/api";
 import { activeChat, chatTophs, teamChats, useChats } from "../../conversations/store";
+import { agentApi } from "../api";
 import TophGallery from "./TophGallery";
+import TeamAvatar from "./TeamAvatar";
 import TophRow from "./TophRow";
 import { Button } from "@/shared/boardui/base/buttons/button";
 import SidebarHeader from "../../../app/components/SidebarHeader";
@@ -28,6 +30,7 @@ export default function BotsSidebar({ project, headerControl, onSelectChat }: Pr
   const createChat = useChats((state) => state.createChat);
   const setActiveChat = useChats((state) => state.setActiveChat);
   const updateChat = useChats((state) => state.updateChat);
+  const deleteChat = useChats((state) => state.deleteChat);
   const removeToph = useChats((state) => state.removeToph);
   const confirm = useConfirm();
   const [galleryOpen, setGalleryOpen] = useState(false);
@@ -75,6 +78,23 @@ export default function BotsSidebar({ project, headerControl, onSelectChat }: Pr
     setTeamOpen(false);
   }
 
+  async function deleteTeam(team: { id: string; name: string }) {
+    const ok = await confirm({
+      title: `Apagar a equipe “${team.name || "Equipe"}”?`,
+      message: "As mensagens, sessões e Tophs desta equipe serão removidos. Essa ação não pode ser desfeita.",
+      confirmLabel: "Apagar equipe",
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      await agentApi.deleteChat(project.id, team.id);
+    } catch {
+      // Local removal still wins when the server has nothing left to delete.
+    }
+    deleteChat(project.id, team.id);
+    setTeamOpen(false);
+  }
+
   async function removeMember(tophId: string, name: string) {
     const ok = await confirm({
       title: `Remover ${name} da equipe?`,
@@ -114,13 +134,14 @@ export default function BotsSidebar({ project, headerControl, onSelectChat }: Pr
                 return (
                   <div key={team.id} className={cx("flex items-center gap-1 rounded-xl pe-1 transition-colors", selected ? "bg-background-tertiary-default" : "hover:bg-background-primary-hover")}>
                     <button type="button" onClick={() => openChat(team.id)} className="flex min-w-0 flex-1 items-center gap-2.5 px-2 py-2 text-start">
-                      <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-accent-500/12 text-accent-500"><Bot size={15} /></span>
+                      <TeamAvatar tophs={(chats?.tophs ?? []).filter((toph) => toph.chatId === team.id)} size={30} />
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-caption-1-medium text-text-primary">{team.name || "Equipe"}</span>
                         <span className="block truncate text-caption-2-regular text-text-tertiary">{count} Toph{count === 1 ? "" : "s"}</span>
                       </span>
                     </button>
                     {selected ? <Button variant="ghost" size="xs" iconOnly leadingIcon={Settings2} aria-label="Configurar equipe" title="Configurar equipe" onClick={openTeam} /> : null}
+                    <Button variant="ghost" size="xs" iconOnly leadingIcon={Trash2} aria-label={`Apagar equipe ${team.name}`} title="Apagar equipe" className="text-status-rose-text" onClick={() => void deleteTeam(team)} />
                   </div>
                 );
               })}

@@ -71,6 +71,7 @@ export const agentApi = {
   start: (project: string, input: { requestId: string; chatId: string; chatDescription?: string; agentId: string; text: string; agents: ChatToph[]; attachments?: AgentAttachment[] }) => request<AgentRun>(`${root(project)}/runs`, post(input)),
   cancel: (project: string, run: string) => request(`${root(project)}/runs/${encodeURIComponent(run)}/cancel`, post({})),
   cancelAgent: (project: string, agentId: string) => request(`${root(project)}/cancel`, post({ agentId })),
+  deleteChat: (project: string, chatId: string) => request(`${root(project)}/chats/${encodeURIComponent(chatId)}`, { method: "DELETE" }),
   snapshot: (project: string, chat: string, before?: number | null) => request<AgentSnapshot>(`${root(project)}/snapshot?chatId=${encodeURIComponent(chat)}${before == null ? "" : `&before=${before}`}`),
   events: (project: string) => `${getApiBase()}/api${root(project)}/events`,
   sessions: (project: string, agent: string) => request<AgentSession[]>(`${root(project)}/sessions?agentId=${encodeURIComponent(agent)}`),
