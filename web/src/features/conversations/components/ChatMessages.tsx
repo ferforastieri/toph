@@ -133,7 +133,7 @@ function StreamedTranscript({ message, project }: { message: NativeMessage; proj
 
 function UserMessage({ message }: { message: NativeMessage }) {
   return (
-    <article data-testid="chat-user-message" className="flex min-w-0 justify-end px-1 py-1.5">
+    <article data-testid="chat-user-message" className="toph-msg-in flex min-w-0 justify-end py-1.5">
       <p className="max-w-[min(78%,620px)] rounded-[18px] rounded-br-[6px] bg-background-tertiary-default px-3.5 py-2 text-[14px] leading-[1.65] whitespace-pre-wrap break-words text-text-primary">
         {message.content}
       </p>
@@ -149,7 +149,7 @@ function AgentMessage({ message, toph, label, project, grouped }: {
   grouped: boolean;
 }) {
   return (
-    <article data-testid="chat-agent-message" className="group/msg flex min-w-0 gap-3 px-1 py-1.5">
+    <article data-testid="chat-agent-message" className="toph-msg-in group/msg flex min-w-0 gap-3 py-1.5">
       <div className="w-[34px] shrink-0">{grouped ? null : <BotAvatar bot={toph} size={34} />}</div>
       <div className="min-w-0 flex-1">
         {grouped ? null : (
@@ -181,7 +181,7 @@ function AgentMessage({ message, toph, label, project, grouped }: {
 function StepRow({ message, toph, showAvatar }: { message: NativeMessage; toph?: ChatToph; showAvatar: boolean }) {
   const failed = message.status === "error";
   return (
-    <div data-testid="chat-step" className="flex min-w-0 gap-3 px-1 py-0.5">
+    <div data-testid="chat-step" className="toph-msg-in flex min-w-0 gap-3 py-0.5">
       <div className="flex w-[34px] shrink-0 justify-center">{showAvatar && toph ? <BotAvatar bot={toph} size={18} /> : null}</div>
       <div className="flex min-w-0 flex-1 items-center gap-2 text-[12.5px] leading-relaxed text-text-secondary">
         <span className={cx("size-1.5 shrink-0 rounded-full", failed ? "bg-status-rose-text" : "bg-accent-500/50")} />
@@ -194,7 +194,7 @@ function StepRow({ message, toph, showAvatar }: { message: NativeMessage; toph?:
 
 function ActivityStatus({ toph, activity, startedAt }: { toph: ChatToph; activity: { label: string; detail?: string }; startedAt: number }) {
   return (
-    <div className="flex min-w-0 gap-3 px-1 py-1">
+    <div className="toph-msg-in flex min-w-0 gap-3 py-1">
       <div className="w-[34px] shrink-0"><BotAvatar bot={toph} size={34} /></div>
       <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 text-[12.5px] text-text-secondary">
         <strong className="text-[13px] font-semibold text-text-primary">{toph.name}</strong>
@@ -265,7 +265,7 @@ export default function ChatMessages({
     if (!toph) {
       const value = toTranscriptMessage(message);
       rows.push(
-        <div key={message.id} className="min-w-0 px-1">
+        <div key={message.id} className="toph-msg-in min-w-0">
           <TranscriptMessage message={value} showCaret={message.status === "running"} projectId={project.id} projectRoot={project.root} />
         </div>,
       );
@@ -326,7 +326,7 @@ export default function ChatMessages({
   for (const prompt of questions) {
     const toph = tophs.find((item) => item.id === prompt.agentId);
     rows.push(
-      <section key={`question-${prompt.id}`} className="flex min-w-0 max-w-full items-start gap-2.5 px-1">
+      <section key={`question-${prompt.id}`} className="toph-msg-in flex min-w-0 max-w-full items-start gap-2.5">
         <div className="w-[34px] shrink-0">{toph ? <BotAvatar bot={toph} size={34} /> : null}</div>
         <div className="flex min-w-0 flex-1 flex-col gap-1.5">
           {toph ? <strong className="text-caption-1-semibold text-text-primary">{toph.name}</strong> : null}

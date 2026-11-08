@@ -232,6 +232,54 @@ pub async fn test(id: &str) -> AppResult<Value> {
     Ok(value)
 }
 
+/// The OpenCode Go allowance. The local OpenCode service exposes the rolling,
+/// weekly and monthly windows as used percentages; Toph shows what is left.
+pub async fn limits(id: &str) -> AppResult<Value> {
+    let engine = engine(id)?;
+    if engine.id != "opencode" {
+        return Ok(json!({
+            "ok": false,
+            "message": "Limite do plano disponível apenas para OpenCode.",
+        }));
+    }
+    let Some(binary) = find_binary(engine.binary) else {
+        return Ok(json!({
+            "ok": false,
+            "message": "O OpenCode não está instalado.",
+        }));
+    };
+    let output = tokio::time::timeout(
+        Duration::from_secs(20),
+        Command::new(&binary)
+            .args(["api", "get", "/api/experimental/usage/limits"])
+            .output(),
+    )
+    .await
+    .map_err(|_| bad_request("O OpenCode demorou para responder o limite do plano."))?
+    .map_err(AppError::Io)?;
+    if !output.status.success() {
+        let message = String::from_utf8_lossy(&output.stderr)
+            .trim()
+            .chars()
+            .take(500)
+            .collect::<String>();
+        return Ok(json!({
+            "ok": false,
+            "message": if message.is_empty() {
+                "O OpenCode não devolveu o limite do plano.".to_string()
+            } else {
+                message
+            },
+        }));
+    }
+    let parsed: Value = serde_json::from_slice(&output.stdout)
+        .map_err(|error| bad_request(format!("Resposta inválida do OpenCode: {error}")))?;
+    Ok(json!({
+        "ok": true,
+        "data": parsed.get("data").cloned().unwrap_or(Value::Null),
+    }))
+}
+
 pub async fn install(id: &str) -> AppResult<Value> {
     let engine = engine(id)?;
     if let Some(path) = find_binary(engine.binary) {

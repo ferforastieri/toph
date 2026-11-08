@@ -49,6 +49,21 @@ export interface EngineInstall {
   output: string;
   message: string;
 }
+export interface UsageWindow {
+  percent: number;
+  limited: boolean;
+  resetsAt: number;
+}
+export interface UsageLimits {
+  workspace?: { id: string; name: string; usageURL: string };
+  go?: { rolling: UsageWindow; weekly: UsageWindow; monthly: UsageWindow };
+  budgets?: unknown[];
+}
+export interface EngineLimits {
+  ok: boolean;
+  data?: UsageLimits | null;
+  message?: string;
+}
 
 export interface ProjectSkill { id: string; name: string; description: string }
 
@@ -79,6 +94,7 @@ export const engineApi = {
   list: () => request<EngineInfo[]>("/engines"),
   test: (id: string) => request<EngineTest>(`/engines/${encodeURIComponent(id)}/test`, post({})),
   install: (id: string) => request<EngineInstall>(`/engines/${encodeURIComponent(id)}/install`, post({})),
+  limits: (id: string) => request<EngineLimits>(`/engines/${encodeURIComponent(id)}/limits`),
 };
 
 export function isActive(run: AgentRun): boolean { return ["queued", "running", "waiting"].includes(run.state); }
