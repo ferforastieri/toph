@@ -41,7 +41,8 @@ export default function ModelPicker({ models, model, onModelChange, effort, effo
   const selected = uniqueModels.find((item) => item.id === model);
   const selectedInfo = selected ?? (model ? { id: model, label: model.split("/").pop() ?? model } : undefined);
   const selectedProvider = selected ? modelGroup(selected) : modelGroup({ id: model, label: model.split("/").pop() ?? model });
-  const variants = selected?.variants ?? efforts;
+  const variants = selected?.variants?.length ? selected.variants : efforts;
+  const inlineEffort = fullWidth && variants.length > 0 && Boolean(onEffortChange);
 
   const groups = useMemo(() => {
     const grouped = new Map<string, AIModel[]>();
@@ -98,7 +99,7 @@ export default function ModelPicker({ models, model, onModelChange, effort, effo
           <ChevronDown size={12} className="size-3 shrink-0 text-foreground-icon-tertiary" />
         </>
       }
-      triggerClassName={fullWidth ? "w-full max-w-none justify-start border border-border-button-default bg-background-primary-default" : "min-w-[160px] max-w-[240px]"}
+      triggerClassName={fullWidth ? "w-full max-w-none justify-start border border-border-button-default bg-background-primary-default" : "min-w-0 max-w-[340px] sm:min-w-[220px]"}
       popoverClassName="w-[300px] max-w-[calc(100vw-24px)] p-0"
       contentClassName="max-h-[min(56vh,420px)] overflow-y-auto p-1.5"
     >
@@ -124,7 +125,7 @@ export default function ModelPicker({ models, model, onModelChange, effort, effo
                     {items.map((item) => {
                       const active = item.id === model;
                       const itemVariants = item.variants ?? [];
-                      const effortOpen = expandedModel === item.id && itemVariants.length > 0;
+                      const effortOpen = inlineEffort && expandedModel === item.id && itemVariants.length > 0;
                       return (
                         <div key={item.id}>
                           <button
@@ -140,7 +141,7 @@ export default function ModelPicker({ models, model, onModelChange, effort, effo
                                {item.label !== item.id ? <span className="truncate text-caption-2-regular text-text-tertiary">{item.id}</span> : null}
                              </span>
                             {active ? <Check size={14} className="shrink-0 text-accent-500" /> : null}
-                            {itemVariants.length > 0 ? <ChevronDown size={12} className={cx("shrink-0 text-foreground-icon-tertiary transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]", effortOpen ? "rotate-180" : "")} /> : null}
+                            {itemVariants.length > 0 && inlineEffort ? <ChevronDown size={12} className={cx("shrink-0 text-foreground-icon-tertiary transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]", effortOpen ? "rotate-180" : "")} /> : null}
                           </button>
                           {effortOpen ? (
                             <div className="px-2 pb-3 pt-1">

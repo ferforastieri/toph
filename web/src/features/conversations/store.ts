@@ -16,6 +16,8 @@ export interface ChatToph {
   personality: string;
   prompt: string;
   model: string;
+  /** External CLI that owns the agent loop. */
+  engine: string;
   effort: string;
   agentMode: TophAgentMode;
   permissionMode: TophPermissionMode;
@@ -87,6 +89,7 @@ export interface TophPreset {
   avatar: BotAvatar;
   coordinator?: boolean;
   model?: string;
+  engine?: string;
   effort?: string;
   agentMode?: TophAgentMode;
   permissionMode?: TophPermissionMode;
@@ -119,8 +122,9 @@ function preset(
     mcpServers: [],
     skills: [],
     emailAccountIds: [],
-    tools: ["generate_image", "delegate"],
+    tools: ["generate_image"],
     language: "auto",
+    engine: "opencode",
     ...extra,
   };
 }
@@ -241,12 +245,13 @@ function normalizeToph(toph: ChatToph, chatId: string): ChatToph {
     personality: toph.personality ?? "",
     prompt: toph.prompt ?? "",
     model: toph.model ?? "",
+    engine: typeof toph.engine === "string" && toph.engine ? toph.engine : "opencode",
     effort: toph.effort ?? "",
     agentMode: toph.agentMode === "plan" ? "plan" : "build",
     permissionMode: toph.permissionMode === "ask" || toph.permissionMode === "deny" ? toph.permissionMode : "yolo",
     mcpServers: Array.isArray(toph.mcpServers) ? toph.mcpServers.filter((item): item is string => typeof item === "string") : [],
     emailAccountIds: Array.isArray(toph.emailAccountIds) ? toph.emailAccountIds.filter((item): item is string => typeof item === "string") : [],
-    tools: Array.isArray(toph.tools) ? toph.tools.filter((item): item is string => typeof item === "string") : ["generate_image", "delegate"],
+    tools: Array.isArray(toph.tools) ? toph.tools.filter((item): item is string => typeof item === "string") : ["generate_image"],
     language: toph.language === "pt" || toph.language === "en" || toph.language === "es" ? toph.language : "auto",
     color: toph.color || DEFAULT_TOPH_COLOR,
     avatar: BOT_AVATARS.includes(toph.avatar) ? toph.avatar : generatedAvatarFor(name),
@@ -597,13 +602,14 @@ export const useChats = create<ChatStore>((set, get) => ({
       personality: preset.personality ?? "",
       prompt: preset.prompt ?? "",
       model: preset.model ?? "",
+      engine: preset.engine ?? "opencode",
       effort: preset.effort ?? "",
       agentMode: preset.agentMode === "plan" ? "plan" : "build",
       permissionMode: preset.permissionMode === "ask" || preset.permissionMode === "deny" ? preset.permissionMode : "yolo",
       mcpServers: [...(preset.mcpServers ?? [])],
       skills: [...(preset.skills ?? [])],
       emailAccountIds: [...(preset.emailAccountIds ?? [])],
-      tools: [...(preset.tools ?? ["generate_image", "delegate"])],
+      tools: [...(preset.tools ?? ["generate_image"])],
       language: preset.language ?? "auto",
       color: preset.color || DEFAULT_TOPH_COLOR,
       avatar: BOT_AVATARS.includes(preset.avatar) ? preset.avatar : generatedAvatarFor(name),

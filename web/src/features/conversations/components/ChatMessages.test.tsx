@@ -16,6 +16,7 @@ const toph: ChatToph = {
   personality: "",
   prompt: "",
   model: "openai::gpt",
+  engine: "opencode",
   effort: "",
   agentMode: "build",
   permissionMode: "yolo",

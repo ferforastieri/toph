@@ -1,4 +1,4 @@
-import { RiRobot2Fill } from "@remixicon/react";
+import { RiSparkling2Fill } from "@remixicon/react";
 import { cx } from "@/shared/boardui/utils/cx";
 import { PROVIDER_LOGOS, type ProviderLogo } from "../logos";
 
@@ -9,6 +9,7 @@ interface Props {
 
 function providerLogo(provider: string): ProviderLogo | undefined {
   const value = provider.toLowerCase();
+  if (value.includes("opencode")) return PROVIDER_LOGOS.opencode;
   if (value === "codex" || value.includes("codex")) return PROVIDER_LOGOS.codex;
   if (value.includes("openai")) return PROVIDER_LOGOS.openai;
   if (value.includes("claude") || value.includes("anthropic")) return PROVIDER_LOGOS.claude;
@@ -34,7 +35,7 @@ function providerLogo(provider: string): ProviderLogo | undefined {
 
 export default function ProviderIcon({ provider, className }: Props) {
   const logo = providerLogo(provider);
-  if (!logo) return <RiRobot2Fill aria-hidden className={cx("shrink-0", className)} />;
+  if (!logo) return <RiSparkling2Fill aria-hidden className={cx("shrink-0", className)} />;
   return (
     <svg
       aria-hidden

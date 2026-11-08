@@ -1,19 +1,13 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-/// Event kinds stored in the append-only harness log.
+/// Event kinds stored in the append-only agent log.
 pub mod kind {
-    pub const CONTRACT: &str = "contract";
     pub const USER_TASK: &str = "user_task";
     pub const ASSISTANT: &str = "assistant";
     pub const TOOL: &str = "tool";
     pub const TOOL_CALL: &str = "tool_call";
-    pub const RESEARCH: &str = "research";
-    pub const PLAN: &str = "plan";
     pub const EDIT_APPLIED: &str = "edit_applied";
-    pub const VERIFICATION: &str = "verification";
-    pub const COMPLETION_REJECTED: &str = "completion_rejected";
-    pub const BLOCKED: &str = "blocked";
     pub const ACTIVITY: &str = "activity";
     pub const RUN_COMPLETED: &str = "run_completed";
     pub const RUN_FAILED: &str = "run_failed";

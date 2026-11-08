@@ -1,6 +1,18 @@
 use super::*;
 use crate::features::agents::models::RunInput;
 
+pub(super) async fn engine_list() -> Json<Value> {
+    Json(json!(crate::features::agents::engines::list()))
+}
+
+pub(super) async fn test_engine(Path(id): Path<String>) -> AppResult<Json<Value>> {
+    Ok(Json(crate::features::agents::engines::test(&id).await?))
+}
+
+pub(super) async fn install_engine(Path(id): Path<String>) -> AppResult<Json<Value>> {
+    Ok(Json(crate::features::agents::engines::install(&id).await?))
+}
+
 pub(super) async fn start_agent(
     State(state): State<Arc<AppState>>,
     Path(project): Path<String>,

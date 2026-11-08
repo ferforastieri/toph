@@ -21,6 +21,35 @@ export interface AgentUsage { inputTokens: number; outputTokens: number; cachedT
 export interface Connection { id: string; label: string; provider: string; baseUrl: string; model: string; hasKey: boolean }
 export interface McpServer { id: string; name: string; transport: "stdio" | "http"; url: string; command: string[]; token?: string; env?: Record<string, string>; envKeys?: string[]; hasToken: boolean; timeoutSeconds?: number; autoApprove?: boolean }
 
+export interface EngineInfo {
+  id: string;
+  label: string;
+  binary: string;
+  installed: boolean;
+  path?: string;
+  login: string;
+  install: string;
+  site: string;
+  supported: boolean;
+}
+export interface EngineTest {
+  ok: boolean;
+  installed: boolean;
+  path?: string;
+  version?: string;
+  message: string;
+  modelCount?: number;
+  models?: string[];
+}
+export interface EngineInstall {
+  ok: boolean;
+  installed: boolean;
+  already: boolean;
+  path?: string;
+  output: string;
+  message: string;
+}
+
 export interface ProjectSkill { id: string; name: string; description: string }
 
 const root = (project: string) => `/projects/${encodeURIComponent(project)}/agent`;
@@ -44,6 +73,12 @@ export const agentApi = {
   saveMcp: (input: Partial<McpServer> & { token?: string; env?: Record<string, string> }) => request<{ ok: boolean; id?: string }>("/mcp/servers", post(input)),
   deleteMcp: (id: string) => request(`/mcp/servers/${encodeURIComponent(id)}`, { method: "DELETE" }),
   testMcp: (id: string) => request<{ ok: boolean; tools: number }>(`/mcp/servers/${encodeURIComponent(id)}/test`, post({})),
+};
+
+export const engineApi = {
+  list: () => request<EngineInfo[]>("/engines"),
+  test: (id: string) => request<EngineTest>(`/engines/${encodeURIComponent(id)}/test`, post({})),
+  install: (id: string) => request<EngineInstall>(`/engines/${encodeURIComponent(id)}/install`, post({})),
 };
 
 export function isActive(run: AgentRun): boolean { return ["queued", "running", "waiting"].includes(run.state); }

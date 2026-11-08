@@ -15,6 +15,13 @@ export interface ProviderLogo {
 }
 
 export const PROVIDER_LOGOS: Record<string, ProviderLogo> = {
+  opencode: {
+    fillRule: "evenodd",
+    paths: [
+      { d: "M9 10.5H15V16.5H9Z", fill: "#8A8A8A" },
+      { d: "M6 4.5H18V19.5H6V4.5ZM9 7.5H15V16.5H9V7.5Z", fill: "currentColor", fillRule: "evenodd" },
+    ],
+  },
   openai: {
     fillRule: "evenodd",
     paths: [

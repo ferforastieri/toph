@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { ArrowUp, AtSign, ChevronDown, FilePlus2, ImagePlus, LoaderCircle, Mic, Plus, Square, TerminalSquare, X } from "@toph/icons";
+import { ArrowUp, AtSign, ChevronDown, FilePlus2, ImagePlus, LoaderCircle, Mic, Plus, SlidersHorizontal, Square, TerminalSquare, X } from "@toph/icons";
 import type { AIModel } from "../../../shared/api";
 import { Button } from "@/shared/boardui/base/buttons/button";
 import { IconButton } from "@/shared/boardui/base/buttons/icon-button";
@@ -224,14 +224,17 @@ export function AgentComposer({ value, onChange, onSend, onStop, busy, models, m
               {efforts && efforts.length > 0 && onEffortChange ? (
                 <ComposerMenu
                   label="Esforço do modelo"
-                  trigger={<><span className="truncate">Esforço · {effortLabel(effort ?? "")}</span><ChevronDown size={12} className="size-3 shrink-0 text-foreground-icon-tertiary" /></>}
-                  triggerClassName="max-w-[170px]"
-                  popoverClassName="w-[220px] p-0"
+                  trigger={<><SlidersHorizontal size={13} className="shrink-0 text-foreground-icon-tertiary" /><span className="truncate">Esforço · {effortLabel(effort ?? "")}</span><ChevronDown size={12} className="size-3 shrink-0 text-foreground-icon-tertiary" /></>}
+                  triggerClassName="max-w-[230px]"
+                  popoverClassName="w-[240px] p-0"
                   contentClassName="flex flex-col gap-1 p-1.5"
                 >
                   {(close) => (
                     <>
-                      <DropdownItem selected={!effort} onSelect={() => { onEffortChange(""); close(); }}>Padrão</DropdownItem>
+                      <DropdownGroup>
+                        <p className="px-2 pb-1 pt-0.5 text-caption-2-regular text-text-tertiary">Nível de raciocínio</p>
+                      </DropdownGroup>
+                      <DropdownItem selected={!effort} onSelect={() => { onEffortChange(""); close(); }}>Padrão do modelo</DropdownItem>
                       {efforts.map((value) => (
                         <DropdownItem key={value} selected={effort === value} onSelect={() => { onEffortChange(value); close(); }}>{effortLabel(value)}</DropdownItem>
                       ))}

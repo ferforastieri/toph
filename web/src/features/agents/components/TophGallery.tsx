@@ -24,7 +24,7 @@ const CUSTOM_PRESET: TophPreset = {
   mcpServers: [],
   skills: [],
   emailAccountIds: [],
-  tools: ["generate_image", "delegate"],
+  tools: ["generate_image"],
   language: "auto",
 };
 

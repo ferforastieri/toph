@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import TophSettings from "./TophSettings";
 import { useApp } from "../../../app/store";
-import { useSettings } from "../store";
+import { defaultWorkspaceFeatures, useSettings } from "../store";
 import { usePet } from "../../pet/store";
 import { api } from "../../../shared/api";
 
@@ -14,6 +14,9 @@ vi.mock("../../integrations/components/EmailPanel", () => ({
 }));
 vi.mock("./WorkspaceSettings", () => ({
   default: () => <div data-testid="workspace-settings">Workspace</div>,
+}));
+vi.mock("./EngineSettings", () => ({
+  default: () => <div data-testid="engine-settings">CLIs de agentes</div>,
 }));
 vi.mock("../../pet/components/PetSprite", () => ({
   default: () => <span data-testid="pet-sprite">pet</span>,
@@ -30,20 +33,11 @@ beforeEach(() => {
   useApp.setState({ setUser: vi.fn(), notify: vi.fn() });
   useSettings.setState({
     projectBar: "header",
-    workspaceFeatures: {
-      tabs: true,
-      terminal: true,
-      files: true,
-      sourceControl: true,
-      databases: true,
-      bots: true,
-      debug: true,
-      webApps: true,
-    },
+    workspaceFeatures: defaultWorkspaceFeatures,
     update: vi.fn(),
   });
   usePet.setState({ kind: "toph", commits: 0, choose: vi.fn() } as never);
-  vi.spyOn(api, "version").mockResolvedValue({ version: "0.85.0", buildId: "test-build" });
+  vi.spyOn(api, "version").mockResolvedValue({ name: "toph", version: "0.85.0", buildId: "test-build" });
 });
 
 afterEach(() => {
@@ -57,6 +51,9 @@ describe("TophSettings", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Abrir configurações" }));
     expect(await screen.findByText("Configurações")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "CLIs" }));
+    expect(await screen.findByTestId("engine-settings")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Conexões" }));
     expect(await screen.findByTestId("connections-hub")).toBeInTheDocument();

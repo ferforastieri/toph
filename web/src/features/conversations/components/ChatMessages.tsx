@@ -61,7 +61,7 @@ function fallbackActivity(message: NativeMessage): string {
   if (name === "submit_plan") return "montou o plano de alteração";
   if (name === "report_blocked") return "encontrou um bloqueio";
   if (name === "ask_user") return "perguntou ao usuário";
-  if (name === "delegate") return "passou uma tarefa para outro Toph";
+
   if (name === "read_skill") return "consultou uma skill";
   if (name === "search_history") return "consultou o histórico";
   if (name === "search_memory") return "consultou a memória do projeto";

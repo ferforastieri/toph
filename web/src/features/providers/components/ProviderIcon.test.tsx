@@ -17,4 +17,10 @@ describe("ProviderIcon", () => {
     const { container: claude } = render(<ProviderIcon provider="claude" />);
     expect(claude.querySelector("path")).toHaveAttribute("fill", "#D97757");
   });
+
+  it("uses the OpenCode mark for OpenCode Go connections", () => {
+    const { container } = render(<ProviderIcon provider="OpenCode Go" />);
+    expect(container.querySelector("svg")).not.toBeNull();
+    expect(container.querySelectorAll("path")).toHaveLength(2);
+  });
 });

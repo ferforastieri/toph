@@ -115,6 +115,20 @@ export function modelDisplay(model?: { id: string; label?: string; provider?: st
   return `${providerLabel(modelGroup({ id: model.id, label, provider: model.provider, connectionLabel: model.connectionLabel }))} · ${label}`;
 }
 
+/**
+ * Finds the catalog entry for a stored selection. Layout files can keep an id
+ * from a connection that was recreated (the prefix changes, the model does
+ * not), so the bare model id is used as a fallback. Without this the chat
+ * cannot show the model's effort levels or the right provider mark.
+ */
+export function findModel<T extends { id: string; label?: string }>(models: T[], id: string): T | undefined {
+  if (!id) return undefined;
+  const exact = models.find((model) => model.id === id);
+  if (exact) return exact;
+  const bare = id.split("::").pop() ?? id;
+  return models.find((model) => (model.id.split("::").pop() ?? model.id) === bare);
+}
+
 export function modelTitle(model?: { id: string; label?: string; provider?: string; connectionLabel?: string }): string {
   if (!model?.id) return "Modelo";
   const display = modelDisplay(model);

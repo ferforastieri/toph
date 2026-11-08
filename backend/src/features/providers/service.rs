@@ -440,10 +440,10 @@ impl AiService {
             if let Some(id) = item.get("id").and_then(Value::as_str) {
                 models.push(AiModel {
                     id: id.into(),
-                    label: id.into(),
+                    label: model_label(&item, id),
                     provider: config.provider.clone(),
                     connection_label: String::new(),
-                    variants: Vec::new(),
+                    variants: reasoning_variants(&item),
                     inputs: Vec::new(),
                 });
             }
@@ -479,10 +479,10 @@ impl AiService {
                 .unwrap_or(id);
             models.push(AiModel {
                 id: id.into(),
-                label: label.into(),
+                label: model_label(&item, label),
                 provider: config.provider.clone(),
                 connection_label: String::new(),
-                variants: Vec::new(),
+                variants: reasoning_variants(&item),
                 inputs: Vec::new(),
             });
         }
@@ -1036,6 +1036,57 @@ pub fn infer_connection_name(label: &str, provider: &str, base_url: &str) -> Str
     }
 }
 
+/// Models served by hosted gateways (OpenCode Go included) publish the reasoning
+/// levels they accept. Older catalogues used `reasoning_options`; both shapes
+/// feed the effort selector so a model is only offered levels it supports.
+fn reasoning_variants(item: &Value) -> Vec<String> {
+    let mut variants = Vec::new();
+    if let Some(values) = item
+        .pointer("/capabilities/reasoning/effort")
+        .and_then(Value::as_array)
+    {
+        for value in values {
+            push_variant(&mut variants, value);
+        }
+    }
+    if variants.is_empty() {
+        if let Some(options) = item.get("reasoning_options").and_then(Value::as_array) {
+            for option in options {
+                if option.get("type").and_then(Value::as_str) != Some("effort") {
+                    continue;
+                }
+                if let Some(values) = option.get("values").and_then(Value::as_array) {
+                    for value in values {
+                        push_variant(&mut variants, value);
+                    }
+                }
+            }
+        }
+    }
+    variants
+}
+
+fn push_variant(variants: &mut Vec<String>, value: &Value) {
+    if let Some(value) = value.as_str() {
+        let value = value.trim();
+        if !value.is_empty() && !variants.iter().any(|current| current == value) {
+            variants.push(value.to_string());
+        }
+    }
+}
+
+fn model_label(item: &Value, fallback: &str) -> String {
+    for key in ["name", "display_name"] {
+        if let Some(value) = item.get(key).and_then(Value::as_str) {
+            let value = value.trim();
+            if !value.is_empty() {
+                return value.to_string();
+            }
+        }
+    }
+    fallback.to_string()
+}
+
 fn auth_headers(key: &str) -> Vec<(&'static str, String)> {
     if key.is_empty() {
         Vec::new()
@@ -1118,4 +1169,45 @@ fn clean_completion(value: &str) -> String {
         value = lines.join("\n");
     }
     value
+}
+
+#[cfg(test)]
+mod catalog_tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn reads_effort_levels_from_the_live_gateway_catalog() {
+        let item = json!({
+            "id": "deepseek-v4.1-flash",
+            "name": "DeepSeek V4.1 Flash",
+            "capabilities": { "reasoning": { "supported": true, "effort": ["low", "high", "max"] } }
+        });
+        assert_eq!(reasoning_variants(&item), ["low", "high", "max"]);
+        assert_eq!(model_label(&item, "fallback"), "DeepSeek V4.1 Flash");
+    }
+
+    #[test]
+    fn reads_effort_levels_from_legacy_reasoning_options() {
+        let item = json!({
+            "id": "grok-4.7",
+            "reasoning_options": [
+                { "type": "toggle" },
+                { "type": "effort", "values": ["low", "medium", "high", "xhigh"] }
+            ]
+        });
+        assert_eq!(
+            reasoning_variants(&item),
+            ["low", "medium", "high", "xhigh"]
+        );
+        assert_eq!(model_label(&item, "grok-4.7"), "grok-4.7");
+    }
+
+    #[test]
+    fn drops_duplicate_or_empty_effort_levels() {
+        let item = json!({
+            "capabilities": { "reasoning": { "effort": ["low", "low", "", " max "] } }
+        });
+        assert_eq!(reasoning_variants(&item), ["low", "max"]);
+    }
 }

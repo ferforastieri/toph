@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
-import { BookOpen, Bot, Image, MessageSquare, Settings2, Trash2, UserRound, Wrench } from "@toph/icons";
+import { BookOpen, Bot, Image, Settings2, Trash2, UserRound, Wrench } from "@toph/icons";
 import { agentApi, type ProjectSkill } from "../api";
 import { api, type EmailAccount } from "../../../shared/api";
 import type { ChatToph } from "../../conversations/store";
 import { useChats } from "../../conversations/store";
 import type { BotAvatar as BotAvatarShape } from "../avatars";
 import { BOT_AVATAR_LABELS, BOT_AVATARS } from "../avatars";
-import { modelDisplay, modelTitle, useAI } from "../../providers/store";
+import { findModel, modelDisplay, modelTitle, useAI } from "../../providers/store";
 import BotAvatar from "./BotAvatar";
 import { Accordion, AccordionItem } from "@/shared/boardui/base/accordion/accordion";
 import { Button } from "@/shared/boardui/base/buttons/button";
@@ -39,7 +39,6 @@ const LANGUAGES = [
 
 const TOOL_OPTIONS = [
   { id: "generate_image", label: "Gerar imagens", description: "Criar e salvar imagens no projeto com os provedores configurados.", icon: Image },
-  { id: "delegate", label: "Conversar com outros Tophs", description: "Delegar tarefas a outro Toph pelo runtime nativo.", icon: MessageSquare },
 ] as const;
 
 export default function BotConfig({ projectId, projectRoot, bot }: Props) {
@@ -49,7 +48,7 @@ export default function BotConfig({ projectId, projectRoot, bot }: Props) {
   const models = useAI((state) => state.models);
   const loadModels = useAI((state) => state.loadModels);
   const effectiveModel = bot.model || aiConfig?.model || "";
-  const selectedModel = models.find((model) => model.id === effectiveModel);
+  const selectedModel = findModel(models, effectiveModel);
   const confirm = useConfirm();
   const [mcpServers, setMcpServers] = useState<string[]>([]);
   const [mcpLabels, setMcpLabels] = useState<Record<string, string>>({});
@@ -153,21 +152,21 @@ export default function BotConfig({ projectId, projectRoot, bot }: Props) {
 
   return (
     <div className="flex min-h-0 flex-col gap-3 overflow-y-auto p-4">
-      <header className="flex items-center gap-3 px-1 pb-1">
-        <BotAvatar bot={bot} size={42} />
+      <header className="flex items-center gap-3 rounded-2xl border border-border-button-default bg-background-secondary-default/45 p-3">
+        <BotAvatar bot={bot} size={54} />
         <div className="min-w-0 flex-1">
-          <p className="truncate text-body-medium text-text-primary">{bot.name}</p>
-          <p className="truncate text-caption-1-regular text-text-secondary" title={modelTitle(selectedModelInfo)}>
-            @{bot.handle} · {modelDisplay(selectedModelInfo)}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <p className="truncate text-title-3-medium text-text-primary">{bot.name}</p>
+            <span className="rounded-full bg-background-tertiary-default px-2 py-0.5 text-caption-2-semibold text-text-secondary">{bot.role}</span>
+            {bot.coordinator && <span className="rounded-full bg-accent-500/15 px-2 py-0.5 text-caption-2-semibold text-accent-600">Coordena</span>}
+          </div>
+          <p className="mt-0.5 truncate text-caption-1-regular text-text-secondary" title={modelTitle(selectedModelInfo)}>
+            @{bot.handle} · motor {bot.engine || "opencode"} · {modelDisplay(selectedModelInfo)}
           </p>
-        </div>
-        <div className="flex shrink-0 flex-wrap justify-end gap-1">
-          <span className="rounded-full bg-background-tertiary-default px-2 py-0.5 text-caption-2-semibold text-text-secondary">{bot.role}</span>
-          {bot.coordinator && <span className="rounded-full bg-accent-500/15 px-2 py-0.5 text-caption-2-semibold text-accent-600">Coordena</span>}
         </div>
       </header>
 
-      <Accordion variant="divided" allowsMultipleExpanded defaultExpandedKeys={["identity", "model", "capabilities"]}>
+      <Accordion variant="separated" allowsMultipleExpanded defaultExpandedKeys={["identity", "model", "capabilities"]}>
         <AccordionItem id="identity" title="Identidade" description="Nome, papel e personalidade" icon={UserRound}>
           <div className="flex flex-col gap-3">
             <div className="grid gap-3 sm:grid-cols-2">
@@ -232,17 +231,36 @@ export default function BotConfig({ projectId, projectRoot, bot }: Props) {
 
         <AccordionItem id="model" title="Modelo e esforço" description="Escolha entre os modelos já configurados" icon={Settings2}>
           <div className="flex flex-col gap-3">
-            <ModelPicker
-              models={models}
-              model={effectiveModel}
-              onModelChange={(value) => update({ model: value })}
-              effort={bot.effort ?? ""}
-              efforts={selectedModel?.variants ?? []}
-              onEffortChange={(value) => update({ effort: value })}
-              fullWidth
-            />
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="flex flex-col gap-1">
+                <span className="text-caption-1-medium text-text-secondary">Motor</span>
+                <Select
+                  selectedKey={bot.engine || "opencode"}
+                  onSelectionChange={(key) => update({ engine: String(key) })}
+                  aria-label="Motor do Toph"
+                  className="w-full"
+                >
+                  <SelectItem id="opencode">OpenCode</SelectItem>
+                </Select>
+                <span className="text-caption-2-regular text-text-tertiary">
+                  O CLI conduz o loop. Instale e teste outros motores em Configurações → CLIs.
+                </span>
+              </label>
+              <div className="flex flex-col gap-1">
+                <span className="text-caption-1-medium text-text-secondary">Modelo</span>
+                <ModelPicker
+                  models={models}
+                  model={effectiveModel}
+                  onModelChange={(value) => update({ model: value })}
+                  effort={bot.effort ?? ""}
+                  efforts={selectedModel?.variants ?? []}
+                  onEffortChange={(value) => update({ effort: value })}
+                  fullWidth
+                />
+              </div>
+            </div>
             <p className="text-caption-2-regular text-text-tertiary">
-              Modelos, provedores e MCPs são gerenciados em Configurações → Conexões. Aqui você só escolhe o que este Toph usa.
+              Modelos, provedores e MCPs são gerenciados em Configurações → Conexões. CLIs e instalação ficam em Configurações → CLIs.
             </p>
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="flex flex-col gap-1">

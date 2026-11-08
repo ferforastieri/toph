@@ -8,12 +8,10 @@ pub fn tool_activity(name: &str, args: &Value) -> String {
             "leu `{}`",
             short(args["path"].as_str().unwrap_or("arquivo"))
         ),
-        "edit_file" | "write_file" => {
-            format!(
-                "editou `{}`",
-                short(args["path"].as_str().unwrap_or("arquivo"))
-            )
-        }
+        "edit_file" | "write_file" => format!(
+            "editou `{}`",
+            short(args["path"].as_str().unwrap_or("arquivo"))
+        ),
         "delete_file" => format!(
             "removeu `{}`",
             short(args["path"].as_str().unwrap_or("arquivo"))
@@ -24,20 +22,19 @@ pub fn tool_activity(name: &str, args: &Value) -> String {
         ),
         "list_files" => "listou arquivos do projeto".into(),
         "shell" => "executou um comando no projeto".into(),
-        "verify" => "verificou o projeto".into(),
-        "submit_research" | "submit_report" => "concluiu a pesquisa".into(),
-        "submit_plan" => "montou o plano de alteração".into(),
-        "report_blocked" => "encontrou um bloqueio".into(),
-        "ask_user" => "perguntou ao usuário".into(),
-        "delegate" => format!(
-            "passou uma tarefa para @{}",
-            short(args["agent"].as_str().unwrap_or("agente"))
-        ),
         "fetch_url" => "consultou um link".into(),
         "read_artifact" => "leu um anexo".into(),
         "search_history" => "consultou o histórico".into(),
         "search_memory" => "consultou a memória do projeto".into(),
         "remember" => "salvou uma memória do projeto".into(),
+        "read_skill" => format!(
+            "carregou a skill `{}`",
+            short(args["name"].as_str().unwrap_or("skill"))
+        ),
+        "mcp_list" => format!(
+            "listou as ferramentas de `{}`",
+            short(args["server"].as_str().unwrap_or("MCP"))
+        ),
         "mcp_call" => format!(
             "usou a integração `{}`",
             short(args["server"].as_str().unwrap_or("MCP"))

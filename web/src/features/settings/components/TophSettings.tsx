@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState, type ComponentType, type FormEvent, type ReactNode } from "react";
-import { Bot, HardDrive, Info, LogOut, Mail, PlugZap, Settings2 } from "@toph/icons";
+import { Bot, HardDrive, Info, LogOut, Mail, PlugZap, Settings2, TerminalSquare } from "@toph/icons";
 import { api, getApiBase, probeServer, setApiBase, type User } from "../../../shared/api";
 import { useApp } from "../../../app/store";
 import { useSettings, type WorkspaceFeature } from "../store";
@@ -8,13 +8,14 @@ import PetSprite from "../../pet/components/PetSprite";
 import ConnectionsHub from "../../providers/components/ConnectionsHub";
 const WorkspaceSettings = lazy(() => import("./WorkspaceSettings"));
 const EmailPanel = lazy(() => import("../../integrations/components/EmailPanel"));
+const EngineSettings = lazy(() => import("./EngineSettings"));
 import { Button } from "@/shared/boardui/base/buttons/button";
 import { Checkbox } from "@/shared/boardui/base/checkbox/checkbox";
 import { Input } from "@/shared/boardui/base/input/input";
 import { Modal } from "@/shared/boardui/base/modal/modal";
 import { cx } from "@/shared/boardui/utils/cx";
 
-type Section = "general" | "companion" | "appearance" | "connections" | "email" | "workspace" | "about";
+type Section = "general" | "companion" | "appearance" | "clis" | "connections" | "email" | "workspace" | "about";
 
 interface Props {
   user: User | null;
@@ -34,6 +35,7 @@ const sections: Array<{ label?: string; items: SectionItem[] }> = [
     { id: "appearance", label: "Layout e ferramentas", icon: Settings2 },
   ] },
   { label: "IA e ferramentas", items: [
+    { id: "clis", label: "CLIs", icon: TerminalSquare },
     { id: "connections", label: "Conexões", icon: PlugZap },
     { id: "email", label: "Email", icon: Mail },
   ] },
@@ -252,6 +254,8 @@ export default function TophSettings({ user, projectRoot }: Props) {
                   <FeatureToggle label="Toph" checked disabled onChange={() => undefined} />
                 </SettingsGroup>
               </div>
+            ) : section === "clis" ? (
+              <><SettingsHeading title="CLIs de agentes" description="Motores externos que conduzem o loop dos Tophs. Instale, teste e veja o que está disponível." /><div className="mt-5"><EngineSettings /></div></>
             ) : section === "connections" ? (
               <><SettingsHeading title="Conexões" description="Modelos de IA e ferramentas MCP em um só lugar." /><div className="mt-5"><ConnectionsHub projectRoot={projectRoot} /></div></>
             ) : section === "email" ? (

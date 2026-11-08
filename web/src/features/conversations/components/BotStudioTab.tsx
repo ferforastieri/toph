@@ -2,7 +2,7 @@ import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, 
 import { ArrowDown, Bot, ChevronDown, LoaderCircle, MessageSquarePlus, Plus, Settings2 } from "@toph/icons";
 import type { Project } from "../../../shared/api";
 import { activeChat, chatCoordinator, chatTophs, tophForChat, useChats } from "../store";
-import { modelDisplay, useAI } from "../../providers/store";
+import { findModel, modelDisplay, useAI } from "../../providers/store";
 import { useTophDrafts } from "../../agents/drafts";
 import { agentApi, isActive, type AgentSession } from "../../agents/api";
 import { useAgentChat } from "../../agents/useAgentChat";
@@ -58,7 +58,8 @@ export default function BotStudioTab({ project, mobile = false, embedded = false
   const pendingScroll = useRef<{ height: number; top: number } | null>(null);
   const pendingRequest = useRef<{ text: string; id: string } | null>(null);
   const activeModel = coordinator?.model || config?.model || "";
-  const activeModelInfo = models.find((model) => model.id === activeModel);
+  const activeModelInfo = findModel(models, activeModel);
+  const activeModelDisplay = activeModelInfo ?? (activeModel ? { id: activeModel, label: activeModel.split("::").pop() ?? activeModel } : undefined);
   const modelLabel = modelDisplay(activeModelInfo);
   const lastRun = native.runs.find((run) => !run.parentId);
   const lastError = lastRun && ["failed", "interrupted"].includes(lastRun.state) ? lastRun.error : "";
@@ -184,7 +185,7 @@ export default function BotStudioTab({ project, mobile = false, embedded = false
           models={models} model={activeModel} onModelChange={(model) => updateToph(project.id, coordinator.id, { model })}
           effort={coordinator.effort ?? ""} efforts={activeModelInfo?.variants ?? []} onEffortChange={(effort) => updateToph(project.id, coordinator.id, { effort })}
           placeholder={currentToph ? `Mensagem para ${currentToph.name}` : "Mensagem para a equipe"} history={native.messages.filter((m) => m.role === "user").map((m) => m.content)}
-          modeControls={<><ComposerMenu label="Modo do agente" trigger={<><span>{coordinator.agentMode === "plan" ? "Plano" : "Build"}</span><ChevronDown size={12} className="size-3 text-foreground-icon-tertiary" /></>} popoverClassName="w-[300px] p-0" contentClassName="flex flex-col gap-1 p-1.5">{(close) => <><DropdownItem selected={coordinator.agentMode !== "plan"} onSelect={() => { updateToph(project.id, coordinator.id, { agentMode: "build" }); close(); }}>Build</DropdownItem><DropdownItem selected={coordinator.agentMode === "plan"} onSelect={() => { updateToph(project.id, coordinator.id, { agentMode: "plan" }); close(); }}>Plano</DropdownItem></>}</ComposerMenu><ChatUsageMeter usage={native.usage} chatName={currentToph?.name ?? chat.name} tophs={tophs} model={activeModelInfo} /></>} />
+          modeControls={<><ComposerMenu label="Modo do agente" trigger={<><span>{coordinator.agentMode === "plan" ? "Plano" : "Build"}</span><ChevronDown size={12} className="size-3 text-foreground-icon-tertiary" /></>} popoverClassName="w-[300px] p-0" contentClassName="flex flex-col gap-1 p-1.5">{(close) => <><DropdownItem selected={coordinator.agentMode !== "plan"} onSelect={() => { updateToph(project.id, coordinator.id, { agentMode: "build" }); close(); }}>Build</DropdownItem><DropdownItem selected={coordinator.agentMode === "plan"} onSelect={() => { updateToph(project.id, coordinator.id, { agentMode: "plan" }); close(); }}>Plano</DropdownItem></>}</ComposerMenu><ChatUsageMeter usage={native.usage} chatName={currentToph?.name ?? chat.name} tophs={tophs} model={activeModelDisplay} /></>} />
       </div>}
     </section>
     <Modal isOpen={Boolean(selected)} onClose={() => setConfigId(null)} title={selected?.name ?? "Toph"} description="Configure identidade, prompt, modelo e ferramentas deste Toph." size="xl" placement={mobile ? "bottom" : "center"} bodyClassName="p-0" swipeToClose={mobile}><Suspense fallback={<p>Carregando…</p>}>{selected && <BotConfig projectId={project.id} projectRoot={project.root} bot={selected} />}</Suspense></Modal>

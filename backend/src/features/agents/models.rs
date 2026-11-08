@@ -18,6 +18,9 @@ pub struct AgentSpec {
     pub personality: String,
     #[serde(default)]
     pub model: String,
+    /// Execution harness: opencode, claude, codex, cursor, grok, pi, gemini.
+    #[serde(default = "default_engine")]
+    pub engine: String,
     #[serde(default)]
     pub effort: String,
     #[serde(default = "build")]
@@ -41,11 +44,14 @@ pub struct AgentSpec {
 fn build() -> String {
     "build".into()
 }
+fn default_engine() -> String {
+    "opencode".into()
+}
 fn ask() -> String {
     "ask".into()
 }
 fn default_tools() -> Vec<String> {
-    vec!["generate_image".into(), "delegate".into()]
+    vec!["generate_image".into()]
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -126,10 +132,8 @@ pub struct RunContext {
     pub roster: Vec<AgentSpec>,
     pub chat_description: String,
     pub depth: usize,
-    /// The current request text, used to keep greetings/identity questions out
-    /// of the project-investigation path.
+    /// The current request text, used when the session has no transcript yet.
     pub request: String,
-    pub conversational: bool,
 }
 
 pub fn now() -> i64 {
