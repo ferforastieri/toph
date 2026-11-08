@@ -75,7 +75,6 @@ const markdownComponents: Components = {
 
 interface MessageProps {
   message: AiMessage;
-  showCaret: boolean;
   onPermission?: (messageId: string, permissionId: string, decision: "once" | "always" | "reject") => void;
   toolsExpanded?: boolean;
   projectId?: string;
@@ -417,7 +416,7 @@ function ToolGroup({ messages, onPermission, onQuestion, defaultOpen = false, pr
   );
 }
 
-export const TranscriptMessage = memo(function TranscriptMessage({ message, showCaret, onPermission, onQuestion, toolsExpanded, projectId, projectRoot, bubble }: MessageProps) {
+export const TranscriptMessage = memo(function TranscriptMessage({ message, onPermission, onQuestion, toolsExpanded, projectId, projectRoot, bubble }: MessageProps) {
   if (message.role === "error") {
     return <Chip color="rose" variant="subtle" className="justify-start gap-1.5 whitespace-normal px-2 py-1.5"><CircleAlert size={13} /> {message.text}</Chip>;
   }
@@ -449,9 +448,6 @@ export const TranscriptMessage = memo(function TranscriptMessage({ message, show
       >
         {resolveMarkdownImages(linkMentions(message.text), projectId, projectRoot)}
       </ReactMarkdown>
-      {showCaret && (
-        <span className="ml-0.5 inline-block h-3.5 w-[2px] animate-pulse bg-accent-500 align-middle" aria-hidden />
-      )}
     </>
   );
   if (bubble) {
@@ -463,13 +459,12 @@ export const TranscriptMessage = memo(function TranscriptMessage({ message, show
   }
   return <div className="min-w-0">{body}</div>;
 }, (prev, next) => prev.message === next.message
-  && prev.showCaret === next.showCaret
   && prev.toolsExpanded === next.toolsExpanded
   && prev.projectId === next.projectId
   && prev.projectRoot === next.projectRoot
   && prev.bubble === next.bubble);
 
-function AgentTranscript({ messages, streaming, onPermission, onQuestion, className, toolsExpanded = false, projectId, projectRoot, bubble = false }: Props) {
+function AgentTranscript({ messages, onPermission, onQuestion, className, toolsExpanded = false, projectId, projectRoot, bubble = false }: Props) {
   const nodes: Array<{ kind: "message"; message: AiMessage } | { kind: "group"; messages: AiMessage[] }> = [];
   let group: AiMessage[] = [];
   const flush = () => {
@@ -486,7 +481,6 @@ function AgentTranscript({ messages, streaming, onPermission, onQuestion, classN
   }
   flush();
 
-  const lastMessage = messages[messages.length - 1];
   return (
     <div className={className ?? "flex flex-col gap-4 px-1 py-1"}>
       {nodes.map((node, index) => node.kind === "group" ? (
@@ -495,7 +489,6 @@ function AgentTranscript({ messages, streaming, onPermission, onQuestion, classN
         <TranscriptMessage
           key={node.message.id}
           message={node.message}
-          showCaret={streaming && node.message.id === lastMessage?.id && node.message.status === "running"}
           onPermission={onPermission}
           onQuestion={onQuestion}
           toolsExpanded={toolsExpanded}
@@ -514,8 +507,7 @@ function AgentTranscript({ messages, streaming, onPermission, onQuestion, classN
  * skip the whole transcript when only unrelated state changed.
  */
 export default memo(AgentTranscript, (prev, next) =>
-  prev.streaming === next.streaming
-  && prev.toolsExpanded === next.toolsExpanded
+  prev.toolsExpanded === next.toolsExpanded
   && prev.projectId === next.projectId
   && prev.projectRoot === next.projectRoot
   && prev.bubble === next.bubble

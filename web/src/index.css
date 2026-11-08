@@ -492,6 +492,19 @@
   animation: none;
 }
 
+.toph-steps-shimmer {
+  color: transparent;
+  background-image: linear-gradient(90deg, var(--color-text-tertiary), var(--color-text-primary), var(--color-text-tertiary));
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  animation: toph-steps-shimmer 1.6s linear infinite;
+}
+
+@keyframes toph-steps-shimmer {
+  to { background-position: -200% 0; }
+}
+
 .toph-activity-status {
   display: inline-flex;
   align-items: baseline;

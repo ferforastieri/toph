@@ -122,7 +122,6 @@ function StreamedTranscript({ message, project }: { message: NativeMessage; proj
   return (
     <TranscriptMessage
       message={value}
-      showCaret={message.status === "running"}
       projectId={project.id}
       projectRoot={project.root}
     />
@@ -192,12 +191,12 @@ function StepItem({ message }: { message: NativeMessage }) {
   );
 }
 
-function RunSteps({ steps, working }: { steps: NativeMessage[]; working: boolean }) {
-  const [open, setOpen] = useState(working);
+function RunSteps({ steps, working, defaultOpen = false }: { steps: NativeMessage[]; working: boolean; defaultOpen?: boolean }) {
+  const [open, setOpen] = useState(working || defaultOpen);
   useEffect(() => {
     if (working) setOpen(true);
   }, [working]);
-  if (steps.length === 0) return null;
+  if (steps.length === 0 && !working) return null;
   const labels = [...new Set(steps.map(stepLabel))];
   const current = [...steps].reverse().find((message) => message.status === "running");
   const failed = steps.some((message) => message.status === "error");
@@ -205,7 +204,7 @@ function RunSteps({ steps, working }: { steps: NativeMessage[]; working: boolean
   const last = steps.reduce((value, message) => Math.max(value, message.createdAt), 0);
   const elapsed = last > first ? Math.max(0, Math.round((last - first) / 1000)) : 0;
   const summary = working
-    ? current ? `${stepLabel(current)}…` : "Trabalhando…"
+    ? current ? `${stepLabel(current)}…` : steps.length === 0 ? "Lendo o pedido…" : "Pensando…"
     : `${failed ? "" : "Pronto · "}${steps.length} ${steps.length === 1 ? "passo" : "passos"}${elapsed > 0 ? ` · ${elapsed < 60 ? `${elapsed}s` : `${Math.floor(elapsed / 60)}m ${String(elapsed % 60).padStart(2, "0")}s`}` : ""}`;
   return (
     <div className="my-0.5 max-w-[600px] text-[12.5px]">
@@ -220,10 +219,10 @@ function RunSteps({ steps, working }: { steps: NativeMessage[]; working: boolean
         ) : (
           <ChevronDown className={cx("size-3 shrink-0 transition-transform duration-300", open ? "rotate-0" : "-rotate-90")} />
         )}
-        <span className={cx("shrink-0", working && "text-accent-500")}>{summary}</span>
+        <span className={cx("shrink-0", working && "toph-steps-shimmer")}>{summary}</span>
         {working && labels.length > 0 ? <span className="min-w-0 truncate text-text-tertiary">{labels.slice(0, 3).join(", ")}</span> : null}
       </button>
-      {open ? (
+      {open && steps.length > 0 ? (
         <div className="ms-1 mt-0.5 flex flex-col gap-0.5 border-s-2 border-separator-border py-1 ps-3">
           {steps.map((message) => <StepItem key={message.id} message={message} />)}
         </div>
@@ -237,7 +236,7 @@ function StepGroup({ messages, toph, showAvatar }: { messages: NativeMessage[]; 
   return (
     <div data-testid="chat-step-group" className="toph-msg-in flex min-w-0 gap-3 py-0.5">
       <div className="flex w-[34px] shrink-0 justify-center">{showAvatar ? <BotAvatar bot={toph} size={18} /> : null}</div>
-      <div className="min-w-0 flex-1"><RunSteps steps={messages} working={working} /></div>
+      <div className="min-w-0 flex-1"><RunSteps steps={messages} working={working} defaultOpen /></div>
     </div>
   );
 }
@@ -334,7 +333,7 @@ export default function ChatMessages({
       const value = toTranscriptMessage(message);
       rows.push(
         <div key={message.id} className="toph-msg-in min-w-0">
-          <TranscriptMessage message={value} showCaret={message.status === "running"} projectId={project.id} projectRoot={project.root} />
+          <TranscriptMessage message={value} projectId={project.id} projectRoot={project.root} />
         </div>,
       );
       continue;
