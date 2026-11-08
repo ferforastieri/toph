@@ -18,21 +18,74 @@ pub struct CliUsage {
     pub cached: i64,
 }
 
+/// Maps a Toph connection to the provider id OpenCode uses for the same API.
+/// `custom` connections are identified by their base URL; unknown endpoints
+/// keep the OpenCode Go default so a legacy model id still has a valid shape.
+fn opencode_provider(config: &AiConfig) -> &'static str {
+    match config.provider.as_str() {
+        "openai" => "openai",
+        "anthropic" => "anthropic",
+        "gemini" | "google" => "google",
+        "ollama" => "ollama",
+        "openrouter" => "openrouter",
+        "groq" => "groq",
+        "mistral" => "mistral",
+        "deepseek" => "deepseek",
+        "xai" | "grok" => "xai",
+        "opencode-go" | "opencode" => "opencode-go",
+        "custom" => {
+            let url = config.base_url.as_str();
+            if url.contains("opencode.ai") {
+                "opencode-go"
+            } else if url.contains("openrouter.ai") {
+                "openrouter"
+            } else if url.contains("generativelanguage.googleapis.com") {
+                "google"
+            } else if url.contains("api.groq.com") {
+                "groq"
+            } else if url.contains("api.deepseek.com") {
+                "deepseek"
+            } else if url.contains("api.mistral.ai") {
+                "mistral"
+            } else if url.contains("api.x.ai") {
+                "xai"
+            } else if url.contains("api.openai.com") {
+                "openai"
+            } else if url.contains("api.anthropic.com") {
+                "anthropic"
+            } else {
+                "opencode-go"
+            }
+        }
+        _ => "opencode-go",
+    }
+}
+
 /// The model OpenCode should run. Existing Toph model ids are migrated:
-/// `default::deepseek-v4.1-flash` becomes `opencode-go/deepseek-v4.1-flash`.
-/// The selected reasoning effort is sent as the OpenCode model variant
-/// (`provider/model#max`).
+/// `default::deepseek-v4.1-flash` becomes `opencode-go/deepseek-v4.1-flash`,
+/// and a named connection keeps its real provider (`openai/gpt-5`). The
+/// selected reasoning effort becomes the OpenCode variant (`model#max`).
 pub fn opencode_model(agent: &AgentSpec, config: &AiConfig) -> String {
-    let raw = if agent.model.trim().is_empty() {
+    let selected = if agent.model.trim().is_empty() {
         config.model.trim()
     } else {
         agent.model.trim()
     };
-    let raw = raw.strip_prefix("default::").unwrap_or(raw);
-    let model = if raw.contains('/') {
-        raw.to_string()
+    let config_model = config
+        .model
+        .trim()
+        .strip_prefix("default::")
+        .unwrap_or(config.model.trim());
+    let model = if let Some(model) = selected.strip_prefix("default::") {
+        format!("{}/{}", opencode_provider(config), model)
+    } else if let Some((_, model)) = selected.split_once("::") {
+        format!("{}/{}", opencode_provider(config), model)
+    } else if selected.contains('/') {
+        selected.to_string()
+    } else if selected.is_empty() {
+        format!("{}/{}", opencode_provider(config), config_model)
     } else {
-        format!("opencode-go/{raw}")
+        format!("opencode-go/{selected}")
     };
     let effort: String = agent
         .effort

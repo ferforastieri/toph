@@ -142,6 +142,29 @@ fn model_ids_keep_their_provider_and_old_defaults_become_opencode_go() {
 }
 
 #[test]
+fn named_connections_keep_their_real_opencode_provider() {
+    let mut openai = config("ignored");
+    openai.provider = "openai".into();
+    openai.base_url = "https://api.openai.com/v1".into();
+    let named = agent(json!({"model": "work::gpt-5"}));
+    assert_eq!(opencode_model(&named, &openai), "openai/gpt-5");
+    let default = agent(json!({"model": "default::gpt-5"}));
+    assert_eq!(opencode_model(&default, &openai), "openai/gpt-5");
+
+    let mut google = config("ignored");
+    google.provider = "custom".into();
+    google.base_url = "https://generativelanguage.googleapis.com/v1beta/openai".into();
+    let gemini = agent(json!({"model": "personal::gemini-2.5"}));
+    assert_eq!(opencode_model(&gemini, &google), "google/gemini-2.5");
+
+    let legacy = agent(json!({"model": "deepseek-v4.1-flash"}));
+    assert_eq!(
+        opencode_model(&legacy, &config("ignored")),
+        "opencode-go/deepseek-v4.1-flash"
+    );
+}
+
+#[test]
 fn reasoning_effort_becomes_the_opencode_model_variant() {
     let mut selected = agent(json!({"model": "opencode-go/deepseek-v4.1-flash", "effort": "max"}));
     assert_eq!(
