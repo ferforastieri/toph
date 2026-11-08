@@ -15,8 +15,8 @@ vi.mock("../../integrations/components/EmailPanel", () => ({
 vi.mock("./WorkspaceSettings", () => ({
   default: () => <div data-testid="workspace-settings">Workspace</div>,
 }));
-vi.mock("./EngineSettings", () => ({
-  default: () => <div data-testid="engine-settings">CLIs de agentes</div>,
+vi.mock("./HarnessSettings", () => ({
+  default: () => <div><span data-testid="engine-settings">Motores</span><span data-testid="connections-hub">Modelos e MCP</span></div>,
 }));
 vi.mock("../../pet/components/PetSprite", () => ({
   default: () => <span data-testid="pet-sprite">pet</span>,
@@ -52,10 +52,8 @@ describe("TophSettings", () => {
     fireEvent.click(screen.getByRole("button", { name: "Abrir configurações" }));
     expect(await screen.findByText("Configurações")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "CLIs" }));
+    fireEvent.click(screen.getByRole("button", { name: "Harness" }));
     expect(await screen.findByTestId("engine-settings")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "Conexões" }));
     expect(await screen.findByTestId("connections-hub")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Email" }));

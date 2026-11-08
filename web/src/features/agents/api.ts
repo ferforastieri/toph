@@ -14,8 +14,9 @@ export interface AgentQuestionPrompt {
   id: string; runId: string; agentId: string; name: string; arguments: string;
   questions: AgentQuestion[];
 }
-export interface NativeMessage extends ChatMessage { seq?: number; model?: string; agentMode?: "build" | "plan"; activity?: string; phase?: string }
+export interface NativeMessage extends ChatMessage { seq?: number; runId?: string; model?: string; agentMode?: "build" | "plan"; activity?: string; phase?: string }
 export interface AgentSnapshot { messages: NativeMessage[]; drafts: NativeMessage[]; runs: AgentRun[]; approvals: Approval[]; questions: AgentQuestionPrompt[]; hasMore: boolean; cursor: number | null }
+export interface AgentSearchResult { id: string; sessionId: string; chatId: string; agentId: string; role: "user" | "assistant"; text: string; createdAt: number }
 export interface TophUsage { agentId: string; inputTokens: number; outputTokens: number; cachedTokens: number; calls: number }
 export interface AgentUsage { inputTokens: number; outputTokens: number; cachedTokens: number; calls: number; byAgent?: TophUsage[] }
 export interface Connection { id: string; label: string; provider: string; baseUrl: string; model: string; hasKey: boolean }
@@ -73,6 +74,7 @@ export const agentApi = {
   cancelAgent: (project: string, agentId: string) => request(`${root(project)}/cancel`, post({ agentId })),
   deleteChat: (project: string, chatId: string) => request(`${root(project)}/chats/${encodeURIComponent(chatId)}`, { method: "DELETE" }),
   snapshot: (project: string, chat: string, before?: number | null) => request<AgentSnapshot>(`${root(project)}/snapshot?chatId=${encodeURIComponent(chat)}${before == null ? "" : `&before=${before}`}`),
+  searchMessages: (project: string, query: string) => request<AgentSearchResult[]>(`${root(project)}/search?q=${encodeURIComponent(query)}`),
   events: (project: string) => `${getApiBase()}/api${root(project)}/events`,
   sessions: (project: string, agent: string) => request<AgentSession[]>(`${root(project)}/sessions?agentId=${encodeURIComponent(agent)}`),
   switchSession: (project: string, agentId: string, sessionId: string | null) => request(`${root(project)}/sessions`, post({ agentId, sessionId })),

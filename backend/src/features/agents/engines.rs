@@ -37,7 +37,7 @@ pub const ENGINES: &[Engine] = &[
         login: "claude auth login",
         install: "curl -fsSL https://claude.ai/install.sh | bash",
         site: "https://code.claude.com",
-        supported: false,
+        supported: true,
     },
     Engine {
         id: "codex",
@@ -46,7 +46,7 @@ pub const ENGINES: &[Engine] = &[
         login: "codex login",
         install: "npm install -g @openai/codex",
         site: "https://github.com/openai/codex",
-        supported: false,
+        supported: true,
     },
     Engine {
         id: "cursor",
@@ -85,6 +85,16 @@ pub const ENGINES: &[Engine] = &[
         supported: false,
     },
 ];
+
+pub fn label(id: &str) -> String {
+    engine(id)
+        .map(|engine| engine.label.to_string())
+        .unwrap_or_else(|_| id.to_string())
+}
+
+pub fn is_supported(id: &str) -> bool {
+    engine(id).map(|engine| engine.supported).unwrap_or(false)
+}
 
 fn engine(id: &str) -> AppResult<&'static Engine> {
     ENGINES

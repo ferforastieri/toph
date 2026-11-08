@@ -9,6 +9,7 @@ import { useAgentChat } from "../../agents/useAgentChat";
 import { AgentComposer, type AgentAttachment } from "./AgentComposer";
 import ChatMessages from "./ChatMessages";
 import ChatUsageMeter from "./ChatUsageMeter";
+import ApprovalCard from "./ApprovalCard";
 import BotAvatar from "../../agents/components/BotAvatar";
 import { unlockBotSound } from "../sound";
 import { Button } from "@/shared/boardui/base/buttons/button";
@@ -56,6 +57,11 @@ export default function BotStudioTab({ project, mobile = false, embedded = false
   const lastRun = native.runs.find((run) => !run.parentId);
   const lastError = lastRun && ["failed", "interrupted"].includes(lastRun.state) ? lastRun.error : "";
 
+  useEffect(() => {
+    const refresh = () => { void native.refresh(true); };
+    window.addEventListener("toph:refresh-chat", refresh);
+    return () => window.removeEventListener("toph:refresh-chat", refresh);
+  }, [native.refresh]);
   useEffect(() => {
     if (!externalAction) return;
     if (externalAction.action === "config") setConfigId(externalAction.tophId);
@@ -144,7 +150,7 @@ export default function BotStudioTab({ project, mobile = false, embedded = false
               : !tophs.length ? <div className="my-auto flex flex-col items-center gap-3 px-6 py-10 text-center"><span className="flex size-12 items-center justify-center rounded-2xl bg-accent-500/10 text-accent-500"><Bot size={22} /></span><strong className="text-title-3-medium">Adicione um Toph à equipe.</strong><p className="max-w-sm text-caption-1-regular text-text-secondary">Adicione um ou mais Tophs a esta equipe para começar.</p><Button variant="secondary" size="small" leadingIcon={MessageSquarePlus} onClick={openGallery}>Escolher Toph</Button></div>
               : !native.messages.length && !busy ? <div className="my-auto flex flex-col items-center gap-3 px-6 py-10 text-center"><div className="flex -space-x-2">{tophs.slice(0, 4).map((toph) => <BotAvatar key={toph.id} bot={toph} size={38} className="rounded-full bg-background-primary-default ring-2 ring-background-primary-default" />)}</div><strong className="text-title-3-medium">Escreva para a equipe.</strong><p className="max-w-md text-caption-1-regular text-text-secondary">Quem estiver na equipe responde. Para chamar alguém, use @.</p></div> : null}
             <ChatMessages messages={native.messages} tophs={tophs} runs={native.runs} project={project} mobile={mobile} compact={compact} questions={native.questions} onAnswer={(id, answer) => { void agentApi.answer(project.id, id, answer).catch((e) => native.setError(String(e))); }} />
-            {native.approvals.map((approval) => <section key={approval.id} className="rounded-2xl border border-accent-500/25 bg-accent-500/5 p-3"><strong>{tophs.find((a) => a.id === approval.agentId)?.name ?? "Toph"} · Autorizar {approval.name}?</strong><pre className="my-2 max-h-48 overflow-auto whitespace-pre-wrap text-xs">{approval.arguments}</pre><div className="flex gap-2"><Button size="small" onClick={() => void agentApi.approve(project.id, approval.id, true).catch((e) => native.setError(String(e)))}>Autorizar uma vez</Button><Button size="small" variant="secondary" onClick={() => void agentApi.approve(project.id, approval.id, false).catch((e) => native.setError(String(e)))}>Recusar</Button></div></section>)}
+            {native.approvals.map((approval) => <ApprovalCard key={approval.id} agentName={tophs.find((a) => a.id === approval.agentId)?.name ?? "Toph"} name={approval.name} arguments={approval.arguments} onApprove={() => void agentApi.approve(project.id, approval.id, true).catch((e) => native.setError(String(e)))} onReject={() => void agentApi.approve(project.id, approval.id, false).catch((e) => native.setError(String(e)))} />)}
             {native.compacting && <p role="status" className="text-center text-caption-2-regular text-text-tertiary">Compactando contexto; histórico preservado…</p>}
             {(native.error || lastError) && <p role="alert" className="rounded-xl border border-red-500/30 p-3 text-sm text-red-500">{native.error || `Última execução: ${lastError}`}</p>}
           </div>
@@ -157,7 +163,7 @@ export default function BotStudioTab({ project, mobile = false, embedded = false
           placeholder="Mensagem para a equipe"
           hint="Quem estiver na equipe responde · use @ para chamar alguém"
           history={native.messages.filter((m) => m.role === "user").map((m) => m.content)}
-          modeControls={<ChatUsageMeter chatName={chat.name || "Equipe"} model={activeModelDisplay} />} />
+          modeControls={<ChatUsageMeter chatName={chat.name || "Equipe"} model={activeModelDisplay} />} members={tophs} />
       </div>}
     </section>
     <Modal isOpen={Boolean(selected)} onClose={() => setConfigId(null)} title={selected?.name ?? "Toph"} description="Configure identidade, prompt, modelo e ferramentas deste Toph." size="lg" placement={mobile ? "bottom" : "center"} bodyClassName="p-0" swipeToClose={mobile}><Suspense fallback={<p>Carregando…</p>}>{selected && <BotConfig projectId={project.id} projectRoot={project.root} bot={selected} />}</Suspense></Modal>

@@ -67,6 +67,30 @@ pub(super) async fn agent_snapshot(
     ))
 }
 #[derive(Deserialize)]
+pub(super) struct SearchQuery {
+    q: String,
+}
+pub(super) async fn agent_search(
+    State(state): State<Arc<AppState>>,
+    Path(project): Path<String>,
+    Extension(auth): Extension<AuthContext>,
+    Query(query): Query<SearchQuery>,
+) -> AppResult<Json<Value>> {
+    state.store.project(&project).await?;
+    let text = query.q.trim();
+    if text.is_empty() || text.chars().count() > 200 {
+        return Ok(Json(json!([])));
+    }
+    Ok(Json(json!(
+        state
+            .agents
+            .repository()
+            .search_messages(auth.user.id, &project, text, 30)
+            .await?
+    )))
+}
+
+#[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(super) struct SessionQuery {
     agent_id: String,

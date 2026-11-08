@@ -773,6 +773,7 @@ fn router(state: Arc<AppState>) -> Router {
             "/api/projects/{project_id}/agent/runs/{run_id}/cancel",
             post(cancel_agent),
         )
+        .route("/api/projects/{project_id}/agent/search", get(agent_search))
         .route(
             "/api/projects/{project_id}/agent/snapshot",
             get(agent_snapshot),

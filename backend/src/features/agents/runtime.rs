@@ -540,7 +540,7 @@ impl Runtime {
         } else {
             json!({"role":"user","content":parts})
         };
-        let display = json!({"id":id,"chatId":ctx.run.chat_id,"tophId":ctx.agent.id,"sessionId":ctx.run.session_id,"model":ctx.agent.model,"agentMode":ctx.agent.agent_mode,"role":if ctx.depth==0{"user"}else{"system"},"content":if ctx.depth==0{text.to_owned()}else{format!("Tarefa para @{}: {}",ctx.agent.handle,text)},"status":"complete","createdAt":now()});
+        let display = json!({"id":id,"chatId":ctx.run.chat_id,"tophId":ctx.agent.id,"sessionId":ctx.run.session_id,"runId":ctx.run.id,"model":ctx.agent.model,"agentMode":ctx.agent.agent_mode,"role":if ctx.depth==0{"user"}else{"system"},"content":if ctx.depth==0{text.to_owned()}else{format!("Tarefa para @{}: {}",ctx.agent.handle,text)},"status":"complete","createdAt":now()});
         let seq = self
             .inner
             .repo
@@ -698,7 +698,7 @@ impl Runtime {
         self.inner.drafts.lock().unwrap().remove(&ctx.run.id);
         if !error.is_empty() {
             let id = new_id();
-            let message = json!({"id":id,"chatId":ctx.run.chat_id,"tophId":ctx.agent.id,"sessionId":ctx.run.session_id,"role":"error","content":error,"status":"error","createdAt":now()});
+            let message = json!({"id":id,"chatId":ctx.run.chat_id,"tophId":ctx.agent.id,"sessionId":ctx.run.session_id,"runId":ctx.run.id,"role":"error","content":error,"status":"error","createdAt":now()});
             // Display failures separately; they are not model-authored answers.
             self.event(ctx, "error", message);
         }
@@ -733,7 +733,7 @@ impl Runtime {
     }
 
     /// The tail instruction every fresh or resumed engine turn gets.
-    const CLI_INSTRUCTION: &'static str = "Responda à última mensagem do usuário. Use as ferramentas toph_* para ler, editar e rodar comandos; não use ferramentas embutidas da CLI. Se precisar de contexto antigo, use toph_search_history em vez de adivinhar.";
+    const CLI_INSTRUCTION: &'static str = "Responda à última mensagem do usuário. Use apenas as ferramentas do gateway Toph para ler, editar e rodar comandos; não use ferramentas embutidas da CLI. Se precisar de contexto antigo, use a ferramenta de busca de histórico do gateway em vez de adivinhar.";
 
     /// Runs one turn on an external CLI. The CLI owns the agent loop; Toph owns
     /// the context, the gateway tools and the approvals.
@@ -751,20 +751,29 @@ impl Runtime {
             if ctx.roster.len() > 1 && ctx.depth < 2 {
                 gateway_tools.push(tools::delegate_definition());
             }
+            let engine = ctx.agent.engine.as_str();
+            let engine_label = super::engines::label(engine);
             let available = gateway_tools
                 .iter()
                 .filter_map(|tool| tool["name"].as_str())
-                .map(|name| format!("`toph_{name}`"))
+                .map(|name| format!("`{name}`"))
                 .collect::<Vec<_>>()
                 .join(", ");
             system.push_str(&format!(
             "\n\n## Ferramentas\n\
-Você está rodando via OpenCode. As ferramentas embutidas da CLI estão desligadas. \
+Você está rodando via {engine_label}. As ferramentas embutidas da CLI estão desligadas. \
 Suas únicas ferramentas são as do gateway Toph: {available}. \
+No OpenCode elas aparecem como `toph_<nome>`; nos outros harnesses, com o prefixo do servidor MCP `toph`. \
 Use-as para ler, editar e rodar comandos. Não diga que usou uma ferramenta que não chamou. \
-Trabalhe no projeto atual. Para concluir uma alteração, rode os testes ou o build com `toph_shell` e mostre o resultado."
+Trabalhe no projeto atual. Para concluir uma alteração, rode os testes ou o build com a ferramenta `shell` e mostre o resultado."
         ));
-            let model = cli::opencode_model(&ctx.agent, config);
+            let model = if engine == "opencode" {
+                cli::opencode_model(&ctx.agent, config)
+            } else if ctx.agent.model.trim().is_empty() {
+                String::new()
+            } else {
+                ctx.agent.model.clone()
+            };
             let (gateway_url, gateway_task) = Gateway::start(
                 self.clone(),
                 ctx.clone(),
@@ -795,20 +804,25 @@ Trabalhe no projeto atual. Para concluir uma alteração, rode os testes ou o bu
             let work = cli::work_dir(&ctx.run.session_id);
             let work_existed = tokio::fs::metadata(&work).await.is_ok();
             tokio::fs::create_dir_all(&work).await?;
-            let plan = self.inner.sessions.lock().unwrap().begin(
-                &ctx.run.session_id,
-                &session_config,
-                &shown,
-                !work_existed,
-            );
-            tracing::debug!(session = %plan.id, resume = plan.resume, "engine session");
-            let prompt = if plan.resume {
-                Self::resume_prompt(&shown, &plan.send, &ctx.request)
+            let use_sessions = engine == "opencode";
+            let plan = use_sessions.then(|| {
+                self.inner.sessions.lock().unwrap().begin(
+                    &ctx.run.session_id,
+                    &session_config,
+                    &shown,
+                    !work_existed,
+                )
+            });
+            if let Some(plan) = &plan {
+                tracing::debug!(session = %plan.id, resume = plan.resume, "engine session");
+            }
+            let prompt = if plan.as_ref().map(|plan| plan.resume).unwrap_or(false) {
+                Self::resume_prompt(&shown, &plan.as_ref().unwrap().send, &ctx.request)
             } else {
                 self.cli_transcript(ctx).await?
             };
             let mid = format!("{}-engine", ctx.run.id);
-            let display = json!({"id":mid,"userId":ctx.user_id,"projectId":ctx.project_id,"chatId":ctx.run.chat_id,"tophId":ctx.agent.id,"sessionId":ctx.run.session_id,"model":model,"agentMode":ctx.agent.agent_mode,"role":"assistant","content":"","status":"running","createdAt":now()});
+            let display = json!({"id":mid,"userId":ctx.user_id,"projectId":ctx.project_id,"chatId":ctx.run.chat_id,"tophId":ctx.agent.id,"sessionId":ctx.run.session_id,"runId":ctx.run.id,"model":model,"agentMode":ctx.agent.agent_mode,"role":"assistant","content":"","status":"running","createdAt":now()});
             self.inner
                 .drafts
                 .lock()
@@ -843,46 +857,76 @@ Trabalhe no projeto atual. Para concluir uma alteração, rode os testes ou o bu
                         last_event = Instant::now();
                     }
                 };
-                cli::run_opencode(
-                    &model,
-                    &system,
-                    &prompt,
-                    &gateway_url,
-                    &plan.id,
-                    &work,
-                    cancel,
-                    &mut on_text,
-                )
-                .await
+                match engine {
+                    "claude" => cli::run_claude(
+                        &model,
+                        &ctx.agent.effort,
+                        &system,
+                        &prompt,
+                        &gateway_url,
+                        &work,
+                        cancel,
+                    )
+                    .await,
+                    "codex" => cli::run_codex(
+                        &model,
+                        &system,
+                        &prompt,
+                        &gateway_url,
+                        &work,
+                        cancel,
+                    )
+                    .await,
+                    "opencode" => cli::run_opencode(
+                        &model,
+                        &system,
+                        &prompt,
+                        &gateway_url,
+                        &plan.as_ref().map(|plan| plan.id.as_str()).unwrap_or(""),
+                        &work,
+                        cancel,
+                        &mut on_text,
+                    )
+                    .await,
+                    other => Err(bad_request(format!(
+                        "O harness {other} ainda não está ligado ao runtime. Use OpenCode, Claude Code ou Codex."
+                    ))),
+                }
             };
             gateway_task.abort();
             self.inner.drafts.lock().unwrap().remove(&ctx.run.id);
             let (text, usage) = match result {
                 Ok(value) => value,
                 Err(error) => {
+                    if let Some(plan) = &plan {
+                        self.inner.sessions.lock().unwrap().end(
+                            &ctx.run.session_id,
+                            plan,
+                            false,
+                            &session_config,
+                            &shown,
+                            None,
+                            0,
+                        );
+                    }
+                    return Err(error);
+                }
+            };
+            if text.trim().is_empty() {
+                if let Some(plan) = &plan {
                     self.inner.sessions.lock().unwrap().end(
                         &ctx.run.session_id,
-                        &plan,
+                        plan,
                         false,
                         &session_config,
                         &shown,
                         None,
                         0,
                     );
-                    return Err(error);
                 }
-            };
-            if text.trim().is_empty() {
-                self.inner.sessions.lock().unwrap().end(
-                    &ctx.run.session_id,
-                    &plan,
-                    false,
-                    &session_config,
-                    &shown,
-                    None,
-                    0,
-                );
-                return Err(bad_request("O OpenCode terminou sem resposta."));
+                return Err(bad_request(format!(
+                    "O {engine_label} terminou sem resposta."
+                )));
             }
             let mut done = display;
             done["content"] = json!(text);
@@ -899,15 +943,17 @@ Trabalhe no projeto atual. Para concluir uma alteração, rode os testes ou o bu
                 .await?;
             done["seq"] = json!(seq);
             self.event(ctx, "message", done);
-            self.inner.sessions.lock().unwrap().end(
-                &ctx.run.session_id,
-                &plan,
-                true,
-                &session_config,
-                &shown,
-                Some(&mid),
-                usage.input.saturating_add(usage.output) as usize,
-            );
+            if let Some(plan) = &plan {
+                self.inner.sessions.lock().unwrap().end(
+                    &ctx.run.session_id,
+                    plan,
+                    true,
+                    &session_config,
+                    &shown,
+                    Some(&mid),
+                    usage.input.saturating_add(usage.output) as usize,
+                );
+            }
             let _ = sqlx::query(
             "INSERT INTO agent_model_calls(id,run_id,kind,provider,model,input_tokens,output_tokens,cached_tokens,reasoning_tokens,estimated_input,duration_ms,finish,created_at) VALUES(?,?,?,?,?,?,?,?,0,0,?,'stop',?)",
         )
@@ -985,7 +1031,7 @@ Trabalhe no projeto atual. Para concluir uma alteração, rode os testes ou o bu
         }
         if !ctx.skills.is_empty() {
             extra.push_str(
-                "\n## Suas skills\nReceitas que o usuário aprovou para tipos de tarefa. Quando a tarefa bater com o \"quando usar\", leia a receita com `toph_read_skill` antes de começar e siga.\n",
+                "\n## Suas skills\nReceitas que o usuário aprovou para tipos de tarefa. Quando a tarefa bater com o \"quando usar\", leia a receita com a ferramenta `read_skill` do gateway antes de começar e siga.\n",
             );
             for skill in &ctx.skills {
                 extra.push_str(&format!("- {}: {}\n", skill.name, skill.description));
@@ -1032,7 +1078,7 @@ Trabalhe no projeto atual. Para concluir uma alteração, rode os testes ou o bu
             call_id.to_string()
         };
         let label = activity::tool_activity(name, &args);
-        let tool_display = json!({"id":tid,"chatId":ctx.run.chat_id,"tophId":ctx.agent.id,"sessionId":ctx.run.session_id,"role":"tool","title":name,"activity":label,"phase":"engine","content":args.to_string(),"status":"running","createdAt":now()});
+        let tool_display = json!({"id":tid,"chatId":ctx.run.chat_id,"tophId":ctx.agent.id,"sessionId":ctx.run.session_id,"runId":ctx.run.id,"role":"tool","title":name,"activity":label,"phase":"engine","content":args.to_string(),"status":"running","createdAt":now()});
         sqlx::query("INSERT INTO agent_tool_calls(id,run_id,call_id,name,arguments,state,created_at) VALUES(?,?,?,?,?,'pending',?)")
             .bind(&tid).bind(&ctx.run.id).bind(&call_id).bind(name).bind(args.to_string()).bind(now()).execute(self.inner.repo.0.pool()).await?;
         self.event(ctx, "message", tool_display.clone());

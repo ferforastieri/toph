@@ -405,6 +405,44 @@ impl Repository {
             .collect())
     }
 
+    /// Global search across every saved conversation of a project. It is a
+    /// literal substring search, so a query with %, _ or quotes is harmless.
+    pub async fn search_messages(
+        &self,
+        user: i64,
+        project: &str,
+        query: &str,
+        limit: i64,
+    ) -> AppResult<Vec<Value>> {
+        let rows = sqlx::query(
+            "SELECT m.id,m.session_id,s.chat_id,s.agent_id,m.role,substr(m.content_text,1,400) AS text,m.created_at \
+             FROM agent_messages m JOIN agent_sessions s ON s.id=m.session_id \
+             WHERE s.user_id=? AND s.project_id=? AND m.role IN ('user','assistant') AND m.content_text<>'' \
+               AND instr(lower(m.content_text), lower(?))>0 \
+             ORDER BY m.seq DESC LIMIT ?",
+        )
+        .bind(user)
+        .bind(project)
+        .bind(query)
+        .bind(limit)
+        .fetch_all(self.0.pool())
+        .await?;
+        Ok(rows
+            .into_iter()
+            .map(|row| {
+                json!({
+                    "id": row.get::<String,_>("id"),
+                    "sessionId": row.get::<String,_>("session_id"),
+                    "chatId": row.get::<String,_>("chat_id"),
+                    "agentId": row.get::<String,_>("agent_id"),
+                    "role": row.get::<String,_>("role"),
+                    "text": row.get::<String,_>("text"),
+                    "createdAt": row.get::<i64,_>("created_at"),
+                })
+            })
+            .collect())
+    }
+
     pub async fn checkpoint(&self, session: &str) -> AppResult<(i64, String)> {
         Ok(sqlx::query_as("SELECT through_seq,summary FROM agent_checkpoints WHERE session_id=? ORDER BY through_seq DESC LIMIT 1").bind(session).fetch_optional(self.0.pool()).await?.unwrap_or((0,String::new())))
     }

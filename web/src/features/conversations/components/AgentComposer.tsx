@@ -1,10 +1,12 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ArrowUp, FilePlus2, ImagePlus, LoaderCircle, Mic, Square, X } from "@toph/icons";
 import { Button } from "@/shared/boardui/base/buttons/button";
 import { IconButton } from "@/shared/boardui/base/buttons/icon-button";
 import { Textarea } from "@/shared/boardui/base/textarea/textarea";
 import { ComposerLoader } from "@/shared/boardui/application/composer-loader/composer-loader";
 import { useAudioRecorder, type AgentAttachment } from "../../../shared/ui/useAudioRecorder";
+import type { ChatToph } from "../store";
+import BotAvatar from "../../agents/components/BotAvatar";
 
 export type { AgentAttachment } from "../../../shared/ui/useAudioRecorder";
 
@@ -19,9 +21,10 @@ interface Props {
   allowAttachments?: boolean;
   modeControls?: ReactNode;
   history?: string[];
+  members?: ChatToph[];
 }
 
-export function AgentComposer({ value, onChange, onSend, onStop, busy, placeholder, hint = "", allowAttachments = true, modeControls, history = [] }: Props) {
+export function AgentComposer({ value, onChange, onSend, onStop, busy, placeholder, hint = "", allowAttachments = true, modeControls, history = [], members = [] }: Props) {
   const [attachments, setAttachments] = useState<AgentAttachment[]>([]);
   const [error, setError] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
@@ -29,6 +32,15 @@ export function AgentComposer({ value, onChange, onSend, onStop, busy, placehold
   const localHistory = useRef<string[]>([]);
   const historyIndex = useRef(-1);
   const historyDraft = useRef("");
+  const [mention, setMention] = useState<{ query: string; start: number } | null>(null);
+  const [mentionIndex, setMentionIndex] = useState(0);
+  const mentionItems = useMemo(() => {
+    if (!mention) return [];
+    const needle = mention.query.toLowerCase();
+    return members
+      .filter((member) => `${member.name} ${member.handle} ${member.role}`.toLowerCase().includes(needle))
+      .slice(0, 6);
+  }, [mention, members]);
   const audio = useAudioRecorder({
     onComplete: (attachment, transcript) => {
       if (allowAttachments && !transcript) setAttachments((current) => [...current, attachment].slice(0, 6));
@@ -74,7 +86,29 @@ export function AgentComposer({ value, onChange, onSend, onStop, busy, placehold
     historyDraft.current = "";
     onSend(text, attachments);
     setAttachments([]);
+    setMention(null);
     setError("");
+  }
+
+  function detectMention(next: string) {
+    const match = /(^|\s)@([\p{L}\p{N}_-]*)$/u.exec(next);
+    if (!match) {
+      setMention(null);
+      return;
+    }
+    setMention({ query: match[2], start: next.length - match[2].length - 1 });
+    setMentionIndex(0);
+  }
+
+  function insertMention(member: ChatToph) {
+    if (!mention) return;
+    const next = `${value.slice(0, mention.start)}@${member.handle} `;
+    onChange(next);
+    setMention(null);
+    window.setTimeout(() => {
+      areaRef.current?.focus();
+      areaRef.current?.setSelectionRange(next.length, next.length);
+    }, 0);
   }
 
   function messageHistory(): string[] {
@@ -104,13 +138,43 @@ export function AgentComposer({ value, onChange, onSend, onStop, busy, placehold
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-[860px] flex-col px-3 pt-1.5 pb-[18px] sm:px-7">
+    <div className="relative mx-auto flex w-full max-w-[860px] flex-col px-3 pt-1.5 pb-[18px] sm:px-7">
+      {mention && mentionItems.length > 0 ? (
+        <div className="absolute bottom-full left-3 z-30 mb-2 w-[min(340px,calc(100vw-32px))] rounded-2xl border border-border-button-white bg-background-primary-default p-1 shadow-sidebar sm:left-7" role="listbox" aria-label="Mencionar Toph">
+          {mentionItems.map((member, index) => (
+            <button
+              key={member.id}
+              type="button"
+              role="option"
+              aria-selected={index === mentionIndex}
+              onMouseDown={(event) => event.preventDefault()}
+              onMouseEnter={() => setMentionIndex(index)}
+              onClick={() => insertMention(member)}
+              className={cxMention(index === mentionIndex)}
+            >
+              <BotAvatar bot={member} size={22} />
+              <span className="flex min-w-0 flex-1 flex-col">
+                <span className="truncate text-caption-1-semibold text-text-primary">{member.name}</span>
+                <span className="truncate text-caption-2-regular text-text-tertiary">@{member.handle}</span>
+              </span>
+              <span className="shrink-0 text-caption-2-regular text-text-tertiary">{member.role || "Toph"}</span>
+            </button>
+          ))}
+          <p className="mt-1 border-t border-separator-border px-2 py-1 text-[10px] text-text-tertiary">Enter insere · Esc fecha</p>
+        </div>
+      ) : null}
       <ComposerLoader active={busy} radius={20} surface={false}>
         <form
           onSubmit={(event) => { event.preventDefault(); event.stopPropagation(); if (!busy) submit(); }}
           className="flex flex-col gap-0 overflow-hidden rounded-[20px] border border-border-button-default bg-background-primary-default shadow-sm transition-[border-color,box-shadow] duration-200 focus-within:border-border-button-hover focus-within:ring-4 focus-within:ring-accent-500/10"
           onKeyDownCapture={(event) => {
             if (event.target !== areaRef.current) return;
+            if (mention && mentionItems.length > 0) {
+              if (event.key === "ArrowDown") { event.preventDefault(); setMentionIndex((index) => Math.min(mentionItems.length - 1, index + 1)); return; }
+              if (event.key === "ArrowUp") { event.preventDefault(); setMentionIndex((index) => Math.max(0, index - 1)); return; }
+              if (event.key === "Enter" || event.key === "Tab") { event.preventDefault(); insertMention(mentionItems[mentionIndex]); return; }
+              if (event.key === "Escape") { event.preventDefault(); setMention(null); return; }
+            }
             if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); submit(); return; }
             if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
             const area = areaRef.current;
@@ -153,7 +217,7 @@ export function AgentComposer({ value, onChange, onSend, onStop, busy, placehold
           <Textarea
             ref={areaRef}
             value={value}
-            onChange={(next) => { historyIndex.current = -1; historyDraft.current = next; onChange(next); }}
+            onChange={(next) => { historyIndex.current = -1; historyDraft.current = next; detectMention(next); onChange(next); }}
             placeholder={placeholder}
             aria-label="Mensagem para o agente"
             rows={1}
@@ -200,4 +264,9 @@ export function AgentComposer({ value, onChange, onSend, onStop, busy, placehold
       {allowAttachments && <input ref={fileRef} type="file" hidden multiple accept="image/*,audio/*,.pdf,.txt,.md,.json,.csv,.log" onChange={(event) => void pickFiles(event.target.files)} />}
     </div>
   );
+}
+
+
+function cxMention(active: boolean): string {
+  return `flex w-full items-center gap-2 rounded-xl px-2 py-1.5 text-start transition-colors ${active ? "bg-accent-500/10" : "hover:bg-background-primary-hover"}`;
 }

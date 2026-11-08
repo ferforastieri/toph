@@ -274,6 +274,7 @@ export default function TopBar({ onOpenProject, onCloseProject, onGoHome, projec
 
         <div className="flex shrink-0 items-center gap-1">
           <WorkspaceOptions onOpenAuxiliary={onOpenAuxiliary} />
+          <Button variant="ghost" size="small" iconOnly leadingIcon={Search} aria-label="Busca global" title="Busca global (Ctrl+K)" onClick={() => window.dispatchEvent(new CustomEvent("toph:global-search"))} />
           <span className="h-5 w-px shrink-0 bg-separator-border" aria-hidden="true" />
           <ThemeToggle />
           {tophControl}

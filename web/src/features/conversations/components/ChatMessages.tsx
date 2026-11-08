@@ -139,11 +139,12 @@ function UserMessage({ message }: { message: NativeMessage }) {
   );
 }
 
-function AgentMessage({ message, toph, project, grouped }: {
+function AgentMessage({ message, toph, project, grouped, steps }: {
   message: NativeMessage;
   toph: ChatToph;
   project: Project;
   grouped: boolean;
+  steps: NativeMessage[];
 }) {
   return (
     <article data-testid="chat-agent-message" className="toph-msg-in group/msg flex min-w-0 gap-3 py-1.5">
@@ -165,6 +166,7 @@ function AgentMessage({ message, toph, project, grouped }: {
             />
           </div>
         )}
+        <RunSteps steps={steps} working={message.status === "running"} />
         <div className="md min-w-0 [&_p:first-child]:mt-0 [&_pre:first-child]:mt-0 [&_ul:first-child]:mt-0 [&_ol:first-child]:mt-0 [&_p:last-child]:mb-0 [&_pre:last-child]:mb-0 [&_ul:last-child]:mb-0 [&_ol:last-child]:mb-0">
           <StreamedTranscript message={message} project={project} />
         </div>
@@ -190,31 +192,49 @@ function StepItem({ message }: { message: NativeMessage }) {
   );
 }
 
-function StepGroup({ messages, toph, showAvatar }: { messages: NativeMessage[]; toph: ChatToph; showAvatar: boolean }) {
-  const running = messages.some((message) => message.status === "running");
-  const [open, setOpen] = useState(running);
+function RunSteps({ steps, working }: { steps: NativeMessage[]; working: boolean }) {
+  const [open, setOpen] = useState(working);
   useEffect(() => {
-    if (running) setOpen(true);
-  }, [running]);
-  const toolCount = messages.filter((message) => message.role === "tool").length;
-  const labels = [...new Set(messages.map(stepLabel))];
+    if (working) setOpen(true);
+  }, [working]);
+  if (steps.length === 0) return null;
+  const labels = [...new Set(steps.map(stepLabel))];
+  const current = [...steps].reverse().find((message) => message.status === "running");
+  const failed = steps.some((message) => message.status === "error");
+  const summary = working
+    ? current ? `${stepLabel(current)}…` : "Trabalhando…"
+    : `${failed ? "" : "Pronto · "}${steps.length} ${steps.length === 1 ? "passo" : "passos"}`;
+  return (
+    <div className="my-0.5 max-w-[600px] text-[12.5px]">
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        aria-expanded={open}
+        className="-ms-1 inline-flex max-w-full items-center gap-1.5 rounded-lg px-1.5 py-1 text-text-tertiary transition-colors hover:bg-background-primary-hover hover:text-text-secondary"
+      >
+        {working ? (
+          <span className="size-2 shrink-0 animate-pulse rounded-full bg-accent-500" />
+        ) : (
+          <ChevronDown className={cx("size-3 shrink-0 transition-transform duration-300", open ? "rotate-0" : "-rotate-90")} />
+        )}
+        <span className={cx("shrink-0", working && "text-accent-500")}>{summary}</span>
+        {!working && labels.length > 0 ? <span className="min-w-0 truncate text-text-tertiary">{labels.slice(0, 3).join(", ")}</span> : null}
+      </button>
+      {open ? (
+        <div className="ms-1 mt-0.5 flex flex-col gap-0.5 border-s-2 border-separator-border py-1 ps-3">
+          {steps.map((message) => <StepItem key={message.id} message={message} />)}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function StepGroup({ messages, toph, showAvatar }: { messages: NativeMessage[]; toph: ChatToph; showAvatar: boolean }) {
+  const working = messages.some((message) => message.status === "running");
   return (
     <div data-testid="chat-step-group" className="toph-msg-in flex min-w-0 gap-3 py-0.5">
       <div className="flex w-[34px] shrink-0 justify-center">{showAvatar ? <BotAvatar bot={toph} size={18} /> : null}</div>
-      <div className="min-w-0 flex-1">
-        <button
-          type="button"
-          onClick={() => setOpen((value) => !value)}
-          aria-expanded={open}
-          className="toph-tool-row group flex w-full min-w-0 items-center gap-1.5 rounded-lg px-1 py-1 text-start text-[12.5px] text-text-tertiary transition-colors hover:bg-background-primary-hover hover:text-text-secondary"
-        >
-          {running ? <LoaderCircle className="size-3 shrink-0 animate-spin text-accent-500" /> : <span className="size-1.5 shrink-0 rounded-full bg-accent-500/50" />}
-          <span className="shrink-0">{toolCount > 0 ? `Usou ${toolCount} ferramenta${toolCount === 1 ? "" : "s"}` : "Raciocinou"}</span>
-          <span className="min-w-0 truncate text-text-tertiary">{labels.join(", ")}</span>
-          <ChevronDown className={cx("size-3 shrink-0 transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]", open ? "rotate-180" : "-rotate-90")} />
-        </button>
-        {open ? <div className="flex flex-col gap-0.5 ps-2 pt-0.5">{messages.map((message) => <StepItem key={message.id} message={message} />)}</div> : null}
-      </div>
+      <div className="min-w-0 flex-1"><RunSteps steps={messages} working={working} /></div>
     </div>
   );
 }
@@ -244,6 +264,18 @@ export default function ChatMessages({
 }: Props) {
   const ordered = useMemo(() => [...messages].sort(messageOrder), [messages]);
   const activeRuns = runs.filter(isActive);
+  const assistantRuns = useMemo(() => new Set(ordered.filter((message) => message.role === "assistant" && message.runId).map((message) => message.runId!)), [ordered]);
+  const stepsByRun = useMemo(() => {
+    const map = new Map<string, NativeMessage[]>();
+    for (const message of ordered) {
+      if ((message.role === "tool" || message.role === "reasoning" || message.role === "activity") && message.runId && assistantRuns.has(message.runId)) {
+        const list = map.get(message.runId) ?? [];
+        list.push(message);
+        map.set(message.runId, list);
+      }
+    }
+    return map;
+  }, [ordered, assistantRuns]);
 
   function currentActivity(toph: ChatToph, run: AgentRun): { label: string; detail?: string } {
     const own = ordered.filter((message) => message.tophId === toph.id && message.createdAt >= run.createdAt);
@@ -305,6 +337,9 @@ export default function ChatMessages({
       continue;
     }
 
+    if ((message.role === "activity" || message.role === "tool" || message.role === "reasoning") && message.runId && assistantRuns.has(message.runId)) {
+      continue;
+    }
     const grouped = lastTophId === toph.id && message.createdAt - lastTophAt < groupWindow;
     if (message.role === "activity" || message.role === "tool" || message.role === "reasoning") {
       if (!pendingToph || pendingToph.id !== toph.id) {
@@ -327,6 +362,7 @@ export default function ChatMessages({
           toph={toph}
           project={project}
           grouped={grouped}
+          steps={message.runId ? stepsByRun.get(message.runId) ?? [] : []}
         />,
       );
       lastTophId = toph.id;
@@ -337,6 +373,7 @@ export default function ChatMessages({
   flushSteps();
 
   for (const run of activeRuns) {
+    if (ordered.some((message) => message.runId === run.id && message.role === "assistant")) continue;
     const toph = tophs.find((item) => item.id === run.agentId);
     if (!toph) continue;
     const activity = currentActivity(toph, run);

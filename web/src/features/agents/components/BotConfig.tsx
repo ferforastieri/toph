@@ -255,13 +255,16 @@ export default function BotConfig({ projectId, projectRoot, bot }: Props) {
                   className="w-full"
                 >
                   <SelectItem id="opencode">OpenCode</SelectItem>
+                  <SelectItem id="claude">Claude Code</SelectItem>
+                  <SelectItem id="codex">Codex</SelectItem>
                 </Select>
                 <span className="text-caption-2-regular text-text-tertiary">
-                  O CLI conduz o loop. Instale e teste outros motores em Configurações → CLIs.
+                  OpenCode, Claude Code e Codex já executam. Instale, teste e conecte os demais em Configurações → Harness.
                 </span>
               </label>
               <div className="flex flex-col gap-1">
                 <span className="text-caption-1-medium text-text-secondary">Modelo</span>
+                {bot.engine && bot.engine !== "opencode" ? <span className="text-caption-2-regular text-text-tertiary">Para Claude Code e Codex, o modelo padrão da conta é usado quando este não for compatível.</span> : null}
                 <ModelPicker
                   models={models}
                   model={effectiveModel}
