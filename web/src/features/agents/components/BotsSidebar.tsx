@@ -145,7 +145,6 @@ export default function BotsSidebar({ project, headerControl, onSelectChat }: Pr
                   <TophRow
                     key={toph.id}
                     toph={toph}
-                    selected={Boolean(toph.coordinator)}
                     onOpen={() => fireTophAction("config", toph.id)}
                     onConfig={() => fireTophAction("config", toph.id)}
                     onSessions={() => fireTophAction("sessions", toph.id)}

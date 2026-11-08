@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ArrowDown, Bot, LoaderCircle, MessageSquarePlus } from "@toph/icons";
 import type { Project } from "../../../shared/api";
-import { activeChat, chatCoordinator, chatTophs, teamChats, useChats } from "../store";
+import { activeChat, chatTophs, teamChats, useChats } from "../store";
 import { findModel, useAI } from "../../providers/store";
 import { useTophDrafts } from "../../agents/drafts";
 import { agentApi, isActive, type AgentSession } from "../../agents/api";
@@ -33,7 +33,6 @@ export default function BotStudioTab({ project, mobile = false, embedded = false
     for (const toph of stored?.tophs ?? []) map[toph.chatId] = (map[toph.chatId] ?? 0) + 1;
     return map;
   }, [stored?.tophs]);
-  const coordinator = chatCoordinator(tophs);
   const config = useAI((s) => s.config);
   const models = useAI((s) => s.models);
   const modelError = useAI((s) => s.error);
@@ -59,7 +58,7 @@ export default function BotStudioTab({ project, mobile = false, embedded = false
   const lastTop = useRef(0);
   const pendingScroll = useRef<{ height: number; top: number } | null>(null);
   const pendingRequest = useRef<{ text: string; id: string } | null>(null);
-  const activeModel = coordinator?.model || config?.model || "";
+  const activeModel = tophs[0]?.model || config?.model || "";
   const activeModelInfo = findModel(models, activeModel);
   const activeModelDisplay = activeModelInfo ?? (activeModel ? { id: activeModel, label: activeModel.split("::").pop() ?? activeModel } : undefined);
   const lastRun = native.runs.find((run) => !run.parentId);
@@ -93,19 +92,16 @@ export default function BotStudioTab({ project, mobile = false, embedded = false
   }, [native.messages.length]);
 
   async function send(value: string, attachments: AgentAttachment[]) {
-    if (!chat || !coordinator || sendLock.current || busy) return;
-    if (value.trim() === "/clear") { await newSession(coordinator.id); clearDraft(draftKey); return; }
+    if (!chat || !tophs.length || sendLock.current || busy) return;
+    if (value.trim() === "/clear") { await Promise.all(tophs.map((toph) => newSession(toph.id))); clearDraft(draftKey); return; }
     if (value.trim() === "/compact") { native.setError("O contexto é compactado automaticamente conforme o orçamento de tokens. O histórico completo permanece salvo."); return; }
-    // A mention chooses who answers; without one, the coordinator routes the work.
-    const words = value.toLowerCase().split(/\s+/);
-    const mention = tophs.find((toph) => words.some((word) => word.replace(/^@/, "").replace(/[.,!?;:]+$/, "") === toph.handle.toLowerCase()));
-    const responder = mention ?? coordinator;
+    // The backend router chooses who answers; an @handle in the text wins.
     sendLock.current = true; setSending(true); native.setError(""); follow.current = true;
-    const identity = JSON.stringify([chat.id, responder.id, responder.model || activeModel, responder.agentMode, value, attachments]);
+    const identity = JSON.stringify([chat.id, "router", value, attachments, tophs.map((toph) => toph.id)]);
     const requestId = pendingRequest.current?.text === identity ? pendingRequest.current.id : Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, "0")).join("");
     pendingRequest.current = { text: identity, id: requestId };
     try {
-      await agentApi.start(project.id, { requestId, chatId: chat.id, chatDescription: chat.description, agentId: responder.id, text: value, agents: tophs, attachments });
+      await agentApi.start(project.id, { requestId, chatId: chat.id, chatDescription: chat.description, agentId: "router", text: value, agents: tophs, attachments });
       pendingRequest.current = null; clearDraft(draftKey); await native.refresh();
     } catch (e) { native.setError(e instanceof Error ? e.message : "Não foi possível iniciar a execução"); }
     finally { sendLock.current = false; setSending(false); }
@@ -183,7 +179,7 @@ export default function BotStudioTab({ project, mobile = false, embedded = false
         </div>
         {chat && tophs.length > 0 && !atBottom && <button type="button" onClick={() => { follow.current = true; setAtBottom(true); scroller.current?.scrollTo({ top: scroller.current.scrollHeight, behavior: "smooth" }); }} className="absolute bottom-3 end-3 z-10 flex size-8 items-center justify-center rounded-full border border-border-button-default bg-background-secondary-default text-text-secondary shadow-sidebar" aria-label="Ir para o fim da conversa"><ArrowDown size={15} /></button>}
       </div>
-      {chat && coordinator && <div className="shrink-0">
+      {chat && tophs.length > 0 && <div className="shrink-0">
         {modelError && <p role="alert" className="px-3 text-xs text-text-error-primary">{modelError}</p>}
         <AgentComposer value={text} onChange={(value) => setDraft(draftKey, value)} onSend={(value, files) => void send(value, files)} onStop={() => void stop()} busy={busy}
           placeholder="Mensagem para a equipe"

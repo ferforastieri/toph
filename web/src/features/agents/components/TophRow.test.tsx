@@ -11,7 +11,6 @@ const toph = {
   role: "Produto",
   color: "#e83e8c",
   avatar: "toph-nova",
-  coordinator: false,
 } as ChatToph;
 
 describe("TophRow", () => {

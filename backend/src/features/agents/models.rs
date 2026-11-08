@@ -38,8 +38,6 @@ pub struct AgentSpec {
     pub email_account_ids: Vec<String>,
     #[serde(default)]
     pub language: String,
-    #[serde(default)]
-    pub coordinator: bool,
 }
 fn build() -> String {
     "build".into()

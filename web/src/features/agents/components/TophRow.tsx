@@ -5,7 +5,7 @@ import { Button } from "@/shared/boardui/base/buttons/button";
 import { cx } from "@/shared/boardui/utils/cx";
 
 interface Props {
-  toph: Pick<ChatToph, "id" | "name" | "role" | "color" | "avatar" | "coordinator">;
+  toph: Pick<ChatToph, "id" | "name" | "role" | "color" | "avatar">;
   onOpen: () => void;
   onConfig?: () => void;
   onSessions: () => void;
@@ -27,7 +27,6 @@ export default function TophRow({ toph, onOpen, onConfig, onSessions, onRemove, 
         <span className="flex min-w-0 flex-1 flex-col">
           <span className="flex items-center gap-1.5">
             <span className="truncate text-caption-1-medium text-text-primary">{toph.name}</span>
-            {toph.coordinator ? <span className="shrink-0 rounded-full bg-accent-500/15 px-1 text-[9px] font-medium text-accent-600">coord.</span> : null}
           </span>
           <span className="truncate text-caption-2-regular text-text-secondary">{toph.role || "Toph"}</span>
         </span>

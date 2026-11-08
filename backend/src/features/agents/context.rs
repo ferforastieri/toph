@@ -65,11 +65,7 @@ pub fn instructions(
         })
         .collect::<Vec<_>>()
         .join("\n");
-    let coordination = if agent.coordinator && roster.len() > 1 {
-        "Você é o coordenador deste chat. Organize o trabalho, acompanhe os retornos e consolide a resposta final. Cada Toph mantém seu próprio modelo, instruções e permissões."
-    } else {
-        "Atue no seu papel e entregue a tarefa solicitada. Preserve sua identidade de Toph."
-    };
+    let coordination = "Atue no seu papel e entregue a tarefa solicitada. Preserve sua identidade de Toph. Cada Toph mantém seu próprio modelo, instruções e permissões.";
     format!(
         "Você é {name} (@{handle}), agente Toph. Papel: {role}. Projeto: {project}.\n\
 Identidade de execução: modelo {model} pela conexão {connection} (protocolo {protocol}). \

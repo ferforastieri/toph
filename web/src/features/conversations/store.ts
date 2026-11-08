@@ -31,7 +31,6 @@ export interface ChatToph {
   color: string;
   avatar: BotAvatar;
   notifications: boolean;
-  coordinator: boolean;
   sessionId?: string;
   sessionPrimed?: boolean;
   /**
@@ -87,7 +86,6 @@ export interface TophPreset {
   prompt: string;
   color: string;
   avatar: BotAvatar;
-  coordinator?: boolean;
   model?: string;
   engine?: string;
   effort?: string;
@@ -131,7 +129,7 @@ function preset(
 
 /** Pre-made Tophs. They carry their own role prompt and default tool policy. */
 export const TOPH_PRESETS: TophPreset[] = [
-  preset("Toph", "Assistente", "Seu agente pessoal para conversar, programar e executar tarefas.", "Direto, curioso e focado em resolver o problema.", "#B9DE7A", "toph-core", { coordinator: true }),
+  preset("Toph", "Assistente", "Seu agente pessoal para conversar, programar e executar tarefas.", "Direto, curioso e focado em resolver o problema.", "#B9DE7A", "toph-core"),
   preset("Leo", "Dev", "Implementa, refatora e resolve bugs no código.", "Pragmático, direto e cuidadoso com regressões.", "#8FB5F5", "toph-forge"),
   preset("Nico", "Revisor", "Revisa código, aponta riscos e exige testes.", "Cético, detalhista e construtivo.", "#C7A3FF", "toph-prism", { agentMode: "plan", permissionMode: "ask" }),
   preset("Nova", "Produto", "Transforma pedidos vagos em escopo e critérios de aceite.", "Curiosa, objetiva e implacável com ambiguidade.", "#FF9EC4", "toph-nova", { agentMode: "plan", permissionMode: "ask" }),
@@ -150,8 +148,8 @@ export const TOPH_PRESETS: TophPreset[] = [
   preset("Ravi", "Mobile", "Cuida de Android, iOS e experiência em movimento.", "Pragmático, atento a performance e gestos.", "#F28BA8", "toph-echo"),
   preset("Luna", "Conteúdo", "Escreve, revisa e adapta textos para cada canal.", "Criativa, direta e atenta ao tom da marca.", "#B8E986", "toph-luna"),
   preset("Zoe", "Growth", "Testa hipóteses, funis e experimentos.", "Orientada a métrica, rápida e transparente.", "#9BB7FF", "toph-spark"),
-  preset("Atlas", "Coordenador", "Organiza o chat, distribui tarefas e cobra o fechamento.", "Estratégico, calmo e obcecado por clareza.", "#7FD4E8", "toph-peak", { coordinator: true }),
-  preset("Toph", "Assistente", "Seu agente pessoal para conversar, programar e executar tarefas.", "Direto, curioso e focado em resolver o problema.", "#FFB547", "toph-logo", { coordinator: true }),
+  preset("Atlas", "Organização", "Organiza prioridades, distribui tarefas e cobra o fechamento.", "Estratégico, calmo e obcecado por clareza.", "#7FD4E8", "toph-peak"),
+  preset("Toph", "Assistente", "Seu agente pessoal para conversar, programar e executar tarefas.", "Direto, curioso e focado em resolver o problema.", "#FFB547", "toph-logo"),
   preset("Tulipa", "Designer", "Cuida de interface, consistência visual e experiência.", "Sensível ao detalhe e direta no feedback.", "#FF7AB6", "toph-01"),
   preset("Cogumelo", "Dev", "Implementa, refatora e resolve bugs no código.", "Pragmático e cuidadoso com regressões.", "#7CE7B0", "toph-02"),
   preset("Borboleta", "Produto", "Transforma pedidos vagos em escopo e critérios de aceite.", "Curiosa e implacável com ambiguidade.", "#C7A3FF", "toph-03"),
@@ -256,7 +254,6 @@ function normalizeToph(toph: ChatToph, chatId: string): ChatToph {
     color: toph.color || DEFAULT_TOPH_COLOR,
     avatar: BOT_AVATARS.includes(toph.avatar) ? toph.avatar : generatedAvatarFor(name),
     notifications: toph.notifications !== false,
-    coordinator: toph.coordinator === true,
     sessionId: typeof toph.sessionId === "string" && toph.sessionId ? toph.sessionId : undefined,
     sessionPrimed: toph.sessionPrimed === true,
     sessionClearedAt: Number.isFinite(toph.sessionClearedAt) && Number(toph.sessionClearedAt) > 0
@@ -348,10 +345,6 @@ function sanitizeProject(input: ProjectChats | null | undefined): ProjectChats {
     for (const toph of members) {
       toph.handle = uniqueHandle(toph.handle || toph.name, handles);
       handles.add(toph.handle);
-    }
-    if (members.length > 0) {
-      const coordinator = members.find((toph) => toph.coordinator) ?? members[0];
-      for (const toph of members) toph.coordinator = toph.id === coordinator.id;
     }
   }
 
@@ -552,7 +545,6 @@ export const useChats = create<ChatStore>((set, get) => ({
     const handles = new Set(members.map((toph) => toph.handle));
     const name = uniqueName(preset.name, names);
     const handle = uniqueHandle(name, handles);
-    const coordinator = members.length === 0 || (preset.coordinator === true && !members.some((toph) => toph.coordinator));
     const toph: ChatToph = {
       id: newId("toph"),
       chatId: chat.id,
@@ -575,7 +567,6 @@ export const useChats = create<ChatStore>((set, get) => ({
       color: preset.color || DEFAULT_TOPH_COLOR,
       avatar: BOT_AVATARS.includes(preset.avatar) ? preset.avatar : generatedAvatarFor(name),
       notifications: true,
-      coordinator,
       createdAt: Date.now(),
     };
     set((state) => ({
@@ -583,12 +574,7 @@ export const useChats = create<ChatStore>((set, get) => ({
         ...state.byProject,
         [projectId]: {
           ...project,
-          tophs: [
-            ...project.tophs.map((item) =>
-              coordinator && item.chatId === chat.id ? { ...item, coordinator: false } : item,
-            ),
-            toph,
-          ],
+          tophs: [...project.tophs, toph],
         },
       },
     }));
@@ -607,44 +593,26 @@ export const useChats = create<ChatStore>((set, get) => ({
       const duplicateRole = patch.role !== undefined && members.some((toph) => toph.id !== tophId && toph.role.trim().toLowerCase() === role.toLowerCase());
       const handles = new Set(members.filter((toph) => toph.id !== tophId).map((toph) => toph.handle));
       const handle = patch.name ? uniqueHandle(name, handles) : target.handle;
-      const replacement = patch.coordinator === false && target.coordinator
-        ? members.find((toph) => toph.id !== tophId) ?? null
-        : null;
-      const coordinator = patch.coordinator === false && target.coordinator
-        ? replacement !== null
-        : patch.coordinator === true || target.coordinator;
-      const tophs = project.tophs.map((toph) => {
-        if (toph.id === tophId) {
-          return {
-            ...toph,
-            ...patch,
-            name,
-            handle,
-            coordinator,
-            role: duplicateRole ? toph.role : role,
-          };
-        }
-        if (coordinator && toph.chatId === target.chatId) return { ...toph, coordinator: false };
-        if (replacement?.id === toph.id) return { ...toph, coordinator: true };
-        return toph;
-      });
-      return { byProject: { ...state.byProject, [projectId]: { ...project, tophs } } };
+      return {
+        byProject: {
+          ...state.byProject,
+          [projectId]: {
+            ...project,
+            tophs: project.tophs.map((toph) =>
+              toph.id === tophId
+                ? { ...toph, ...patch, name, handle, role: duplicateRole ? toph.role : role }
+                : toph,
+            ),
+          },
+        },
+      };
     }),
 
   removeToph: (projectId, tophId) =>
     set((state) => {
       const project = state.byProject[projectId];
       if (!project) return state;
-      const target = project.tophs.find((toph) => toph.id === tophId);
-      if (!target) return state;
-      const replacement = target.coordinator
-        ? project.tophs.find((toph) => toph.chatId === target.chatId && toph.id !== tophId) ?? null
-        : null;
-      const remaining = project.tophs
-        .filter((toph) => toph.id !== tophId)
-        .map((toph) => replacement?.id === toph.id ? { ...toph, coordinator: true } : toph);
       const removedMessages = project.messages.filter((message) => message.tophId === tophId);
-      const messages = project.messages.filter((message) => message.tophId !== tophId);
       const removedIds = new Set(removedMessages.map((message) => message.id));
       const pending = Object.fromEntries(
         Object.entries(state.messageWrites[projectId] ?? {}).filter(([id]) => !removedIds.has(id)),
@@ -652,7 +620,11 @@ export const useChats = create<ChatStore>((set, get) => ({
       return {
         byProject: {
           ...state.byProject,
-          [projectId]: { ...project, tophs: remaining, messages },
+          [projectId]: {
+            ...project,
+            tophs: project.tophs.filter((toph) => toph.id !== tophId),
+            messages: project.messages.filter((message) => message.tophId !== tophId),
+          },
         },
         messageWrites: { ...state.messageWrites, [projectId]: pending },
       };
@@ -890,7 +862,7 @@ export function chatForToph(project: ProjectChats | undefined, tophId: string | 
 }
 
 export function tophForChat(project: ProjectChats | undefined, chatId: string | null | undefined): ChatToph | null {
-  return project ? chatCoordinator(chatTophs(project, chatId)) : null;
+  return chatTophs(project, chatId)[0] ?? null;
 }
 
 /**
@@ -925,8 +897,4 @@ export function messagesForToph(project: ProjectChats | undefined, chatId: strin
 export function activeChat(project: ProjectChats | undefined): TophChat | null {
   if (!project?.activeChatId) return null;
   return project.chats.find((chat) => chat.id === project.activeChatId) ?? null;
-}
-
-export function chatCoordinator(tophs: ChatToph[]): ChatToph | null {
-  return tophs.find((toph) => toph.coordinator) ?? tophs[0] ?? null;
 }

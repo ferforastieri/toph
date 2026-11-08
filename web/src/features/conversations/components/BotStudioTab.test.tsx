@@ -17,7 +17,7 @@ vi.mock("../../agents/components/BotConfig", () => ({ default: ({ bot }: { bot: 
 vi.mock("./TophSessionsSheet", () => ({ default: ({ toph }: { toph: { name: string } }) => <div data-testid="toph-sessions">Sessões de {toph.name}</div> }));
 
 const project: Project = { id: "project", name: "Project", root: "/project", color: "#FFB547", createdAt: "", updatedAt: "" };
-let coordinatorId: string;
+let firstId: string;
 let memberId: string;
 let chatId: string;
 beforeAll(() => {
@@ -29,8 +29,8 @@ beforeEach(() => {
   useChats.getState().load(project.id);
   chatId = useChats.getState().byProject[project.id].chats[0].id;
   useChats.getState().updateChat(project.id, chatId, { description: "Preservar os contratos da equipe" });
-  coordinatorId = useChats.getState().addToph(project.id, chatId, { ...TOPH_PRESETS[0], name: "Fernando", coordinator: true, model: "go::deepseek", agentMode: "build" })!.id;
-  memberId = useChats.getState().addToph(project.id, chatId, { ...TOPH_PRESETS[1], name: "Beto", coordinator: false, model: "openai::review", agentMode: "build" })!.id;
+  firstId = useChats.getState().addToph(project.id, chatId, { ...TOPH_PRESETS[0], name: "Fernando", model: "go::deepseek", agentMode: "build" })!.id;
+  memberId = useChats.getState().addToph(project.id, chatId, { ...TOPH_PRESETS[1], name: "Beto", model: "openai::review", agentMode: "build" })!.id;
   useAI.setState({ config: null, error: "", models: [{ id: "go::deepseek", label: "DeepSeek", provider: "custom" }, { id: "openai::gpt", label: "GPT", provider: "openai" }, { id: "openai::review", label: "Review", provider: "openai" }] });
   useTophDrafts.setState({ drafts: {} });
   native.refresh.mockResolvedValue(undefined);
@@ -58,20 +58,20 @@ describe("Toph chat controls", () => {
   });
 
   it("sends each Toph's own settings", async () => {
-    const start = vi.spyOn(agentApi, "start").mockResolvedValue({ id: "run", sessionId: "session", agentId: coordinatorId, chatId, state: "queued", error: "", createdAt: 1 });
-    useChats.getState().updateToph(project.id, coordinatorId, { agentMode: "plan" });
+    const start = vi.spyOn(agentApi, "start").mockResolvedValue({ id: "run", sessionId: "session", agentId: firstId, chatId, state: "queued", error: "", createdAt: 1 });
+    useChats.getState().updateToph(project.id, firstId, { agentMode: "plan" });
     render(<BotStudioTab project={project} />);
     const members = useChats.getState().byProject[project.id].tophs;
-    expect(members.find((a) => a.id === coordinatorId)?.agentMode).toBe("plan");
+    expect(members.find((a) => a.id === firstId)?.agentMode).toBe("plan");
     expect(members.find((a) => a.id === memberId)).toMatchObject({ model: "openai::review", agentMode: "build" });
     fireEvent.change(screen.getByRole("textbox", { name: "Mensagem para o agente" }), { target: { value: "Revise o projeto" } });
     fireEvent.click(screen.getByRole("button", { name: "Enviar" }));
     await waitFor(() => expect(start).toHaveBeenCalledOnce());
     const input = start.mock.calls[0][1];
-    expect(input.agentId).toBe(coordinatorId);
+    expect(input.agentId).toBe("router");
     expect(input.chatDescription).toBe("Preservar os contratos da equipe");
-    expect(input.agents.find((a) => a.id === coordinatorId)).toMatchObject({ agentMode: "plan", model: "go::deepseek" });
-    expect(input.agents.find((a) => a.id === memberId)).toMatchObject({ agentMode: "build", model: "openai::review", coordinator: false });
+    expect(input.agents.find((a) => a.id === firstId)).toMatchObject({ agentMode: "plan", model: "go::deepseek" });
+    expect(input.agents.find((a) => a.id === memberId)).toMatchObject({ agentMode: "build", model: "openai::review" });
   });
 
   it("shows the single team conversation and its members", () => {
@@ -105,7 +105,7 @@ describe("Toph chat controls", () => {
   it("renders a blocking question inside the conversation and answers it", async () => {
     const answer = vi.spyOn(agentApi, "answer").mockResolvedValue({ ok: true });
     native.questions = [{
-      id: "call-question", runId: "run", agentId: coordinatorId, name: "ask_user", arguments: "{}",
+      id: "call-question", runId: "run", agentId: firstId, name: "ask_user", arguments: "{}",
       questions: [{ header: "Escopo", question: "Qual escopo devo usar?", options: [{ label: "Tudo" }, { label: "Só o backend" }] }],
     }];
     render(<BotStudioTab project={project} />);

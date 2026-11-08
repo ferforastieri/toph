@@ -28,7 +28,6 @@ const toph: ChatToph = {
   color: "#8FB5F5",
   avatar: "toph-forge",
   notifications: true,
-  coordinator: true,
   createdAt: 1,
 };
 

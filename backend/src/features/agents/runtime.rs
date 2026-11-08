@@ -54,6 +54,24 @@ pub struct Runtime {
     inner: Arc<Inner>,
 }
 
+fn mentioned_agent(text: &str, roster: &[AgentSpec]) -> Option<AgentSpec> {
+    for word in text.split_whitespace() {
+        if !word.starts_with('@') {
+            continue;
+        }
+        let handle = word
+            .trim_start_matches('@')
+            .trim_end_matches(|c: char| !c.is_alphanumeric() && c != '-' && c != '_');
+        if let Some(agent) = roster
+            .iter()
+            .find(|agent| agent.handle.eq_ignore_ascii_case(handle))
+        {
+            return Some(agent.clone());
+        }
+    }
+    None
+}
+
 impl Runtime {
     pub async fn new(store: Store, tools: Tools, workspace_events: EventHub) -> AppResult<Self> {
         let repo = Repository(store);
@@ -180,15 +198,18 @@ impl Runtime {
                 return Err(bad_request("Invalid agent configuration"));
             }
         }
-        let mut agent = input
-            .agents
-            .iter()
-            .find(|agent| agent.id == input.agent_id)
-            .cloned()
-            .ok_or_else(|| bad_request("Unknown agent"))?;
+        let mut roster = input.agents;
+        let mut agent = if input.agent_id.is_empty() || input.agent_id == "router" {
+            self.route_agent(&roster, &input.text).await?
+        } else {
+            roster
+                .iter()
+                .find(|agent| agent.id == input.agent_id)
+                .cloned()
+                .ok_or_else(|| bad_request("Unknown agent"))?
+        };
         agent.model = self.inner.ai.migrate_agent_model(&agent.model).await?;
         let config = self.inner.ai.resolve(&agent.model).await?;
-        let mut roster = input.agents;
         if let Some(selected) = roster.iter_mut().find(|item| item.id == agent.id) {
             *selected = agent.clone();
         }
@@ -280,6 +301,68 @@ impl Runtime {
             runtime.finish(&ctx, result, token.is_cancelled()).await;
         });
         Ok(run)
+    }
+
+    /// Chooses who answers. An explicit @handle wins; otherwise the router
+    /// model reads the team roster and the message. Nobody owns the team:
+    /// the choice belongs to each message.
+    async fn route_agent(&self, roster: &[AgentSpec], text: &str) -> AppResult<AgentSpec> {
+        if roster.is_empty() {
+            return Err(bad_request("Nenhum Toph nesta equipe."));
+        }
+        if let Some(agent) = mentioned_agent(text, roster) {
+            return Ok(agent);
+        }
+        if roster.len() == 1 {
+            return Ok(roster[0].clone());
+        }
+        let team = roster
+            .iter()
+            .map(|agent| {
+                format!(
+                    "@{} — {} — {}",
+                    agent.handle,
+                    agent.role,
+                    agent.description.chars().take(180).collect::<String>()
+                )
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        let messages = vec![
+            crate::ai::Message {
+                role: "system".into(),
+                content: json!(
+                    "Você é o roteador de uma equipe de Tophs. Escolha qual Toph deve responder à mensagem do usuário pelo papel e descrição de cada um. Responda somente com o handle, sem @ e sem explicação."
+                ),
+            },
+            crate::ai::Message {
+                role: "user".into(),
+                content: json!(format!("Equipe:\n{team}\n\nMensagem:\n{text}\n\nQuem responde?")),
+            },
+        ];
+        let answer = match tokio::time::timeout(
+            Duration::from_secs(20),
+            self.inner.ai.chat(messages, None, None, None, vec![]),
+        )
+        .await
+        {
+            Ok(Ok(answer)) => answer,
+            _ => return Ok(roster[0].clone()),
+        };
+        let handle = answer
+            .trim()
+            .trim_start_matches('@')
+            .split_whitespace()
+            .next()
+            .unwrap_or("")
+            .trim_matches(|c: char| !c.is_alphanumeric() && c != '-' && c != '_');
+        Ok(roster
+            .iter()
+            .find(|agent| {
+                agent.handle.eq_ignore_ascii_case(handle) || agent.name.eq_ignore_ascii_case(handle)
+            })
+            .cloned()
+            .unwrap_or_else(|| roster[0].clone()))
     }
 
     async fn prepare(
@@ -486,7 +569,7 @@ impl Runtime {
             self.event(ctx,"run",json!({"id":ctx.run.id,"chatId":ctx.run.chat_id,"sessionId":ctx.run.session_id,"agentId":ctx.agent.id,"state":"running","error":"","parentId":ctx.run.parent_id,"createdAt":ctx.run.created_at}));
             let mut system = self.build_system(ctx, config).await?;
             let mut gateway_tools = tools::gateway_definitions(&ctx.agent);
-            if ctx.roster.len() > 1 && ctx.depth < 3 {
+            if ctx.roster.len() > 1 && ctx.depth < 2 {
                 gateway_tools.push(tools::delegate_definition());
             }
             let available = gateway_tools
@@ -776,7 +859,7 @@ Trabalhe no projeto atual. Para concluir uma alteração, rode os testes ou o bu
         args: &Value,
         cancel: &CancellationToken,
     ) -> AppResult<Value> {
-        if parent.depth >= 3 {
+        if parent.depth >= 2 {
             return Err(bad_request(
                 "A conversa entre Tophs chegou ao limite de três trocas. Responda ao usuário.",
             ));

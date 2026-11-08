@@ -118,7 +118,6 @@ export default function MobileConversationsSheet({ open, project, onClose, onSel
               key={toph.id}
               toph={toph}
               compact
-              selected={Boolean(toph.coordinator)}
               onOpen={() => { onClose(); onAction(toph.id, "config"); }}
               onConfig={() => { onClose(); onAction(toph.id, "config"); }}
               onSessions={() => { onClose(); onAction(toph.id, "sessions"); }}

@@ -158,7 +158,6 @@ export default function BotConfig({ projectId, projectRoot, bot }: Props) {
           <div className="flex flex-wrap items-center gap-1.5">
             <p className="truncate text-title-3-medium text-text-primary">{bot.name}</p>
             <span className="rounded-full bg-background-tertiary-default px-2 py-0.5 text-caption-2-semibold text-text-secondary">{bot.role}</span>
-            {bot.coordinator && <span className="rounded-full bg-accent-500/15 px-2 py-0.5 text-caption-2-semibold text-accent-600">Coordena</span>}
           </div>
           <p className="mt-0.5 truncate text-caption-1-regular text-text-secondary" title={modelTitle(selectedModelInfo)}>
             @{bot.handle} · motor {bot.engine || "opencode"} · {modelDisplay(selectedModelInfo)}
@@ -396,22 +395,13 @@ export default function BotConfig({ projectId, projectRoot, bot }: Props) {
           </div>
         </AccordionItem>
 
-        <AccordionItem id="execution" title="Execução" description="Coordenação e notificações" icon={Bot}>
-          <div className="grid gap-2 sm:grid-cols-2">
-            <div className="flex items-center justify-between gap-2 rounded-xl border border-border-button-default px-2.5 py-2">
-              <span className="flex flex-col">
-                <span className="text-caption-1-medium text-text-primary">Coordenador</span>
-                <span className="text-caption-2-regular text-text-secondary">Distribui o trabalho.</span>
-              </span>
-              <Switch isSelected={bot.coordinator} onChange={(checked) => update({ coordinator: checked })} size="sm" />
-            </div>
-            <div className="flex items-center justify-between gap-2 rounded-xl border border-border-button-default px-2.5 py-2">
-              <span className="flex flex-col">
-                <span className="text-caption-1-medium text-text-primary">Notificações</span>
-                <span className="text-caption-2-regular text-text-secondary">Avisar ao terminar.</span>
-              </span>
-              <Switch isSelected={bot.notifications} onChange={(checked) => update({ notifications: checked })} size="sm" />
-            </div>
+        <AccordionItem id="execution" title="Execução" description="Notificações" icon={Bot}>
+          <div className="flex items-center justify-between gap-2 rounded-xl border border-border-button-default px-2.5 py-2">
+            <span className="flex flex-col">
+              <span className="text-caption-1-medium text-text-primary">Notificações</span>
+              <span className="text-caption-2-regular text-text-secondary">Avisar ao terminar.</span>
+            </span>
+            <Switch isSelected={bot.notifications} onChange={(checked) => update({ notifications: checked })} size="sm" />
           </div>
         </AccordionItem>
       </Accordion>

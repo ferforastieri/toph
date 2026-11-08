@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   activeChat,
-  chatCoordinator,
   chatForToph,
   chatTophs,
   messagesForChat,
@@ -45,7 +44,6 @@ const legacyToph = (id: string, chatId: string, name: string): ChatToph => ({
   color: "#FFB547",
   avatar: "toph-core",
   notifications: true,
-  coordinator: false,
   createdAt: 1,
 });
 
@@ -84,7 +82,6 @@ describe("useChats", () => {
     expect(project.chats[0].name).toBe("Equipe");
     expect(project.tophs).toHaveLength(2);
     expect(project.tophs.every((toph) => toph.chatId === project.chats[0].id)).toBe(true);
-    expect(project.tophs.filter((toph) => toph.coordinator)).toHaveLength(1);
     expect(project.messages).toHaveLength(2);
     expect(project.messages.every((message) => message.chatId === project.chats[0].id)).toBe(true);
   });
@@ -169,20 +166,6 @@ describe("useChats", () => {
     expect(project.hydrated).toBe(true);
     expect(project.chats[0].id).toBe("chat");
     expect(project.activeChatId).toBe("chat");
-  });
-
-  it("replaces the coordinator when the current one leaves its team", () => {
-    const project = useChats.getState().ensure("p");
-    const chat = project.chats[0];
-    useChats.getState().addToph("p", chat.id, preset("Leo", "Dev"));
-    useChats.getState().addToph("p", chat.id, preset("Nico", "Revisor"));
-    const coordinator = chatCoordinator(chatTophs(useChats.getState().byProject.p, chat.id))!;
-
-    useChats.getState().removeToph("p", coordinator.id);
-
-    const members = chatTophs(useChats.getState().byProject.p, chat.id);
-    expect(members.length).toBeGreaterThan(0);
-    expect(members.filter((member) => member.coordinator)).toHaveLength(1);
   });
 
   it("keeps shared user messages but gives a reset Toph a clean prompt", () => {
