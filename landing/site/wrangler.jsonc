@@ -4,5 +4,5 @@
   "name": "toph-site",
   "compatibility_date": "2026-10-01",
   "assets": { "directory": "." },
-  "routes": []
+  "routes": [{ "pattern": "tophs.vira.ia.br/*", "zone_name": "vira.ia.br" }]
 }
