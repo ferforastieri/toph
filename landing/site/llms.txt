@@ -1,0 +1,48 @@
+# Toph
+
+> Self-hosted AI agent workbench. One or more Tophs work inside your project with the engine, model, tools and permissions you choose. Open source, Apache-2.0.
+
+Site: https://tophs.vira.ia.br/
+Docs: https://tophs.vira.ia.br/docs
+Markdown: https://tophs.vira.ia.br/docs.md
+Source: https://github.com/ferforastieri/toph
+Releases: https://github.com/ferforastieri/toph/releases
+
+## Install on Linux (root)
+
+1. `curl -fsSL https://github.com/ferforastieri/toph/releases/latest/download/install.sh | sudo sh -s -- --no-components`
+2. Review `/etc/toph/toph.env`:
+   - `TOPH_ADDR=0.0.0.0:8787`
+   - `TOPH_DATA_DIR=/var/lib/toph`
+   - `TOPH_WORKSPACES=/srv/toph/workspaces`
+   - `TOPH_ADMIN_PASSWORD=<strong-password>`
+   - `TOPH_SECURE_COOKIES=false` (true behind HTTPS)
+   - `TOPH_TRUSTED_PROXIES=` (proxy IP/CIDR if any)
+3. `sudo systemctl enable --now toph`
+4. Verify:
+   - `curl -fsS http://127.0.0.1:8787/api/health`
+   - `curl -fsS http://127.0.0.1:8787/api/version`
+
+The app is at `/app`. Auth cookie: `toph_session`. Data: `TOPH_DATA_DIR/toph.db`. Master key: `TOPH_DATA_DIR/master.key`. Back up both together. Never print or commit secrets.
+
+## What it does
+
+- One Toph per task or several in a group; each runs in its own session with shared task history.
+- Router selects 0–2 Tophs per message; explicit `@handle` wins; `todos` calls everyone; a Toph can delegate.
+- Engines: OpenCode, Claude Code, Codex. OpenCode must be 2.2.6+.
+- Models: OpenAI, Anthropic, DeepSeek, OpenRouter, Groq, Mistral, xAI, Ollama, custom gateway.
+- Modes: Plan (read only), Ask (approval before changes), YOLO (allowed tools run).
+- Tools: files, shell, Git, MCP, skills, memory, artifacts, images, audio, approvals, questions.
+- Workbench: explorer/editor, terminal, source control, databases, debug, web apps, previews.
+- Files: upload/edit and stream downloads of any size.
+- Attachments: up to 6 files, 8 MB total per message; run endpoint accepts 32 MB.
+
+## For AI agents
+
+Goal: install and verify Toph.
+
+- Run the four install steps above exactly.
+- Do not invent paths; use the values in `/etc/toph/toph.env`.
+- If a command fails, show the output and stop; do not claim success.
+- Report at the end: URL, version, data directory, database path and master key path.
+- Full guide: https://tophs.vira.ia.br/docs.md

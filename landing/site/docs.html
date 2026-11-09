@@ -1,0 +1,428 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Toph Docs · Instalação, Tophs, workbench e agentes</title>
+<meta name="description" content="Documentação do Toph: instalação, configuração, Tophs individuais e em grupo, motores, MCP, skills, aprovações, workbench, Git, bancos, debug, anexos e instruções para agentes de IA.">
+<meta property="og:title" content="Toph Docs · Instalação, Tophs e workbench">
+<meta property="og:description" content="Tudo o que o Toph faz e como usar, com um guia de instalação feito para agentes de IA.">
+<meta property="og:image" content="https://tophs.vira.ia.br/assets/brand/toph-og.png">
+<meta property="og:url" content="https://tophs.vira.ia.br/docs">
+<meta property="og:type" content="website">
+<meta name="theme-color" content="#050505">
+<link rel="canonical" href="https://tophs.vira.ia.br/docs">
+<link rel="alternate" type="text/markdown" href="https://tophs.vira.ia.br/docs.md" title="Toph docs in Markdown">
+<link rel="alternate" type="text/plain" href="https://tophs.vira.ia.br/llms.txt" title="Toph for AI agents">
+<link rel="icon" type="image/png" href="assets/brand/favicon-32.png">
+<link rel="apple-touch-icon" href="assets/brand/favicon-180.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Sora:wght@500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #050505; --panel: #12110F; --panel-2: #191714; --line: #2A261F; --line-2: #3A342A;
+  --text: #F5F2ED; --muted: #A39B8F; --faint: #746D63;
+  --amber: #FFB547; --amber-2: #FF9D0A; --coral: #FF6B4A; --green: #7CE7B0;
+  --display: 'Sora', system-ui, sans-serif; --body: 'Inter', system-ui, sans-serif;
+  --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.65 var(--body); -webkit-font-smoothing: antialiased; }
+body::before { content: ''; position: fixed; inset: -25% 15% auto 15%; height: 60vh; background: radial-gradient(ellipse at 50% 0%, rgba(255,181,71,.11), transparent 66%); pointer-events: none; z-index: 0; }
+a { color: inherit; }
+img { display: block; }
+::selection { background: var(--amber); color: #1C1204; }
+.wrap { width: min(1180px, 100% - 40px); margin: 0 auto; position: relative; z-index: 1; }
+.mono { font-family: var(--mono); }
+header.top { position: sticky; top: 0; z-index: 50; border-bottom: 1px solid rgba(255,255,255,.06); background: rgba(5,5,5,.84); backdrop-filter: blur(18px) saturate(1.35); -webkit-backdrop-filter: blur(18px) saturate(1.35); }
+header.top .wrap { height: 70px; display: flex; align-items: center; gap: 22px; }
+.brand { display: inline-flex; align-items: center; gap: 9px; text-decoration: none; flex: none; }
+.brand img { width: 30px; height: 30px; object-fit: contain; }
+.brand b { font: 800 23px/1 var(--display); letter-spacing: -.06em; }
+header nav { display: flex; align-items: center; gap: 20px; margin-left: auto; }
+header nav a { color: var(--muted); text-decoration: none; font-size: 13px; }
+header nav a:hover { color: var(--text); }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 38px; padding: 0 15px; border: 1px solid transparent; border-radius: 10px; text-decoration: none; font: 600 12.5px/1 var(--body); transition: transform .18s, background .18s, border-color .18s; }
+.btn:hover { transform: translateY(-1px); }
+.btn.primary { background: var(--amber); color: #1C1204; }
+.btn.primary:hover { background: #FFC46A; }
+.btn.ghost { border-color: var(--line); background: rgba(255,255,255,.02); color: var(--text); }
+.btn.ghost:hover { border-color: var(--line-2); background: rgba(255,255,255,.045); }
+.docs-layout { display: grid; grid-template-columns: 246px minmax(0, 1fr); gap: 54px; padding: 42px 0 78px; align-items: start; }
+.toc { position: sticky; top: 92px; border: 1px solid var(--line); border-radius: 14px; background: rgba(18,17,15,.72); padding: 17px; }
+.toc-title { margin: 0 0 10px; color: var(--faint); font: 600 9px/1 var(--mono); letter-spacing: .12em; text-transform: uppercase; cursor: pointer; list-style: none; }
+.toc-title::-webkit-details-marker { display: none; }
+.toc-title::after { content: "+"; float: right; color: var(--amber); font-size: 14px; line-height: 1; }
+.toc[open] .toc-title::after { content: "−"; }
+.toc a { display: block; padding: 6px 7px; border-radius: 7px; color: var(--muted); text-decoration: none; font-size: 12.5px; line-height: 1.35; }
+.toc a:hover { color: var(--text); background: rgba(255,255,255,.04); }
+.toc .toc-group { margin: 12px 0 4px; padding: 0 7px; color: var(--faint); font: 600 8.5px/1 var(--mono); letter-spacing: .1em; text-transform: uppercase; }
+.toc-ai { margin-top: 14px; padding: 10px; border: 1px solid rgba(255,181,71,.26); border-radius: 10px; background: rgba(255,181,71,.06); }
+.toc-ai b { display: block; color: var(--amber); font: 600 10px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; }
+.toc-ai a { margin-top: 6px; padding: 0; color: var(--muted); font-size: 11px; }
+.doc { min-width: 0; }
+.doc-hero { padding: 4px 0 34px; border-bottom: 1px solid var(--line); }
+.eyebrow { display: inline-flex; align-items: center; gap: 8px; color: var(--amber); font: 600 10.5px/1 var(--mono); letter-spacing: .1em; text-transform: uppercase; }
+.eyebrow::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--amber); box-shadow: 0 0 0 4px rgba(255,181,71,.12); }
+.doc-hero h1 { margin: 16px 0 0; font: 700 clamp(34px, 5vw, 56px)/1.02 var(--display); letter-spacing: -.05em; }
+.doc-hero p { margin: 16px 0 0; max-width: 720px; color: var(--muted); font-size: 16px; }
+.doc-actions { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 22px; }
+section.doc-section { padding: 36px 0 8px; border-bottom: 1px solid var(--line); scroll-margin-top: 88px; }
+section.doc-section:last-child { border-bottom: 0; }
+section.doc-section h2 { margin: 0; font: 700 clamp(23px, 3vw, 32px)/1.15 var(--display); letter-spacing: -.035em; }
+section.doc-section h3 { margin: 26px 0 0; font: 600 17px/1.25 var(--display); letter-spacing: -.02em; }
+section.doc-section p { margin: 11px 0 0; color: var(--muted); }
+section.doc-section p strong { color: var(--text); font-weight: 600; }
+section.doc-section ul, section.doc-section ol { margin: 12px 0 0; padding-left: 21px; color: var(--muted); }
+section.doc-section li { margin-top: 5px; }
+section.doc-section li strong { color: var(--text); font-weight: 600; }
+code { padding: 2px 5px; border-radius: 4px; background: #1B1813; color: #E6D6BC; font: 500 12px/1.45 var(--mono); word-break: break-word; }
+pre { margin: 14px 0 0; padding: 15px 16px; border: 1px solid var(--line); border-radius: 10px; background: #090806; color: #D8CFC1; font: 500 12px/1.65 var(--mono); overflow: auto; }
+pre code { padding: 0; background: transparent; color: inherit; font: inherit; }
+pre .comment { color: var(--faint); }
+pre .prompt { color: var(--amber); }
+.copy-wrap { position: relative; }
+.copy { position: absolute; top: 9px; right: 9px; height: 25px; padding: 0 8px; border: 1px solid var(--line); border-radius: 5px; background: #12110F; color: var(--muted); font: 600 9px/1 var(--mono); cursor: pointer; }
+.copy:hover, .copy.done { border-color: var(--amber); color: var(--amber); }
+.callout { margin: 16px 0 0; padding: 13px 15px; border: 1px solid rgba(255,181,71,.28); border-radius: 10px; background: rgba(255,181,71,.06); color: var(--muted); font-size: 13px; line-height: 1.55; }
+.callout b { color: var(--amber); font-weight: 600; }
+.callout.ai { border-color: rgba(124,231,176,.28); background: rgba(124,231,176,.06); }
+.callout.ai b { color: var(--green); }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px; }
+.mini { border: 1px solid var(--line); border-radius: 10px; background: var(--panel); padding: 14px 15px; }
+.mini b { display: block; color: var(--text); font: 600 13.5px/1.2 var(--display); }
+.mini p { margin-top: 5px; font-size: 12px; line-height: 1.5; }
+table { width: 100%; margin-top: 14px; border-collapse: collapse; font-size: 12.5px; }
+th, td { padding: 9px 10px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+th { color: var(--faint); font: 600 9px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; }
+td { color: var(--muted); }
+td code { font-size: 11px; }
+.anchor { color: var(--faint); text-decoration: none; margin-left: 7px; font: 500 12px/1 var(--mono); }
+section.doc-section h2:hover .anchor { color: var(--amber); }
+footer.site-footer { border-top: 1px solid var(--line); padding: 28px 0; color: var(--faint); font-size: 11.5px; }
+footer.site-footer .wrap { display: flex; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
+footer.site-footer a { color: var(--faint); text-decoration: none; }
+footer.site-footer a:hover { color: var(--text); }
+footer.site-footer nav { display: flex; gap: 16px; flex-wrap: wrap; }
+@media (max-width: 920px) {
+  .docs-layout { grid-template-columns: 1fr; gap: 24px; padding-top: 28px; }
+  .toc { position: static; display: grid; grid-template-columns: 1fr 1fr; gap: 1px 12px; }
+  .toc-title, .toc .toc-group { grid-column: 1 / -1; }
+  .toc-ai { grid-column: 1 / -1; }
+  .grid2 { grid-template-columns: 1fr; }
+}
+@media (max-width: 620px) {
+  .wrap { width: min(1180px, 100% - 28px); }
+  .toc:not([open]) { padding: 13px 15px; }
+  .toc:not([open]) .toc-title { margin: 0; }
+  header.top .wrap { height: 62px; gap: 14px; }
+  header nav a:not(.btn) { display: none; }
+  header .btn { height: 34px; padding: 0 11px; }
+  .doc-hero h1 { font-size: 36px; }
+  .toc { grid-template-columns: 1fr; }
+  .toc-title, .toc .toc-group, .toc-ai { grid-column: auto; }
+}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="./" aria-label="Toph">
+      <img src="assets/brand/toph-mark.png" alt="" width="30" height="30">
+      <b>toph</b>
+    </a>
+    <nav aria-label="Principal">
+      <a href="./">Site</a>
+      <a href="#instalar">Instalar</a>
+      <a href="#ia">Para agentes de IA</a>
+      <a class="btn ghost" href="https://github.com/ferforastieri/toph">GitHub ↗</a>
+      <a class="btn primary" href="#instalar">Começar</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap docs-layout">
+  <details class="toc" aria-label="Índice da documentação" open>
+    <summary class="toc-title">Nesta página</summary>
+    <a href="#comece">Comece aqui</a>
+    <a href="#instalar">Instalar</a>
+    <a href="#configurar">Configurar</a>
+    <a href="#primeiro-toph">Primeiro Toph</a>
+    <div class="toc-group">Usar</div>
+    <a href="#tophs">Tophs e grupos</a>
+    <a href="#motores">Motores</a>
+    <a href="#ferramentas">Ferramentas e permissões</a>
+    <a href="#workbench">Workbench</a>
+    <a href="#arquivos">Arquivos, imagens e áudio</a>
+    <a href="#projetos">Projetos e repositórios</a>
+    <a href="#atualizar">Atualizar</a>
+    <div class="toc-group">Ajuda</div>
+    <a href="#problemas">Solução de problemas</a>
+    <a href="#ia">Para agentes de IA</a>
+    <div class="toc-ai">
+      <b>AI friendly</b>
+      <a href="llms.txt">llms.txt</a>
+      <a href="docs.md">docs.md (Markdown)</a>
+    </div>
+  </details>
+
+  <main class="doc">
+    <div class="doc-hero">
+      <div class="eyebrow">Documentação</div>
+      <h1>Tudo o que o Toph faz.<br>E como usar.</h1>
+      <p>Instalação, Tophs individuais e em grupo, motores, MCP, skills, aprovações e o workbench completo. No fim, um guia feito para um agente de IA instalar o Toph sem adivinhar nada.</p>
+      <div class="doc-actions">
+        <a class="btn primary" href="#instalar">Instalar o Toph</a>
+        <a class="btn ghost" href="#ia">Guia para agentes de IA</a>
+      </div>
+    </div>
+
+    <section class="doc-section" id="comece">
+      <h2>Comece aqui <a class="anchor" href="#comece">#</a></h2>
+      <p><strong>Toph é um workbench de agentes de IA self-hosted.</strong> Você abre um projeto, cria um ou vários Tophs e cada um trabalha com o motor, o modelo, as ferramentas e as permissões que você escolher. O projeto e os arquivos ficam no seu computador ou servidor.</p>
+      <div class="grid2">
+        <div class="mini"><b>Um Toph ou um time</b><p>Uma tarefa pode ter um Toph sozinho ou vários. Sem menção, o roteador escolhe quem responde; com <code>@handle</code>, você escolhe.</p></div>
+        <div class="mini"><b>O projeto é o centro</b><p>Arquivos, editor, terminal, Git, bancos, debug e previews no mesmo lugar. O agente trabalha no projeto de verdade.</p></div>
+        <div class="mini"><b>Você manda nas ferramentas</b><p>Plan, Ask ou YOLO por Toph. Aprovações aparecem dentro da tarefa antes de escrever, apagar ou rodar algo.</p></div>
+        <div class="mini"><b>Seu modelo, seu motor</b><p>OpenCode, Claude Code ou Codex. OpenAI, Anthropic, DeepSeek, OpenRouter, Ollama ou o gateway da sua empresa.</p></div>
+      </div>
+      <h3>Requisitos</h3>
+      <ul>
+        <li>Linux x86_64/arm64 para o servidor; Mac, Linux ou Windows para o app desktop.</li>
+        <li>Porta <code>8787</code> livre (ou outra definida em <code>TOPH_ADDR</code>).</li>
+        <li>Git e, para editar o código, Node/pnpm e Rust. O instalador Linux pode instalar o toolchain de desenvolvimento.</li>
+        <li>Uma conexão de modelo (API key, gateway ou Ollama local) para os Tophs responderem.</li>
+      </ul>
+    </section>
+
+    <section class="doc-section" id="instalar">
+      <h2>Instalar <a class="anchor" href="#instalar">#</a></h2>
+      <h3>Linux em uma linha</h3>
+      <div class="copy-wrap"><button class="copy" data-copy="curl -fsSL https://github.com/ferforastieri/toph/releases/latest/download/install.sh | sudo sh">Copiar</button><pre><code><span class="prompt">$</span> curl -fsSL https://github.com/ferforastieri/toph/releases/latest/download/install.sh | sudo sh</code></pre></div>
+      <p>O instalador baixa o binário, cria o usuário de serviço, grava <code>/etc/toph/toph.env</code> e ativa o systemd. No fim, abra <code>http://localhost:8787</code> e entre com a senha de admin mostrada pelo instalador.</p>
+      <pre><code><span class="prompt">$</span> sudo systemctl status toph
+<span class="prompt">$</span> sudo journalctl -u toph -f
+<span class="prompt">$</span> curl -fsS http://127.0.0.1:8787/api/health</code></pre>
+      <h3>Docker</h3>
+      <div class="copy-wrap"><button class="copy" data-copy="git clone https://github.com/ferforastieri/toph.git && cd toph && TOPH_ADMIN_PASSWORD='troque-esta-senha' docker compose -f deploy/compose.yaml up -d">Copiar</button><pre><code>git clone https://github.com/ferforastieri/toph.git
+cd toph
+TOPH_ADMIN_PASSWORD='troque-esta-senha' docker compose -f deploy/compose.yaml up -d</code></pre></div>
+      <h3>Do código-fonte</h3>
+      <pre><code>git clone https://github.com/ferforastieri/toph.git
+cd toph
+make build          <span class="comment"># builda o web e o binário em bin/toph</span>
+sudo install -m 755 bin/toph /usr/local/bin/toph</code></pre>
+      <p>Para desenvolvimento: <code>make dev</code> sobe a API e o app web separados. O binário embute o frontend de <code>web/dist</code>; rode <code>npm run build</code> em <code>web/</code> antes de buildar o backend se alterar a interface.</p>
+    </section>
+
+    <section class="doc-section" id="configurar">
+      <h2>Configurar <a class="anchor" href="#configurar">#</a></h2>
+      <p>O serviço lê <code>/etc/toph/toph.env</code> (ou as variáveis do <code>docker compose</code>). As principais:</p>
+      <table>
+        <thead><tr><th>Variável</th><th>Para que serve</th></tr></thead>
+        <tbody>
+          <tr><td><code>TOPH_ADDR</code></td><td>Endereço e porta. Padrão <code>0.0.0.0:8787</code>.</td></tr>
+          <tr><td><code>TOPH_DATA_DIR</code></td><td>Banco SQLite, chave mestra e artefatos. Padrão <code>/var/lib/toph</code>.</td></tr>
+          <tr><td><code>TOPH_WORKSPACES</code></td><td>Pastas permitidas para projetos. Padrão <code>/srv/toph/workspaces</code>.</td></tr>
+          <tr><td><code>TOPH_ADMIN_PASSWORD</code></td><td>Senha inicial do admin (só é usada no primeiro boot).</td></tr>
+          <tr><td><code>TOPH_SECURE_COOKIES</code></td><td><code>true</code> atrás de HTTPS; <code>false</code> em HTTP local.</td></tr>
+          <tr><td><code>TOPH_TRUSTED_PROXIES</code></td><td>IP/CIDR do proxy reverso, para ler <code>X-Forwarded-For</code>.</td></tr>
+          <tr><td><code>TOPH_FIREBASE_CREDENTIALS_FILE</code></td><td>Opcional: login Google/Firebase.</td></tr>
+          <tr><td><code>TOPH_FIREBASE_PROJECT_ID</code></td><td>Opcional: projeto Firebase.</td></tr>
+          <tr><td><code>TOPH_BUILD_ID</code></td><td>Identificador da build exibido em <code>/api/version</code>.</td></tr>
+        </tbody>
+      </table>
+      <div class="callout"><b>Proxy reverso:</b> encaminhe <code>/</code> e <code>/api/*</code> para a porta do Toph. downloads, SSE e WebSockets precisam passar. Se usar HTTPS, mantenha <code>TOPH_SECURE_COOKIES=true</code>.</div>
+    </section>
+
+    <section class="doc-section" id="primeiro-toph">
+      <h2>Primeiro Toph <a class="anchor" href="#primeiro-toph">#</a></h2>
+      <ol>
+        <li><strong>Conecte um modelo.</strong> Abra <strong>Configurações → Conexões</strong>, escolha o provedor, informe a URL/base e a API key. Para Ollama, use a URL local. O teste mostra os modelos disponíveis.</li>
+        <li><strong>Adicione um projeto.</strong> Use o botão <strong>+</strong> no topo: ele lista todos os repositórios Git encontrados nas pastas permitidas. Se o repo ainda não for um projeto, o Toph cria e abre na hora.</li>
+        <li><strong>Crie um Toph.</strong> Em <strong>Novo Toph</strong>, escolha um perfil (Toph, Leo, Nico, Nova, Bia, Pia, Atlas, Rafa) ou comece do zero. Ajuste nome, handle, papel, prompt, modelo, motor, esforço e ferramentas.</li>
+        <li><strong>Escolha as permissões.</strong> <code>Plan</code> só lê e propõe; <code>Ask</code> pede aprovação antes de mexer; <code>YOLO</code> executa o que foi permitido sem interromper.</li>
+        <li><strong>Abra uma tarefa e escreva.</strong> Você pode mencionar <code>@handle</code>, anexar imagens/arquivos ou usar áudio. O histórico fica na tarefa.</li>
+      </ol>
+    </section>
+
+    <section class="doc-section" id="tophs">
+      <h2>Tophs e grupos <a class="anchor" href="#tophs">#</a></h2>
+      <p>Cada tarefa tem um ou mais Tophs. <strong>Uma mensagem sem menção</strong> passa pelo roteador: ele escolhe de 0 a 2 Tophs, ou todos quando você pede para o grupo. <strong>Uma menção explícita</strong> (<code>@leo</code>) sempre vence e seleciona aquele Toph.</p>
+      <ul>
+        <li><strong>Um Toph sozinho:</strong> sessão, contexto e histórico próprios.</li>
+        <li><strong>Vários Tophs:</strong> cada um roda na própria sessão, com o histórico compartilhado da tarefa. Um pode chamar o outro com <code>delegate</code> ou mencionar <code>@handle</code>.</li>
+        <li><strong>Ninguém precisa responder:</strong> um agradecimento ou recado pode ficar sem resposta; a mensagem continua registrada.</li>
+        <li><strong>Nova mensagem durante uma execução:</strong> o Toph cancela a execução anterior, espera ela fechar e insere a nova mensagem abaixo da última saída.</li>
+      </ul>
+    </section>
+
+    <section class="doc-section" id="motores">
+      <h2>Motores <a class="anchor" href="#motores">#</a></h2>
+      <p>O motor conduz o loop do agente; o Toph entrega contexto, ferramentas, permissões e aprovações. Cada Toph pode usar um motor diferente no mesmo projeto.</p>
+      <div class="grid2">
+        <div class="mini"><b>OpenCode</b><p>Roda localmente com o modelo e o provedor escolhidos. É o motor mais testado com o gateway de ferramentas do Toph.</p></div>
+        <div class="mini"><b>Claude Code</b><p>Usa a assinatura Claude que você já tem, com o gateway Toph como ferramenta.</p></div>
+        <div class="mini"><b>Codex</b><p>Sandbox isolado, com o gateway Toph como única fonte de ferramentas.</p></div>
+        <div class="mini"><b>Outros CLIs</b><p>Cursor, Grok, Gemini e Pi aparecem para instalar/testar, mas o runtime ainda não está ligado.</p></div>
+      </div>
+      <p>Em <strong>Configurações → Harness</strong> você instala, testa e atualiza cada CLI. O OpenCode precisa ser <strong>2.2.6 ou mais recente</strong>: versões antigas perdem as ferramentas MCP na primeira resposta.</p>
+    </section>
+
+    <section class="doc-section" id="ferramentas">
+      <h2>Ferramentas e permissões <a class="anchor" href="#ferramentas">#</a></h2>
+      <p>As ferramentas são do Toph, não do projeto inteiro. Você escolhe o que cada um pode ler, escrever, rodar e acessar.</p>
+      <ul>
+        <li><strong>Arquivos e shell:</strong> ler, criar, editar, apagar e rodar comandos no projeto. O agente mostra o comando e a saída.</li>
+        <li><strong>Aprovações:</strong> no modo Ask, o Toph para antes de uma ação que muda o projeto. Você autoriza uma vez, sempre ou recusa.</li>
+        <li><strong>Perguntas:</strong> o agente pode pedir uma decisão no meio da tarefa; a pergunta aparece no chat.</li>
+        <li><strong>MCP:</strong> conecte servidores em <strong>Configurações → Conexões → MCPs</strong> e selecione quais cada Toph pode usar. O agente lista as ferramentas com <code>mcp_list</code> e chama com <code>mcp_call</code>.</li>
+        <li><strong>Skills:</strong> receitas aprovadas para tipos de tarefa. O Toph lê a skill com <code>read_skill</code> e pode propor novas.</li>
+        <li><strong>Memória:</strong> fatos duráveis do projeto, consultáveis por <code>search_memory</code>.</li>
+        <li><strong>Modelos por Toph:</strong> modelo, provedor, esforço e temperatura podem ser diferentes em cada Toph.</li>
+      </ul>
+    </section>
+
+    <section class="doc-section" id="workbench">
+      <h2>Workbench <a class="anchor" href="#workbench">#</a></h2>
+      <p>O projeto é o centro, não o chat. O workbench tem:</p>
+      <div class="grid2">
+        <div class="mini"><b>Explorer e editor</b><p>Árvore de arquivos, busca, edição, criação, upload e download. Arquivos grandes são baixados em streaming.</p></div>
+        <div class="mini"><b>Source Control</b><p>Status, diffs, stage, commit, branches, blame e descarte de mudanças.</p></div>
+        <div class="mini"><b>Terminal</b><p>Terminais reais no servidor, por projeto, para rodar o que precisar.</p></div>
+        <div class="mini"><b>Bancos de dados</b><p>Conexões Postgres, MySQL e SQLite, schema e consultas com resultado.</p></div>
+        <div class="mini"><b>Debug</b><p>Sessões de depuração, breakpoints, console e variáveis para Node, Python e outros runtimes.</p></div>
+        <div class="mini"><b>Web apps e previews</b><p>Rode a aplicação e abra o preview no painel, com logs e inspeção.</p></div>
+      </div>
+    </section>
+
+    <section class="doc-section" id="arquivos">
+      <h2>Arquivos, imagens e áudio <a class="anchor" href="#arquivos">#</a></h2>
+      <ul>
+        <li><strong>Imagens:</strong> arraste para o input ou use o botão de anexo. O OpenCode recebe o arquivo de verdade via <code>--file</code> e o modelo vê a imagem.</li>
+        <li><strong>Limites:</strong> até 6 anexos e 8 MB no total por mensagem. O servidor aceita um corpo de até 32 MB.</li>
+        <li><strong>Outros arquivos:</strong> PDF, texto, Markdown, JSON, CSV e logs são aceitos; binários precisam ser UTF-8 ou imagem.</li>
+        <li><strong>Áudio:</strong> grave pelo microfone; se o navegador transcrever, o texto entra no input; senão o áudio fica como anexo.</li>
+        <li><strong>Downloads:</strong> a aba de arquivos baixa qualquer tamanho com streaming e <code>Content-Disposition: attachment</code>.</li>
+      </ul>
+    </section>
+
+    <section class="doc-section" id="projetos">
+      <h2>Projetos e repositórios <a class="anchor" href="#projetos">#</a></h2>
+      <ul>
+        <li><strong>Pastas permitidas:</strong> em <strong>Configurações → Workspace</strong>, adicione as raízes que o Toph pode ler e escrever. O servidor não sai dessas pastas.</li>
+        <li><strong>Botão +:</strong> lista os projetos existentes e todos os repositórios Git das raízes. Clicar em um repo ainda não aberto cria o projeto e abre.</li>
+        <li><strong>Vários projetos:</strong> abra quantos quiser; cada um tem suas tarefas, terminais e configurações.</li>
+        <li><strong>Fechar projeto:</strong> encerra terminais/debug daquele projeto sem apagar os arquivos.</li>
+      </ul>
+    </section>
+
+    <section class="doc-section" id="atualizar">
+      <h2>Atualizar <a class="anchor" href="#atualizar">#</a></h2>
+      <ul>
+        <li><strong>CLIs:</strong> <strong>Configurações → Harness</strong> tem o botão de atualizar em cada motor instalado (OpenCode, Claude Code, Codex). O OpenCode roda <code>opencode upgrade</code>.</li>
+        <li><strong>Toph:</strong> o instalador cria um updater; releases novas aparecem no app. Para atualizar manualmente, rode o instalador de novo.</li>
+        <li><strong>Depois de atualizar o frontend:</strong> um <strong>Ctrl+Shift+R</strong> garante o bundle novo.</li>
+      </ul>
+    </section>
+
+    <section class="doc-section" id="problemas">
+      <h2>Solução de problemas <a class="anchor" href="#problemas">#</a></h2>
+      <h3>O agente não tem ferramentas / só aparece “skill”</h3>
+      <p>Atualize o OpenCode para 2.2.6+ em <strong>Configurações → Harness</strong>. Versões antigas montam a lista de ferramentas antes do MCP conectar.</p>
+      <h3>MCP não lista</h3>
+      <p>Confira se o servidor está selecionado no Toph e se o token não expirou. O erro 401 significa token inválido; 404/“not selected” significa que o nome/id não pertence àquele Toph. Use o nome exato mostrado no prompt.</p>
+      <h3>Enviar imagem não faz nada</h3>
+      <p>Atualize o app e dê Ctrl+Shift+R. O limite é 8 MB no total; acima disso a mensagem mostra um erro. A rota aceita 32 MB de corpo.</p>
+      <h3>Download “não disponível”</h3>
+      <p>O Toph faz streaming de qualquer tamanho. Se estiver atrás de um proxy, ele precisa encaminhar <code>/api/projects/*/raw</code> e não bufferizar a resposta.</p>
+      <h3>Login/API 401 atrás de HTTPS</h3>
+      <p>Use <code>TOPH_SECURE_COOKIES=true</code> e configure <code>TOPH_TRUSTED_PROXIES</code> com o IP do proxy. O cookie é <code>SameSite=Strict</code>.</p>
+      <h3>Porta ocupada</h3>
+      <p>Veja <code>ss -ltnp | grep 8787</code> e ajuste <code>TOPH_ADDR</code> para outra porta.</p>
+    </section>
+
+    <section class="doc-section" id="ia">
+      <h2>Para agentes de IA <a class="anchor" href="#ia">#</a></h2>
+      <div class="callout ai"><b>AI-friendly:</b> esta seção foi escrita para ser executada por um agente. Use os comandos exatos, verifique cada passo e não invente caminhos. Uma versão em Markdown está em <a href="docs.md"><code>docs.md</code></a> e o resumo para LLMs em <a href="llms.txt"><code>llms.txt</code></a>.</div>
+      <h3>Objetivo</h3>
+      <p>Instalar o Toph em um servidor Linux x86_64/arm64, configurar a porta e a pasta de projetos, subir o serviço e verificar <code>/api/health</code>.</p>
+      <h3>Passos (Linux, root)</h3>
+      <div class="copy-wrap"><button class="copy" data-copy="# 1. instalar o binário e o serviço
+curl -fsSL https://github.com/ferforastieri/toph/releases/latest/download/install.sh | sudo sh -s -- --no-components
+
+# 2. revisar a configuração (o instalador já criou)
+sudo sed -n '1,120p' /etc/toph/toph.env
+
+# 3. subir e habilitar
+sudo systemctl enable --now toph
+
+# 4. verificar
+curl -fsS http://127.0.0.1:8787/api/health
+curl -fsS http://127.0.0.1:8787/api/version">Copiar</button><pre><code><span class="comment"># 1. instalar o binário e o serviço</span>
+<span class="prompt">$</span> curl -fsSL https://github.com/ferforastieri/toph/releases/latest/download/install.sh | sudo sh -s -- --no-components
+
+<span class="comment"># 2. revisar a configuração (o instalador já criou)</span>
+<span class="prompt">$</span> sudo sed -n '1,120p' /etc/toph/toph.env
+
+<span class="comment"># 3. subir e habilitar</span>
+<span class="prompt">$</span> sudo systemctl enable --now toph
+
+<span class="comment"># 4. verificar</span>
+<span class="prompt">$</span> curl -fsS http://127.0.0.1:8787/api/health
+<span class="prompt">$</span> curl -fsS http://127.0.0.1:8787/api/version</code></pre></div>
+      <h3>Configuração mínima esperada</h3>
+      <pre><code>TOPH_ADDR=0.0.0.0:8787
+TOPH_DATA_DIR=/var/lib/toph
+TOPH_WORKSPACES=/srv/toph/workspaces
+TOPH_ADMIN_PASSWORD=&lt;senha-forte&gt;
+TOPH_SECURE_COOKIES=false   <span class="comment"># true atrás de HTTPS</span>
+TOPH_TRUSTED_PROXIES=        <span class="comment"># IP do proxy, se houver</span></code></pre>
+      <p>O instalador imprime a senha de admin gerada. Ela só é usada no primeiro boot; para redefinir, pare o serviço e remova o usuário admin do banco ou use a tela de login/recuperação conforme a versão.</p>
+      <h3>Verificação de saúde</h3>
+      <ul>
+        <li><code>GET /api/health</code> deve retornar <code>{"ok":true,...}</code>.</li>
+        <li><code>GET /api/version</code> deve retornar a versão/build.</li>
+        <li>O frontend fica em <code>/app</code>; o login usa cookie <code>toph_session</code>.</li>
+        <li>Os dados ficam em <code>TOPH_DATA_DIR/toph.db</code>; a chave mestra em <code>TOPH_DATA_DIR/master.key</code>. Faça backup dos dois juntos.</li>
+      </ul>
+      <h3>Prompt pronto para uma IA</h3>
+      <div class="copy-wrap"><button class="copy" data-copy="Instale o Toph neste servidor Linux seguindo https://tophs.vira.ia.br/llms.txt e https://tophs.vira.ia.br/docs.md. Requisitos: root/sudo, porta 8787 livre, pasta de projetos em /srv/toph/workspaces. Execute a instalação, ajuste /etc/toph/toph.env, suba o serviço e valide /api/health e /api/version. Não invente caminhos; se um comando falhar, mostre a saída e pare. No fim, diga a URL, a versão e onde ficam o banco e a chave mestra.">Copiar</button><pre><code>Instale o Toph neste servidor Linux seguindo https://tophs.vira.ia.br/llms.txt e https://tophs.vira.ia.br/docs.md.
+Requisitos: root/sudo, porta 8787 livre, pasta de projetos em /srv/toph/workspaces.
+Execute a instalação, ajuste /etc/toph/toph.env, suba o serviço e valide /api/health e /api/version.
+Não invente caminhos; se um comando falhar, mostre a saída e pare.
+No fim, diga a URL, a versão e onde ficam o banco e a chave mestra.</code></pre></div>
+    </section>
+  </main>
+</div>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <span>Toph · documentação open source (Apache-2.0).</span>
+    <nav>
+      <a href="./">Site</a>
+      <a href="llms.txt">llms.txt</a>
+      <a href="docs.md">docs.md</a>
+      <a href="https://github.com/ferforastieri/toph">GitHub</a>
+      <a href="https://github.com/ferforastieri/toph/issues">Problemas</a>
+    </nav>
+  </div>
+</footer>
+
+<script>
+if (window.matchMedia('(max-width: 620px)').matches) document.querySelector('details.toc')?.removeAttribute('open');
+for (const button of document.querySelectorAll('[data-copy]')) {
+  button.addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(button.dataset.copy); } catch (e) { return; }
+    const previous = button.textContent;
+    button.textContent = 'Copiado';
+    button.classList.add('done');
+    setTimeout(() => { button.textContent = previous; button.classList.remove('done'); }, 1600);
+  });
+}
+</script>
+</body>
+</html>
