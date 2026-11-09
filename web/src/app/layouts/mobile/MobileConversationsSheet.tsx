@@ -1,14 +1,14 @@
 import { useEffect, useState } from "react";
-import { Plus, UserRound } from "@toph/icons";
+import { Plus } from "@toph/icons";
 import type { Project } from "../../../shared/api";
-import { chatsForToph, latestChatForToph, useChats } from "../../../features/conversations/store";
+import { chatDisplayName, chatsForToph, latestChatForToph, useChats } from "../../../features/conversations/store";
 import { agentApi } from "../../../features/agents/api";
 import TophGallery from "../../../features/agents/components/TophGallery";
+import TophStartActions from "../../../features/agents/components/TophStartActions";
 import TophRow from "../../../features/agents/components/TophRow";
 import BotConfig from "../../../features/agents/components/BotConfig";
 import CreateGroupModal from "../../../features/conversations/components/CreateGroupModal";
 import TophTasksSheet from "../../../features/conversations/components/TophTasksSheet";
-import { Button } from "@/shared/boardui/base/buttons/button";
 import { Modal } from "@/shared/boardui/base/modal/modal";
 import { useConfirm } from "../../../shared/ui/confirm";
 
@@ -39,6 +39,12 @@ export default function MobileConversationsSheet({ open, project, onClose, onSel
   const configToph = tophs.find((toph) => toph.id === configId) ?? null;
   const tasksToph = tophs.find((toph) => toph.id === tasksTophId) ?? null;
   const tasks = tasksToph ? chatsForToph(chats, tasksToph.id) : [];
+
+  function groupsOf(tophId: string) {
+    return (chats?.chats ?? []).filter(
+      (chat) => chat.participantIds.length > 1 && chat.participantIds.includes(tophId),
+    );
+  }
 
   function select(chatId: string) {
     useChats.getState().setActiveChat(project.id, chatId);
@@ -91,9 +97,8 @@ export default function MobileConversationsSheet({ open, project, onClose, onSel
         bodyClassName="p-2"
         swipeToClose
       >
-        <div className="flex gap-1.5 px-1 pb-2">
-          <Button variant="secondary" size="small" leadingIcon={Plus} className="min-w-0 flex-1 justify-start" onClick={() => setGalleryOpen(true)}>Novo Toph</Button>
-          <Button variant="ghost" size="small" leadingIcon={UserRound} className="min-w-0 flex-1 justify-start" onClick={() => setGroupOpen(true)}>Grupo</Button>
+        <div className="px-1 pb-2.5">
+          <TophStartActions onCreateToph={() => setGalleryOpen(true)} onCreateGroup={() => setGroupOpen(true)} />
         </div>
         <div className="flex max-h-[min(60dvh,500px)] flex-col gap-0.5 overflow-y-auto">
           {tophs.length === 0 ? (
@@ -101,18 +106,23 @@ export default function MobileConversationsSheet({ open, project, onClose, onSel
               <span className="flex size-8 items-center justify-center rounded-full bg-background-secondary-default"><Plus size={14} /></span>
               Criar o primeiro Toph
             </button>
-          ) : tophs.map((toph) => (
-            <TophRow
-              key={toph.id}
-              toph={toph}
-              compact
-              onOpen={() => openToph(toph.id)}
-              onNew={() => newTask(toph.id)}
-              onConfig={() => setConfigId(toph.id)}
-              onSessions={() => setTasksTophId(toph.id)}
-              onRemove={() => void deleteToph(toph.id, toph.name)}
-            />
-          ))}
+          ) : tophs.map((toph) => {
+            const groups = groupsOf(toph.id);
+            return (
+              <TophRow
+                key={toph.id}
+                toph={toph}
+                compact
+                groupCount={groups.length}
+                groupNames={groups.map((chat) => chatDisplayName(chats, chat))}
+                onOpen={() => openToph(toph.id)}
+                onNew={() => newTask(toph.id)}
+                onConfig={() => setConfigId(toph.id)}
+                onSessions={() => setTasksTophId(toph.id)}
+                onRemove={() => void deleteToph(toph.id, toph.name)}
+              />
+            );
+          })}
         </div>
       </Modal>
 

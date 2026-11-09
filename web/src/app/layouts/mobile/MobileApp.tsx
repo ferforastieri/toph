@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Bot, Bug, Database, FileCode2, Files, GitBranch, Globe2, TerminalSquare } from "@toph/icons";
+import { Bot, Boxes, Bug, Database, Files, GitBranch, Globe2, MoreHorizontal, TerminalSquare } from "@toph/icons";
 import { api, type Project, type SchemaTable, type WebTarget } from "../../../shared/api";
 import { useApp } from "../../store";
 import { useIsMobile } from "../../../shared/ui/useIsMobile";
@@ -15,7 +15,6 @@ import EditorPanel from "../../../features/editor/components/EditorPanel";
 import DebugPanel from "../../../features/debug/components/DebugPanel";
 import WebPanelTab from "../../../features/previews/components/WebPanelTab";
 import Tabs from "../../components/Tabs";
-import MobileMenu, { type MobileScreen } from "./MobileMenu";
 import TerminalPanel from "../../../features/terminal/components/TerminalPanel";
 import Toasts from "../../../features/notifications/components/Toasts";
 import FilesScreen from "./screens/FilesScreen";
@@ -30,6 +29,11 @@ import { useTophDrafts } from "../../../features/agents/drafts";
 import MobileBranchSheet from "./MobileBranchSheet";
 import MobileAccountSheet from "./MobileAccountSheet";
 import MobileConversationsSheet from "./MobileConversationsSheet";
+import MobileBottomNav from "./MobileBottomNav";
+import MobileMoreScreen from "./MobileMoreScreen";
+import { type MobileScreen } from "./mobile-nav";
+import GlobalSearch from "../../../features/search/components/GlobalSearch";
+import TophSettings from "../../../features/settings/components/TophSettings";
 
 export default function MobileApp() {
   const projects = useApp((state) => state.projects);
@@ -48,9 +52,19 @@ export default function MobileApp() {
   const unreadCount = notifications.filter((notification) => !notification.read).length;
 
   const [screen, setScreen] = useState<MobileScreen>("bots");
-  const pageTitle = screen === "bots" ? "Toph" : screen === "files" ? "Arquivos" : screen === "scm" ? "Git" : screen === "db" ? "Bancos" : screen === "web" ? "Web apps" : screen === "debug" ? "Debug" : (activeTab?.title ?? "Editor");
-  const pageIcon = screen === "bots" ? Bot : screen === "files" ? Files : screen === "scm" ? GitBranch : screen === "db" ? Database : screen === "web" ? Globe2 : screen === "debug" ? Bug : FileCode2;
-  const [menuOpen, setMenuOpen] = useState(false);
+  const screenTitles: Record<MobileScreen, string> = {
+    bots: "Toph",
+    files: "Arquivos",
+    scm: "Git",
+    db: "Bancos",
+    web: "Web apps",
+    debug: "Debug",
+    workspace: activeTab?.title ?? "Trabalho",
+    more: "Mais",
+  };
+  const screenIcons = { bots: Bot, files: Files, scm: GitBranch, db: Database, web: Globe2, debug: Bug, workspace: Boxes, more: MoreHorizontal };
+  const pageTitle = screenTitles[screen];
+  const pageIcon = screenIcons[screen];
   const [terminalOpen, setTerminalOpen] = useState(false);
   const [projectsOpen, setProjectsOpen] = useState(false);
   const [closeTarget, setCloseTarget] = useState<Project | null>(null);
@@ -62,13 +76,11 @@ export default function MobileApp() {
   const pendingBot = useRef<{ projectId: string; botId: string; chatId?: string } | null>(null);
   const chatsHydrated = useChats((state) => activeProjectId ? state.byProject[activeProjectId]?.hydrated === true : false);
   const activeConversationId = useChats((state) => activeProjectId ? state.byProject[activeProjectId]?.activeChatId ?? null : null);
-  const swipeStart = useRef<{ x: number; y: number } | null>(null);
   const [currentBranch, setCurrentBranch] = useState("");
   const pageSubtitle = screen === "scm" && currentBranch ? currentBranch : (project?.name ?? "");
 
   useEffect(() => {
     setScreen("bots");
-    setMenuOpen(false);
     setTerminalOpen(false);
     setConversationsOpen(false);
   }, [activeProjectId]);
@@ -146,9 +158,11 @@ export default function MobileApp() {
     };
     const openTerminal = () => setTerminalOpen(true);
     window.addEventListener("toph:open-bot", openBot);
+    window.addEventListener("toph:open-chat", openBot);
     window.addEventListener("toph:open-terminal", openTerminal);
     return () => {
       window.removeEventListener("toph:open-bot", openBot);
+      window.removeEventListener("toph:open-chat", openBot);
       window.removeEventListener("toph:open-terminal", openTerminal);
     };
   }, [setActiveProject]);
@@ -210,12 +224,10 @@ export default function MobileApp() {
 
   function selectScreen(next: MobileScreen) {
     setScreen(next);
-    setMenuOpen(false);
     setTerminalOpen(false);
   }
 
   function openConversations() {
-    setMenuOpen(false);
     setTerminalOpen(false);
     setConversationsOpen(true);
   }
@@ -237,7 +249,6 @@ export default function MobileApp() {
       line,
     });
     setScreen("workspace");
-    setMenuOpen(false);
   }
 
   function openQuery(profileId: string, sql: string) {
@@ -251,7 +262,6 @@ export default function MobileApp() {
       sql,
     });
     setScreen("workspace");
-    setMenuOpen(false);
   }
 
   function openTable(profileId: string, table: SchemaTable, driver: string) {
@@ -289,7 +299,6 @@ export default function MobileApp() {
         : undefined,
     });
     setScreen("workspace");
-    setMenuOpen(false);
   }
 
   function openDiff(path: string, staged: boolean) {
@@ -303,7 +312,6 @@ export default function MobileApp() {
       staged,
     });
     setScreen("workspace");
-    setMenuOpen(false);
   }
 
   function openWeb(target: WebTarget) {
@@ -316,7 +324,6 @@ export default function MobileApp() {
       url: target.url,
     });
     setScreen("workspace");
-    setMenuOpen(false);
   }
 
   function requestCloseProject(id: string) {
@@ -378,37 +385,15 @@ export default function MobileApp() {
         paddingLeft: "var(--safe-left)",
         paddingRight: "var(--safe-right)",
       }}
-      onTouchStart={(event) => {
-        const touch = event.touches[0];
-        if (touch) swipeStart.current = { x: touch.clientX, y: touch.clientY };
-      }}
-      onTouchMove={(event) => {
-        if (!swipeStart.current) return;
-        const touch = event.touches[0];
-        if (!touch) return;
-        const dx = touch.clientX - swipeStart.current.x;
-        const dy = touch.clientY - swipeStart.current.y;
-        if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.4) return;
-        if (dx > 0 && !menuOpen && swipeStart.current.x <= 48) {
-          setMenuOpen(true);
-          swipeStart.current = null;
-        } else if (dx < 0 && menuOpen) {
-          setMenuOpen(false);
-          swipeStart.current = null;
-        }
-      }}
-      onTouchEnd={() => { swipeStart.current = null; }}
     >
       <MobileTopBar
         title={pageTitle}
         subtitle={pageSubtitle}
-        projectName={project.name}
+        project={project}
         unreadCount={unreadCount}
         icon={pageIcon}
-        onMenu={() => setMenuOpen(true)}
-        onConversations={screen === "bots" ? openConversations : undefined}
+        onTophs={openConversations}
         onProjects={() => setProjectsOpen(true)}
-        hideTitle={screen === "bots"}
         brandIcon={screen === "bots"}
       />
       <main className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background-primary-default">
@@ -447,20 +432,39 @@ export default function MobileApp() {
           <WebAppsScreen onOpenWeb={openWeb} />
         ) : screen === "debug" ? (
           <DebugPanel project={project} mobile />
+        ) : screen === "more" ? (
+          <MobileMoreScreen
+            project={project}
+            user={user}
+            unreadCount={unreadCount}
+            tabCount={tabs.length}
+            activeTitle={activeTab?.title}
+            onScreen={selectScreen}
+            onTophs={openConversations}
+            onTerminal={() => setTerminalOpen(true)}
+            onProjects={() => setProjectsOpen(true)}
+            onBranch={() => setBranchOpen(true)}
+            onAccount={() => setAccountOpen(true)}
+          />
         ) : (
           <>
-            {tabs.length > 1 ? <Tabs /> : null}
+            {tabs.length > 0 ? <Tabs /> : null}
             <div className="relative flex min-h-0 flex-1 overflow-hidden">
               {!activeTab ? (
                 <div className="flex h-full w-full flex-col items-center justify-center gap-4 p-6 text-center">
                   <BrandMark size="large" />
                   <strong className="text-title-3-medium text-text-primary">Nenhuma aba aberta</strong>
                   <p className="max-w-sm text-caption-1-regular text-text-secondary">
-                    Abra um arquivo, banco ou web app para começar.
+                    Abra um arquivo, banco ou web app para começar. As abas ficam salvas por projeto.
                   </p>
-                  <Button variant="secondary" className="w-full" onClick={() => selectScreen("bots")}>
-                    Voltar para Bots
-                  </Button>
+                  <div className="flex w-full max-w-xs flex-col gap-2">
+                    <Button variant="secondary" className="w-full justify-center" onClick={() => selectScreen("files")}>
+                      Abrir arquivos
+                    </Button>
+                    <Button variant="ghost" className="w-full justify-center" onClick={() => selectScreen("more")}>
+                      Ver todas as ferramentas
+                    </Button>
+                  </div>
                 </div>
               ) : null}
               {activeTab?.kind === "editor" && <EditorPanel tab={activeTab} project={project} mobile onOpenChanges={(path) => openDiff(path, false)} />}
@@ -473,20 +477,12 @@ export default function MobileApp() {
         )}
       </main>
 
-      {menuOpen && (
-        <MobileMenu
-          screen={screen}
-          hasWorkspace={Boolean(activeTab)}
-          user={user}
-          projectName={project.name}
-          branch={currentBranch}
-          onSelect={selectScreen}
-          onBranch={() => { setMenuOpen(false); setTerminalOpen(false); setBranchOpen(true); }}
-          onAccount={() => { setMenuOpen(false); setTerminalOpen(false); setAccountOpen(true); }}
-          onTerminal={() => { setMenuOpen(false); setTerminalOpen(true); }}
-          onClose={() => setMenuOpen(false)}
-        />
-      )}
+      <MobileBottomNav
+        screen={screen}
+        tabCount={tabs.length}
+        unreadCount={unreadCount}
+        onSelect={selectScreen}
+      />
 
       {terminalOpen && (
         <div
@@ -501,11 +497,11 @@ export default function MobileApp() {
           <MobileTopBar
             title="Terminal"
             subtitle={project.name}
-            projectName={project.name}
+            project={project}
             unreadCount={unreadCount}
             icon={TerminalSquare}
-            onMenu={() => setMenuOpen(true)}
             onProjects={() => { setTerminalOpen(false); setProjectsOpen(true); }}
+            onClose={() => setTerminalOpen(false)}
           />
           <div className="min-h-0 flex-1">
             <TerminalPanel project={project} onOpenFile={openFile} sheet onClose={() => setTerminalOpen(false)} />
@@ -533,6 +529,8 @@ export default function MobileApp() {
         onSelected={selectConversationScreen}
       />
       <MobileAccountSheet open={accountOpen} user={user} onClose={() => setAccountOpen(false)} />
+      <TophSettings user={user} projectRoot={project.root} projectId={project.id} hideTrigger />
+      <GlobalSearch />
       <CloseProjectModal
         open={Boolean(closeTarget)}
         project={closeTarget}

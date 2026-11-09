@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { FolderGit2, LoaderCircle, Search, X } from "@toph/icons";
 import { api, ApiError, type Repository } from "../../../shared/api";
 import { useApp } from "../../../app/store";
-import { Avatar } from "@/shared/boardui/base/avatar/avatar";
+import ProjectTophAvatar from "./ProjectTophAvatar";
 import { Button } from "@/shared/boardui/base/buttons/button";
 import { Input } from "@/shared/boardui/base/input/input";
 import NotificationBadge from "../../notifications/components/NotificationBadge";
@@ -132,7 +132,7 @@ export default function ProjectSwitcher({ onSelect, onCloseProject, onlyClosed =
                 onClick={() => onSelect(item.id)}
                 className="flex min-w-0 flex-1 items-center gap-2.5 rounded-xl p-2 text-start text-text-primary transition-colors hover:bg-dropdown-item-hover-background focus-visible:bg-dropdown-item-hover-background"
               >
-                <Avatar size="sm" initials={item.name.slice(0, 1).toUpperCase()} className="bg-accent-500/15 text-caption-2-semibold text-accent-500" />
+                <ProjectTophAvatar project={item} size={28} />
                 <span className="flex min-w-0 flex-1 flex-col">
                   <span className="flex min-w-0 items-center gap-1.5">
                     <span className="truncate text-body-2-medium text-text-primary">{item.name}</span>

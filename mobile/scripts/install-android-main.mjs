@@ -58,6 +58,12 @@ await writeFile(appGradlePath, appGradle);
 
 const manifestPath = resolve(generated, "app/src/main/AndroidManifest.xml");
 let manifest = await readFile(manifestPath, "utf8");
+if (!manifest.includes("android:roundIcon")) {
+  manifest = manifest.replace(
+    'android:icon="@mipmap/ic_launcher"',
+    'android:icon="@mipmap/ic_launcher"\n        android:roundIcon="@mipmap/ic_launcher_round"',
+  );
+}
 if (!manifest.includes("android.permission.POST_NOTIFICATIONS")) {
   manifest = manifest.replace(
     '    <uses-permission android:name="android.permission.INTERNET" />',

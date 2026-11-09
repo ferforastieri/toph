@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Bot, Database, FileCode2, FileDiff, Globe2, X } from "@toph/icons";
 import { useApp, type Tab } from "../store";
@@ -42,6 +42,16 @@ export default function Tabs() {
   const confirm = useConfirm();
   const projectChats = useChats((state) => state.byProject);
   const [menu, setMenu] = useState<ContextMenuState | null>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const list = listRef.current;
+    if (!list || !activeTabId) return;
+    const active = Array.from(list.children).find((child) => child.getAttribute("data-tab-id") === activeTabId) as HTMLElement | undefined;
+    if (!active) return;
+    const target = active.offsetLeft - (list.clientWidth - active.offsetWidth) / 2;
+    list.scrollLeft = Math.max(0, target);
+  }, [activeTabId, tabs.length]);
 
   useEffect(() => {
     if (!menu) return;
@@ -138,7 +148,7 @@ export default function Tabs() {
 
   return (
     <div className="flex min-h-10 items-center border-b bg-background-secondary-default px-1">
-      <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto" role="tablist">
+      <div ref={listRef} className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto" role="tablist">
         {tabs.map((tab, index) => {
           const Icon = icons[tab.kind as keyof typeof icons] ?? icons.editor;
           const active = tab.id === activeTabId;
@@ -152,6 +162,7 @@ export default function Tabs() {
           return (
             <div
               key={tab.id}
+              data-tab-id={tab.id}
               role="tab"
               aria-selected={active}
               tabIndex={active ? 0 : -1}

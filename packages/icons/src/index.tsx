@@ -104,6 +104,7 @@ export {
   Undo2,
   Upload,
   UserRound,
+  Users,
   Wifi,
   Wrench,
   X,

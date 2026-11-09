@@ -21,6 +21,8 @@ interface Props {
   user: User | null;
   projectRoot?: string;
   projectId?: string;
+  /** Mount only the modal/listener, without the pet trigger button. */
+  hideTrigger?: boolean;
 }
 
 interface SectionItem {
@@ -46,7 +48,7 @@ const sections: Array<{ label?: string; items: SectionItem[] }> = [
   ] },
 ];
 
-export default function TophSettings({ user, projectRoot, projectId }: Props) {
+export default function TophSettings({ user, projectRoot, projectId, hideTrigger = false }: Props) {
   const setUser = useApp((state) => state.setUser);
   const notify = useApp((state) => state.notify);
   const workspaceFeatures = useSettings((state) => state.workspaceFeatures);
@@ -117,15 +119,17 @@ export default function TophSettings({ user, projectRoot, projectId }: Props) {
 
   return (
     <>
-      <button
-        type="button"
-        aria-label="Abrir configurações"
-        title={`${petName} · nível ${level}`}
-        onClick={() => { setSection("general"); setOpen(true); }}
-        className="relative flex size-10 items-center justify-center rounded-2xl outline-none transition-colors hover:bg-background-primary-hover focus-visible:ring-2 focus-visible:ring-border-focus-ring"
-      >
-        <PetSprite kind={pet.kind} size={38} commits={pet.commits} />
-      </button>
+      {hideTrigger ? null : (
+        <button
+          type="button"
+          aria-label="Abrir configurações"
+          title={`${petName} · nível ${level}`}
+          onClick={() => { setSection("general"); setOpen(true); }}
+          className="relative flex size-10 items-center justify-center rounded-2xl outline-none transition-colors hover:bg-background-primary-hover focus-visible:ring-2 focus-visible:ring-border-focus-ring"
+        >
+          <PetSprite kind={pet.kind} size={38} commits={pet.commits} />
+        </button>
+      )}
 
       <Modal
         isOpen={open}
@@ -137,9 +141,9 @@ export default function TophSettings({ user, projectRoot, projectId }: Props) {
         bodyClassName="overflow-hidden p-0"
       >
         <div className="grid h-full min-h-0 grid-cols-[220px_minmax(0,1fr)] max-sm:grid-cols-1 max-sm:grid-rows-[auto_minmax(0,1fr)]">
-          <aside className="min-h-0 overflow-y-auto border-e border-separator-border bg-background-secondary-default/55 p-3 max-sm:flex max-sm:overflow-x-auto max-sm:border-b max-sm:border-e-0">
+          <aside className="min-h-0 overflow-y-auto border-e border-separator-border bg-background-secondary-default/55 p-3 max-sm:flex max-sm:flex-nowrap max-sm:overflow-x-auto max-sm:overflow-y-hidden max-sm:border-b max-sm:border-e-0">
             {sections.map((group, groupIndex) => (
-              <div key={group.label ?? "main"} className={cx("flex flex-col gap-1 max-sm:flex-row", groupIndex > 0 && "mt-5 max-sm:mt-0")}>
+              <div key={group.label ?? "main"} className={cx("flex flex-col gap-1 max-sm:flex max-sm:shrink-0 max-sm:flex-row", groupIndex > 0 && "mt-5 max-sm:mt-0")}>
                 {group.label ? <p className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-text-tertiary max-sm:hidden">{group.label}</p> : null}
                 {group.items.map((item) => {
                   const Icon = item.icon;
@@ -149,7 +153,7 @@ export default function TophSettings({ user, projectRoot, projectId }: Props) {
                       type="button"
                       onClick={() => setSection(item.id)}
                       className={cx(
-                        "flex items-center gap-2 rounded-xl px-2.5 py-2 text-start text-caption-1-medium transition-colors max-sm:shrink-0",
+                        "flex items-center gap-2 whitespace-nowrap rounded-xl px-2.5 py-2 text-start text-caption-1-medium transition-colors max-sm:shrink-0",
                         section === item.id ? "bg-background-primary-default text-text-primary shadow-xs" : "text-text-secondary hover:bg-background-primary-hover hover:text-text-primary",
                       )}
                     >

@@ -5,6 +5,7 @@ import { useApp, type Sidebar } from "../store";
 import { featureEnabled, useSettings, type WorkspaceFeature } from "../../features/settings/store";
 import type { Project } from "../../shared/api";
 import ProjectSwitcher from "../../features/projects/components/ProjectSwitcher";
+import ProjectTophAvatar from "../../features/projects/components/ProjectTophAvatar";
 import QuickOpen from "../../features/explorer/components/QuickOpen";
 import { Button } from "@/shared/boardui/base/buttons/button";
 import { Modal } from "@/shared/boardui/base/modal/modal";
@@ -242,13 +243,7 @@ export default function TopBar({ onOpenProject, onCloseProject, onGoHome, projec
                   title={`${project.name}\n${project.root}`}
                   aria-current={active ? "page" : undefined}
                 >
-                  <span
-                    className="flex size-5 shrink-0 items-center justify-center rounded-md text-[9px] font-semibold"
-                    style={{ backgroundColor: `${project.color || "#FFB547"}22`, color: project.color || "#FFB547" }}
-                    aria-hidden="true"
-                  >
-                    {project.name.slice(0, 1).toUpperCase()}
-                  </span>
+                  <ProjectTophAvatar project={project} size={20} />
                   <span className="max-w-[160px] truncate">{project.name}</span>
                 </button>
                 <button
@@ -343,17 +338,16 @@ export function ProjectRail({ onOpenProject, onCloseProject, onGoHome, onQuickOp
                   type="button"
                   onClick={() => openProject(project.id)}
                   className={cx(
-                    "flex size-10 items-center justify-center rounded-xl border text-[11px] font-semibold transition-colors",
+                    "flex size-10 items-center justify-center rounded-xl border transition-colors",
                     active
-                      ? "border-accent-500/40 bg-accent-500/10 text-text-primary"
-                      : "border-transparent text-text-secondary hover:bg-background-primary-hover hover:text-text-primary",
+                      ? "border-accent-500/40 bg-accent-500/10"
+                      : "border-transparent hover:bg-background-primary-hover",
                   )}
-                  style={{ color: active ? project.color || "#FFB547" : undefined }}
                   aria-label={`Abrir ${project.name}`}
                   aria-current={active ? "page" : undefined}
                   title={`${project.name}\n${project.root}`}
                 >
-                  {project.name.slice(0, 1).toUpperCase()}
+                  <ProjectTophAvatar project={project} size={30} />
                 </button>
                 <button
                   type="button"

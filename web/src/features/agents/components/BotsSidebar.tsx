@@ -1,15 +1,15 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { Bot, Plus, UserRound } from "@toph/icons";
+import { Bot, Plus } from "@toph/icons";
 import type { Project } from "../../../shared/api";
 import { chatDisplayName, chatsForToph, latestChatForToph, useChats } from "../../conversations/store";
 import { openChatTab } from "../../conversations/navigation";
 import { agentApi } from "../api";
 import TophGallery from "./TophGallery";
+import TophStartActions from "./TophStartActions";
 import TophRow from "./TophRow";
 import CreateGroupModal from "../../conversations/components/CreateGroupModal";
 import BotConfig from "./BotConfig";
 import TophTasksSheet from "../../conversations/components/TophTasksSheet";
-import { Button } from "@/shared/boardui/base/buttons/button";
 import { Modal } from "@/shared/boardui/base/modal/modal";
 import SidebarHeader from "../../../app/components/SidebarHeader";
 import { useConfirm } from "../../../shared/ui/confirm";
@@ -44,6 +44,12 @@ export default function BotsSidebar({ project, headerControl, onSelectChat }: Pr
   const configToph = tophs.find((toph) => toph.id === configId) ?? null;
   const tasksToph = tophs.find((toph) => toph.id === tasksTophId) ?? null;
   const tasks = tasksToph ? chatsForToph(chats, tasksToph.id) : [];
+
+  function groupsOf(tophId: string) {
+    return (chats?.chats ?? []).filter(
+      (chat) => chat.participantIds.length > 1 && chat.participantIds.includes(tophId),
+    );
+  }
 
   function openTask(chatId: string) {
     const current = useChats.getState().byProject[project.id];
@@ -100,13 +106,8 @@ export default function BotsSidebar({ project, headerControl, onSelectChat }: Pr
         title="Tophs"
         count={<span className="rounded-full bg-background-tertiary-default px-1.5 text-caption-2-regular text-text-tertiary">{tophs.length}</span>}
       />
-      <div className="flex gap-1.5 px-2.5 pb-1 pt-2">
-        <Button variant="secondary" size="small" leadingIcon={Plus} className="min-w-0 flex-1 justify-start" onClick={() => setGalleryOpen(true)}>
-          Novo Toph
-        </Button>
-        <Button variant="ghost" size="small" leadingIcon={UserRound} className="min-w-0 flex-1 justify-start" onClick={() => setGroupOpen(true)}>
-          Grupo
-        </Button>
+      <div className="px-2.5 pb-1 pt-2">
+        <TophStartActions compact onCreateToph={() => setGalleryOpen(true)} onCreateGroup={() => setGroupOpen(true)} />
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto p-2.5 pt-1">
         {!chats?.hydrated ? (
@@ -128,18 +129,23 @@ export default function BotsSidebar({ project, headerControl, onSelectChat }: Pr
         ) : null}
         {tophs.length > 0 ? (
           <div className="flex flex-col gap-0.5">
-            {tophs.map((toph) => (
-              <TophRow
-                key={toph.id}
-                toph={toph}
-                selected={selectedIds.has(toph.id)}
-                onOpen={() => openToph(toph.id)}
-                onNew={() => newTask(toph.id)}
-                onConfig={() => setConfigId(toph.id)}
-                onSessions={() => setTasksTophId(toph.id)}
-                onRemove={() => void deleteToph(toph.id, toph.name)}
-              />
-            ))}
+            {tophs.map((toph) => {
+              const groups = groupsOf(toph.id);
+              return (
+                <TophRow
+                  key={toph.id}
+                  toph={toph}
+                  selected={selectedIds.has(toph.id)}
+                  groupCount={groups.length}
+                  groupNames={groups.map((chat) => chatDisplayName(chats, chat))}
+                  onOpen={() => openToph(toph.id)}
+                  onNew={() => newTask(toph.id)}
+                  onConfig={() => setConfigId(toph.id)}
+                  onSessions={() => setTasksTophId(toph.id)}
+                  onRemove={() => void deleteToph(toph.id, toph.name)}
+                />
+              );
+            })}
           </div>
         ) : null}
       </div>

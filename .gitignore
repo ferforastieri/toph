@@ -41,3 +41,6 @@ toph-generated/
 
 # Agent screenshots and local artifacts
 .toph/artifacts/
+
+# Local Android builds
+/Toph-*.apk
