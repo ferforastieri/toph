@@ -8,7 +8,7 @@ import { useTophDrafts } from "../../agents/drafts";
 import { agentApi, isActive, type NativeMessage } from "../../agents/api";
 import { useAgentChat } from "../../agents/useAgentChat";
 import { AgentComposer, type AgentAttachment } from "./AgentComposer";
-import ChatMessages, { Elapsed } from "./ChatMessages";
+import ChatMessages from "./ChatMessages";
 import ChatUsageMeter from "./ChatUsageMeter";
 import ApprovalCard from "./ApprovalCard";
 import ConversationSettings from "./ConversationSettings";
@@ -57,20 +57,6 @@ export default function BotStudioTab({ project, conversationId, mobile = false, 
   const activeModelDisplay = activeModelInfo ?? (activeModel ? { id: activeModel, label: activeModel.split("::").pop() ?? activeModel } : undefined);
   const lastRun = native.runs.find((run) => !run.parentId);
   const lastError = lastRun && ["failed", "interrupted"].includes(lastRun.state) ? lastRun.error : "";
-  const activeRun = native.runs.find((run) => isActive(run) && !run.parentId) ?? native.runs.find(isActive);
-  const activeMessages = activeRun
-    ? [...native.messages].reverse().filter((message) => message.runId === activeRun.id)
-    : [];
-  const activeStep = activeMessages.find((message) => ["tool", "reasoning", "activity", "assistant"].includes(message.role));
-  const lastTool = activeMessages.find((message) => ["tool", "activity"].includes(message.role) && (message.activity || message.title));
-  const lastToolLabel = lastTool?.activity || lastTool?.title || "";
-  const workingDetail = !activeStep
-    ? (lastToolLabel ? `Pensando · último: ${lastToolLabel}` : "Pensando")
-    : activeStep.role === "assistant"
-      ? (activeStep.content.trim() ? "Respondendo" : lastToolLabel ? `Pensando · último: ${lastToolLabel}` : "Pensando")
-      : activeStep.role === "reasoning"
-        ? (activeStep.content.trim().replace(/\s+/g, " ").slice(0, 160) || "Pensando")
-        : activeStep.activity || activeStep.title || "Executando";
   const title = chatDisplayName(stored, chat);
 
   useEffect(() => {
@@ -232,16 +218,6 @@ export default function BotStudioTab({ project, conversationId, mobile = false, 
         </div>
         {tophs.length > 0 && !atBottom && <button type="button" onClick={() => { follow.current = true; setAtBottom(true); scroller.current?.scrollTo({ top: scroller.current.scrollHeight, behavior: "smooth" }); }} className="absolute bottom-3 left-1/2 z-10 flex size-8 -translate-x-1/2 items-center justify-center rounded-full border border-border-button-default bg-background-secondary-default text-text-secondary shadow-sidebar" aria-label="Ir para o fim da conversa"><ArrowDown size={15} /></button>}
       </div>
-      {activeRun ? (
-        <div className="mx-auto w-full max-w-[860px] px-3 pt-1.5">
-          <div className="flex min-w-0 items-center gap-2 rounded-xl border border-accent-500/25 bg-accent-500/[0.05] px-2.5 py-1.5">
-            <LoaderCircle className="size-3.5 shrink-0 animate-spin text-accent-500" />
-            <span className="shrink-0 text-caption-2-semibold text-accent-600">Toph trabalhando</span>
-            <span className="min-w-0 flex-1 truncate text-caption-2-regular text-text-secondary">{workingDetail}</span>
-            <Elapsed startedAt={activeRun.createdAt} />
-          </div>
-        </div>
-      ) : null}
       {queued.length > 0 ? (
         <div className="mx-auto w-full max-w-[860px] px-3 pt-1.5">
           <div className="flex min-w-0 items-center gap-2 rounded-xl border border-border-button-default bg-background-secondary-default px-2.5 py-1.5 text-caption-2-regular text-text-secondary">

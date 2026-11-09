@@ -85,7 +85,7 @@ interface Props {
   onAnswer?: (id: string, answer: string) => void | Promise<void>;
 }
 
-export function Elapsed({ startedAt }: { startedAt: number }) {
+function Elapsed({ startedAt }: { startedAt: number }) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     setNow(Date.now());
@@ -238,10 +238,7 @@ function ThoughtStep({ ms }: { ms: number }) {
 }
 
 function RunSteps({ steps, working, defaultOpen = false, startedAt }: { steps: NativeMessage[]; working: boolean; defaultOpen?: boolean; startedAt?: number }) {
-  const [open, setOpen] = useState(working || defaultOpen);
-  useEffect(() => {
-    if (working) setOpen(true);
-  }, [working]);
+  const [open, setOpen] = useState(defaultOpen);
   if (steps.length === 0 && !working) return null;
   const labels = [...new Set(steps.map(stepLabel))];
   const current = [...steps].reverse().find((message) => message.status === "running");
