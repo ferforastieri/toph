@@ -85,7 +85,7 @@ interface Props {
   onAnswer?: (id: string, answer: string) => void | Promise<void>;
 }
 
-function Elapsed({ startedAt }: { startedAt: number }) {
+export function Elapsed({ startedAt }: { startedAt: number }) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     setNow(Date.now());

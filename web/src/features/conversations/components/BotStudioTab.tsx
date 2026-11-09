@@ -8,7 +8,7 @@ import { useTophDrafts } from "../../agents/drafts";
 import { agentApi, isActive, type NativeMessage } from "../../agents/api";
 import { useAgentChat } from "../../agents/useAgentChat";
 import { AgentComposer, type AgentAttachment } from "./AgentComposer";
-import ChatMessages from "./ChatMessages";
+import ChatMessages, { Elapsed } from "./ChatMessages";
 import ChatUsageMeter from "./ChatUsageMeter";
 import ApprovalCard from "./ApprovalCard";
 import ConversationSettings from "./ConversationSettings";
@@ -44,7 +44,10 @@ export default function BotStudioTab({ project, conversationId, mobile = false, 
   const clearDraft = useTophDrafts((s) => s.clearDraft);
   const busy = native.busy || sending;
   const scroller = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
   const follow = useRef(true);
+  const previousChat = useRef<string | undefined>(undefined);
+  const previousCount = useRef(0);
   const sendLock = useRef(false);
   const lastTop = useRef(0);
   const pendingScroll = useRef<{ height: number; top: number } | null>(null);
@@ -54,6 +57,20 @@ export default function BotStudioTab({ project, conversationId, mobile = false, 
   const activeModelDisplay = activeModelInfo ?? (activeModel ? { id: activeModel, label: activeModel.split("::").pop() ?? activeModel } : undefined);
   const lastRun = native.runs.find((run) => !run.parentId);
   const lastError = lastRun && ["failed", "interrupted"].includes(lastRun.state) ? lastRun.error : "";
+  const activeRun = native.runs.find((run) => isActive(run) && !run.parentId) ?? native.runs.find(isActive);
+  const activeMessages = activeRun
+    ? [...native.messages].reverse().filter((message) => message.runId === activeRun.id)
+    : [];
+  const activeStep = activeMessages.find((message) => ["tool", "reasoning", "activity", "assistant"].includes(message.role));
+  const lastTool = activeMessages.find((message) => ["tool", "activity"].includes(message.role) && (message.activity || message.title));
+  const lastToolLabel = lastTool?.activity || lastTool?.title || "";
+  const workingDetail = !activeStep
+    ? (lastToolLabel ? `Pensando · último: ${lastToolLabel}` : "Pensando")
+    : activeStep.role === "assistant"
+      ? (activeStep.content.trim() ? "Respondendo" : lastToolLabel ? `Pensando · último: ${lastToolLabel}` : "Pensando")
+      : activeStep.role === "reasoning"
+        ? (activeStep.content.trim().replace(/\s+/g, " ").slice(0, 160) || "Pensando")
+        : activeStep.activity || activeStep.title || "Executando";
   const title = chatDisplayName(stored, chat);
 
   useEffect(() => {
@@ -61,10 +78,48 @@ export default function BotStudioTab({ project, conversationId, mobile = false, 
     window.addEventListener("toph:refresh-chat", refresh);
     return () => window.removeEventListener("toph:refresh-chat", refresh);
   }, [native.refresh]);
-  useEffect(() => { follow.current = true; setAtBottom(true); setQueued([]); pendingScroll.current = null; }, [chat?.id]);
   useEffect(() => {
-    if (follow.current && scroller.current) scroller.current.scrollTop = scroller.current.scrollHeight;
-  }, [native.messages, native.approvals, busy]);
+    follow.current = true;
+    setAtBottom(true);
+    setQueued([]);
+    pendingScroll.current = null;
+    lastTop.current = 0;
+    previousChat.current = chat?.id;
+    previousCount.current = 0;
+  }, [chat?.id]);
+  // The markdown and step list can grow after the first paint. Keep the view
+  // pinned to the end when the user has not scrolled up, and force it to the
+  // end after a project/chat switch even if an intermediate scroll event fired.
+  useEffect(() => {
+    if (!scroller.current) return;
+    const force = previousChat.current !== chat?.id || (previousCount.current === 0 && native.messages.length > 0);
+    previousChat.current = chat?.id;
+    previousCount.current = native.messages.length;
+    if (!follow.current && !force) return;
+    follow.current = true;
+    const frame = requestAnimationFrame(() => {
+      if (scroller.current && follow.current) scroller.current.scrollTop = scroller.current.scrollHeight;
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [chat?.id, native.messages, native.approvals, busy]);
+  useEffect(() => {
+    const content = contentRef.current;
+    const element = scroller.current;
+    if (!content || !element || typeof ResizeObserver === "undefined") return;
+    let frame = 0;
+    const observer = new ResizeObserver(() => {
+      if (!follow.current) return;
+      if (frame) cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        if (scroller.current && follow.current) scroller.current.scrollTop = scroller.current.scrollHeight;
+      });
+    });
+    observer.observe(content);
+    return () => {
+      observer.disconnect();
+      if (frame) cancelAnimationFrame(frame);
+    };
+  }, [chat?.id]);
   useLayoutEffect(() => {
     if (pendingScroll.current && scroller.current) {
       scroller.current.scrollTop = pendingScroll.current.top + scroller.current.scrollHeight - pendingScroll.current.height;
@@ -164,7 +219,7 @@ export default function BotStudioTab({ project, conversationId, mobile = false, 
           const el = event.currentTarget; const movedUp = el.scrollTop < lastTop.current - 1; lastTop.current = el.scrollTop;
           follow.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80 && !movedUp; setAtBottom(follow.current);
         }}>
-          <div key={chat.id} className={cx("toph-view-in mx-auto flex min-h-full w-full min-w-0 max-w-[860px] flex-col gap-2 overflow-x-hidden [&_img]:max-w-full [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_table]:block [&_table]:max-w-full [&_table]:overflow-x-auto", compact ? (embedded ? "px-4 pt-10 pb-2" : "px-4 pt-4 pb-2") : "px-7 pt-6 pb-3")}>
+          <div key={chat.id} ref={contentRef} className={cx("toph-view-in mx-auto flex min-h-full w-full min-w-0 max-w-[860px] flex-col gap-2 overflow-x-hidden [&_img]:max-w-full [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_table]:block [&_table]:max-w-full [&_table]:overflow-x-auto", compact ? (embedded ? "px-4 pt-10 pb-2" : "px-4 pt-4 pb-2") : "px-7 pt-6 pb-3")}>
             {native.hasMore && <Button variant="ghost" size="small" disabled={native.loading} onClick={older}>{native.loading ? <><LoaderCircle size={14} className="animate-spin" /> Carregando mensagens antigas…</> : "Carregar mensagens anteriores"}</Button>}
             {!stored?.hydrated ? <div className="my-auto flex items-center justify-center gap-2 py-8 text-caption-1-regular text-text-tertiary"><LoaderCircle size={16} className="animate-spin" /> Carregando conversas…</div>
               : !tophs.length ? <div className="my-auto flex flex-col items-center gap-3 px-6 py-10 text-center"><span className="flex size-12 items-center justify-center rounded-2xl bg-accent-500/10 text-accent-500"><Bot size={22} /></span><strong className="text-title-3-medium">Esta conversa ficou sem Tophs.</strong><p className="max-w-sm text-caption-1-regular text-text-secondary">Adicione um Toph nas configurações da conversa.</p></div>
@@ -177,6 +232,16 @@ export default function BotStudioTab({ project, conversationId, mobile = false, 
         </div>
         {tophs.length > 0 && !atBottom && <button type="button" onClick={() => { follow.current = true; setAtBottom(true); scroller.current?.scrollTo({ top: scroller.current.scrollHeight, behavior: "smooth" }); }} className="absolute bottom-3 left-1/2 z-10 flex size-8 -translate-x-1/2 items-center justify-center rounded-full border border-border-button-default bg-background-secondary-default text-text-secondary shadow-sidebar" aria-label="Ir para o fim da conversa"><ArrowDown size={15} /></button>}
       </div>
+      {activeRun ? (
+        <div className="mx-auto w-full max-w-[860px] px-3 pt-1.5">
+          <div className="flex min-w-0 items-center gap-2 rounded-xl border border-accent-500/25 bg-accent-500/[0.05] px-2.5 py-1.5">
+            <LoaderCircle className="size-3.5 shrink-0 animate-spin text-accent-500" />
+            <span className="shrink-0 text-caption-2-semibold text-accent-600">Toph trabalhando</span>
+            <span className="min-w-0 flex-1 truncate text-caption-2-regular text-text-secondary">{workingDetail}</span>
+            <Elapsed startedAt={activeRun.createdAt} />
+          </div>
+        </div>
+      ) : null}
       {queued.length > 0 ? (
         <div className="mx-auto w-full max-w-[860px] px-3 pt-1.5">
           <div className="flex min-w-0 items-center gap-2 rounded-xl border border-border-button-default bg-background-secondary-default px-2.5 py-1.5 text-caption-2-regular text-text-secondary">
@@ -193,7 +258,7 @@ export default function BotStudioTab({ project, conversationId, mobile = false, 
         {modelError && <p role="alert" className="px-3 text-xs text-text-error-primary">{modelError}</p>}
         <AgentComposer value={text} onChange={(value) => setDraft(draftKey, value)} onSend={(value, files) => void send(value, files)} onStop={() => void stop()} busy={busy}
           placeholder={tophs.length === 1 ? `Mensagem para ${tophs[0].name}` : "Mensagem para o grupo"}
-          hint={busy ? "Toph está trabalhando — sua mensagem entra na fila" : tophs.length === 1 ? "Esta tarefa é só sua com este Toph" : "Quem estiver na conversa responde · use @ para chamar alguém"}
+          hint={busy ? "Sua mensagem entra na fila" : tophs.length === 1 ? "Esta tarefa é só sua com este Toph" : "Quem estiver na conversa responde · use @ para chamar alguém"}
           history={native.messages.filter((m) => m.role === "user").map((m) => m.content)}
           modeControls={<div className="flex items-center gap-0.5"><Button type="button" variant="ghost" size="small" iconOnly leadingIcon={UserRound} aria-label="Participantes da conversa" title="Participantes e contexto" onClick={() => setSettingsOpen(true)} /><ChatUsageMeter chatName={title} model={activeModelDisplay} /></div>} members={tophs} />
       </div>}
