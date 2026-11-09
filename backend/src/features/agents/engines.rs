@@ -343,3 +343,83 @@ pub async fn install(id: &str) -> AppResult<Value> {
         },
     }))
 }
+
+/// Updates an installed harness in place. OpenCode carries its own upgrader;
+/// Claude Code uses `claude update`; Codex is installed through npm.
+pub async fn update(id: &str) -> AppResult<Value> {
+    let engine = engine(id)?;
+    let Some(path) = find_binary(engine.binary) else {
+        return Ok(json!({
+            "ok": false,
+            "installed": false,
+            "path": null,
+            "version": null,
+            "output": "",
+            "message": format!("{} não está instalado. Use Instalar primeiro.", engine.label),
+        }));
+    };
+    let mut command = match engine.id {
+        "opencode" => {
+            let mut command = Command::new(&path);
+            command.arg("upgrade");
+            command
+        }
+        "claude" => {
+            let mut command = Command::new(&path);
+            command.arg("update");
+            command
+        }
+        "codex" => {
+            let mut command = Command::new("sh");
+            command
+                .arg("-lc")
+                .arg("npm install -g @openai/codex@latest");
+            command
+        }
+        _ => {
+            return Ok(json!({
+                "ok": false,
+                "installed": true,
+                "path": path.display().to_string(),
+                "version": version(&path).await,
+                "output": "",
+                "message": format!("{} não tem atualização automática.", engine.label),
+            }));
+        }
+    };
+    let output = tokio::time::timeout(Duration::from_secs(600), command.output())
+        .await
+        .map_err(|_| bad_request("A atualização excedeu 10 minutos."))?
+        .map_err(AppError::Io)?;
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let combined = format!("{stdout}{stderr}");
+    let tail = if combined.chars().count() > 6000 {
+        combined
+            .chars()
+            .skip(combined.chars().count() - 6000)
+            .collect::<String>()
+    } else {
+        combined
+    };
+    let current = version(&path).await;
+    Ok(json!({
+        "ok": output.status.success(),
+        "installed": true,
+        "path": path.display().to_string(),
+        "version": current,
+        "output": tail,
+        "message": if output.status.success() {
+            match &current {
+                Some(version) => format!("{} atualizado: {version}", engine.label),
+                None => format!("{} atualizado.", engine.label),
+            }
+        } else {
+            format!(
+                "A atualização de {} falhou (código {}).",
+                engine.label,
+                output.status.code().unwrap_or(-1)
+            )
+        },
+    }))
+}

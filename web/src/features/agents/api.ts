@@ -49,6 +49,14 @@ export interface EngineInstall {
   output: string;
   message: string;
 }
+export interface EngineUpdate {
+  ok: boolean;
+  installed: boolean;
+  path?: string | null;
+  version?: string | null;
+  output: string;
+  message: string;
+}
 export interface UsageWindow {
   percent: number;
   limited: boolean;
@@ -94,6 +102,7 @@ export const engineApi = {
   list: () => request<EngineInfo[]>("/engines"),
   test: (id: string) => request<EngineTest>(`/engines/${encodeURIComponent(id)}/test`, post({})),
   install: (id: string) => request<EngineInstall>(`/engines/${encodeURIComponent(id)}/install`, post({})),
+  update: (id: string) => request<EngineUpdate>(`/engines/${encodeURIComponent(id)}/update`, post({})),
   limits: (id: string) => request<EngineLimits>(`/engines/${encodeURIComponent(id)}/limits`),
 };
 

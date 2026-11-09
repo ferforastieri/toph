@@ -13,6 +13,10 @@ pub(super) async fn install_engine(Path(id): Path<String>) -> AppResult<Json<Val
     Ok(Json(crate::features::agents::engines::install(&id).await?))
 }
 
+pub(super) async fn update_engine(Path(id): Path<String>) -> AppResult<Json<Value>> {
+    Ok(Json(crate::features::agents::engines::update(&id).await?))
+}
+
 pub(super) async fn engine_limits(Path(id): Path<String>) -> AppResult<Json<Value>> {
     Ok(Json(crate::features::agents::engines::limits(&id).await?))
 }

@@ -7,7 +7,7 @@ import ConnectionsHub from "../../providers/components/ConnectionsHub";
 import { Button } from "@/shared/boardui/base/buttons/button";
 import { cx } from "@/shared/boardui/utils/cx";
 
-type Busy = { id: string; action: "test" | "install" } | null;
+type Busy = { id: string; action: "test" | "install" | "update" } | null;
 
 interface Props {
   projectRoot?: string;
@@ -71,6 +71,30 @@ export default function HarnessSettings({ projectRoot }: Props) {
     }
   }
 
+  async function update(engine: EngineInfo) {
+    setBusy({ id: engine.id, action: "update" });
+    setError("");
+    try {
+      const result = await engineApi.update(engine.id);
+      setInstalls((current) => ({ ...current, [engine.id]: result.output || result.message }));
+      setTests((current) => ({
+        ...current,
+        [engine.id]: {
+          ok: result.ok,
+          installed: result.installed,
+          path: result.path ?? undefined,
+          version: result.version ?? undefined,
+          message: result.message,
+        },
+      }));
+      await refresh();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : `A atualização de ${engine.label} falhou.`);
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function copy(engine: EngineInfo) {
     try {
       await navigator.clipboard.writeText(engine.login);
@@ -98,7 +122,7 @@ export default function HarnessSettings({ projectRoot }: Props) {
             <p className="mt-0.5 text-caption-1-regular text-text-secondary">Conecte com a conta que você já usa. O login abre no seu terminal.</p>
           </div>
           <Button variant="ghost" size="small" leadingIcon={RefreshCw} onClick={() => void refresh()} disabled={loading || busy !== null}>
-            Atualizar
+            Recarregar
           </Button>
         </div>
 
@@ -140,6 +164,16 @@ export default function HarnessSettings({ projectRoot }: Props) {
                         <Button variant="secondary" size="small" disabled={working} leadingIcon={working && busy?.action === "test" ? LoaderCircle : Check} onClick={() => void test(engine)}>
                           {working && busy?.action === "test" ? "Testando…" : "Testar"}
                         </Button>
+                        <Button
+                          variant="ghost"
+                          size="small"
+                          iconOnly
+                          disabled={working}
+                          leadingIcon={working && busy?.action === "update" ? LoaderCircle : RefreshCw}
+                          aria-label={`Atualizar ${engine.label}`}
+                          title={`Atualizar ${engine.label}`}
+                          onClick={() => void update(engine)}
+                        />
                         <Button variant="ghost" size="small" iconOnly leadingIcon={copied === engine.id ? Check : Copy} aria-label={`Copiar login de ${engine.label}`} title={`Copiar: ${engine.login}`} onClick={() => void copy(engine)} />
                       </>
                     ) : (

@@ -400,11 +400,15 @@ pub(super) async fn git_blame(
 pub(super) async fn list_repos(
     State(state): State<Arc<AppState>>,
     Query(query): Query<HashMap<String, String>>,
-) -> Json<Value> {
-    let repos = state
-        .workspace
-        .find_repos(query.get("q").map(String::as_str).unwrap_or(""), 50);
-    Json(json!({ "repos": repos }))
+) -> AppResult<Json<Value>> {
+    let workspace = state.workspace.clone();
+    let search = query.get("q").cloned().unwrap_or_default();
+    // Walking the workspace is synchronous; keep it off the async runtime so a
+    // large repository tree cannot stall the rest of the API.
+    let repos = tokio::task::spawn_blocking(move || workspace.find_repos(&search, 500))
+        .await
+        .map_err(|error| crate::errors::internal(error.to_string()))?;
+    Ok(Json(json!({ "repos": repos })))
 }
 
 pub(super) async fn list_workspace_roots(State(state): State<Arc<AppState>>) -> Json<Value> {

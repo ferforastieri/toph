@@ -375,14 +375,18 @@ impl WorkspaceService {
     }
 
     pub fn find_repos(&self, query: &str, limit: usize) -> Vec<Repository> {
-        let limit = if limit == 0 || limit > 200 { 50 } else { limit };
+        let limit = if limit == 0 || limit > 500 {
+            200
+        } else {
+            limit
+        };
         let needle = query.trim().to_lowercase();
         let mut seen = std::collections::HashSet::new();
         let mut repos = Vec::new();
         for root in self.roots() {
             for entry in WalkDir::new(&root)
                 .follow_links(false)
-                .max_depth(7)
+                .max_depth(5)
                 .into_iter()
                 .filter_entry(|entry| {
                     entry.depth() == 0
