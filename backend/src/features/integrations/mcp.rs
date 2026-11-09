@@ -51,6 +51,102 @@ pub struct Server {
 fn default_timeout() -> u64 {
     120
 }
+
+/// The model usually knows an MCP server by its display name, while the Toph
+/// profile stores the server id. Compare both, ignoring case, spacing and
+/// punctuation, so `Jira (Atlassian)`, `jira atlassian` and the id all reach
+/// the same server.
+fn fold(value: &str) -> String {
+    let mut text = String::new();
+    for character in value.chars() {
+        if character.is_alphanumeric() {
+            text.extend(character.to_lowercase());
+        } else {
+            text.push(' ');
+        }
+    }
+    text.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+fn is_selected(ids: &[String], server: &Server) -> bool {
+    ids.iter()
+        .any(|value| value == &server.id || fold(value) == fold(&server.name))
+}
+
+/// Picks one server from the Toph's allowed servers. Accepts the id, the exact
+/// name, or unique words from the name (`atlassian` for `Jira (Atlassian)`).
+fn pick<'a>(servers: &[&'a Server], requested: &str) -> Result<&'a Server, String> {
+    let available = || {
+        servers
+            .iter()
+            .map(|server| server.name.as_str())
+            .collect::<Vec<_>>()
+            .join(", ")
+    };
+    if servers.is_empty() {
+        return Err("No MCP server is selected for this Toph.".into());
+    }
+    let requested = requested.trim();
+    if requested.is_empty() {
+        return if servers.len() == 1 {
+            Ok(servers[0])
+        } else {
+            Err(format!(
+                "MCP server is required. Available: {}",
+                available()
+            ))
+        };
+    }
+    if let Some(server) = servers.iter().find(|server| server.id == requested) {
+        return Ok(server);
+    }
+    let wanted = fold(requested);
+    let exact = servers
+        .iter()
+        .filter(|server| fold(&server.id) == wanted || fold(&server.name) == wanted)
+        .copied()
+        .collect::<Vec<_>>();
+    if exact.len() == 1 {
+        return Ok(exact[0]);
+    }
+    if exact.len() > 1 {
+        return Err(format!(
+            "MCP server \"{requested}\" is ambiguous. Use the exact name: {}",
+            exact
+                .iter()
+                .map(|server| server.name.as_str())
+                .collect::<Vec<_>>()
+                .join(", ")
+        ));
+    }
+    let words = wanted.split_whitespace().collect::<Vec<_>>();
+    let partial = servers
+        .iter()
+        .filter(|server| {
+            let name = fold(&server.name);
+            let name_words = name.split_whitespace().collect::<Vec<_>>();
+            !words.is_empty() && words.iter().all(|word| name_words.contains(word))
+        })
+        .copied()
+        .collect::<Vec<_>>();
+    if partial.len() == 1 {
+        return Ok(partial[0]);
+    }
+    if partial.len() > 1 {
+        return Err(format!(
+            "MCP server \"{requested}\" is ambiguous. Use the exact name: {}",
+            partial
+                .iter()
+                .map(|server| server.name.as_str())
+                .collect::<Vec<_>>()
+                .join(", ")
+        ));
+    }
+    Err(format!(
+        "MCP server \"{requested}\" is not selected for this Toph. Available: {}",
+        available()
+    ))
+}
 #[derive(Clone)]
 pub struct Service {
     store: Store,
@@ -105,6 +201,26 @@ impl Service {
     }
     pub async fn list(&self) -> AppResult<Value> {
         Ok(json!(self.servers().await?.iter().map(|s|json!({"id":s.id,"name":s.name,"transport":s.transport,"url":s.url,"command":s.command,"hasToken":!s.token.is_empty(),"envKeys":s.env.keys().collect::<Vec<_>>(),"timeoutSeconds":s.timeout_seconds,"autoApprove":s.auto_approve})).collect::<Vec<_>>()))
+    }
+    /// Id and display name of the MCP servers selected for one Toph.
+    pub async fn selected(&self, ids: &[String]) -> AppResult<Vec<(String, String)>> {
+        Ok(self
+            .servers()
+            .await?
+            .into_iter()
+            .filter(|server| is_selected(ids, server))
+            .map(|server| (server.id, server.name))
+            .collect())
+    }
+    /// Resolve what the model called (`server`) to a configured server the
+    /// Toph may use. Accepts the id, the display name or a unique word from it.
+    pub async fn resolve(&self, ids: &[String], requested: &str) -> AppResult<Server> {
+        let servers = self.servers().await?;
+        let allowed = servers
+            .iter()
+            .filter(|server| is_selected(ids, server))
+            .collect::<Vec<_>>();
+        pick(&allowed, requested).cloned().map_err(bad_request)
     }
     pub async fn save(&self, mut server: Server) -> AppResult<Server> {
         if server.name.trim().is_empty() {
@@ -342,6 +458,18 @@ impl Link {
                 .send()
                 .await
                 .map_err(|e| AppError::Upstream(e.to_string()))?;
+            if response.status() == reqwest::StatusCode::UNAUTHORIZED {
+                return Err(bad_request(format!(
+                    "MCP server \"{}\" rejected its token (401 Unauthorized). Update the token in Connections and try again.",
+                    self.server.name
+                )));
+            }
+            if response.status() == reqwest::StatusCode::FORBIDDEN {
+                return Err(bad_request(format!(
+                    "MCP server \"{}\" denied access (403 Forbidden). Check the token permissions.",
+                    self.server.name
+                )));
+            }
             if !response.status().is_success() {
                 return Err(AppError::Upstream(format!(
                     "MCP returned {}",
@@ -404,5 +532,63 @@ impl Link {
             .get("result")
             .cloned()
             .ok_or_else(|| bad_request("MCP response has no result"))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn server(id: &str, name: &str) -> Server {
+        Server {
+            id: id.into(),
+            name: name.into(),
+            transport: "http".into(),
+            url: "https://example.test/mcp".into(),
+            command: vec![],
+            env: HashMap::new(),
+            token: String::new(),
+            timeout_seconds: 120,
+            auto_approve: false,
+        }
+    }
+
+    #[test]
+    fn resolves_by_id_exact_name_and_unique_word() {
+        let jira = server("R6IMzjZV2sgbWwCO", "Jira (Atlassian)");
+        let engines = [&jira];
+        assert_eq!(pick(&engines, "R6IMzjZV2sgbWwCO").unwrap().id, jira.id);
+        assert_eq!(pick(&engines, "Jira (Atlassian)").unwrap().id, jira.id);
+        assert_eq!(pick(&engines, "jira").unwrap().id, jira.id);
+        assert_eq!(pick(&engines, "Atlassian").unwrap().id, jira.id);
+        assert_eq!(pick(&engines, "").unwrap().id, jira.id);
+    }
+
+    #[test]
+    fn rejects_unknown_names_with_the_available_list() {
+        let jira = server("jira-id", "Jira (Atlassian)");
+        let engines = [&jira];
+        let error = pick(&engines, "stripe").err().unwrap();
+        assert!(error.contains("not selected"));
+        assert!(error.contains("Jira (Atlassian)"));
+    }
+
+    #[test]
+    fn rejects_ambiguous_partial_names() {
+        let prod = server("a", "Jira Produção");
+        let qa = server("b", "Jira Homologação");
+        let engines = [&prod, &qa];
+        let error = pick(&engines, "jira").err().unwrap();
+        assert!(error.contains("ambiguous"));
+        assert!(error.contains("Jira Produção"));
+        assert!(error.contains("Jira Homologação"));
+    }
+
+    #[test]
+    fn selection_accepts_ids_and_names() {
+        let jira = server("jira-id", "Jira (Atlassian)");
+        assert!(is_selected(&["jira-id".into()], &jira));
+        assert!(is_selected(&["Jira (Atlassian)".into()], &jira));
+        assert!(!is_selected(&["stripe-id".into()], &jira));
     }
 }

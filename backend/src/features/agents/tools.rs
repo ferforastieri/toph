@@ -28,6 +28,47 @@ fn mcp_definition(name: &str, description: &str, properties: Value, required: &[
     json!({"name":name,"description":description,"inputSchema":{"type":"object","properties":properties,"required":required,"additionalProperties":false}})
 }
 
+/// A full `tools/list` payload easily passes 50 KB per server. The model only
+/// needs names, a short description and the argument names to pick and call a
+/// tool, so keep the listing compact instead of turning every list into an
+/// artifact the model then struggles to read back.
+fn compact_mcp_tools(value: &Value) -> Value {
+    let tools = value["tools"]
+        .as_array()
+        .map(|tools| {
+            tools
+                .iter()
+                .map(|tool| {
+                    let description = tool["description"]
+                        .as_str()
+                        .unwrap_or("")
+                        .lines()
+                        .next()
+                        .unwrap_or("")
+                        .chars()
+                        .take(240)
+                        .collect::<String>();
+                    let arguments = tool["inputSchema"]["properties"]
+                        .as_object()
+                        .map(|properties| properties.keys().cloned().collect::<Vec<_>>())
+                        .unwrap_or_default();
+                    let required = tool["inputSchema"]["required"]
+                        .as_array()
+                        .cloned()
+                        .unwrap_or_default();
+                    json!({
+                        "name": tool["name"],
+                        "description": description,
+                        "arguments": arguments,
+                        "required": required,
+                    })
+                })
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    json!({"count": tools.len(), "tools": tools})
+}
+
 /// Tools exposed to the external CLI through the local MCP gateway. The CLI's
 /// built-in tools are disabled; these are the only actions it can take.
 pub fn gateway_definitions(
@@ -74,15 +115,15 @@ pub fn gateway_definitions(
     if !agent.mcp_servers.is_empty() {
         tools.push(mcp_definition(
             "mcp_list",
-            "List the tools exposed by an MCP server selected for this Toph.",
+            "List the tools exposed by one MCP server selected for this Toph. Pass the server name exactly as shown in your MCP instructions, or its id. When only one server is selected, the name may be omitted.",
             json!({"server":string()}),
-            &["server"],
+            &[],
         ));
         tools.push(mcp_definition(
             "mcp_call",
-            "Call one tool on an MCP server selected for this Toph.",
+            "Call one tool on an MCP server selected for this Toph. Pass the server name exactly as shown in your MCP instructions, or its id.",
             json!({"server":string(),"tool":string(),"arguments":{"type":"object"}}),
-            &["server", "tool"],
+            &["tool"],
         ));
     }
     if !agent.email_account_ids.is_empty() {
@@ -427,14 +468,13 @@ impl Tools {
                 Ok(json!({"text":String::from_utf8_lossy(&bytes),"truncated":truncated}))
             }
             "mcp_list" | "mcp_call" => {
-                let server = text(args, "server")?;
-                if !ctx.agent.mcp_servers.iter().any(|s| s == server) {
-                    return Err(AppError::Forbidden);
-                }
-                self.mcp
+                let requested = args.get("server").and_then(Value::as_str).unwrap_or("");
+                let server = self.mcp.resolve(&ctx.agent.mcp_servers, requested).await?;
+                let value = self
+                    .mcp
                     .call(
                         &ctx.root,
-                        server,
+                        &server.id,
                         if name == "mcp_list" {
                             "tools/list"
                         } else {
@@ -446,7 +486,12 @@ impl Tools {
                             json!({"name":text(args,"tool")?,"arguments":args["arguments"]})
                         },
                     )
-                    .await
+                    .await?;
+                if name == "mcp_list" {
+                    Ok(compact_mcp_tools(&value))
+                } else {
+                    Ok(value)
+                }
             }
             _ => Err(bad_request(format!("Unknown tool: {name}"))),
         }
@@ -524,5 +569,38 @@ pub async fn shell(
             .map_err(|_| bad_request(format!("Command timed out after {ms}ms")))?
             .map_err(AppError::Io),
         None => wait.await.map_err(AppError::Io),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn mcp_list_is_compact_but_keeps_the_callable_shape() {
+        let full = json!({"tools": [{
+            "name": "getJiraIssue",
+            "title": "Get Jira issue",
+            "description": "Returns one issue.\nSecond line that should not survive.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {"cloudId": {"type": "string"}, "issueIdOrKey": {"type": "string"}},
+                "required": ["cloudId", "issueIdOrKey"]
+            },
+            "annotations": {"readOnlyHint": true}
+        }]});
+        let compact = compact_mcp_tools(&full);
+        assert_eq!(compact["count"], 1);
+        assert_eq!(compact["tools"][0]["name"], "getJiraIssue");
+        assert_eq!(compact["tools"][0]["description"], "Returns one issue.");
+        assert_eq!(
+            compact["tools"][0]["arguments"],
+            json!(["cloudId", "issueIdOrKey"])
+        );
+        assert_eq!(
+            compact["tools"][0]["required"],
+            json!(["cloudId", "issueIdOrKey"])
+        );
+        assert!(compact["tools"][0].get("inputSchema").is_none());
     }
 }

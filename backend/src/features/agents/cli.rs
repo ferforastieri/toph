@@ -11,9 +11,9 @@ use crate::errors::{bad_request, AppResult};
 
 use super::models::AgentSpec;
 
-/// A stable empty working directory per Toph session. OpenCode stores the
-/// session's cwd, so deleting it between turns makes a resumed session fail
-/// with "Location not found". It is cleaned only when the team is deleted.
+/// A stable private home/config directory per Toph session. The engine now runs
+/// in the project itself, but OpenCode still needs a fixed home whose config
+/// survives resumed turns. It is cleaned only when the team is deleted.
 pub fn work_dir(session_id: &str) -> PathBuf {
     let safe: String = session_id
         .chars()
@@ -487,7 +487,7 @@ pub async fn run_opencode<F>(
     prompt: &str,
     gateway: &str,
     session_id: &str,
-    cwd: &Path,
+    project: &Path,
     cancel: &CancellationToken,
     mut on_text: F,
 ) -> AppResult<(String, CliUsage)>
@@ -495,7 +495,11 @@ where
     F: FnMut(&str),
 {
     let config = opencode_config(model, system, gateway);
-    let config_home = cwd.join(".config");
+    // The engine runs inside the project so its reported workspace is the real
+    // one. Its private home/config stays in a stable temp directory; project
+    // config files are ignored so only the generated gateway config applies.
+    let home = work_dir(session_id);
+    let config_home = home.join(".config");
     let config_dir = config_home.join("opencode");
     tokio::fs::create_dir_all(&config_dir).await?;
     let config_path = config_dir.join("opencode.json");
@@ -527,10 +531,11 @@ where
         .arg("-m")
         .arg(model)
         .arg(prompt)
-        .current_dir(cwd)
+        .current_dir(project)
         .env("OPENCODE_CONFIG_CONTENT", config.to_string())
         .env("OPENCODE_CONFIG", &config_path)
-        .env("HOME", cwd)
+        .env("OPENCODE_CONFIG_PROJECT_DISABLE", "1")
+        .env("HOME", &home)
         .env("XDG_CONFIG_HOME", &config_home)
         .env("XDG_DATA_HOME", data_home)
         .stdin(Stdio::null())

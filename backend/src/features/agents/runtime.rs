@@ -1149,6 +1149,7 @@ Trabalhe no projeto atual. Para concluir uma alteração, rode os testes ou o bu
                     "tools": gateway_tools,
                     "agentMode": ctx.agent.agent_mode,
                     "permissionMode": ctx.agent.permission_mode,
+                    "root": ctx.root.display().to_string(),
                 })
                 .to_string(),
             );
@@ -1234,7 +1235,7 @@ Trabalhe no projeto atual. Para concluir uma alteração, rode os testes ou o bu
                         &prompt,
                         &gateway_url,
                         &plan.as_ref().map(|plan| plan.id.as_str()).unwrap_or(""),
-                        &work,
+                        &ctx.root,
                         cancel,
                         &mut on_text,
                     )
@@ -1386,6 +1387,23 @@ Trabalhe no projeto atual. Para concluir uma alteração, rode os testes ou o bu
             );
             for skill in &ctx.skills {
                 extra.push_str(&format!("- {}: {}\n", skill.name, skill.description));
+            }
+        }
+        if !ctx.agent.mcp_servers.is_empty() {
+            let servers = self
+                .inner
+                .tools
+                .mcp
+                .selected(&ctx.agent.mcp_servers)
+                .await
+                .unwrap_or_default();
+            if !servers.is_empty() {
+                extra.push_str(
+                    "\n## Integrações MCP\nEstes são os únicos servidores MCP ligados a você. Para ver as ferramentas de um servidor, chame `mcp_list` com `server` igual ao nome exato (ou ao id). Para usar uma ferramenta, chame `mcp_call` com `server`, `tool` e `arguments`. Não invente nomes de servidor nem use servidores de outros aplicativos.\n",
+                );
+                for (id, name) in servers {
+                    extra.push_str(&format!("- {name} (id `{id}`)\n"));
+                }
             }
         }
         if ctx.routed.len() > 1 {
