@@ -171,7 +171,10 @@ header .btn img { width: 14px; height: 14px; opacity: .8; }
 @keyframes sun { to { transform: rotate(360deg); } }
 .mate { position: absolute; display: flex; align-items: center; gap: 9px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 14px; background: rgba(12,11,9,.92); box-shadow: 0 18px 35px -20px #000; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
 .mate-avatar { display: grid; place-items: center; flex: none; width: 34px; height: 34px; border-radius: 50%; background: radial-gradient(circle at 50% 40%, #2A241B, #12110F 72%); border: 1px solid var(--line); }
-.mate-avatar img { width: 29px; height: 29px; object-fit: contain; }
+.mate-face { position: relative; display: block; width: 29px; height: 29px; }
+.mate-body { width: 29px; height: 29px; object-fit: contain; }
+.mate-eye { position: absolute; inset: 0; display: block; pointer-events: none; transform: translate3d(var(--look-x, 0px), var(--look-y, 0px), 0); transition: transform 70ms linear; -webkit-mask-image: radial-gradient(ellipse var(--mrx) var(--mry) at var(--mx) var(--my), #000 52%, transparent 100%); mask-image: radial-gradient(ellipse var(--mrx) var(--mry) at var(--mx) var(--my), #000 52%, transparent 100%); }
+.mate-eye img { width: 100%; height: 100%; object-fit: contain; }
 .mate b { display: block; font: 600 12px/1.1 var(--display); }
 .mate small { display: block; margin-top: 3px; color: var(--faint); font: 500 9px/1 var(--mono); letter-spacing: .07em; text-transform: uppercase; }
 .mate-leo { left: -5%; top: 10%; animation: float 8s ease-in-out infinite; }
@@ -353,16 +356,16 @@ header .btn img { width: 14px; height: 14px; opacity: .8; }
       <div class="hero-halo"></div>
       <div class="hero-orbit" aria-hidden="true"><i class="orbit-node n1"></i><i class="orbit-node n2"></i><i class="orbit-node n3"></i></div>
       <div class="hero-mark-card">
-        <span class="hero-face">
-          <img class="hero-face-body" src="assets/brand/toph-mark.png" alt="">
+        <span class="hero-face" data-look data-look-max="8">
+          <img class="hero-face-body" src="assets/brand/toph-mark-eyeless.png" alt="">
           <span class="hero-eye hero-eye-left"><img src="assets/brand/toph-mark.png" alt=""></span>
           <span class="hero-eye hero-eye-right"><img src="assets/brand/toph-mark.png" alt=""></span>
         </span>
       </div>
-      <div class="mate mate-leo"><span class="mate-avatar"><img src="assets/tophs/leo.png" alt=""></span><div><b>Leo</b><small data-i18n="face.dev">Dev</small></div></div>
-      <div class="mate mate-nico"><span class="mate-avatar"><img src="assets/tophs/nico.png" alt=""></span><div><b>Nico</b><small data-i18n="face.reviewer">Revisor</small></div></div>
-      <div class="mate mate-nova"><span class="mate-avatar"><img src="assets/tophs/nova.png" alt=""></span><div><b>Nova</b><small data-i18n="face.product">Produto</small></div></div>
-      <div class="mate mate-bia"><span class="mate-avatar"><img src="assets/tophs/bia.png" alt=""></span><div><b>Bia</b><small data-i18n="face.data">Dados</small></div></div>
+      <div class="mate mate-leo"><span class="mate-avatar"><span class="mate-face" data-look data-look-max="3"><img class="mate-body" src="assets/tophs/leo-eyeless.png" alt=""><span class="mate-eye" style="--mx:39.8%;--my:50.8%;--mrx:8.2%;--mry:10.6%"><img src="assets/tophs/leo.png" alt=""></span><span class="mate-eye" style="--mx:60.5%;--my:50.8%;--mrx:8.2%;--mry:10.6%"><img src="assets/tophs/leo.png" alt=""></span></span></span><div><b>Leo</b><small data-i18n="face.dev">Dev</small></div></div>
+      <div class="mate mate-nico"><span class="mate-avatar"><span class="mate-face" data-look data-look-max="3"><img class="mate-body" src="assets/tophs/nico-eyeless.png" alt=""><span class="mate-eye" style="--mx:40.2%;--my:46.3%;--mrx:8.2%;--mry:10.7%"><img src="assets/tophs/nico.png" alt=""></span><span class="mate-eye" style="--mx:59.8%;--my:46.7%;--mrx:8.2%;--mry:10.7%"><img src="assets/tophs/nico.png" alt=""></span></span></span><div><b>Nico</b><small data-i18n="face.reviewer">Revisor</small></div></div>
+      <div class="mate mate-nova"><span class="mate-avatar"><span class="mate-face" data-look data-look-max="3"><img class="mate-body" src="assets/tophs/nova-eyeless.png" alt=""><span class="mate-eye" style="--mx:38.3%;--my:47.5%;--mrx:8.6%;--mry:11.1%"><img src="assets/tophs/nova.png" alt=""></span><span class="mate-eye" style="--mx:60.5%;--my:47.7%;--mrx:9%;--mry:11.3%"><img src="assets/tophs/nova.png" alt=""></span></span></span><div><b>Nova</b><small data-i18n="face.product">Produto</small></div></div>
+      <div class="mate mate-bia"><span class="mate-avatar"><span class="mate-face" data-look data-look-max="3"><img class="mate-body" src="assets/tophs/bia-eyeless.png" alt=""><span class="mate-eye" style="--mx:38.5%;--my:51%;--mrx:8%;--mry:10.7%"><img src="assets/tophs/bia.png" alt=""></span><span class="mate-eye" style="--mx:61.9%;--my:51%;--mrx:8%;--mry:10.7%"><img src="assets/tophs/bia.png" alt=""></span></span></span><div><b>Bia</b><small data-i18n="face.data">Dados</small></div></div>
       <div class="hero-art-badge"><i></i><b data-i18n="wb.badge">2 Tophs</b> <span data-i18n="wb.badgeText">na mesma tarefa</span></div>
     </div>
   </div>
@@ -994,27 +997,32 @@ window.addEventListener('scroll', onScrollPaint, { passive: true });
 window.addEventListener('resize', onScrollPaint, { passive: true });
 paintScroll();
 
-const face = document.querySelector('.hero-face');
-if (face && !window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches) {
+const faces = [...document.querySelectorAll('[data-look]')];
+if (faces.length && !window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches) {
   let frame = 0;
   let point = { x: 0, y: 0 };
   const reset = () => {
     if (frame) cancelAnimationFrame(frame);
     frame = 0;
-    face.style.setProperty('--look-x', '0px');
-    face.style.setProperty('--look-y', '0px');
+    for (const face of faces) {
+      face.style.setProperty('--look-x', '0px');
+      face.style.setProperty('--look-y', '0px');
+    }
   };
   const paintLook = () => {
     frame = 0;
-    const rect = face.getBoundingClientRect();
-    if (!rect.width) return;
-    const dx = point.x - (rect.left + rect.width / 2);
-    const dy = point.y - (rect.top + rect.height / 2);
-    const distance = Math.hypot(dx, dy) || 1;
-    const travel = Math.min(12, Math.max(3, rect.width * 0.035));
-    const strength = Math.min(1, distance / 240);
-    face.style.setProperty('--look-x', `${(dx / distance * travel * strength).toFixed(2)}px`);
-    face.style.setProperty('--look-y', `${(dy / distance * travel * 0.65 * strength).toFixed(2)}px`);
+    for (const face of faces) {
+      const rect = face.getBoundingClientRect();
+      if (!rect.width) continue;
+      const dx = point.x - (rect.left + rect.width / 2);
+      const dy = point.y - (rect.top + rect.height / 2);
+      const distance = Math.hypot(dx, dy) || 1;
+      const max = Number(face.dataset.lookMax) || 8;
+      const travel = Math.min(max, Math.max(1, rect.width * (rect.width < 100 ? 0.09 : 0.03)));
+      const strength = Math.min(1, distance / 240);
+      face.style.setProperty('--look-x', `${(dx / distance * travel * strength).toFixed(2)}px`);
+      face.style.setProperty('--look-y', `${(dy / distance * travel * 0.65 * strength).toFixed(2)}px`);
+    }
   };
   window.addEventListener('pointermove', (event) => {
     if (event.pointerType === 'touch') return;
