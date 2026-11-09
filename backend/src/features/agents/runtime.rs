@@ -342,6 +342,41 @@ impl Runtime {
         if input.attachments.iter().map(|a| a.uri.len()).sum::<usize>() > 12 * 1024 * 1024 {
             return Err(AppError::TooLarge);
         }
+        // A new message supersedes any run still active in this chat. Waiting
+        // for the cancellation keeps the new user bubble after the previous
+        // run's final output instead of above it.
+        let active: Vec<String> = sqlx::query_scalar(
+            "SELECT id FROM agent_runs WHERE user_id=? AND project_id=? AND chat_id=? AND state IN ('queued','running','waiting')",
+        )
+        .bind(user)
+        .bind(project)
+        .bind(&input.chat_id)
+        .fetch_all(self.inner.repo.0.pool())
+        .await?;
+        if !active.is_empty() {
+            {
+                let runs = self.inner.runs.lock().unwrap();
+                for id in &active {
+                    if let Some(token) = runs.get(id) {
+                        token.cancel();
+                    }
+                }
+            }
+            for _ in 0..50 {
+                let remaining: i64 = sqlx::query_scalar::<_, i64>(
+                    "SELECT COUNT(*) FROM agent_runs WHERE user_id=? AND project_id=? AND chat_id=? AND state IN ('queued','running','waiting')",
+                )
+                .bind(user)
+                .bind(project)
+                .bind(&input.chat_id)
+                .fetch_one(self.inner.repo.0.pool())
+                .await?;
+                if remaining == 0 {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(100)).await;
+            }
+        }
         let mut ids = std::collections::HashSet::new();
         let mut handles = std::collections::HashSet::new();
         for agent in &input.agents {

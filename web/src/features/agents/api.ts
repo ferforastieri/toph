@@ -76,7 +76,7 @@ export interface EngineLimits {
 const root = (project: string) => `/projects/${encodeURIComponent(project)}/agent`;
 const post = (body: unknown): RequestInit => ({ method: "POST", body: JSON.stringify(body) });
 export const agentApi = {
-  start: (project: string, input: { requestId: string; chatId: string; chatDescription?: string; agentId: string; text: string; agents: Array<ChatToph & { chatId: string }>; attachments?: AgentAttachment[] }) => request<AgentRun>(`${root(project)}/runs`, post(input)),
+  start: (project: string, input: { requestId: string; chatId: string; chatDescription?: string; agentId: string; text: string; agents: Array<ChatToph & { chatId: string }>; attachments?: AgentAttachment[] }) => request<AgentRun>(`${root(project)}/runs`, { ...post(input), signal: AbortSignal.timeout(120_000) }),
   cancel: (project: string, run: string) => request(`${root(project)}/runs/${encodeURIComponent(run)}/cancel`, post({})),
   cancelAgent: (project: string, agentId: string) => request(`${root(project)}/cancel`, post({ agentId })),
   deleteChat: (project: string, chatId: string) => request(`${root(project)}/chats/${encodeURIComponent(chatId)}`, { method: "DELETE" }),

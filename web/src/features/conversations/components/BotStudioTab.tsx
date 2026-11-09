@@ -5,7 +5,7 @@ import { ApiError } from "../../../shared/api";
 import { chatDisplayName, chatTophs, useChats } from "../store";
 import { findModel, useAI } from "../../providers/store";
 import { useTophDrafts } from "../../agents/drafts";
-import { agentApi, isActive } from "../../agents/api";
+import { agentApi, isActive, type NativeMessage } from "../../agents/api";
 import { useAgentChat } from "../../agents/useAgentChat";
 import { AgentComposer, type AgentAttachment } from "./AgentComposer";
 import ChatMessages from "./ChatMessages";
@@ -71,8 +71,8 @@ export default function BotStudioTab({ project, conversationId, mobile = false, 
     }
   }, [native.messages.length]);
 
-  const pendingSend = useRef<{ value: string; attachments: AgentAttachment[] } | null>(null);
   const sendNowRef = useRef<(value: string, attachments: AgentAttachment[]) => Promise<void>>(async () => undefined);
+  const [optimistic, setOptimistic] = useState<NativeMessage | null>(null);
 
   async function sendNow(value: string, attachments: AgentAttachment[]) {
     if (!chat || !tophs.length || sendLock.current) return;
@@ -89,6 +89,16 @@ export default function BotStudioTab({ project, conversationId, mobile = false, 
     const identity = JSON.stringify([chat.id, "router", value, attachments, tophs.map((toph) => toph.id)]);
     const requestId = pendingRequest.current?.text === identity ? pendingRequest.current.id : Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, "0")).join("");
     pendingRequest.current = { text: identity, id: requestId };
+    setOptimistic({
+      id: `optimistic-${requestId}`,
+      chatId: chat.id,
+      tophId: tophs[0]?.id,
+      role: "user",
+      content: value,
+      status: "running",
+      createdAt: Date.now(),
+      seq: 9_000_000_000,
+    });
     try {
       await agentApi.start(project.id, { requestId, chatId: chat.id, chatDescription: chat.description, agentId: "router", text: value, agents: tophs.map((toph) => ({ ...toph, chatId: chat.id })), attachments });
       pendingRequest.current = null; clearDraft(draftKey); await native.refresh();
@@ -99,31 +109,14 @@ export default function BotStudioTab({ project, conversationId, mobile = false, 
           : e instanceof Error ? e.message : "Não foi possível iniciar a execução",
       );
     }
-    finally { sendLock.current = false; setSending(false); }
+    finally { setOptimistic(null); sendLock.current = false; setSending(false); }
   }
   sendNowRef.current = sendNow;
 
   async function send(value: string, attachments: AgentAttachment[]) {
     if (!chat || !tophs.length) return;
-    if (busy) {
-      // Stop the current run, wait for it to settle, then send this message.
-      // Inserting the new message before the old run's last output would put
-      // it above that output in the transcript.
-      pendingSend.current = { value, attachments };
-      native.setError("");
-      clearDraft(draftKey);
-      await stop();
-      return;
-    }
     await sendNowRef.current(value, attachments);
   }
-
-  useEffect(() => {
-    if (busy || !pendingSend.current) return;
-    const pending = pendingSend.current;
-    pendingSend.current = null;
-    void sendNowRef.current(pending.value, pending.attachments);
-  }, [busy]);
   async function stop() {
     try { await Promise.all(native.runs.filter(isActive).map((run) => agentApi.cancel(project.id, run.id))); }
     catch (e) { native.setError(e instanceof Error ? e.message : "Falha ao cancelar"); }
@@ -163,7 +156,7 @@ export default function BotStudioTab({ project, conversationId, mobile = false, 
             {!stored?.hydrated ? <div className="my-auto flex items-center justify-center gap-2 py-8 text-caption-1-regular text-text-tertiary"><LoaderCircle size={16} className="animate-spin" /> Carregando conversas…</div>
               : !tophs.length ? <div className="my-auto flex flex-col items-center gap-3 px-6 py-10 text-center"><span className="flex size-12 items-center justify-center rounded-2xl bg-accent-500/10 text-accent-500"><Bot size={22} /></span><strong className="text-title-3-medium">Esta conversa ficou sem Tophs.</strong><p className="max-w-sm text-caption-1-regular text-text-secondary">Adicione um Toph nas configurações da conversa.</p></div>
               : !native.messages.length && !busy ? <div className="my-auto flex flex-col items-center gap-3 px-6 py-10 text-center"><div className="flex -space-x-2">{tophs.slice(0, 4).map((toph) => <BotAvatar key={toph.id} bot={toph} size={38} className="rounded-full bg-background-primary-default ring-2 ring-background-primary-default" />)}</div><strong className="text-title-3-medium">{tophs.length === 1 ? `Escreva para ${tophs[0].name}.` : "Escreva para o grupo."}</strong><p className="max-w-md text-caption-1-regular text-text-secondary">{tophs.length === 1 ? "Pergunte, peça uma alteração ou anexe um arquivo. Cada tarefa tem o próprio histórico." : "Quem estiver na conversa responde. Para chamar alguém em especial, use @."}</p></div> : null}
-            <ChatMessages messages={native.messages} tophs={tophs} runs={native.runs} project={project} mobile={mobile} compact={compact} questions={native.questions} onAnswer={(id, answer) => { void agentApi.answer(project.id, id, answer).catch((e) => native.setError(String(e))); }} />
+            <ChatMessages messages={optimistic ? [...native.messages, optimistic] : native.messages} tophs={tophs} runs={native.runs} project={project} mobile={mobile} compact={compact} questions={native.questions} onAnswer={(id, answer) => { void agentApi.answer(project.id, id, answer).catch((e) => native.setError(String(e))); }} />
             {native.approvals.map((approval) => <ApprovalCard key={approval.id} agentName={tophs.find((a) => a.id === approval.agentId)?.name ?? "Toph"} name={approval.name} arguments={approval.arguments} onApprove={() => void agentApi.approve(project.id, approval.id, true).catch((e) => native.setError(String(e)))} onReject={() => void agentApi.approve(project.id, approval.id, false).catch((e) => native.setError(String(e)))} />)}
             {native.compacting && <p role="status" className="text-center text-caption-2-regular text-text-tertiary">Compactando contexto; histórico preservado…</p>}
             {(native.error || lastError) && <p role="alert" className="rounded-xl border border-red-500/30 p-3 text-sm text-red-500">{native.error || `Última execução: ${lastError}`}</p>}
