@@ -71,7 +71,7 @@ export default function MobileTopBar({
           >
             <ProjectTophAvatar project={project} size={26} showInitial />
             {unreadCount > 0 ? (
-              <NotificationBadge count={unreadCount} size={16} tone="light" className="absolute -bottom-1 -end-1 z-10" />
+              <NotificationBadge count={unreadCount} size={16} tone="light" className="absolute -top-1 -end-1 z-10" />
             ) : null}
           </button>
           {onClose ? (

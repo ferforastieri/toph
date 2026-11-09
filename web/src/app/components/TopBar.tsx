@@ -355,7 +355,7 @@ export function ProjectRail({ onOpenProject, onCloseProject, onGoHome, onQuickOp
                     event.stopPropagation();
                     onCloseProject(project.id);
                   }}
-                  className="pointer-events-none absolute -bottom-1 -end-1 z-10 flex size-4 items-center justify-center rounded-full bg-background-primary-default text-status-rose-text opacity-0 shadow-sm transition-opacity hover:bg-status-rose-background focus-visible:pointer-events-auto focus-visible:opacity-100 focus-visible:outline-none group-hover:pointer-events-auto group-hover:opacity-100"
+                  className="pointer-events-none absolute -bottom-1 -start-1 z-10 flex size-4 items-center justify-center rounded-full bg-background-primary-default text-status-rose-text opacity-0 shadow-sm transition-opacity hover:bg-status-rose-background focus-visible:pointer-events-auto focus-visible:opacity-100 focus-visible:outline-none group-hover:pointer-events-auto group-hover:opacity-100"
                   aria-label={`Fechar ${project.name}`}
                   title={`Fechar ${project.name}`}
                 >
