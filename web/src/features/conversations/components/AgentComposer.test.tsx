@@ -38,6 +38,24 @@ describe("AgentComposer actions", () => {
     expect(send).toHaveClass("bg-button-primary");
   });
 
+  it("keeps the microphone next to the send button", () => {
+    render(
+      <AgentComposer
+        value="Olá"
+        onChange={vi.fn()}
+        onSend={vi.fn()}
+        busy={false}
+        placeholder="Mensagem"
+      />,
+    );
+
+    const attach = screen.getByRole("button", { name: "Anexar arquivo" });
+    const audio = screen.getByRole("button", { name: "Gravar áudio" });
+    const send = screen.getByRole("button", { name: "Enviar" });
+    expect(attach.compareDocumentPosition(audio) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(audio.compareDocumentPosition(send) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   it("shows a preview when an image is pasted", async () => {
     render(
       <AgentComposer

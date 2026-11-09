@@ -228,6 +228,9 @@ export function AgentComposer({ value, onChange, onSend, onStop, busy, placehold
             className="min-h-[50px] px-4 pt-[13px] pb-1 text-[14px] leading-[1.55]"
           />
           <div className="flex min-w-0 items-center gap-2 px-3 pb-2 pt-1">
+            {allowAttachments ? <IconButton icon={ImagePlus} size="small" aria-label="Anexar arquivo" title="Anexar arquivo (Ctrl+U)" onClick={() => fileRef.current?.click()} /> : null}
+            <span className="min-w-0 flex-1 truncate text-[11.5px] text-text-tertiary">{hint}</span>
+            {modeControls ? <div className="flex shrink-0 items-center gap-0.5">{modeControls}</div> : null}
             <Button
               type="button"
               variant={audio.recording ? "danger" : "ghost"}
@@ -240,9 +243,6 @@ export function AgentComposer({ value, onChange, onSend, onStop, busy, placehold
               title={audio.supported ? (audio.recording ? "Parar gravação" : "Gravar áudio") : "Gravação de áudio indisponível"}
               className={audio.processing ? "shrink-0 [&_svg]:animate-spin" : "shrink-0"}
             />
-            {allowAttachments ? <IconButton icon={ImagePlus} size="small" aria-label="Anexar arquivo" title="Anexar arquivo (Ctrl+U)" onClick={() => fileRef.current?.click()} /> : null}
-            <span className="min-w-0 flex-1 truncate text-[11.5px] text-text-tertiary">{hint}</span>
-            {modeControls ? <div className="flex shrink-0 items-center gap-0.5">{modeControls}</div> : null}
             {busy && onStop ? (
               <Button
                 type="button"
