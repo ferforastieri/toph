@@ -139,6 +139,8 @@ pub struct RunContext {
     /// The router said nobody needs to answer: save the user message, start
     /// no model turn and finish the run cleanly.
     pub silent: bool,
+    /// Why the router picked these Tophs, shown once in the conversation.
+    pub routing_reason: String,
     /// The current request text, used when the session has no transcript yet.
     pub request: String,
 }

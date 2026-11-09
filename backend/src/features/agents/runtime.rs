@@ -367,15 +367,18 @@ impl Runtime {
             attachments,
         } = input;
         let mut roster = agents;
-        let mut responders = if agent_id.is_empty() || agent_id == "router" {
+        let (mut responders, routing_reason) = if agent_id.is_empty() || agent_id == "router" {
             self.route_agents(user, project, &chat_id, &roster, &text)
                 .await?
         } else {
-            vec![roster
-                .iter()
-                .find(|agent| agent.id == agent_id)
-                .cloned()
-                .ok_or_else(|| bad_request("Unknown agent"))?]
+            (
+                vec![roster
+                    .iter()
+                    .find(|agent| agent.id == agent_id)
+                    .cloned()
+                    .ok_or_else(|| bad_request("Unknown agent"))?],
+                "menção explícita".to_string(),
+            )
         };
         let silent = responders.is_empty();
         if silent {
@@ -510,6 +513,7 @@ impl Runtime {
                 secondary: !primary_responder,
                 routed: routed_ids.clone(),
                 silent: silent && primary_responder,
+                routing_reason: routing_reason.clone(),
                 request: text.clone(),
             };
             let runtime = self.clone();
@@ -555,16 +559,19 @@ impl Runtime {
         chat: &str,
         roster: &[AgentSpec],
         text: &str,
-    ) -> AppResult<Vec<AgentSpec>> {
+    ) -> AppResult<(Vec<AgentSpec>, String)> {
         if roster.is_empty() {
             return Err(bad_request("Nenhum Toph nesta conversa."));
         }
         let mentioned = mentioned_agents(text, roster, "");
         if !mentioned.is_empty() {
-            return Ok(mentioned.into_iter().take(MAX_MENTIONS).collect());
+            return Ok((
+                mentioned.into_iter().take(MAX_MENTIONS).collect(),
+                "menção explícita".into(),
+            ));
         }
         if roster.len() == 1 {
-            return Ok(vec![roster[0].clone()]);
+            return Ok((vec![roster[0].clone()], String::new()));
         }
         let team = roster
             .iter()
@@ -648,10 +655,10 @@ Se a mensagem depender de uma ferramenta ou MCP, prefira quem tem acesso a ele; 
         .await
         {
             Ok(Ok(answer)) => answer,
-            _ => return Ok(vec![roster[0].clone()]),
+            _ => return Ok((vec![roster[0].clone()], String::new())),
         };
         let Some(choice) = parse_route(&answer) else {
-            return Ok(vec![roster[0].clone()]);
+            return Ok((vec![roster[0].clone()], String::new()));
         };
         let mut picked: Vec<AgentSpec> = if choice.everyone {
             roster.to_vec()
@@ -678,7 +685,7 @@ Se a mensagem depender de uma ferramenta ou MCP, prefira quem tem acesso a ele; 
             reason = %choice.reason,
             "routed group message"
         );
-        Ok(picked)
+        Ok((picked, choice.reason))
     }
 
     async fn prepare(
@@ -751,6 +758,39 @@ Se a mensagem depender de uma ferramenta ou MCP, prefira quem tem acesso a ele; 
         display["seq"] = json!(seq);
         if visible {
             self.event(ctx, "message", display);
+        }
+        if ctx.depth == 0 && !ctx.secondary && (ctx.silent || ctx.routed.len() > 1) {
+            let names = ctx
+                .roster
+                .iter()
+                .filter(|agent| ctx.routed.iter().any(|id| id == &agent.id))
+                .map(|agent| agent.name.clone())
+                .collect::<Vec<_>>();
+            let why = if ctx.routing_reason.is_empty() {
+                String::new()
+            } else {
+                format!(" · {}", ctx.routing_reason)
+            };
+            let text = if ctx.silent {
+                format!("Ninguém precisa responder{why}")
+            } else {
+                format!("Chamei {}{why}", names.join(" e "))
+            };
+            let note_id = new_id();
+            let note = json!({"id":note_id,"chatId":ctx.run.chat_id,"tophId":ctx.agent.id,"sessionId":ctx.run.session_id,"runId":ctx.run.id,"role":"system","content":text,"status":"complete","createdAt":now()});
+            let seq = self
+                .inner
+                .repo
+                .message(
+                    ctx,
+                    &note_id,
+                    json!({"role":"system","content":text}),
+                    note.clone(),
+                )
+                .await?;
+            let mut note = note;
+            note["seq"] = json!(seq);
+            self.event(ctx, "message", note);
         }
         Ok(())
     }
@@ -1674,6 +1714,7 @@ Trabalhe no projeto atual. Para concluir uma alteração, rode os testes ou o bu
                 secondary: false,
                 routed: parent.routed.clone(),
                 silent: false,
+                routing_reason: String::new(),
                 request: task.to_string(),
             };
             self.inner
