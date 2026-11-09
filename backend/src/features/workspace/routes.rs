@@ -153,14 +153,25 @@ pub(super) async fn raw_file(
 ) -> AppResult<Response> {
     let project = state.store.project(&project_id).await?;
     let path = query.get("path").map(String::as_str).unwrap_or("");
-    let data = state
+    let (path, size) = state
         .workspace
-        .read_bytes(FsPath::new(&project.root), path)?;
-    let mime = mime_guess::from_path(path).first_or_octet_stream();
+        .resolve_file(FsPath::new(&project.root), path)?;
+    let file = tokio::fs::File::open(&path).await?;
+    let mime = mime_guess::from_path(&path).first_or_octet_stream();
+    let name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("download")
+        .replace(['"', '\r', '\n'], "_");
     Ok(Response::builder()
         .header(header::CONTENT_TYPE, mime.as_ref())
+        .header(header::CONTENT_LENGTH, size)
+        .header(
+            header::CONTENT_DISPOSITION,
+            format!("attachment; filename=\"{name}\""),
+        )
         .header(header::CACHE_CONTROL, "no-store")
-        .body(Body::from(data))
+        .body(Body::from_stream(tokio_util::io::ReaderStream::new(file)))
         .map_err(|error| AppError::Internal(error.into()))?)
 }
 

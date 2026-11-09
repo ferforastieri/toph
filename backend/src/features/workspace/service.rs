@@ -280,6 +280,16 @@ impl WorkspaceService {
         Ok(fs::read(path)?)
     }
 
+    /// Resolves a file for streaming downloads without loading it into memory.
+    pub fn resolve_file(&self, root: &Path, relative: &str) -> AppResult<(PathBuf, u64)> {
+        let path = resolve_existing(root, relative)?;
+        let metadata = fs::metadata(&path)?;
+        if metadata.is_dir() {
+            return Err(AppError::BadRequest("path is a directory".into()));
+        }
+        Ok((path, metadata.len()))
+    }
+
     pub async fn git_history(&self, root: &Path, path: &str) -> AppResult<Vec<GitHistoryEntry>> {
         let path = if path.trim().is_empty() || path == "." {
             ".".to_string()

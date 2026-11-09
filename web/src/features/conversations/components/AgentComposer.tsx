@@ -80,7 +80,7 @@ export function AgentComposer({ value, onChange, onSend, onStop, busy, placehold
   }
 
   function submit() {
-    if (busy || audio.recording || audio.processing || (!value.trim() && attachments.length === 0)) return;
+    if (audio.recording || audio.processing || (!value.trim() && attachments.length === 0)) return;
     const text = value.trim();
     if (text && localHistory.current[localHistory.current.length - 1] !== text) localHistory.current.push(text);
     historyIndex.current = -1;
@@ -166,7 +166,7 @@ export function AgentComposer({ value, onChange, onSend, onStop, busy, placehold
       ) : null}
       <ComposerLoader active={busy} radius={20} surface={false}>
         <form
-          onSubmit={(event) => { event.preventDefault(); event.stopPropagation(); if (!busy) submit(); }}
+          onSubmit={(event) => { event.preventDefault(); event.stopPropagation(); submit(); }}
           className="relative flex flex-col gap-0 overflow-hidden rounded-[20px] border border-border-button-default bg-background-primary-default shadow-sm transition-[border-color,box-shadow] duration-200 focus-within:border-border-button-hover focus-within:ring-4 focus-within:ring-accent-500/10"
           onKeyDownCapture={(event) => {
             if (event.target !== areaRef.current) return;
@@ -285,11 +285,11 @@ export function AgentComposer({ value, onChange, onSend, onStop, busy, placehold
                 onPointerDown={(event) => { event.preventDefault(); event.stopPropagation(); }}
                 onClick={(event) => { event.preventDefault(); event.stopPropagation(); onStop(); }}
                 aria-label="Parar"
+                title="Parar execução"
                 className="shrink-0 rounded-full"
               />
-            ) : (
-              <Button type="submit" variant="primary" size="small" iconOnly leadingIcon={ArrowUp} disabled={audio.recording || audio.processing || (!value.trim() && attachments.length === 0)} aria-label="Enviar" className="shrink-0 rounded-full" />
-            )}
+            ) : null}
+            <Button type="submit" variant="primary" size="small" iconOnly leadingIcon={ArrowUp} disabled={audio.recording || audio.processing || (!value.trim() && attachments.length === 0)} aria-label={busy ? "Interromper e enviar" : "Enviar"} title={busy ? "Interromper a execução atual e enviar esta mensagem" : "Enviar"} className="shrink-0 rounded-full" />
           </div>
         </form>
       </ComposerLoader>

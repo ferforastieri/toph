@@ -409,7 +409,10 @@ export default function ExplorerPanel({
     const anchor = document.createElement("a");
     anchor.href = api.rawUrl(project.id, entry.path);
     anchor.download = entry.name;
+    anchor.rel = "noopener";
+    document.body.appendChild(anchor);
     anchor.click();
+    anchor.remove();
   }
 
   async function addWorkspaceFolder(entry: FileEntry) {

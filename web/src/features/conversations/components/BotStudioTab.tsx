@@ -70,8 +70,11 @@ export default function BotStudioTab({ project, conversationId, mobile = false, 
     }
   }, [native.messages.length]);
 
-  async function send(value: string, attachments: AgentAttachment[]) {
-    if (!chat || !tophs.length || sendLock.current || busy) return;
+  const pendingSend = useRef<{ value: string; attachments: AgentAttachment[] } | null>(null);
+  const sendNowRef = useRef<(value: string, attachments: AgentAttachment[]) => Promise<void>>(async () => undefined);
+
+  async function sendNow(value: string, attachments: AgentAttachment[]) {
+    if (!chat || !tophs.length || sendLock.current) return;
     if (value.trim() === "/clear") {
       await Promise.all(tophs.map((toph) => agentApi.switchSession(project.id, toph.id, null, chat.id).catch(() => undefined)));
       clearDraft(draftKey);
@@ -91,6 +94,29 @@ export default function BotStudioTab({ project, conversationId, mobile = false, 
     } catch (e) { native.setError(e instanceof Error ? e.message : "Não foi possível iniciar a execução"); }
     finally { sendLock.current = false; setSending(false); }
   }
+  sendNowRef.current = sendNow;
+
+  async function send(value: string, attachments: AgentAttachment[]) {
+    if (!chat || !tophs.length) return;
+    if (busy) {
+      // Stop the current run, wait for it to settle, then send this message.
+      // Inserting the new message before the old run's last output would put
+      // it above that output in the transcript.
+      pendingSend.current = { value, attachments };
+      native.setError("");
+      clearDraft(draftKey);
+      await stop();
+      return;
+    }
+    await sendNowRef.current(value, attachments);
+  }
+
+  useEffect(() => {
+    if (busy || !pendingSend.current) return;
+    const pending = pendingSend.current;
+    pendingSend.current = null;
+    void sendNowRef.current(pending.value, pending.attachments);
+  }, [busy]);
   async function stop() {
     try { await Promise.all(native.runs.filter(isActive).map((run) => agentApi.cancel(project.id, run.id))); }
     catch (e) { native.setError(e instanceof Error ? e.message : "Falha ao cancelar"); }
