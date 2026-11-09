@@ -1,5 +1,5 @@
 use super::{
-    activity, cli, context, event,
+    activity, cli, event,
     models::*,
     repository::Repository,
     tools::{self, Tools},
@@ -1121,9 +1121,6 @@ Se a mensagem depender de uma ferramenta ou MCP, prefira quem tem acesso a ele; 
         }
     }
 
-    /// The tail instruction every fresh or resumed engine turn gets.
-    const CLI_INSTRUCTION: &'static str = "Responda à última mensagem do usuário. Use as ferramentas nativas do seu harness para ler, editar e rodar comandos no projeto. Se precisar de contexto antigo, consulte o histórico do projeto em vez de adivinhar.";
-
     /// Runs one turn on an external CLI. The CLI owns the native agent loop and
     /// tools; Toph still owns the chat, run state and transcript.
     fn execute_cli<'a>(
@@ -1136,7 +1133,6 @@ Se a mensagem depender de uma ferramenta ou MCP, prefira quem tem acesso a ele; 
         Box::pin(async move {
             self.inner.repo.state(&ctx.run.id, "running", "").await?;
             self.event(ctx,"run",json!({"id":ctx.run.id,"chatId":ctx.run.chat_id,"sessionId":ctx.run.session_id,"agentId":ctx.agent.id,"state":"running","error":"","parentId":ctx.run.parent_id,"createdAt":ctx.run.created_at}));
-            let system = self.build_system(ctx, config).await?;
             let engine = ctx.agent.engine.as_str();
             let engine_label = super::engines::label(engine);
             let model = if engine == "opencode" {
@@ -1146,46 +1142,14 @@ Se a mensagem depender de uma ferramenta ou MCP, prefira quem tem acesso a ele; 
             } else {
                 ctx.agent.model.clone()
             };
-            self.inner.sessions.lock().unwrap().sweep();
-            let transcript = self.inner.repo.transcript(&ctx.run.session_id).await?;
-            let shown = transcript
-                .iter()
-                .map(|(id, role, text)| super::session_manager::Shown {
-                    id: id.clone(),
-                    block: format!("[{role}]\n{}", text.chars().take(2_500).collect::<String>()),
-                })
-                .collect::<Vec<_>>();
-            let session_config = super::session_manager::hash(
-                &json!({
-                    "engine": ctx.agent.engine,
-                    "model": model,
-                    "system": system,
-                    "agentMode": ctx.agent.agent_mode,
-                    "permissionMode": ctx.agent.permission_mode,
-                    "root": ctx.root.display().to_string(),
-                })
-                .to_string(),
-            );
-            let work = cli::work_dir(&ctx.run.session_id);
-            let work_existed = tokio::fs::metadata(&work).await.is_ok();
-            tokio::fs::create_dir_all(&work).await?;
-            let use_sessions = engine == "opencode";
-            let plan = use_sessions.then(|| {
-                self.inner.sessions.lock().unwrap().begin(
-                    &ctx.run.session_id,
-                    &session_config,
-                    &shown,
-                    !work_existed,
-                )
-            });
-            if let Some(plan) = &plan {
-                tracing::debug!(session = %plan.id, resume = plan.resume, "engine session");
-            }
-            let prompt = if plan.as_ref().map(|plan| plan.resume).unwrap_or(false) {
-                Self::resume_prompt(&shown, &plan.as_ref().unwrap().send, &ctx.request)
+            let prompt = if engine == "opencode" {
+                ctx.request.clone()
             } else {
                 self.cli_transcript(ctx).await?
             };
+            let opencode_session = format!("ses_{}", ctx.run.session_id);
+            let work = cli::work_dir(&ctx.run.session_id);
+            tokio::fs::create_dir_all(&work).await?;
             let mid = format!("{}-engine", ctx.run.id);
             let display = json!({"id":mid,"userId":ctx.user_id,"projectId":ctx.project_id,"chatId":ctx.run.chat_id,"tophId":ctx.agent.id,"sessionId":ctx.run.session_id,"runId":ctx.run.id,"model":model,"agentMode":ctx.agent.agent_mode,"role":"assistant","content":"","status":"running","createdAt":now()});
             self.inner
@@ -1240,7 +1204,6 @@ Se a mensagem depender de uma ferramenta ou MCP, prefira quem tem acesso a ele; 
                         cli::run_claude(
                             &model,
                             &ctx.agent.effort,
-                            &system,
                             &prompt,
                             &work,
                             cancel,
@@ -1252,7 +1215,6 @@ Se a mensagem depender de uma ferramenta ou MCP, prefira quem tem acesso a ele; 
                         let tx = tool_tx.clone();
                         cli::run_codex(
                             &model,
-                            &system,
                             &prompt,
                             &work,
                             cancel,
@@ -1264,9 +1226,8 @@ Se a mensagem depender de uma ferramenta ou MCP, prefira quem tem acesso a ele; 
                         let tx = tool_tx.clone();
                         cli::run_opencode(
                             &model,
-                            &system,
                             &prompt,
-                            &plan.as_ref().map(|plan| plan.id.as_str()).unwrap_or(""),
+                            &opencode_session,
                             &ctx.root,
                             attachments,
                             cancel,
@@ -1285,33 +1246,9 @@ Se a mensagem depender de uma ferramenta ou MCP, prefira quem tem acesso a ele; 
             self.inner.drafts.lock().unwrap().remove(&ctx.run.id);
             let (text, usage) = match result {
                 Ok(value) => value,
-                Err(error) => {
-                    if let Some(plan) = &plan {
-                        self.inner.sessions.lock().unwrap().end(
-                            &ctx.run.session_id,
-                            plan,
-                            false,
-                            &session_config,
-                            &shown,
-                            None,
-                            0,
-                        );
-                    }
-                    return Err(error);
-                }
+                Err(error) => return Err(error),
             };
             if text.trim().is_empty() {
-                if let Some(plan) = &plan {
-                    self.inner.sessions.lock().unwrap().end(
-                        &ctx.run.session_id,
-                        plan,
-                        false,
-                        &session_config,
-                        &shown,
-                        None,
-                        0,
-                    );
-                }
                 return Err(bad_request(format!(
                     "O {engine_label} terminou sem resposta."
                 )));
@@ -1331,17 +1268,6 @@ Se a mensagem depender de uma ferramenta ou MCP, prefira quem tem acesso a ele; 
                 .await?;
             done["seq"] = json!(seq);
             self.event(ctx, "message", done);
-            if let Some(plan) = &plan {
-                self.inner.sessions.lock().unwrap().end(
-                    &ctx.run.session_id,
-                    plan,
-                    true,
-                    &session_config,
-                    &shown,
-                    Some(&mid),
-                    usage.input.saturating_add(usage.output) as usize,
-                );
-            }
             let _ = sqlx::query(
             "INSERT INTO agent_model_calls(id,run_id,kind,provider,model,input_tokens,output_tokens,cached_tokens,reasoning_tokens,estimated_input,duration_ms,finish,created_at) VALUES(?,?,?,?,?,?,?,?,0,0,?,'stop',?)",
         )
@@ -1383,108 +1309,7 @@ Se a mensagem depender de uma ferramenta ou MCP, prefira quem tem acesso a ele; 
         if blocks.is_empty() {
             blocks.push(format!("[user]\n{}", ctx.request));
         }
-        blocks.push(Self::CLI_INSTRUCTION.into());
         Ok(blocks.join("\n\n"))
-    }
-
-    /// A resumed turn sends only the messages the engine has not seen, plus
-    /// the same closing instruction. The harness already holds the rest.
-    fn resume_prompt(
-        shown: &[super::session_manager::Shown],
-        send: &[String],
-        request: &str,
-    ) -> String {
-        let wanted = send
-            .iter()
-            .map(String::as_str)
-            .collect::<std::collections::HashSet<_>>();
-        let mut blocks = shown
-            .iter()
-            .filter(|item| wanted.contains(item.id.as_str()))
-            .map(|item| item.block.chars().take(2_500).collect::<String>())
-            .collect::<Vec<_>>();
-        if blocks.is_empty() {
-            blocks.push(format!("[user]\n{request}"));
-        }
-        blocks.push(Self::CLI_INSTRUCTION.into());
-        blocks.join("\n\n")
-    }
-
-    async fn build_system(&self, ctx: &RunContext, config: &AiConfig) -> AppResult<String> {
-        let mut extra = config.system_prompt.clone();
-        if !ctx.chat_description.is_empty() {
-            extra.push_str("\nContexto compartilhado do chat:\n");
-            extra.push_str(&ctx.chat_description);
-        }
-        if ctx.routed.len() > 1 {
-            let peers = ctx
-                .roster
-                .iter()
-                .filter(|agent| {
-                    agent.id != ctx.agent.id && ctx.routed.iter().any(|id| id == &agent.id)
-                })
-                .map(|agent| format!("@{}", agent.handle))
-                .collect::<Vec<_>>();
-            if !peers.is_empty() {
-                extra.push_str(&format!(
-                    "\nNesta mensagem, {} também estão respondendo. Não delegue para eles; faça a sua parte e deixe a resposta deles chegar.\n",
-                    peers.join(", ")
-                ));
-            }
-        }
-        match self.inner.tools.workspace.read(&ctx.root, "AGENTS.md") {
-            Ok(file) => {
-                if file.content.len() > 12000 {
-                    return Err(bad_request("AGENTS.md exceeds the instruction budget"));
-                }
-                extra.push_str("\nProject instructions:\n");
-                extra.push_str(&file.content);
-            }
-            Err(AppError::NotFound) => {}
-            Err(AppError::Io(error)) if error.kind() == std::io::ErrorKind::NotFound => {}
-            Err(error) => return Err(error),
-        }
-        // In a group, every Toph sees the conversation that came before its
-        // own turn, including what the other Tophs said. The current turn is
-        // excluded: each responder already receives the user message itself.
-        if ctx.roster.len() > 1 {
-            let recent = self
-                .inner
-                .repo
-                .recent_chat(
-                    ctx.user_id,
-                    &ctx.project_id,
-                    &ctx.run.chat_id,
-                    16,
-                    Some(ctx.run.created_at),
-                )
-                .await
-                .unwrap_or_default();
-            if !recent.is_empty() {
-                extra.push_str("\n## Conversa recente desta tarefa\n");
-                for (role, toph_id, line) in recent {
-                    let name = if role == "user" {
-                        "Usuário".to_string()
-                    } else {
-                        ctx.roster
-                            .iter()
-                            .find(|agent| agent.id == toph_id)
-                            .map(|agent| agent.name.clone())
-                            .unwrap_or_else(|| "Toph".into())
-                    };
-                    extra.push_str(&format!("[{name}] {line}\n"));
-                }
-            }
-        }
-        Ok(context::instructions(
-            &ctx.agent,
-            &ctx.roster,
-            &ctx.root.display().to_string(),
-            &extra,
-            &config.model,
-            &config.connection_name(),
-            &config.provider,
-        ))
     }
 
     /// Stores a tool call reported by a native harness as a regular Toph

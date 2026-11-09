@@ -183,22 +183,6 @@ pub fn opencode_model(agent: &AgentSpec, config: &AiConfig) -> String {
     }
 }
 
-fn opencode_config(model: &str, system: &str) -> Value {
-    json!({
-        "$schema": "https://opencode.ai/config.json",
-        "share": "disabled",
-        "autoupdate": false,
-        "snapshot": false,
-        "model": model,
-        "agents": {
-            "toph": {
-                "mode": "primary",
-                "system": system
-            }
-        }
-    })
-}
-
 fn tail(text: &str) -> String {
     let chars = text.chars().collect::<Vec<_>>();
     chars[chars.len().saturating_sub(2_000)..].iter().collect()
@@ -304,7 +288,6 @@ async fn run_capture(
 pub async fn run_claude(
     model: &str,
     effort: &str,
-    system: &str,
     prompt: &str,
     cwd: &Path,
     cancel: &CancellationToken,
@@ -319,8 +302,6 @@ pub async fn run_claude(
         "-p".to_string(),
         "--output-format".into(),
         "json".into(),
-        "--system-prompt".into(),
-        system.to_string(),
         "--dangerously-skip-permissions".into(),
     ];
     if let Some(model) = provider_model(model, &["claude", "sonnet", "opus", "haiku"]) {
@@ -391,7 +372,6 @@ pub async fn run_claude(
 /// shell/edit/search tools are enabled; Toph only stores the run and messages.
 pub async fn run_codex(
     model: &str,
-    system: &str,
     prompt: &str,
     cwd: &Path,
     cancel: &CancellationToken,
@@ -410,11 +390,6 @@ pub async fn run_codex(
         "--full-auto".into(),
         "-C".into(),
         cwd.display().to_string(),
-        "-c".into(),
-        format!(
-            "developer_instructions={}",
-            serde_json::to_string(system).unwrap_or_else(|_| "\"\"".into())
-        ),
     ];
     if let Some(model) = provider_model(model, &["gpt", "codex", "o3", "o4", "chatgpt"]) {
         args.push("-m".into());
@@ -517,7 +492,6 @@ pub async fn run_codex(
 /// the transcript.
 pub async fn run_opencode<F, T>(
     model: &str,
-    system: &str,
     prompt: &str,
     session_id: &str,
     project: &Path,
@@ -530,17 +504,8 @@ where
     F: FnMut(&str),
     T: FnMut(NativeTool) + Send,
 {
-    let config = opencode_config(model, system);
     let home = work_dir(session_id);
     let files = attachment_files(&home.join("attachments"), attachments).await?;
-    tokio::fs::create_dir_all(&home).await?;
-    let config_path = home.join("opencode.json");
-    tokio::fs::write(&config_path, config.to_string()).await?;
-    let real_home = std::env::var("HOME").unwrap_or_else(|_| "/home/fernando".into());
-    let config_home =
-        std::env::var("XDG_CONFIG_HOME").unwrap_or_else(|_| format!("{real_home}/.config"));
-    let data_home =
-        std::env::var("XDG_DATA_HOME").unwrap_or_else(|_| format!("{real_home}/.local/share"));
     // systemd starts Toph with a minimal PATH; resolve the CLI the same way the
     // Settings detector does instead of relying on PATH containing ~/.local/bin.
     let binary = super::engines::find_binary("opencode").ok_or_else(|| {
@@ -561,8 +526,6 @@ where
         .arg("--format")
         .arg("json")
         .arg("--auto")
-        .arg("--agent")
-        .arg("toph")
         .arg("-m")
         .arg(model);
     for file in &files {
@@ -571,11 +534,6 @@ where
     command
         .arg(prompt)
         .current_dir(project)
-        .env("OPENCODE_CONFIG_CONTENT", config.to_string())
-        .env("OPENCODE_CONFIG", &config_path)
-        .env("HOME", real_home)
-        .env("XDG_CONFIG_HOME", config_home)
-        .env("XDG_DATA_HOME", data_home)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
