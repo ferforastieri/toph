@@ -12,6 +12,7 @@ for (const target of brandTargets) {
   await mkdir(target, { recursive: true });
   await Promise.all([
     copyFile(resolve(source, "generated/toph-mark.png"), resolve(target, "toph-mark.png")),
+    copyFile(resolve(source, "generated/toph-mark-eyeless.png"), resolve(target, "toph-mark-eyeless.png")),
     copyFile(resolve(source, "app-icons/toph-1024.png"), resolve(target, "toph-app-icon.png")),
     copyFile(resolve(source, "logo/toph-logo-horizontal.png"), resolve(target, "toph-logo-horizontal.png")),
     copyFile(resolve(source, "generated/favicon-16.png"), resolve(target, "favicon-16.png")),

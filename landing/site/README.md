@@ -7,6 +7,7 @@ Live at **[tophs.vira.ia.br](https://tophs.vira.ia.br)**. Static pages: `index.h
 - **Look:** Toph's own dark and amber palette, the latest 3D mark, and the real Toph avatars from the app. The hero follows the same composition as Tucano's hero: a large brand mark with floating Tophs and an underlined headline. The workbench mock moved to the "Além dos Tophs" section.
 - **Eye tracking:** the hero mark and the four floating Tophs use an eye-less base (`*-eyeless.png`) plus two masked copies of the original art. Only the copies move, following the pointer with the app's `--look-x` / `--look-y` technique.
 - **Docs:** `/docs` (`docs.html`) explains installation, configuration, Tophs, engines, MCP, skills, approvals, the workbench, files and troubleshooting. `docs.md` is the Markdown version and `llms.txt` is the compact AI-agent guide.
+- **SEO:** `robots.txt`, `sitemap.xml`, canonical/OG/Twitter tags and JSON-LD (`SoftwareApplication`, `WebSite`, `FAQPage` on the landing; `TechArticle`, `BreadcrumbList` on the docs).
 - **Fonts:** Sora (headings), Inter (text) and JetBrains Mono (code), from Google Fonts.
 - **Logos:** `assets/logos/claude.svg` and `assets/logos/openai.svg` come from [Simple Icons](https://simpleicons.org) (CC0).
 - **Publishing:** static files served by Cloudflare on `tophs.vira.ia.br`, routed by the `toph-site` Worker. `_headers` adds the security headers; `.assetsignore` keeps this README and the config off the site.

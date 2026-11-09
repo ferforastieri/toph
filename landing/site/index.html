@@ -23,6 +23,17 @@
 <meta property="og:type" content="website">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:image" content="https://tophs.vira.ia.br/assets/brand/toph-og.png">
+<meta name="twitter:title" content="Toph · Seu time de agentes de IA, com as suas regras">
+<meta name="twitter:description" content="Tophs individuais ou em grupo no seu projeto, com o motor, as ferramentas e as regras que você escolher. Grátis e open source.">
+<meta name="twitter:image:alt" content="Toph: seu time de agentes de IA. Suas regras.">
+<meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1">
+<meta name="author" content="Toph">
+<meta property="og:site_name" content="Toph">
+<meta property="og:locale" content="pt_BR">
+<meta property="og:locale:alternate" content="en_US">
+<meta property="og:image:alt" content="Toph: seu time de agentes de IA. Suas regras.">
+<link rel="sitemap" type="application/xml" href="https://tophs.vira.ia.br/sitemap.xml">
+<link rel="preload" as="image" href="assets/brand/toph-mark-eyeless.png" fetchpriority="high">
 <meta name="theme-color" content="#050505">
 <link rel="canonical" href="https://tophs.vira.ia.br/">
 <link rel="icon" type="image/png" href="assets/brand/favicon-32.png">
@@ -300,6 +311,107 @@ header .btn img { width: 14px; height: 14px; opacity: .8; }
 .person small { display: block; margin-top: 2px; color: var(--faint); font-size: 11px; }
 </style>
 <noscript><style>.reveal{opacity:1;transform:none}</style></noscript>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "SoftwareApplication",
+      "name": "Toph",
+      "url": "https://tophs.vira.ia.br/",
+      "description": "Toph é um workbench open source onde Tophs individuais ou em grupo trabalham no seu projeto, com o motor, as ferramentas e as regras que você escolher.",
+      "applicationCategory": "DeveloperApplication",
+      "operatingSystem": "macOS, Linux, Windows",
+      "inLanguage": "pt-BR",
+      "license": "https://www.apache.org/licenses/LICENSE-2.0",
+      "codeRepository": "https://github.com/ferforastieri/toph",
+      "downloadUrl": "https://github.com/ferforastieri/toph/releases/latest",
+      "screenshot": "https://tophs.vira.ia.br/assets/brand/toph-og.png",
+      "featureList": [
+        "Tophs individuais e em grupo",
+        "Workbench com editor, terminal e Git",
+        "Bancos de dados e debug",
+        "Web apps e previews",
+        "MCP, skills e memória",
+        "Aprovações e perguntas"
+      ],
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "BRL"
+      },
+      "author": {
+        "@type": "Organization",
+        "name": "Toph",
+        "url": "https://tophs.vira.ia.br/",
+        "logo": "https://tophs.vira.ia.br/assets/brand/toph-mark.png"
+      },
+      "sameAs": [
+        "https://github.com/ferforastieri/toph"
+      ]
+    },
+    {
+      "@type": "WebSite",
+      "name": "Toph",
+      "url": "https://tophs.vira.ia.br/",
+      "inLanguage": "pt-BR"
+    },
+    {
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "Quanto custa?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "O Toph é grátis e open source (Apache-2.0). Você paga só o uso do modelo no provedor que escolher, ou usa um modelo local via Ollama."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Preciso de chave de API?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Depende do provedor. OpenAI, Anthropic e gateways pedem chave; Ollama local pode rodar sem. A chave fica criptografada no seu servidor."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Onde ficam conversas e arquivos?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "No seu computador ou servidor. O Toph não tem conta nem servidor nosso. O modelo recebe apenas o que o agente envia pela API que você configurou."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Posso ter um Toph sozinho e um grupo?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Sim. Uma tarefa pode ter um Toph ou vários. Sem menção, o roteador escolhe quem precisa responder; com @, você escolhe. Um Toph também pode delegar para outro."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Quais motores rodam hoje?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "OpenCode, Claude Code e Codex. Cursor, Grok, Gemini e Pi aparecem para instalar e testar, mas o runtime deles ainda não está ligado."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Dá pra usar no dia a dia sem abrir o terminal?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Sim. O workbench tem editor, terminal, diffs, tarefas e aprovações. O terminal é opcional; o Toph faz o trabalho e você revisa."
+          }
+        }
+      ]
+    }
+  ]
+}
+</script>
 </head>
 <body>
 
