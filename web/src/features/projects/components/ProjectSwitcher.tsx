@@ -132,7 +132,7 @@ export default function ProjectSwitcher({ onSelect, onCloseProject, onlyClosed =
                 onClick={() => onSelect(item.id)}
                 className="flex min-w-0 flex-1 items-center gap-2.5 rounded-xl p-2 text-start text-text-primary transition-colors hover:bg-dropdown-item-hover-background focus-visible:bg-dropdown-item-hover-background"
               >
-                <ProjectTophAvatar project={item} size={28} />
+                <ProjectTophAvatar project={item} size={28} showInitial />
                 <span className="flex min-w-0 flex-1 flex-col">
                   <span className="flex min-w-0 items-center gap-1.5">
                     <span className="truncate text-body-2-medium text-text-primary">{item.name}</span>

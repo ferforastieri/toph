@@ -1,7 +1,9 @@
-import { History, MessageSquarePlus, Settings2, Trash2, UserRound, Users } from "@toph/icons";
+import { useState } from "react";
+import { History, MessageSquarePlus, MoreHorizontal, Settings2, Trash2, UserRound, Users } from "@toph/icons";
 import type { ChatToph } from "../../conversations/store";
 import BotAvatar from "./BotAvatar";
 import { Button } from "@/shared/boardui/base/buttons/button";
+import { Dropdown, DropdownDivider, DropdownItem, DropdownPopover, DropdownTrigger } from "@/shared/boardui/base/dropdown/dropdown";
 import { cx } from "@/shared/boardui/utils/cx";
 
 interface Props {
@@ -21,9 +23,17 @@ interface Props {
 
 /** Toph row used by the desktop sidebar and the mobile chat sheet. */
 export default function TophRow({ toph, onOpen, onNew, onConfig, onSessions, onRemove, compact = false, selected = false, groupCount = 0, groupNames = [] }: Props) {
-  const actionVisibility = compact ? undefined : selected
+  const [menuOpen, setMenuOpen] = useState(false);
+  const actionVisibility = selected
     ? "opacity-100"
     : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100";
+  const hasActions = Boolean(onNew || onConfig || onSessions || onRemove);
+
+  function run(action?: () => void) {
+    setMenuOpen(false);
+    action?.();
+  }
+
   return (
     <div className={cx("group flex w-full items-center rounded-xl pe-1 transition-colors", selected ? "bg-background-tertiary-default" : "hover:bg-background-primary-hover")}>
       <button
@@ -56,10 +66,48 @@ export default function TophRow({ toph, onOpen, onNew, onConfig, onSessions, onR
           </span>
         </span>
       </button>
-      {onNew ? <Button variant="ghost" size={compact ? "small" : "xs"} iconOnly leadingIcon={MessageSquarePlus} aria-label={`Nova tarefa com ${toph.name}`} title="Nova tarefa" className={actionVisibility} onClick={onNew} /> : null}
-      {onConfig ? <Button variant="ghost" size={compact ? "small" : "xs"} iconOnly leadingIcon={Settings2} aria-label={`Configurar ${toph.name}`} title="Configurar Toph" className={actionVisibility} onClick={onConfig} /> : null}
-      {onSessions ? <Button variant="ghost" size={compact ? "small" : "xs"} iconOnly leadingIcon={History} aria-label={`Conversas de ${toph.name}`} title="Conversas do Toph" className={actionVisibility} onClick={onSessions} /> : null}
-      {onRemove ? <Button variant="ghost" size={compact ? "small" : "xs"} iconOnly leadingIcon={Trash2} aria-label={`Apagar ${toph.name}`} title="Apagar Toph" className={cx("text-status-rose-text", actionVisibility)} onClick={onRemove} /> : null}
+      {compact && hasActions ? (
+        <Dropdown isOpen={menuOpen} onOpenChange={setMenuOpen}>
+          <DropdownTrigger
+            aria-label={`Ações de ${toph.name}`}
+            className="me-1 flex size-8 shrink-0 items-center justify-center rounded-lg text-text-tertiary hover:bg-background-primary-hover hover:text-text-primary"
+          >
+            <MoreHorizontal className="size-4" />
+          </DropdownTrigger>
+          <DropdownPopover aria-label={`Ações de ${toph.name}`} placement="bottom end" className="z-[140] w-56">
+            {onNew ? (
+              <DropdownItem onSelect={() => run(onNew)}>
+                <MessageSquarePlus size={14} className="shrink-0 text-text-tertiary" /> Nova tarefa
+              </DropdownItem>
+            ) : null}
+            {onConfig ? (
+              <DropdownItem onSelect={() => run(onConfig)}>
+                <Settings2 size={14} className="shrink-0 text-text-tertiary" /> Configurar Toph
+              </DropdownItem>
+            ) : null}
+            {onSessions ? (
+              <DropdownItem onSelect={() => run(onSessions)}>
+                <History size={14} className="shrink-0 text-text-tertiary" /> Conversas do Toph
+              </DropdownItem>
+            ) : null}
+            {onRemove ? (
+              <>
+                <DropdownDivider />
+                <DropdownItem onSelect={() => run(onRemove)} className="text-status-rose-text">
+                  <Trash2 size={14} className="shrink-0" /> Apagar Toph
+                </DropdownItem>
+              </>
+            ) : null}
+          </DropdownPopover>
+        </Dropdown>
+      ) : (
+        <>
+          {onNew ? <Button variant="ghost" size="xs" iconOnly leadingIcon={MessageSquarePlus} aria-label={`Nova tarefa com ${toph.name}`} title="Nova tarefa" className={actionVisibility} onClick={onNew} /> : null}
+          {onConfig ? <Button variant="ghost" size="xs" iconOnly leadingIcon={Settings2} aria-label={`Configurar ${toph.name}`} title="Configurar Toph" className={actionVisibility} onClick={onConfig} /> : null}
+          {onSessions ? <Button variant="ghost" size="xs" iconOnly leadingIcon={History} aria-label={`Conversas de ${toph.name}`} title="Conversas do Toph" className={actionVisibility} onClick={onSessions} /> : null}
+          {onRemove ? <Button variant="ghost" size="xs" iconOnly leadingIcon={Trash2} aria-label={`Apagar ${toph.name}`} title="Apagar Toph" className={cx("text-status-rose-text", actionVisibility)} onClick={onRemove} /> : null}
+        </>
+      )}
     </div>
   );
 }

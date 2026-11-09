@@ -243,7 +243,7 @@ export default function TopBar({ onOpenProject, onCloseProject, onGoHome, projec
                   title={`${project.name}\n${project.root}`}
                   aria-current={active ? "page" : undefined}
                 >
-                  <ProjectTophAvatar project={project} size={20} />
+                  <ProjectTophAvatar project={project} size={20} showInitial />
                   <span className="max-w-[160px] truncate">{project.name}</span>
                 </button>
                 <button
@@ -347,7 +347,7 @@ export function ProjectRail({ onOpenProject, onCloseProject, onGoHome, onQuickOp
                   aria-current={active ? "page" : undefined}
                   title={`${project.name}\n${project.root}`}
                 >
-                  <ProjectTophAvatar project={project} size={30} />
+                  <ProjectTophAvatar project={project} size={30} showInitial />
                 </button>
                 <button
                   type="button"
