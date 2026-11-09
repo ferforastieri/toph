@@ -25,6 +25,16 @@ use tokio_util::sync::CancellationToken;
 
 type CompletionHandler = Arc<dyn Fn(CompletionNotice) + Send + Sync>;
 
+/// One earlier answer from the same group turn. Group members run in sequence
+/// so the next Toph can see the work that already exists; this is the minimal
+/// handoff, not a rebuilt conversation history.
+#[derive(Clone, Debug)]
+struct PeerReply {
+    handle: String,
+    text: String,
+    failed: bool,
+}
+
 #[derive(Clone, Debug)]
 pub struct CompletionNotice {
     pub project_id: String,
@@ -441,6 +451,10 @@ impl Runtime {
             .collect::<Vec<_>>();
 
         let mut primary: Option<Run> = None;
+        // Group members answer in sequence. Each one receives only the direct
+        // answers produced for this same user message, so it can build on the
+        // previous work without replaying a reconstructed conversation.
+        let mut previous: Option<tokio::task::JoinHandle<Vec<PeerReply>>> = None;
         for (index, responder) in responders.into_iter().enumerate() {
             let primary_responder = index == 0;
             let config = match self.inner.ai.resolve(&responder.model).await {
@@ -553,14 +567,37 @@ impl Runtime {
             let runtime = self.clone();
             let run_text = text.clone();
             let run_attachments = attachments.clone();
-            tokio::spawn(async move {
+            let prior = previous.take();
+            let handle = tokio::spawn(async move {
+                let mut ctx = ctx;
+                let mut answers = match prior {
+                    Some(prior) => prior.await.unwrap_or_default(),
+                    None => Vec::new(),
+                };
+                let replies = answers
+                    .iter()
+                    .filter(|reply| !reply.failed && !reply.text.trim().is_empty())
+                    .collect::<Vec<_>>();
+                if !replies.is_empty() {
+                    let mut prompt = format!("Mensagem do usuário no grupo:\n{run_text}\n\n");
+                    for reply in replies {
+                        prompt.push_str(&format!(
+                            "Resposta de @{} nesta mesma mensagem:\n{}\n\n",
+                            reply.handle, reply.text
+                        ));
+                    }
+                    prompt.push_str(
+                        "Faça a sua parte na resposta ao usuário a partir daqui. Complemente ou revise o que já foi respondido; não repita o que já foi dito.",
+                    );
+                    ctx.request = prompt;
+                }
                 let preparation = runtime.prepare(&ctx, &run_text, &run_attachments).await;
                 // A silent route stores the person's message and deliberately
                 // starts no model turn.
                 if ctx.silent {
                     let result = preparation.map(|_| String::new());
                     runtime.finish(&ctx, result, token.is_cancelled()).await;
-                    return;
+                    return answers;
                 }
                 // A run ends when it finishes or when the user cancels it. There is
                 // no wall-clock cap: long browser sessions and refactors are legit.
@@ -572,13 +609,23 @@ impl Runtime {
                     }
                     Err(error) => Err(error),
                 };
+                answers.push(PeerReply {
+                    handle: ctx.agent.handle.clone(),
+                    text: result
+                        .as_ref()
+                        .map(|text| text.chars().take(8_000).collect())
+                        .unwrap_or_default(),
+                    failed: result.is_err(),
+                });
                 if let Ok(text) = &result {
                     if !token.is_cancelled() {
                         runtime.auto_handoff(&ctx, text, &token).await;
                     }
                 }
                 runtime.finish(&ctx, result, token.is_cancelled()).await;
+                answers
             });
+            previous = Some(handle);
             if primary_responder {
                 primary = Some(run);
             }
@@ -1121,8 +1168,45 @@ Se a mensagem depender de uma ferramenta ou MCP, prefira quem tem acesso a ele; 
         }
     }
 
+    fn identity(agent: &AgentSpec, roster: &[AgentSpec], routed: &[String]) -> String {
+        let mut text = format!(
+            "Você é {} (@{}), {}.\n{}\n{}\n{}",
+            agent.name,
+            agent.handle,
+            agent.role,
+            agent.description,
+            agent.personality,
+            agent.prompt
+        );
+        if roster.len() > 1 {
+            let peers = roster
+                .iter()
+                .filter(|item| item.id != agent.id)
+                .map(|item| format!("@{} ({})", item.handle, item.role))
+                .collect::<Vec<_>>()
+                .join(", ");
+            text.push_str(&format!(
+                "\n\nVocê está num grupo com {peers}. Se precisar do trabalho de outro Toph, mencione o @handle dele na resposta com um pedido claro; ele recebe a sua resposta e continua a mesma conversa. Não responda pela outra pessoa."
+            ));
+        }
+        if routed.len() > 1 {
+            let peers = roster
+                .iter()
+                .filter(|item| item.id != agent.id && routed.iter().any(|id| id == &item.id))
+                .map(|item| format!("@{}", item.handle))
+                .collect::<Vec<_>>()
+                .join(", ");
+            if !peers.is_empty() {
+                text.push_str(&format!(
+                    "\n\nNesta mensagem, {peers} também participam. Se uma resposta deles já estiver no seu contexto, complemente ou revise sem repetir; se ainda não estiver, faça a sua parte."
+                ));
+            }
+        }
+        text
+    }
+
     /// Runs one turn on an external CLI. The CLI owns the native agent loop and
-    /// tools; Toph still owns the chat, run state and transcript.
+    /// tools; Toph adds only identity and the selected native integrations.
     fn execute_cli<'a>(
         &'a self,
         ctx: &'a RunContext,
@@ -1142,12 +1226,24 @@ Se a mensagem depender de uma ferramenta ou MCP, prefira quem tem acesso a ele; 
             } else {
                 ctx.agent.model.clone()
             };
-            let prompt = if engine == "opencode" {
-                ctx.request.clone()
-            } else {
-                self.cli_transcript(ctx).await?
-            };
+            let system = Self::identity(&ctx.agent, &ctx.roster, &ctx.routed);
+            let prompt = ctx.request.clone();
             let opencode_session = format!("ses_{}", ctx.run.session_id);
+            let mut mcp_servers = self
+                .inner
+                .tools
+                .mcp
+                .selected_servers(&ctx.agent.mcp_servers)
+                .await
+                .unwrap_or_default();
+            if let Some(native) = cli::native_server(
+                &ctx.project_id,
+                &ctx.root,
+                &ctx.agent.tools,
+                &ctx.agent.email_account_ids,
+            ) {
+                mcp_servers.push(native);
+            }
             let work = cli::work_dir(&ctx.run.session_id);
             tokio::fs::create_dir_all(&work).await?;
             let mid = format!("{}-engine", ctx.run.id);
@@ -1201,22 +1297,47 @@ Se a mensagem depender de uma ferramenta ou MCP, prefira quem tem acesso a ele; 
                 match engine {
                     "claude" => {
                         let tx = tool_tx.clone();
+                        let session = cli::session_uuid(&ctx.run.session_id);
+                        let resume = sqlx::query_scalar::<_, i64>(
+                            "SELECT COUNT(*) FROM agent_messages WHERE session_id=? AND role='assistant'",
+                        )
+                        .bind(&ctx.run.session_id)
+                        .fetch_one(self.inner.repo.0.pool())
+                        .await
+                        .unwrap_or(0)
+                            > 0;
                         cli::run_claude(
                             &model,
                             &ctx.agent.effort,
+                            &system,
                             &prompt,
                             &work,
+                            &ctx.skills,
+                            &mcp_servers,
+                            &session,
+                            resume,
                             cancel,
                             &mut |tool| { let _ = tx.send(tool); },
                         )
                         .await
+                        .map(|(text, usage)| (text, usage, None))
                     }
                     "codex" => {
                         let tx = tool_tx.clone();
+                        let session = self
+                            .inner
+                            .repo
+                            .ledger(&ctx.run.session_id)
+                            .await
+                            .unwrap_or_default();
                         cli::run_codex(
                             &model,
+                            &system,
                             &prompt,
                             &work,
+                            &ctx.skills,
+                            &mcp_servers,
+                            (!session.trim().is_empty()).then_some(session.as_str()),
                             cancel,
                             &mut |tool| { let _ = tx.send(tool); },
                         )
@@ -1226,15 +1347,19 @@ Se a mensagem depender de uma ferramenta ou MCP, prefira quem tem acesso a ele; 
                         let tx = tool_tx.clone();
                         cli::run_opencode(
                             &model,
+                            &system,
                             &prompt,
                             &opencode_session,
                             &ctx.root,
                             attachments,
+                            &ctx.skills,
+                            &mcp_servers,
                             cancel,
                             &mut on_text,
                             &mut |tool| { let _ = tx.send(tool); },
                         )
                         .await
+                        .map(|(text, usage)| (text, usage, None))
                     }
                     other => Err(bad_request(format!(
                         "O harness {other} ainda não está ligado ao runtime. Use OpenCode, Claude Code ou Codex."
@@ -1244,10 +1369,17 @@ Se a mensagem depender de uma ferramenta ou MCP, prefira quem tem acesso a ele; 
             drop(tool_tx);
             let _ = recorder.await;
             self.inner.drafts.lock().unwrap().remove(&ctx.run.id);
-            let (text, usage) = match result {
+            let (text, usage, codex_thread) = match result {
                 Ok(value) => value,
                 Err(error) => return Err(error),
             };
+            if let Some(thread) = codex_thread {
+                let _ = self
+                    .inner
+                    .repo
+                    .save_ledger(&ctx.run.session_id, &thread)
+                    .await;
+            }
             if text.trim().is_empty() {
                 return Err(bad_request(format!(
                     "O {engine_label} terminou sem resposta."
@@ -1285,31 +1417,6 @@ Se a mensagem depender de uma ferramenta ou MCP, prefira quem tem acesso a ele; 
         .await;
             Ok(text)
         })
-    }
-
-    /// Compact transcript for engines without a native resumable session.
-    /// OpenCode resumes its own session and only receives the unsent tail.
-    async fn cli_transcript(&self, ctx: &RunContext) -> AppResult<String> {
-        let rows = sqlx::query(
-            "SELECT role,content_text FROM agent_messages WHERE session_id=? AND role IN ('user','assistant') AND content_text<>'' AND id NOT LIKE 'import-%' ORDER BY seq DESC LIMIT 40",
-        )
-        .bind(&ctx.run.session_id)
-        .fetch_all(self.inner.repo.0.pool())
-        .await?;
-        let mut blocks = rows
-            .into_iter()
-            .rev()
-            .map(|row| {
-                let role: String = row.get("role");
-                let text: String = row.get("content_text");
-                let text = text.chars().take(4_000).collect::<String>();
-                format!("[{role}]\n{text}")
-            })
-            .collect::<Vec<_>>();
-        if blocks.is_empty() {
-            blocks.push(format!("[user]\n{}", ctx.request));
-        }
-        Ok(blocks.join("\n\n"))
     }
 
     /// Stores a tool call reported by a native harness as a regular Toph

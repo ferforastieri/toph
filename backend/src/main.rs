@@ -18,6 +18,13 @@ async fn main() {
 }
 
 async fn run() -> Result<()> {
+    if matches!(
+        std::env::args().nth(1).as_deref(),
+        Some("mcp-tools") | Some("mcp-email")
+    ) {
+        toph_server::features::integrations::email::mcp::serve().await?;
+        return Ok(());
+    }
     let config = toph_server::config::Config::load()?;
     toph_server::serve(config).await?;
     Ok(())

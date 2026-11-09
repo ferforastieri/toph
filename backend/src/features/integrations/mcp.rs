@@ -212,6 +212,18 @@ impl Service {
             .map(|server| (server.id, server.name))
             .collect())
     }
+
+    /// Full definitions of the MCP servers selected for one Toph. Native
+    /// harnesses receive these as their own MCP configuration; secrets are
+    /// injected as environment placeholders by the caller.
+    pub async fn selected_servers(&self, ids: &[String]) -> AppResult<Vec<Server>> {
+        Ok(self
+            .servers()
+            .await?
+            .into_iter()
+            .filter(|server| is_selected(ids, server))
+            .collect())
+    }
     /// Resolve what the model called (`server`) to a configured server the
     /// Toph may use. Accepts the id, the display name or a unique word from it.
     pub async fn resolve(&self, ids: &[String], requested: &str) -> AppResult<Server> {
