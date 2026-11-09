@@ -136,6 +136,9 @@ pub struct RunContext {
     /// Tophs the router chose for the same message. They answer together, so
     /// a handoff to one of them would duplicate the turn.
     pub routed: Vec<String>,
+    /// The router said nobody needs to answer: save the user message, start
+    /// no model turn and finish the run cleanly.
+    pub silent: bool,
     /// The current request text, used when the session has no transcript yet.
     pub request: String,
 }

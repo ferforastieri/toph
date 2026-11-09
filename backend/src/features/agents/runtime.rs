@@ -377,7 +377,10 @@ impl Runtime {
                 .cloned()
                 .ok_or_else(|| bad_request("Unknown agent"))?]
         };
-        if responders.is_empty() {
+        let silent = responders.is_empty();
+        if silent {
+            // The user message still belongs in the timeline. The first Toph
+            // owns that visible bubble without being asked to answer it.
             responders.push(roster[0].clone());
         }
         // Resolve every responder's model before opening any session, so the
@@ -506,6 +509,7 @@ impl Runtime {
                 depth: 0,
                 secondary: !primary_responder,
                 routed: routed_ids.clone(),
+                silent: silent && primary_responder,
                 request: text.clone(),
             };
             let runtime = self.clone();
@@ -513,6 +517,13 @@ impl Runtime {
             let run_attachments = attachments.clone();
             tokio::spawn(async move {
                 let preparation = runtime.prepare(&ctx, &run_text, &run_attachments).await;
+                // A silent route stores the person's message and deliberately
+                // starts no model turn.
+                if ctx.silent {
+                    let result = preparation.map(|_| String::new());
+                    runtime.finish(&ctx, result, token.is_cancelled()).await;
+                    return;
+                }
                 // A run ends when it finishes or when the user cancels it. There is
                 // no wall-clock cap: long browser sessions and refactors are legit.
                 let result = match preparation {
@@ -661,11 +672,6 @@ Se a mensagem depender de uma ferramenta ou MCP, prefira quem tem acesso a ele; 
         picked.retain(|agent| seen.insert(agent.id.clone()));
         if !choice.everyone {
             picked.truncate(MAX_ROUTED);
-        }
-        if picked.is_empty() {
-            // Toph has no standalone user-message store, so an empty route
-            // falls back to the first Toph instead of losing the message.
-            picked.push(roster[0].clone());
         }
         tracing::info!(
             handles = ?picked.iter().map(|agent| agent.handle.as_str()).collect::<Vec<_>>(),
@@ -1022,7 +1028,7 @@ Se a mensagem depender de uma ferramenta ou MCP, prefira quem tem acesso a ele; 
                 json!({"state": state, "error": error, "answer": answer.clone()}),
             )
             .await;
-        if state == "completed" && ctx.depth == 0 {
+        if state == "completed" && ctx.depth == 0 && !answer.is_empty() {
             if let Some(handler) = self.inner.on_complete.read().unwrap().as_ref() {
                 handler(CompletionNotice {
                     project_id: ctx.project_id.clone(),
@@ -1667,6 +1673,7 @@ Trabalhe no projeto atual. Para concluir uma alteração, rode os testes ou o bu
                 depth: parent.depth + 1,
                 secondary: false,
                 routed: parent.routed.clone(),
+                silent: false,
                 request: task.to_string(),
             };
             self.inner
