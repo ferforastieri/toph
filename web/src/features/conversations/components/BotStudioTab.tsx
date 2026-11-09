@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { ArrowDown, Bot, LoaderCircle, UserRound } from "@toph/icons";
+import { ArrowDown, Bot, LoaderCircle, Timer, UserRound } from "@toph/icons";
 import type { Project } from "../../../shared/api";
 import { ApiError } from "../../../shared/api";
 import { chatDisplayName, chatTophs, useChats } from "../store";
@@ -37,6 +37,7 @@ export default function BotStudioTab({ project, conversationId, mobile = false, 
   const [sending, setSending] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [atBottom, setAtBottom] = useState(true);
+  const [queued, setQueued] = useState<Array<{ text: string; attachments: AgentAttachment[] }>>([]);
   const draftKey = `${project.id}:${chat?.id ?? ""}:native`;
   const text = useTophDrafts((s) => s.drafts[draftKey] ?? "");
   const setDraft = useTophDrafts((s) => s.setDraft);
@@ -60,7 +61,7 @@ export default function BotStudioTab({ project, conversationId, mobile = false, 
     window.addEventListener("toph:refresh-chat", refresh);
     return () => window.removeEventListener("toph:refresh-chat", refresh);
   }, [native.refresh]);
-  useEffect(() => { follow.current = true; setAtBottom(true); pendingScroll.current = null; }, [chat?.id]);
+  useEffect(() => { follow.current = true; setAtBottom(true); setQueued([]); pendingScroll.current = null; }, [chat?.id]);
   useEffect(() => {
     if (follow.current && scroller.current) scroller.current.scrollTop = scroller.current.scrollHeight;
   }, [native.messages, native.approvals, busy]);
@@ -113,8 +114,20 @@ export default function BotStudioTab({ project, conversationId, mobile = false, 
   }
   sendNowRef.current = sendNow;
 
+  useEffect(() => {
+    if (busy || queued.length === 0) return;
+    const [next, ...rest] = queued;
+    setQueued(rest);
+    void sendNowRef.current(next.text, next.attachments);
+  }, [busy, queued]);
+
   async function send(value: string, attachments: AgentAttachment[]) {
     if (!chat || !tophs.length) return;
+    if (busy) {
+      setQueued((current) => [...current, { text: value, attachments }]);
+      clearDraft(draftKey);
+      return;
+    }
     await sendNowRef.current(value, attachments);
   }
   async function stop() {
@@ -164,11 +177,23 @@ export default function BotStudioTab({ project, conversationId, mobile = false, 
         </div>
         {tophs.length > 0 && !atBottom && <button type="button" onClick={() => { follow.current = true; setAtBottom(true); scroller.current?.scrollTo({ top: scroller.current.scrollHeight, behavior: "smooth" }); }} className="absolute bottom-3 left-1/2 z-10 flex size-8 -translate-x-1/2 items-center justify-center rounded-full border border-border-button-default bg-background-secondary-default text-text-secondary shadow-sidebar" aria-label="Ir para o fim da conversa"><ArrowDown size={15} /></button>}
       </div>
+      {queued.length > 0 ? (
+        <div className="mx-auto w-full max-w-[860px] px-3 pt-1.5">
+          <div className="flex min-w-0 items-center gap-2 rounded-xl border border-border-button-default bg-background-secondary-default px-2.5 py-1.5 text-caption-2-regular text-text-secondary">
+            <Timer size={13} className="shrink-0 text-accent-600" />
+            <span className="min-w-0 flex-1 truncate">
+              {queued.length} mensagem{queued.length === 1 ? "" : "s"} na fila — envio após a execução atual
+              {queued[0]?.text ? `: ${queued[0].text}` : ""}
+            </span>
+            <button type="button" onClick={() => setQueued([])} className="shrink-0 text-caption-2-regular text-text-tertiary underline-offset-2 hover:text-text-primary hover:underline">Limpar</button>
+          </div>
+        </div>
+      ) : null}
       {tophs.length > 0 && <div className="shrink-0">
         {modelError && <p role="alert" className="px-3 text-xs text-text-error-primary">{modelError}</p>}
         <AgentComposer value={text} onChange={(value) => setDraft(draftKey, value)} onSend={(value, files) => void send(value, files)} onStop={() => void stop()} busy={busy}
           placeholder={tophs.length === 1 ? `Mensagem para ${tophs[0].name}` : "Mensagem para o grupo"}
-          hint={tophs.length === 1 ? "Esta tarefa é só sua com este Toph" : "Quem estiver na conversa responde · use @ para chamar alguém"}
+          hint={busy ? "Toph está trabalhando — sua mensagem entra na fila" : tophs.length === 1 ? "Esta tarefa é só sua com este Toph" : "Quem estiver na conversa responde · use @ para chamar alguém"}
           history={native.messages.filter((m) => m.role === "user").map((m) => m.content)}
           modeControls={<div className="flex items-center gap-0.5"><Button type="button" variant="ghost" size="small" iconOnly leadingIcon={UserRound} aria-label="Participantes da conversa" title="Participantes e contexto" onClick={() => setSettingsOpen(true)} /><ChatUsageMeter chatName={title} model={activeModelDisplay} /></div>} members={tophs} />
       </div>}

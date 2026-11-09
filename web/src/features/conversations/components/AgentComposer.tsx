@@ -299,7 +299,7 @@ export function AgentComposer({ value, onChange, onSend, onStop, busy, placehold
                 className="shrink-0 rounded-full"
               />
             ) : null}
-            <Button type="submit" variant="primary" size="small" iconOnly leadingIcon={ArrowUp} disabled={audio.recording || audio.processing || (!value.trim() && attachments.length === 0)} aria-label={busy ? "Interromper e enviar" : "Enviar"} title={busy ? "Interromper a execução atual e enviar esta mensagem" : "Enviar"} className="shrink-0 rounded-full" />
+            <Button type="submit" variant="primary" size="small" iconOnly leadingIcon={ArrowUp} disabled={audio.recording || audio.processing || (!value.trim() && attachments.length === 0)} aria-label={busy ? "Enfileirar mensagem" : "Enviar"} title={busy ? "Enviar quando a execução atual terminar" : "Enviar"} className="shrink-0 rounded-full" />
           </div>
         </form>
       </ComposerLoader>

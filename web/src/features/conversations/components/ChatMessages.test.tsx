@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import type { Project } from "../../../shared/api";
 import type { ChatToph } from "../store";
@@ -50,10 +50,12 @@ describe("ChatMessages timeline", () => {
     );
 
     const first = screen.getByText("primeira resposta");
-    const read = screen.getByText("src/a.ts");
     const third = screen.getByText("terceira resposta");
-    expect(first.compareDocumentPosition(read) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(read.compareDocumentPosition(third) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const group = screen.getByRole("button", { name: /1 passo/ });
+    expect(first.compareDocumentPosition(group) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(group.compareDocumentPosition(third) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    fireEvent.click(group);
+    expect(screen.getByText("src/a.ts")).toBeInTheDocument();
     expect(screen.getAllByText("Beto").length).toBeGreaterThan(0);
   });
 
@@ -117,6 +119,7 @@ describe("ChatMessages timeline", () => {
       />,
     );
 
+    fireEvent.click(screen.getByRole("button", { name: /1 passo/ }));
     expect(screen.getByText("Rodou")).toBeInTheDocument();
     expect(screen.getAllByText("printf 'ok'").length).toBeGreaterThan(0);
     expect(screen.getByText(/→ ok/)).toBeInTheDocument();

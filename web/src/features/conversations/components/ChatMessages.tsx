@@ -286,7 +286,7 @@ function StepGroup({ messages, toph, showAvatar }: { messages: NativeMessage[]; 
   return (
     <div data-testid="chat-step-group" className="toph-msg-in flex min-w-0 gap-3 py-0.5">
       <div className="flex w-[34px] shrink-0 justify-center">{showAvatar ? <BotAvatar bot={toph} size={18} /> : null}</div>
-      <div className="min-w-0 flex-1"><RunSteps steps={messages} working={working} defaultOpen /></div>
+      <div className="min-w-0 flex-1"><RunSteps steps={messages} working={working} /></div>
     </div>
   );
 }

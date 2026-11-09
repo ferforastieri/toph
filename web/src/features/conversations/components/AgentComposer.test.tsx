@@ -93,7 +93,7 @@ describe("AgentComposer actions", () => {
     expect(onSend).not.toHaveBeenCalled();
   });
 
-  it("keeps send available while a run is active", () => {
+  it("queues the next message while a run is active", () => {
     const onSend = vi.fn();
     render(
       <AgentComposer
@@ -106,7 +106,7 @@ describe("AgentComposer actions", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Interromper e enviar" }));
+    fireEvent.click(screen.getByRole("button", { name: "Enfileirar mensagem" }));
     expect(onSend).toHaveBeenCalledWith("enviar mesmo executando", []);
   });
 

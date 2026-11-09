@@ -31,6 +31,7 @@ beforeEach(() => {
   chatId = useChats.getState().createConversation(project.id, [firstId, memberId], { description: "Preservar os contratos da tarefa" })!.id;
   useAI.setState({ config: null, error: "", models: [{ id: "go::deepseek", label: "DeepSeek", provider: "custom" }, { id: "openai::gpt", label: "GPT", provider: "openai" }, { id: "openai::review", label: "Review", provider: "openai" }] });
   useTophDrafts.setState({ drafts: {} });
+  native.busy = false;
   native.refresh.mockResolvedValue(undefined);
   vi.spyOn(engineApi, "limits").mockResolvedValue({
     ok: true,
@@ -70,6 +71,21 @@ describe("Toph chat controls", () => {
     expect(input.chatDescription).toBe("Preservar os contratos da tarefa");
     expect(input.agents.find((a) => a.id === firstId)).toMatchObject({ agentMode: "plan", model: "go::deepseek" });
     expect(input.agents.find((a) => a.id === memberId)).toMatchObject({ agentMode: "build", model: "openai::review" });
+  });
+
+  it("queues a follow-up while a run is active and sends it after the run", async () => {
+    const start = vi.spyOn(agentApi, "start").mockResolvedValue({ id: "run-queued", sessionId: "session", agentId: firstId, chatId, state: "queued", error: "", createdAt: 1 });
+    native.busy = true;
+    const { rerender } = render(<BotStudioTab project={project} conversationId={chatId} />);
+    fireEvent.change(screen.getByRole("textbox", { name: "Mensagem para o agente" }), { target: { value: "Terminou?" } });
+    fireEvent.click(screen.getByRole("button", { name: "Enfileirar mensagem" }));
+    expect(start).not.toHaveBeenCalled();
+    expect(screen.getByText(/1 mensagem na fila/)).toBeVisible();
+
+    native.busy = false;
+    rerender(<BotStudioTab project={project} conversationId={chatId} />);
+    await waitFor(() => expect(start).toHaveBeenCalledOnce());
+    expect(start.mock.calls[0][1].text).toBe("Terminou?");
   });
 
   it("shows only the conversation, without a chat header", () => {
