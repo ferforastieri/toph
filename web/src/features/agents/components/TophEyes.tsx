@@ -3,26 +3,18 @@ import { cx } from "@/shared/boardui/utils/cx";
 import { TOPH_EYES, type TophEyeBox } from "../eyes";
 
 /** Extra room around each eye so the patch always covers the original eye. */
-const EYE_PAD_X = 18;
-const EYE_PAD_Y = 10;
-const EYE_BLUR = "4 2";
+const EYE_PAD_X = 9;
+const EYE_PAD_Y = 7;
 
 const EYE_TRANSFORM = "translate3d(var(--toph-look-x, 0px), var(--toph-look-y, 0px), 0)";
 
+/** Same mask recipe as the landing hero: a tight radial ellipse around each eye. */
 function eyeMask(box: TophEyeBox): string {
-  const cx = box.x + box.w / 2;
-  const cy = box.y + box.h / 2;
-  const rx = box.w / 2 + EYE_PAD_X;
-  const ry = box.h / 2 + EYE_PAD_Y;
-  const svg = [
-    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">',
-    '<defs><filter id="b" x="-50%" y="-50%" width="200%" height="200%">',
-    `<feGaussianBlur stdDeviation="${EYE_BLUR}"/>`,
-    "</filter></defs>",
-    `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" fill="white" filter="url(#b)"/>`,
-    "</svg>",
-  ].join("");
-  return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
+  const cx = ((box.x + box.w / 2) / 256) * 100;
+  const cy = ((box.y + box.h / 2) / 256) * 100;
+  const rx = ((box.w / 2 + EYE_PAD_X) / 256) * 100;
+  const ry = ((box.h / 2 + EYE_PAD_Y) / 256) * 100;
+  return `radial-gradient(ellipse ${rx}% ${ry}% at ${cx}% ${cy}%, #000 52%, transparent 100%)`;
 }
 
 export function avatarColorStyle(color: string, image: string): CSSProperties {
