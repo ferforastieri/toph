@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import BotStudioTab from "./BotStudioTab";
 import { TOPH_PRESETS, useChats } from "../store";
@@ -13,8 +13,7 @@ const native = vi.hoisted(() => ({
   usage: { inputTokens: 100, outputTokens: 20, cachedTokens: 40, calls: 1, byAgent: [] },
 }));
 vi.mock("../../agents/useAgentChat", () => ({ useAgentChat: () => native }));
-vi.mock("../../agents/components/BotConfig", () => ({ default: ({ bot }: { bot: { name: string } }) => <div data-testid="toph-config">Configuração de {bot.name}</div> }));
-vi.mock("./TophSessionsSheet", () => ({ default: ({ toph }: { toph: { name: string } }) => <div data-testid="toph-sessions">Sessões de {toph.name}</div> }));
+
 
 const project: Project = { id: "project", name: "Project", root: "/project", color: "#FFB547", createdAt: "", updatedAt: "" };
 let firstId: string;
@@ -27,10 +26,9 @@ beforeAll(() => {
 beforeEach(() => {
   useChats.setState({ byProject: {}, messageWrites: {} });
   useChats.getState().load(project.id);
-  chatId = useChats.getState().byProject[project.id].chats[0].id;
-  useChats.getState().updateChat(project.id, chatId, { description: "Preservar os contratos da equipe" });
-  firstId = useChats.getState().addToph(project.id, chatId, { ...TOPH_PRESETS[0], name: "Fernando", model: "go::deepseek", agentMode: "build" })!.id;
-  memberId = useChats.getState().addToph(project.id, chatId, { ...TOPH_PRESETS[1], name: "Beto", model: "openai::review", agentMode: "build" })!.id;
+  firstId = useChats.getState().createToph(project.id, { ...TOPH_PRESETS[0], name: "Fernando", model: "go::deepseek", agentMode: "build" })!.id;
+  memberId = useChats.getState().createToph(project.id, { ...TOPH_PRESETS[1], name: "Beto", model: "openai::review", agentMode: "build" })!.id;
+  chatId = useChats.getState().createConversation(project.id, [firstId, memberId], { description: "Preservar os contratos da tarefa" })!.id;
   useAI.setState({ config: null, error: "", models: [{ id: "go::deepseek", label: "DeepSeek", provider: "custom" }, { id: "openai::gpt", label: "GPT", provider: "openai" }, { id: "openai::review", label: "Review", provider: "openai" }] });
   useTophDrafts.setState({ drafts: {} });
   native.refresh.mockResolvedValue(undefined);
@@ -50,7 +48,7 @@ afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 describe("Toph chat controls", () => {
   it.each([false, true])("uses the compact chat composer with only the plan limit (mobile=%s)", (mobile) => {
-    render(<BotStudioTab project={project} mobile={mobile} />);
+    render(<BotStudioTab project={project} conversationId={chatId} mobile={mobile} />);
     expect(screen.getByRole("button", { name: "Consumo do plano" })).toBeVisible();
     expect(screen.queryByRole("button", { name: "Modelo e esforço" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Modo do agente" })).not.toBeInTheDocument();
@@ -60,7 +58,7 @@ describe("Toph chat controls", () => {
   it("sends each Toph's own settings", async () => {
     const start = vi.spyOn(agentApi, "start").mockResolvedValue({ id: "run", sessionId: "session", agentId: firstId, chatId, state: "queued", error: "", createdAt: 1 });
     useChats.getState().updateToph(project.id, firstId, { agentMode: "plan" });
-    render(<BotStudioTab project={project} />);
+    render(<BotStudioTab project={project} conversationId={chatId} />);
     const members = useChats.getState().byProject[project.id].tophs;
     expect(members.find((a) => a.id === firstId)?.agentMode).toBe("plan");
     expect(members.find((a) => a.id === memberId)).toMatchObject({ model: "openai::review", agentMode: "build" });
@@ -69,27 +67,29 @@ describe("Toph chat controls", () => {
     await waitFor(() => expect(start).toHaveBeenCalledOnce());
     const input = start.mock.calls[0][1];
     expect(input.agentId).toBe("router");
-    expect(input.chatDescription).toBe("Preservar os contratos da equipe");
+    expect(input.chatDescription).toBe("Preservar os contratos da tarefa");
     expect(input.agents.find((a) => a.id === firstId)).toMatchObject({ agentMode: "plan", model: "go::deepseek" });
     expect(input.agents.find((a) => a.id === memberId)).toMatchObject({ agentMode: "build", model: "openai::review" });
   });
 
   it("shows only the conversation, without a chat header", () => {
-    render(<BotStudioTab project={project} />);
+    render(<BotStudioTab project={project} conversationId={chatId} />);
 
     expect(screen.queryByText("Equipe", { exact: true })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Configurar Beto" })).not.toBeInTheDocument();
     expect(screen.getByRole("textbox", { name: "Mensagem para o agente" })).toBeVisible();
   });
 
-  it("opens the selected Toph from the sidebar action event", async () => {
-    render(<BotStudioTab project={project} />);
-    act(() => window.dispatchEvent(new CustomEvent("toph:toph-action", { detail: { action: "config", tophId: memberId } })));
-    expect(await screen.findByTestId("toph-config")).toHaveTextContent("Configuração de Beto");
+  it("opens the task participants from the composer", async () => {
+    render(<BotStudioTab project={project} conversationId={chatId} />);
+    fireEvent.click(screen.getByRole("button", { name: "Participantes da conversa" }));
+    const dialog = await screen.findByRole("dialog", { name: "Conversa" });
+    expect(within(dialog).getByText("Fernando")).toBeVisible();
+    expect(within(dialog).getByText("Beto")).toBeVisible();
   });
 
   it("shows how much of the plan limit is left", async () => {
-    render(<BotStudioTab project={project} />);
+    render(<BotStudioTab project={project} conversationId={chatId} />);
     fireEvent.click(screen.getByRole("button", { name: "Consumo do plano" }));
     const dialog = await screen.findByRole("dialog", { name: "Consumo do plano" });
     expect(within(dialog).getByText("Semana")).toBeVisible();
@@ -105,7 +105,7 @@ describe("Toph chat controls", () => {
       id: "call-question", runId: "run", agentId: firstId, name: "ask_user", arguments: "{}",
       questions: [{ header: "Escopo", question: "Qual escopo devo usar?", options: [{ label: "Tudo" }, { label: "Só o backend" }] }],
     }];
-    render(<BotStudioTab project={project} />);
+    render(<BotStudioTab project={project} conversationId={chatId} />);
     expect(screen.getByText("O agente precisa da sua resposta")).toBeVisible();
     fireEvent.click(screen.getByRole("radio", { name: /Só o backend/ }));
     fireEvent.click(screen.getByRole("button", { name: "Responder" }));
@@ -116,7 +116,7 @@ describe("Toph chat controls", () => {
   });
 
   it("no longer renders the standalone Apresentação panel", () => {
-    render(<BotStudioTab project={project} />);
+    render(<BotStudioTab project={project} conversationId={chatId} />);
     expect(screen.queryByText("Apresentação")).not.toBeInTheDocument();
     expect(screen.queryByText("O que o agente quer mostrar")).not.toBeInTheDocument();
   });

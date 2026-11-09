@@ -7,7 +7,8 @@ CREATE TABLE IF NOT EXISTS agent_sessions (
  chat_id TEXT NOT NULL, agent_id TEXT NOT NULL REFERENCES agent_profiles(id), title TEXT NOT NULL,
  archived INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
 );
-CREATE UNIQUE INDEX IF NOT EXISTS agent_session_active ON agent_sessions(user_id,project_id,agent_id) WHERE archived=0;
+DROP INDEX IF EXISTS agent_session_active;
+CREATE UNIQUE INDEX IF NOT EXISTS agent_session_active ON agent_sessions(user_id,project_id,chat_id,agent_id) WHERE archived=0;
 CREATE INDEX IF NOT EXISTS agent_session_chat ON agent_sessions(user_id,project_id,chat_id,updated_at DESC);
 CREATE TABLE IF NOT EXISTS agent_runs (
  id TEXT PRIMARY KEY, session_id TEXT NOT NULL REFERENCES agent_sessions(id), parent_id TEXT REFERENCES agent_runs(id),

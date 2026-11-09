@@ -8,7 +8,7 @@ import { basename, quoteIdentifier } from "../../../shared/lib";
 import BrandMark from "@toph/brand";
 import { Button } from "@/shared/boardui/base/buttons/button";
 import { Modal } from "@/shared/boardui/base/modal/modal";
-import BotStudioTab, { type TophActionRequest } from "../../../features/conversations/components/BotStudioTab";
+import BotStudioTab from "../../../features/conversations/components/BotStudioTab";
 import DbPanelTab from "../../../features/databases/components/DbPanelTab";
 import DiffPanelTab from "../../../features/editor/components/DiffPanelTab";
 import EditorPanel from "../../../features/editor/components/EditorPanel";
@@ -25,7 +25,7 @@ import WebAppsScreen from "./screens/WebAppsScreen";
 import ProjectSwitcher from "../../../features/projects/components/ProjectSwitcher";
 import CloseProjectModal from "../../../features/projects/components/CloseProjectModal";
 import MobileTopBar from "./components/MobileTopBar";
-import { useChats } from "../../../features/conversations/store";
+import { latestChatForToph, useChats } from "../../../features/conversations/store";
 import { useTophDrafts } from "../../../features/agents/drafts";
 import MobileBranchSheet from "./MobileBranchSheet";
 import MobileAccountSheet from "./MobileAccountSheet";
@@ -59,9 +59,9 @@ export default function MobileApp() {
   const [branchOpen, setBranchOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const [conversationsOpen, setConversationsOpen] = useState(false);
-  const [pendingTophAction, setPendingTophAction] = useState<TophActionRequest | null>(null);
-  const pendingBot = useRef<{ projectId: string; botId: string } | null>(null);
+  const pendingBot = useRef<{ projectId: string; botId: string; chatId?: string } | null>(null);
   const chatsHydrated = useChats((state) => activeProjectId ? state.byProject[activeProjectId]?.hydrated === true : false);
+  const activeConversationId = useChats((state) => activeProjectId ? state.byProject[activeProjectId]?.activeChatId ?? null : null);
   const swipeStart = useRef<{ x: number; y: number } | null>(null);
   const [currentBranch, setCurrentBranch] = useState("");
   const pageSubtitle = screen === "scm" && currentBranch ? currentBranch : (project?.name ?? "");
@@ -71,7 +71,6 @@ export default function MobileApp() {
     setMenuOpen(false);
     setTerminalOpen(false);
     setConversationsOpen(false);
-    setPendingTophAction(null);
   }, [activeProjectId]);
 
   function refreshBranch() {
@@ -127,15 +126,21 @@ export default function MobileApp() {
 
   useEffect(() => {
     const openBot = (event: Event) => {
-      const detail = (event as CustomEvent<{ projectId?: string; botId?: string }>).detail;
-      if (detail?.projectId) {
-        setActiveProject(detail.projectId);
-        if (detail.botId) {
-          const chats = useChats.getState().byProject[detail.projectId];
-          const toph = chats?.tophs.find((item) => item.id === detail.botId);
-          if (chats?.hydrated && toph) window.dispatchEvent(new CustomEvent("toph:toph-action", { detail: { action: "config", tophId: toph.id } }));
-          else pendingBot.current = { projectId: detail.projectId, botId: detail.botId };
-        }
+      const detail = (event as CustomEvent<{ projectId?: string; botId?: string; chatId?: string }>).detail;
+      if (!detail?.projectId) return;
+      setActiveProject(detail.projectId);
+      const chats = useChats.getState().byProject[detail.projectId];
+      if (!chats?.hydrated) {
+        pendingBot.current = { projectId: detail.projectId, botId: detail.botId ?? "", chatId: detail.chatId };
+        setScreen("bots");
+        return;
+      }
+      if (detail.chatId && chats.chats.some((chat) => chat.id === detail.chatId)) {
+        useChats.getState().setActiveChat(detail.projectId, detail.chatId);
+      } else if (detail.botId) {
+        const latest = latestChatForToph(chats, detail.botId)
+          ?? useChats.getState().createConversation(detail.projectId, [detail.botId], { name: chats.tophs.find((toph) => toph.id === detail.botId)?.name ?? "" });
+        if (latest) useChats.getState().setActiveChat(detail.projectId, latest.id);
       }
       setScreen("bots");
     };
@@ -151,8 +156,12 @@ export default function MobileApp() {
   useEffect(() => {
     const pending = pendingBot.current;
     if (!pending || pending.projectId !== activeProjectId || !chatsHydrated) return;
-    const toph = useChats.getState().byProject[pending.projectId]?.tophs.find((item) => item.id === pending.botId);
-    if (toph) window.dispatchEvent(new CustomEvent("toph:toph-action", { detail: { action: "config", tophId: toph.id } }));
+    const chats = useChats.getState().byProject[pending.projectId];
+    const chat = pending.chatId
+      ? chats?.chats.find((item) => item.id === pending.chatId)
+      : latestChatForToph(chats, pending.botId)
+        ?? (pending.botId ? useChats.getState().createConversation(pending.projectId, [pending.botId], { name: chats?.tophs.find((toph) => toph.id === pending.botId)?.name ?? "" }) : null);
+    if (chat) useChats.getState().setActiveChat(pending.projectId, chat.id);
     pendingBot.current = null;
   }, [activeProjectId, chatsHydrated]);
 
@@ -215,11 +224,6 @@ export default function MobileApp() {
     setConversationsOpen(false);
     setTerminalOpen(false);
     setScreen("bots");
-  }
-
-  function openTophAction(tophId: string, action: "config" | "sessions" = "config") {
-    setPendingTophAction({ tophId, action });
-    selectConversationScreen();
   }
 
   function openFile(path: string, line?: number) {
@@ -409,13 +413,21 @@ export default function MobileApp() {
       />
       <main className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background-primary-default">
         {screen === "bots" ? (
-          <BotStudioTab
-            key={project.id}
-            project={project}
-            mobile
-            externalAction={pendingTophAction}
-            onExternalActionHandled={() => setPendingTophAction(null)}
-          />
+          activeConversationId ? (
+            <BotStudioTab
+              key={activeConversationId}
+              project={project}
+              conversationId={activeConversationId}
+              mobile
+            />
+          ) : (
+            <div className="flex h-full w-full flex-col items-center justify-center gap-3 p-8 text-center">
+              <span className="flex size-12 items-center justify-center rounded-2xl bg-accent-500/10 text-accent-500"><Bot size={22} /></span>
+              <strong className="text-title-3-medium text-text-primary">Escolha um Toph</strong>
+              <p className="max-w-xs text-caption-1-regular text-text-secondary">Abra uma tarefa individual ou uma conversa em grupo.</p>
+              <Button variant="secondary" size="small" onClick={openConversations}>Ver Tophs</Button>
+            </div>
+          )
         ) : screen === "files" ? (
           <div className="min-h-0 flex-1 overflow-hidden">
             <FilesScreen project={project} onOpenFile={openFile} />
@@ -455,6 +467,7 @@ export default function MobileApp() {
               {activeTab?.kind === "db" && <DbPanelTab tab={activeTab} />}
               {activeTab?.kind === "web" && <WebPanelTab tab={activeTab} />}
               {activeTab?.kind === "diff" && <DiffPanelTab tab={activeTab} project={project} />}
+              {activeTab?.kind === "ai" && activeTab.chatId && <BotStudioTab project={project} conversationId={activeTab.chatId} mobile />}
             </div>
           </>
         )}
@@ -518,7 +531,6 @@ export default function MobileApp() {
         project={project}
         onClose={() => setConversationsOpen(false)}
         onSelected={selectConversationScreen}
-        onAction={openTophAction}
       />
       <MobileAccountSheet open={accountOpen} user={user} onClose={() => setAccountOpen(false)} />
       <CloseProjectModal

@@ -1,168 +1,149 @@
 import { useEffect, useState } from "react";
-import { Plus, Trash2 } from "@toph/icons";
+import { Plus, UserRound } from "@toph/icons";
 import type { Project } from "../../../shared/api";
-import { activeChat, chatTophs, teamChats, useChats } from "../../../features/conversations/store";
+import { chatsForToph, latestChatForToph, useChats } from "../../../features/conversations/store";
 import { agentApi } from "../../../features/agents/api";
 import TophGallery from "../../../features/agents/components/TophGallery";
-import CreateTeamModal from "../../../features/conversations/components/CreateTeamModal";
-import TeamAvatar from "../../../features/agents/components/TeamAvatar";
 import TophRow from "../../../features/agents/components/TophRow";
+import BotConfig from "../../../features/agents/components/BotConfig";
+import CreateGroupModal from "../../../features/conversations/components/CreateGroupModal";
+import TophTasksSheet from "../../../features/conversations/components/TophTasksSheet";
 import { Button } from "@/shared/boardui/base/buttons/button";
 import { Modal } from "@/shared/boardui/base/modal/modal";
 import { useConfirm } from "../../../shared/ui/confirm";
-import { cx } from "@/shared/boardui/utils/cx";
 
 interface Props {
   open: boolean;
   project: Project;
   onClose: () => void;
   onSelected: () => void;
-  onAction: (tophId: string, action: "config" | "sessions") => void;
 }
 
-export default function MobileConversationsSheet({ open, project, onClose, onSelected, onAction }: Props) {
+/** Mobile Toph list: a conversation is opened from the Toph, never from a team. */
+export default function MobileConversationsSheet({ open, project, onClose, onSelected }: Props) {
   const chats = useChats((state) => state.byProject[project.id]);
   const ensure = useChats((state) => state.ensure);
-  const createChat = useChats((state) => state.createChat);
-  const setActiveChat = useChats((state) => state.setActiveChat);
+  const createConversation = useChats((state) => state.createConversation);
   const removeToph = useChats((state) => state.removeToph);
-  const deleteChat = useChats((state) => state.deleteChat);
   const confirm = useConfirm();
   const [galleryOpen, setGalleryOpen] = useState(false);
-  const [galleryChatId, setGalleryChatId] = useState<string | null>(null);
-  const [createTeamOpen, setCreateTeamOpen] = useState(false);
+  const [groupOpen, setGroupOpen] = useState(false);
+  const [configId, setConfigId] = useState<string | null>(null);
+  const [tasksTophId, setTasksTophId] = useState<string | null>(null);
 
   useEffect(() => {
     ensure(project.id);
   }, [ensure, project.id]);
 
-  const teams = teamChats(chats);
-  const chat = activeChat(chats);
-  const tophs = chatTophs(chats, chat?.id);
+  const tophs = chats?.tophs ?? [];
+  const configToph = tophs.find((toph) => toph.id === configId) ?? null;
+  const tasksToph = tophs.find((toph) => toph.id === tasksTophId) ?? null;
+  const tasks = tasksToph ? chatsForToph(chats, tasksToph.id) : [];
 
-  function selectChat(chatId: string) {
-    setActiveChat(project.id, chatId);
+  function select(chatId: string) {
+    useChats.getState().setActiveChat(project.id, chatId);
+    useChats.getState().touchConversation(project.id, chatId);
     onClose();
     onSelected();
   }
 
-  function addTeam() {
-    setCreateTeamOpen(true);
+  function openToph(tophId: string) {
+    const latest = latestChatForToph(chats, tophId);
+    if (latest) return select(latest.id);
+    const toph = tophs.find((item) => item.id === tophId);
+    const created = createConversation(project.id, [tophId], { name: toph?.name ?? "" });
+    if (created) select(created.id);
   }
 
-  function createTeam(name: string, description: string) {
-    const created = createChat(project.id, name, description);
-    setActiveChat(project.id, created.id);
-    setCreateTeamOpen(false);
-    setGalleryChatId(created.id);
-    setGalleryOpen(true);
+  function newTask(tophId: string) {
+    const toph = tophs.find((item) => item.id === tophId);
+    const created = createConversation(project.id, [tophId], { name: toph?.name ?? "" });
+    if (created) select(created.id);
   }
 
-  function addToph() {
-    if (!chat) return;
-    setGalleryChatId(chat.id);
-    setGalleryOpen(true);
+  function createGroup(name: string, description: string, participantIds: string[]) {
+    const created = createConversation(project.id, participantIds, { name, description });
+    setGroupOpen(false);
+    if (created) select(created.id);
   }
 
-  async function deleteTeam(team: { id: string; name: string }) {
+  async function deleteToph(tophId: string, name: string) {
     const ok = await confirm({
-      title: `Apagar a equipe “${team.name || "Equipe"}”?`,
-      message: "As mensagens, sessões e Tophs desta equipe serão removidos. Essa ação não pode ser desfeita.",
-      confirmLabel: "Apagar equipe",
+      title: `Apagar ${name}?`,
+      message: "A configuração e o histórico deste Toph em todas as conversas serão removidos.",
+      confirmLabel: "Apagar Toph",
       danger: true,
     });
     if (!ok) return;
-    try {
-      await agentApi.deleteChat(project.id, team.id);
-    } catch {
-      // Local removal still wins when the server has nothing left to delete.
-    }
-    deleteChat(project.id, team.id);
-  }
-
-  async function removeMember(tophId: string, name: string) {
-    const ok = await confirm({
-      title: `Remover ${name} da equipe?`,
-      message: "O Toph e o histórico dele nesta equipe serão removidos. Essa ação não pode ser desfeita.",
-      confirmLabel: "Remover da equipe",
-      danger: true,
-    });
-    if (ok) removeToph(project.id, tophId);
+    await agentApi.deleteToph(project.id, tophId).catch(() => undefined);
+    removeToph(project.id, tophId);
   }
 
   return (
     <>
       <Modal
-        isOpen={open && !galleryOpen}
+        isOpen={open && !galleryOpen && !groupOpen && !configToph && !tasksToph}
         onClose={onClose}
         title="Tophs"
-        description="Equipes normais; cada uma pode ter um ou mais Tophs."
+        description="Cada Toph tem tarefas individuais ou em grupo."
         placement="bottom"
         size="sm"
         bodyClassName="p-2"
         swipeToClose
       >
+        <div className="flex gap-1.5 px-1 pb-2">
+          <Button variant="secondary" size="small" leadingIcon={Plus} className="min-w-0 flex-1 justify-start" onClick={() => setGalleryOpen(true)}>Novo Toph</Button>
+          <Button variant="ghost" size="small" leadingIcon={UserRound} className="min-w-0 flex-1 justify-start" onClick={() => setGroupOpen(true)}>Grupo</Button>
+        </div>
         <div className="flex max-h-[min(60dvh,500px)] flex-col gap-0.5 overflow-y-auto">
-          <div className="mb-1 flex items-center gap-2 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-tertiary">
-            <span className="flex-1">Equipes</span>
-            <Button variant="ghost" size="xs" iconOnly leadingIcon={Plus} aria-label="Nova equipe" title="Nova equipe" onClick={addTeam} />
-          </div>
-          {teams.map((team) => {
-            const count = (chats?.tophs ?? []).filter((toph) => toph.chatId === team.id).length;
-            const selected = chat?.id === team.id;
-            return (
-              <div key={team.id} className={cx("flex items-center gap-1 rounded-xl pe-1 transition-colors", selected ? "bg-background-tertiary-default" : "hover:bg-background-primary-hover")}>
-                <button type="button" onClick={() => selectChat(team.id)} className="flex min-w-0 flex-1 items-center gap-2.5 px-2 py-2 text-start">
-                  <TeamAvatar tophs={(chats?.tophs ?? []).filter((toph) => toph.chatId === team.id)} size={30} />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-caption-1-medium text-text-primary">{team.name || "Equipe"}</span>
-                    <span className="block truncate text-caption-2-regular text-text-tertiary">{count} Toph{count === 1 ? "" : "s"}</span>
-                  </span>
-                </button>
-                <Button variant="ghost" size="xs" iconOnly leadingIcon={Trash2} aria-label={`Apagar equipe ${team.name}`} title="Apagar equipe" className="text-status-rose-text" onClick={() => void deleteTeam(team)} />
-              </div>
-            );
-          })}
-
-          <div className="mb-1 mt-3 flex items-center gap-2 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-tertiary">
-            <span className="flex-1">Tophs da equipe</span>
-            <Button variant="ghost" size="xs" iconOnly leadingIcon={Plus} aria-label="Adicionar Toph" title="Adicionar Toph" onClick={addToph} />
-          </div>
           {tophs.length === 0 ? (
-            <button
-              type="button"
-              onClick={addToph}
-              className="mb-3 flex w-full items-center gap-2.5 rounded-xl border border-dashed border-border-button-default px-2.5 py-2.5 text-start text-caption-1-medium text-text-secondary transition-colors hover:bg-background-primary-hover hover:text-text-primary"
-            >
+            <button type="button" onClick={() => setGalleryOpen(true)} className="flex w-full items-center gap-2.5 rounded-xl border border-dashed border-border-button-default px-2.5 py-3 text-start text-caption-1-medium text-text-secondary">
               <span className="flex size-8 items-center justify-center rounded-full bg-background-secondary-default"><Plus size={14} /></span>
-              Adicionar primeiro Toph
+              Criar o primeiro Toph
             </button>
           ) : tophs.map((toph) => (
             <TophRow
               key={toph.id}
               toph={toph}
               compact
-              onOpen={() => { onClose(); onAction(toph.id, "config"); }}
-              onConfig={() => { onClose(); onAction(toph.id, "config"); }}
-              onSessions={() => { onClose(); onAction(toph.id, "sessions"); }}
-              onRemove={() => void removeMember(toph.id, toph.name)}
+              onOpen={() => openToph(toph.id)}
+              onNew={() => newTask(toph.id)}
+              onConfig={() => setConfigId(toph.id)}
+              onSessions={() => setTasksTophId(toph.id)}
+              onRemove={() => void deleteToph(toph.id, toph.name)}
             />
           ))}
         </div>
       </Modal>
 
-      <CreateTeamModal open={createTeamOpen} onClose={() => setCreateTeamOpen(false)} onCreate={createTeam} />
+      {configToph ? (
+        <Modal isOpen onClose={() => setConfigId(null)} title={configToph.name} description="Identidade, prompt, modelo e ferramentas deste Toph." size="lg" placement="bottom" bodyClassName="p-0" swipeToClose>
+          <BotConfig projectId={project.id} projectRoot={project.root} bot={configToph} />
+        </Modal>
+      ) : null}
+
+      <TophTasksSheet
+        open={Boolean(tasksToph)}
+        toph={tasksToph}
+        projectChats={chats}
+        chats={tasks}
+        onClose={() => setTasksTophId(null)}
+        onOpen={(chatId) => { setTasksTophId(null); select(chatId); }}
+        onNew={() => { if (tasksToph) { setTasksTophId(null); newTask(tasksToph.id); } }}
+      />
+
+      <CreateGroupModal open={groupOpen} tophs={tophs} onClose={() => setGroupOpen(false)} onCreate={createGroup} />
 
       <TophGallery
         open={galleryOpen}
         projectId={project.id}
-        chatId={galleryChatId}
-        onClose={() => { setGalleryOpen(false); setGalleryChatId(null); }}
+        onClose={() => setGalleryOpen(false)}
         onCreated={(tophId) => {
           setGalleryOpen(false);
-          setGalleryChatId(null);
-          onClose();
-          onAction(tophId, "config");
+          const createdToph = useChats.getState().byProject[project.id]?.tophs.find((item) => item.id === tophId);
+          const created = createConversation(project.id, [tophId], { name: createdToph?.name ?? "" });
+          setConfigId(tophId);
+          if (created) select(created.id);
         }}
       />
     </>

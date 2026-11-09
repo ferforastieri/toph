@@ -5,7 +5,8 @@ import { Bot, ChevronDown, ChevronRight, GitBranch, PanelLeftClose, PanelLeftOpe
 import { api, getApiBase, type Project, type SchemaTable, type WebTarget } from "../../shared/api";
 import { basename, expandGitPattern, quoteIdentifier, sanitizeBranchName } from "../../shared/lib";
 import { useApp, MAX_OPEN_PROJECTS, type Sidebar, type Tab } from "../store";
-import { useChats, type ProjectChats } from "../../features/conversations/store";
+import { chatDisplayName, latestChatForToph, useChats, type ProjectChats } from "../../features/conversations/store";
+import { chatTabId } from "../../features/conversations/navigation";
 import { useAI } from "../../features/providers/store";
 import { PROJECT_EVENT, type ProjectEvent } from "../../features/projects/events";
 import BotStudioTab from "../../features/conversations/components/BotStudioTab";
@@ -121,7 +122,8 @@ export default function Workbench() {
   const setTerminalOpen = useApp((state) => state.setTerminalOpen);
   const notify = useApp((state) => state.notify);
   const chatsHydrated = useChats((state) => activeProjectId ? state.byProject[activeProjectId]?.hydrated === true : false);
-  const pendingTophSelection = useRef<{ projectId: string; tophId: string } | null>(null);
+  const pendingTophSelection = useRef<{ projectId: string; tophId: string; chatId?: string } | null>(null);
+  const pendingChatOpen = useRef<{ projectId: string; chatId: string; title?: string } | null>(null);
   const loadChats = useChats((state) => state.load);
   const snapshotChats = useChats((state) => state.snapshot);
   const loadAI = useAI((state) => state.load);
@@ -348,15 +350,16 @@ export default function Workbench() {
       const projectId = payload.projectId || state.activeProjectId || undefined;
       if (!projectId) return;
       const chats = useChats.getState().byProject[projectId];
-      const activeHasBot = Boolean(
-        payload.botId && chats?.tophs.some((toph) => toph.id === payload.botId),
-      );
+      const activeTab = state.tabs.find((tab) => tab.id === state.activeTabId);
+      const activeHasChat = payload.chatId
+        ? activeTab?.kind === "ai" && activeTab.chatId === payload.chatId
+        : Boolean(payload.botId && chats?.tophs.some((toph) => toph.id === payload.botId));
       if (
         document.visibilityState === "visible" &&
         document.hasFocus() &&
         state.sidebar === "bots" &&
         state.activeProjectId === projectId &&
-        (activeHasBot || !payload.botId)
+        (activeHasChat || (!payload.botId && !payload.chatId))
       ) return;
       state.addNotification({
         kind: "ai",
@@ -409,11 +412,16 @@ export default function Workbench() {
         if (notification) state.markNotificationRead(notification.id);
       }
       const switchingProject = state.activeProjectId !== payload.projectId;
+      const chatId = (payload as { chatId?: string }).chatId;
       state.setActiveProject(payload.projectId);
       forceTophsOnLoad.current = true;
       if (payload.botId) {
-        if (switchingProject) pendingTophSelection.current = { projectId: payload.projectId, tophId: payload.botId };
-        else selectToph(payload.projectId, payload.botId);
+        if (switchingProject) pendingTophSelection.current = { projectId: payload.projectId, tophId: payload.botId, chatId };
+        else openTophConversation(payload.projectId, payload.botId, chatId);
+      } else if (chatId) {
+        const chats = useChats.getState().byProject[payload.projectId];
+        if (switchingProject || !chats?.hydrated) pendingChatOpen.current = { projectId: payload.projectId, chatId };
+        else openConversation(payload.projectId, chatId);
       }
       state.setSidebar("bots");
     };
@@ -422,10 +430,51 @@ export default function Workbench() {
   }, []);
 
   useEffect(() => {
+    const onOpenChat = (event: Event) => {
+      const detail = (event as CustomEvent<{ projectId?: string; chatId?: string; title?: string }>).detail;
+      if (!detail?.projectId || !detail.chatId) return;
+      const state = useApp.getState();
+      if (state.activeProjectId !== detail.projectId) {
+        pendingChatOpen.current = { projectId: detail.projectId, chatId: detail.chatId, title: detail.title };
+        state.setActiveProject(detail.projectId);
+        state.setSidebar("bots");
+        return;
+      }
+      const chats = useChats.getState().byProject[detail.projectId];
+      if (!chats?.hydrated) {
+        pendingChatOpen.current = { projectId: detail.projectId, chatId: detail.chatId, title: detail.title };
+        return;
+      }
+      openConversation(detail.projectId, detail.chatId, detail.title);
+      state.setSidebar("bots");
+    };
+    window.addEventListener("toph:open-chat", onOpenChat);
+    return () => window.removeEventListener("toph:open-chat", onOpenChat);
+  }, []);
+
+  useEffect(() => {
+    const pending = pendingChatOpen.current;
+    if (!pending || pending.projectId !== activeProjectId || !chatsHydrated) return;
+    pendingChatOpen.current = null;
+    openConversation(pending.projectId, pending.chatId, pending.title);
+  }, [activeProjectId, chatsHydrated]);
+
+  useEffect(() => {
     const pending = pendingTophSelection.current;
     if (!pending || pending.projectId !== activeProjectId || !chatsHydrated) return;
-    selectToph(pending.projectId, pending.tophId);
+    openTophConversation(pending.projectId, pending.tophId, pending.chatId);
   }, [activeProjectId, chatsHydrated]);
+
+  // A deleted conversation (or a deleted participant) must not leave a dead tab.
+  useEffect(() => {
+    if (!activeProjectId || !chatsHydrated) return;
+    const chats = useChats.getState().byProject[activeProjectId];
+    const ids = new Set((chats?.chats ?? []).map((chat) => chat.id));
+    const kept = tabs.filter((tab) => tab.kind !== "ai" || (tab.chatId && ids.has(tab.chatId)));
+    if (kept.length === tabs.length) return;
+    const nextActive = kept.some((tab) => tab.id === activeTabId) ? activeTabId : kept[0]?.id ?? null;
+    setTabs(kept, nextActive);
+  }, [activeProjectId, chatsHydrated, tabs, activeTabId, setTabs]);
 
 
   useEffect(() => {
@@ -449,7 +498,7 @@ export default function Workbench() {
     const initialEnabled = (feature: WorkspaceFeature) => featureEnabled(initialFeatures, feature);
     const initialTopOnly = isTophOnly(initialFeatures);
     setTerminalOpen(initialEnabled("terminal") && !initialTopOnly && !desktopClient);
-    setSidebar(desktopClient || initialTopOnly || !initialEnabled("files") ? "bots" : "files");
+    setSidebar("bots");
     api
       .layout(activeProjectId)
       .then((layout) => {
@@ -461,16 +510,18 @@ export default function Workbench() {
           (tab) =>
             tab &&
             typeof tab.id === "string" &&
-            enabled("tabs") &&
-            ["editor", "db", "web", "diff"].includes(tab.kind) &&
+            (tab.kind === "ai" ? typeof tab.chatId === "string" : enabled("tabs")) &&
+            ["editor", "db", "web", "diff", "ai"].includes(tab.kind) &&
             (!tabFeature(tab) || enabled(tabFeature(tab)!)),
         );
-        setTabs(
-          restored.map((tab) => ({ ...tab, projectId: activeProjectId })),
-          enabled("tabs") && typeof layout.activeTabId === "string" ? layout.activeTabId : null,
-        );
-        loadChats(activeProjectId, layout.chats as ProjectChats | null | undefined);
-        if (currentTopOnly || forceTophsOnLoad.current) {
+        const restoredActive = typeof layout.activeTabId === "string" && restored.some((tab) => tab.id === layout.activeTabId)
+          ? layout.activeTabId
+          : null;
+        setTabs(restored.map((tab) => ({ ...tab, projectId: activeProjectId })), restoredActive);
+        const storedChats = layout.chats as ProjectChats | null | undefined;
+        const migratingTophs = !storedChats || storedChats.version !== 5;
+        loadChats(activeProjectId, storedChats);
+        if (currentTopOnly || forceTophsOnLoad.current || migratingTophs) {
           forceTophsOnLoad.current = false;
           setSidebar("bots");
         } else if (layout.sidebar) {
@@ -755,20 +806,36 @@ export default function Workbench() {
     });
   }
 
-  function selectToph(projectId: string, tophId: string) {
-    const state = useChats.getState();
-    const chats = state.byProject[projectId];
+  function openConversation(projectId: string, chatId: string, title?: string) {
+    const chats = useChats.getState().byProject[projectId];
+    const chat = chats?.chats.find((item) => item.id === chatId);
+    if (!chat) return;
+    openTab({
+      id: chatTabId(projectId, chatId),
+      kind: "ai",
+      title: title?.trim() || chatDisplayName(chats, chat, 2) || "Toph",
+      projectId,
+      chatId,
+    });
+    useChats.getState().setActiveChat(projectId, chatId);
+    useChats.getState().touchConversation(projectId, chatId);
+  }
+
+  function openTophConversation(projectId: string, tophId: string, chatId?: string) {
+    const chats = useChats.getState().byProject[projectId];
     if (!chats?.hydrated) {
-      pendingTophSelection.current = { projectId, tophId };
+      pendingTophSelection.current = { projectId, tophId, chatId };
       return;
     }
-    const toph = chats.tophs.find((item) => item.id === tophId);
-    if (!toph) {
+    if (!chats.tophs.some((item) => item.id === tophId)) {
       pendingTophSelection.current = null;
       return;
     }
-    window.dispatchEvent(new CustomEvent("toph:toph-action", { detail: { action: "config", tophId } }));
+    const chat = (chatId ? chats.chats.find((item) => item.id === chatId && item.participantIds.includes(tophId)) : null)
+      ?? latestChatForToph(chats, tophId)
+      ?? useChats.getState().createConversation(projectId, [tophId]);
     pendingTophSelection.current = null;
+    if (chat) openConversation(projectId, chat.id);
   }
 
   function openWeb(target: WebTarget) {
@@ -978,11 +1045,7 @@ export default function Workbench() {
       {rightPanel === "debug" && featureIsEnabled("debug") && (
         <DebugPanel project={project} headerControl={rightPanelControl} />
       )}
-      {rightPanel === "bots" && (
-        sidebar === "bots"
-          ? <BotsSidebar project={project} headerControl={rightPanelControl} />
-          : <BotStudioTab project={project} embedded compact headerControl={rightPanelControl} />
-      )}
+      {rightPanel === "bots" && <BotsSidebar project={project} headerControl={rightPanelControl} />}
     </Suspense>
   ) : null;
 
@@ -1049,13 +1112,8 @@ export default function Workbench() {
         ) : null}
 
         <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-1 overflow-hidden">
-          <main className={cx(
-            "relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden",
-            sidebar === "bots" && project ? "bg-transparent" : "rounded-3xl border border-border-button-white bg-background-primary-default shadow-sidebar",
-          )}>
-            {sidebar === "bots" && project ? (
-              <BotStudioTab key={project.id} project={project} />
-            ) : sidebar === "debug" && project && featureIsEnabled("debug") ? (
+          <main className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-3xl border border-border-button-white bg-background-primary-default shadow-sidebar">
+            {sidebar === "debug" && project && featureIsEnabled("debug") ? (
               <DebugPanel project={project} />
             ) : (
               <>
@@ -1064,12 +1122,14 @@ export default function Workbench() {
                   {!activeTab && project && (
                     <div className="flex h-full w-full flex-col items-center justify-center gap-4 p-8 text-center">
                       <BrandMark size="large" />
-                      <h2 className="text-title-2-medium text-text-primary">{project.name}</h2>
-                      <p className="max-w-lg text-body-regular text-text-secondary">{project.root}</p>
+                      <h2 className="text-title-2-medium text-text-primary">{botsView ? "Escolha um Toph" : project.name}</h2>
+                      <p className="max-w-lg text-body-regular text-text-secondary">
+                        {botsView ? "Abra uma tarefa individual ou uma conversa em grupo na barra ao lado." : project.root}
+                      </p>
                        <div className="flex flex-wrap items-center justify-center gap-2">
                          {featureIsEnabled("files") && <Button variant="secondary" size="small" onClick={() => selectSidebar("files")}>Explorer</Button>}
                          {featureIsEnabled("databases") && <Button variant="secondary" size="small" onClick={() => selectSidebar("db")}>Database</Button>}
-                         <Button variant="secondary" size="small" onClick={() => setSidebar("bots")}>Toph</Button>
+                         <Button variant="secondary" size="small" onClick={() => setSidebar("bots")}>Tophs</Button>
                        </div>
                     </div>
                   )}
@@ -1078,6 +1138,9 @@ export default function Workbench() {
                     {tabsVisible && activeTab?.kind === "db" && featureIsEnabled("databases") && <DbPanelTab tab={activeTab} />}
                     {tabsVisible && activeTab?.kind === "web" && featureIsEnabled("webApps") && <WebPanelTab tab={activeTab} />}
                     {tabsVisible && activeTab?.kind === "diff" && project && featureIsEnabled("files") && <DiffPanelTab tab={activeTab} project={project} />}
+                    {activeTab?.kind === "ai" && project && activeTab.chatId && (
+                      <BotStudioTab key={activeTab.chatId} project={project} conversationId={activeTab.chatId} />
+                    )}
                   </Suspense>
                 </div>
               </>

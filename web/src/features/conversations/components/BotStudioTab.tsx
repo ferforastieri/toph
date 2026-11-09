@@ -1,45 +1,42 @@
-import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { ArrowDown, Bot, LoaderCircle, MessageSquarePlus } from "@toph/icons";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { ArrowDown, Bot, LoaderCircle, UserRound } from "@toph/icons";
 import type { Project } from "../../../shared/api";
-import { activeChat, chatTophs, teamChats, useChats } from "../store";
+import { chatDisplayName, chatTophs, useChats } from "../store";
 import { findModel, useAI } from "../../providers/store";
 import { useTophDrafts } from "../../agents/drafts";
-import { agentApi, isActive, type AgentSession } from "../../agents/api";
+import { agentApi, isActive } from "../../agents/api";
 import { useAgentChat } from "../../agents/useAgentChat";
 import { AgentComposer, type AgentAttachment } from "./AgentComposer";
 import ChatMessages from "./ChatMessages";
 import ChatUsageMeter from "./ChatUsageMeter";
 import ApprovalCard from "./ApprovalCard";
+import ConversationSettings from "./ConversationSettings";
 import BotAvatar from "../../agents/components/BotAvatar";
 import { unlockBotSound } from "../sound";
 import { Button } from "@/shared/boardui/base/buttons/button";
-import { Modal } from "@/shared/boardui/base/modal/modal";
+import { IconButton } from "@/shared/boardui/base/buttons/icon-button";
 import { cx } from "@/shared/boardui/utils/cx";
 
-const BotConfig = lazy(() => import("../../agents/components/BotConfig"));
-const TophGallery = lazy(() => import("../../agents/components/TophGallery"));
-const TophSessionsSheet = lazy(() => import("./TophSessionsSheet"));
+interface Props {
+  project: Project;
+  conversationId: string;
+  mobile?: boolean;
+  embedded?: boolean;
+  compact?: boolean;
+  headerControl?: ReactNode;
+}
 
-export interface TophActionRequest { tophId: string; action: "config" | "sessions" }
-interface Props { project: Project; mobile?: boolean; embedded?: boolean; compact?: boolean; headerControl?: ReactNode; externalAction?: TophActionRequest | null; onExternalActionHandled?: () => void }
-
-export default function BotStudioTab({ project, mobile = false, embedded = false, compact = false, headerControl, externalAction, onExternalActionHandled }: Props) {
+export default function BotStudioTab({ project, conversationId, mobile = false, embedded = false, compact = false, headerControl }: Props) {
   const stored = useChats((s) => s.byProject[project.id]);
-  const chats = teamChats(stored);
-  const chat = activeChat(stored);
-  const tophs = useMemo(() => chatTophs(stored, chat?.id), [stored?.tophs, chat?.id]);
+  const chat = stored?.chats.find((item) => item.id === conversationId) ?? null;
+  const tophs = useMemo(() => chatTophs(stored, conversationId), [stored?.tophs, stored?.chats, conversationId]);
   const config = useAI((s) => s.config);
   const models = useAI((s) => s.models);
   const modelError = useAI((s) => s.error);
   const native = useAgentChat(project.id, chat?.id);
   const [sending, setSending] = useState(false);
-  const [gallery, setGallery] = useState(false);
-  const [galleryChatId, setGalleryChatId] = useState<string | null>(null);
-  const [configId, setConfigId] = useState<string | null>(null);
-  const [sessionsId, setSessionsId] = useState<string | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [atBottom, setAtBottom] = useState(true);
-  const selected = tophs.find((a) => a.id === configId);
-  const sessionToph = tophs.find((a) => a.id === sessionsId) ?? null;
   const draftKey = `${project.id}:${chat?.id ?? ""}:native`;
   const text = useTophDrafts((s) => s.drafts[draftKey] ?? "");
   const setDraft = useTophDrafts((s) => s.setDraft);
@@ -56,27 +53,13 @@ export default function BotStudioTab({ project, mobile = false, embedded = false
   const activeModelDisplay = activeModelInfo ?? (activeModel ? { id: activeModel, label: activeModel.split("::").pop() ?? activeModel } : undefined);
   const lastRun = native.runs.find((run) => !run.parentId);
   const lastError = lastRun && ["failed", "interrupted"].includes(lastRun.state) ? lastRun.error : "";
+  const title = chatDisplayName(stored, chat);
 
   useEffect(() => {
     const refresh = () => { void native.refresh(true); };
     window.addEventListener("toph:refresh-chat", refresh);
     return () => window.removeEventListener("toph:refresh-chat", refresh);
   }, [native.refresh]);
-  useEffect(() => {
-    if (!externalAction) return;
-    if (externalAction.action === "config") setConfigId(externalAction.tophId);
-    else setSessionsId(externalAction.tophId);
-    onExternalActionHandled?.();
-  }, [externalAction, onExternalActionHandled]);
-  useEffect(() => {
-    const listener = (raw: Event) => {
-      const value = (raw as CustomEvent<{ action: string; tophId?: string }>).detail;
-      if (value?.action === "config") setConfigId(value.tophId ?? null);
-      else if (value?.action === "sessions") setSessionsId(value.tophId ?? null);
-    };
-    window.addEventListener("toph:toph-action", listener);
-    return () => window.removeEventListener("toph:toph-action", listener);
-  }, []);
   useEffect(() => { follow.current = true; setAtBottom(true); pendingScroll.current = null; }, [chat?.id]);
   useEffect(() => {
     if (follow.current && scroller.current) scroller.current.scrollTop = scroller.current.scrollHeight;
@@ -90,15 +73,21 @@ export default function BotStudioTab({ project, mobile = false, embedded = false
 
   async function send(value: string, attachments: AgentAttachment[]) {
     if (!chat || !tophs.length || sendLock.current || busy) return;
-    if (value.trim() === "/clear") { await Promise.all(tophs.map((toph) => newSession(toph.id))); clearDraft(draftKey); return; }
+    if (value.trim() === "/clear") {
+      await Promise.all(tophs.map((toph) => agentApi.switchSession(project.id, toph.id, null, chat.id).catch(() => undefined)));
+      clearDraft(draftKey);
+      await native.refresh(true);
+      return;
+    }
     if (value.trim() === "/compact") { native.setError("O contexto é compactado automaticamente conforme o orçamento de tokens. O histórico completo permanece salvo."); return; }
     // The backend router chooses who answers; an @handle in the text wins.
     sendLock.current = true; setSending(true); native.setError(""); follow.current = true;
+    useChats.getState().touchConversation(project.id, chat.id);
     const identity = JSON.stringify([chat.id, "router", value, attachments, tophs.map((toph) => toph.id)]);
     const requestId = pendingRequest.current?.text === identity ? pendingRequest.current.id : Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, "0")).join("");
     pendingRequest.current = { text: identity, id: requestId };
     try {
-      await agentApi.start(project.id, { requestId, chatId: chat.id, chatDescription: chat.description, agentId: "router", text: value, agents: tophs, attachments });
+      await agentApi.start(project.id, { requestId, chatId: chat.id, chatDescription: chat.description, agentId: "router", text: value, agents: tophs.map((toph) => ({ ...toph, chatId: chat.id })), attachments });
       pendingRequest.current = null; clearDraft(draftKey); await native.refresh();
     } catch (e) { native.setError(e instanceof Error ? e.message : "Não foi possível iniciar a execução"); }
     finally { sendLock.current = false; setSending(false); }
@@ -107,14 +96,6 @@ export default function BotStudioTab({ project, mobile = false, embedded = false
     try { await Promise.all(native.runs.filter(isActive).map((run) => agentApi.cancel(project.id, run.id))); }
     catch (e) { native.setError(e instanceof Error ? e.message : "Falha ao cancelar"); }
   }
-  async function newSession(agentId: string) {
-    try { await agentApi.switchSession(project.id, agentId, null); await native.refresh(true); }
-    catch (e) { native.setError(e instanceof Error ? e.message : "Falha ao criar sessão"); }
-  }
-  async function selectSession(session: AgentSession) {
-    try { await agentApi.switchSession(project.id, session.agentId, session.id); setSessionsId(null); await native.refresh(true); }
-    catch (e) { native.setError(e instanceof Error ? e.message : "Falha ao abrir sessão"); }
-  }
   function older() {
     if (native.loading || !native.hasMore) return;
     follow.current = false;
@@ -122,14 +103,16 @@ export default function BotStudioTab({ project, mobile = false, embedded = false
     void native.older();
   }
 
-  function openGallery() {
-    setGalleryChatId(chat?.id ?? chats[0]?.id ?? null);
-    setGallery(true);
-  }
-
-  function closeGallery() {
-    setGallery(false);
-    setGalleryChatId(null);
+  if (!chat) {
+    return (
+      <div className="flex h-full min-h-0 w-full flex-1 items-center justify-center p-6">
+        <div className="flex max-w-sm flex-col items-center gap-2 text-center">
+          <span className="flex size-11 items-center justify-center rounded-2xl bg-background-secondary-default text-text-tertiary"><Bot size={20} /></span>
+          <strong className="text-title-3-medium text-text-primary">Conversa não encontrada</strong>
+          <p className="text-caption-1-regular text-text-secondary">Ela pode ter sido apagada. Escolha um Toph na barra ao lado.</p>
+        </div>
+      </div>
+    );
   }
 
   return <div className="flex h-full min-h-0 w-full flex-1 gap-0 overflow-hidden" onPointerDown={unlockBotSound}>
@@ -143,29 +126,28 @@ export default function BotStudioTab({ project, mobile = false, embedded = false
           const el = event.currentTarget; const movedUp = el.scrollTop < lastTop.current - 1; lastTop.current = el.scrollTop;
           follow.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80 && !movedUp; setAtBottom(follow.current);
         }}>
-          <div key={chat?.id ?? "none"} className={cx("toph-view-in mx-auto flex min-h-full w-full min-w-0 max-w-[860px] flex-col gap-2 overflow-x-hidden [&_img]:max-w-full [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_table]:block [&_table]:max-w-full [&_table]:overflow-x-auto", compact ? (embedded ? "px-4 pt-10 pb-2" : "px-4 pt-4 pb-2") : "px-7 pt-6 pb-3")}>
+          <div key={chat.id} className={cx("toph-view-in mx-auto flex min-h-full w-full min-w-0 max-w-[860px] flex-col gap-2 overflow-x-hidden [&_img]:max-w-full [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_table]:block [&_table]:max-w-full [&_table]:overflow-x-auto", compact ? (embedded ? "px-4 pt-10 pb-2" : "px-4 pt-4 pb-2") : "px-7 pt-6 pb-3")}>
             {native.hasMore && <Button variant="ghost" size="small" disabled={native.loading} onClick={older}>{native.loading ? <><LoaderCircle size={14} className="animate-spin" /> Carregando mensagens antigas…</> : "Carregar mensagens anteriores"}</Button>}
-            {!stored?.hydrated ? <div className="my-auto flex items-center justify-center gap-2 py-8 text-caption-1-regular text-text-tertiary"><LoaderCircle size={16} className="animate-spin" /> Carregando chats…</div>
-              : !tophs.length ? <div className="my-auto flex flex-col items-center gap-3 px-6 py-10 text-center"><span className="flex size-12 items-center justify-center rounded-2xl bg-accent-500/10 text-accent-500"><Bot size={22} /></span><strong className="text-title-3-medium">Adicione um Toph à equipe.</strong><p className="max-w-sm text-caption-1-regular text-text-secondary">Adicione um ou mais Tophs a esta equipe para começar.</p><Button variant="secondary" size="small" leadingIcon={MessageSquarePlus} onClick={openGallery}>Escolher Toph</Button></div>
-              : !native.messages.length && !busy ? <div className="my-auto flex flex-col items-center gap-3 px-6 py-10 text-center"><div className="flex -space-x-2">{tophs.slice(0, 4).map((toph) => <BotAvatar key={toph.id} bot={toph} size={38} className="rounded-full bg-background-primary-default ring-2 ring-background-primary-default" />)}</div><strong className="text-title-3-medium">Escreva para a equipe.</strong><p className="max-w-md text-caption-1-regular text-text-secondary">Quem estiver na equipe responde. Para chamar alguém, use @.</p></div> : null}
+            {!stored?.hydrated ? <div className="my-auto flex items-center justify-center gap-2 py-8 text-caption-1-regular text-text-tertiary"><LoaderCircle size={16} className="animate-spin" /> Carregando conversas…</div>
+              : !tophs.length ? <div className="my-auto flex flex-col items-center gap-3 px-6 py-10 text-center"><span className="flex size-12 items-center justify-center rounded-2xl bg-accent-500/10 text-accent-500"><Bot size={22} /></span><strong className="text-title-3-medium">Esta conversa ficou sem Tophs.</strong><p className="max-w-sm text-caption-1-regular text-text-secondary">Adicione um Toph nas configurações da conversa.</p></div>
+              : !native.messages.length && !busy ? <div className="my-auto flex flex-col items-center gap-3 px-6 py-10 text-center"><div className="flex -space-x-2">{tophs.slice(0, 4).map((toph) => <BotAvatar key={toph.id} bot={toph} size={38} className="rounded-full bg-background-primary-default ring-2 ring-background-primary-default" />)}</div><strong className="text-title-3-medium">{tophs.length === 1 ? `Escreva para ${tophs[0].name}.` : "Escreva para o grupo."}</strong><p className="max-w-md text-caption-1-regular text-text-secondary">{tophs.length === 1 ? "Pergunte, peça uma alteração ou anexe um arquivo. Cada tarefa tem o próprio histórico." : "Quem estiver na conversa responde. Para chamar alguém em especial, use @."}</p></div> : null}
             <ChatMessages messages={native.messages} tophs={tophs} runs={native.runs} project={project} mobile={mobile} compact={compact} questions={native.questions} onAnswer={(id, answer) => { void agentApi.answer(project.id, id, answer).catch((e) => native.setError(String(e))); }} />
             {native.approvals.map((approval) => <ApprovalCard key={approval.id} agentName={tophs.find((a) => a.id === approval.agentId)?.name ?? "Toph"} name={approval.name} arguments={approval.arguments} onApprove={() => void agentApi.approve(project.id, approval.id, true).catch((e) => native.setError(String(e)))} onReject={() => void agentApi.approve(project.id, approval.id, false).catch((e) => native.setError(String(e)))} />)}
             {native.compacting && <p role="status" className="text-center text-caption-2-regular text-text-tertiary">Compactando contexto; histórico preservado…</p>}
             {(native.error || lastError) && <p role="alert" className="rounded-xl border border-red-500/30 p-3 text-sm text-red-500">{native.error || `Última execução: ${lastError}`}</p>}
           </div>
         </div>
-        {chat && tophs.length > 0 && !atBottom && <button type="button" onClick={() => { follow.current = true; setAtBottom(true); scroller.current?.scrollTo({ top: scroller.current.scrollHeight, behavior: "smooth" }); }} className="absolute bottom-3 left-1/2 z-10 flex size-8 -translate-x-1/2 items-center justify-center rounded-full border border-border-button-default bg-background-secondary-default text-text-secondary shadow-sidebar" aria-label="Ir para o fim da conversa"><ArrowDown size={15} /></button>}
+        {tophs.length > 0 && !atBottom && <button type="button" onClick={() => { follow.current = true; setAtBottom(true); scroller.current?.scrollTo({ top: scroller.current.scrollHeight, behavior: "smooth" }); }} className="absolute bottom-3 left-1/2 z-10 flex size-8 -translate-x-1/2 items-center justify-center rounded-full border border-border-button-default bg-background-secondary-default text-text-secondary shadow-sidebar" aria-label="Ir para o fim da conversa"><ArrowDown size={15} /></button>}
       </div>
-      {chat && tophs.length > 0 && <div className="shrink-0">
+      {tophs.length > 0 && <div className="shrink-0">
         {modelError && <p role="alert" className="px-3 text-xs text-text-error-primary">{modelError}</p>}
         <AgentComposer value={text} onChange={(value) => setDraft(draftKey, value)} onSend={(value, files) => void send(value, files)} onStop={() => void stop()} busy={busy}
-          placeholder="Mensagem para a equipe"
-          hint="Quem estiver na equipe responde · use @ para chamar alguém"
+          placeholder={tophs.length === 1 ? `Mensagem para ${tophs[0].name}` : "Mensagem para o grupo"}
+          hint={tophs.length === 1 ? "Esta tarefa é só sua com este Toph" : "Quem estiver na conversa responde · use @ para chamar alguém"}
           history={native.messages.filter((m) => m.role === "user").map((m) => m.content)}
-          modeControls={<ChatUsageMeter chatName={chat.name || "Equipe"} model={activeModelDisplay} />} members={tophs} />
+          modeControls={<div className="flex items-center gap-0.5"><IconButton icon={UserRound} size="small" aria-label="Participantes da conversa" title="Participantes e contexto" onClick={() => setSettingsOpen(true)} /><ChatUsageMeter chatName={title} model={activeModelDisplay} /></div>} members={tophs} />
       </div>}
     </section>
-    <Modal isOpen={Boolean(selected)} onClose={() => setConfigId(null)} title={selected?.name ?? "Toph"} description="Configure identidade, prompt, modelo e ferramentas deste Toph." size="lg" placement={mobile ? "bottom" : "center"} bodyClassName="p-0" swipeToClose={mobile}><Suspense fallback={<p>Carregando…</p>}>{selected && <BotConfig projectId={project.id} projectRoot={project.root} bot={selected} />}</Suspense></Modal>
-    <Suspense fallback={null}>{sessionToph && <TophSessionsSheet open project={project} toph={sessionToph} onClose={() => setSessionsId(null)} onSelect={(session) => void selectSession(session)} onNew={() => { void newSession(sessionToph.id); setSessionsId(null); }} />}{gallery && <TophGallery open projectId={project.id} chatId={galleryChatId} onClose={closeGallery} onCreated={(tophId) => { closeGallery(); setConfigId(tophId); }} />}</Suspense>
+    <ConversationSettings open={settingsOpen} project={project} chat={chat} projectChats={stored} onClose={() => setSettingsOpen(false)} />
   </div>;
 }

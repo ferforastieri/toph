@@ -150,13 +150,14 @@ export default function BotConfig({ projectId, projectRoot, bot }: Props) {
 
   async function remove() {
     const ok = await confirm({
-      title: "Remover da equipe?",
-      message: `Remover ${bot.name} desta equipe? O histórico no servidor permanece.`,
-      confirmLabel: "Remover da equipe",
+      title: `Apagar ${bot.name}?`,
+      message: "A configuração e o histórico deste Toph em todas as conversas serão removidos. Essa ação não pode ser desfeita.",
+      confirmLabel: "Apagar Toph",
       danger: true,
     });
     if (ok) {
       await agentApi.cancelAgent(projectId, bot.id);
+      await agentApi.deleteToph(projectId, bot.id).catch(() => undefined);
       removeToph(projectId, bot.id);
     }
   }
@@ -429,7 +430,7 @@ export default function BotConfig({ projectId, projectRoot, bot }: Props) {
 
       <div className="flex flex-col gap-2 px-1 pt-1">
         <Button type="button" variant="ghost" size="small" leadingIcon={Trash2} className="justify-start text-status-rose-text" onClick={() => void remove()}>
-          Remover da equipe
+          Apagar Toph
         </Button>
         <p className="flex items-center gap-1 text-caption-2-regular text-text-tertiary"><Bot size={11} /> As alterações são aplicadas nas próximas respostas.</p>
       </div>

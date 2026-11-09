@@ -20,7 +20,7 @@ describe("TophRow", () => {
     render(<TophRow toph={toph} onOpen={onOpen} onSessions={onSessions} />);
 
     fireEvent.click(screen.getByRole("button", { name: /^Nova/ }));
-    fireEvent.click(screen.getByRole("button", { name: "Sessões de Nova" }));
+    fireEvent.click(screen.getByRole("button", { name: "Conversas de Nova" }));
 
     expect(onOpen).toHaveBeenCalledTimes(1);
     expect(onSessions).toHaveBeenCalledTimes(1);

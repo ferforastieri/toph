@@ -94,6 +94,7 @@ pub(super) async fn agent_search(
 #[serde(rename_all = "camelCase")]
 pub(super) struct SessionQuery {
     agent_id: String,
+    chat_id: String,
 }
 pub(super) async fn agent_sessions(
     State(state): State<Arc<AppState>>,
@@ -105,7 +106,7 @@ pub(super) async fn agent_sessions(
         state
             .agents
             .repository()
-            .sessions(auth.user.id, &project, &query.agent_id)
+            .sessions(auth.user.id, &project, &query.agent_id, &query.chat_id)
             .await?
     )))
 }
@@ -114,6 +115,7 @@ pub(super) async fn agent_sessions(
 pub(super) struct SessionSwitch {
     agent_id: String,
     session_id: Option<String>,
+    chat_id: String,
 }
 pub(super) async fn switch_agent_session(
     State(state): State<Arc<AppState>>,
@@ -128,6 +130,7 @@ pub(super) async fn switch_agent_session(
             auth.user.id,
             &project,
             &input.agent_id,
+            &input.chat_id,
             input.session_id.as_deref(),
         )
         .await?;
@@ -145,6 +148,29 @@ pub(super) async fn delete_chat(
         .await?;
     Ok(Json(json!({"ok":true})))
 }
+pub(super) async fn delete_chat_toph(
+    State(state): State<Arc<AppState>>,
+    Path((project, chat, toph)): Path<(String, String, String)>,
+    Extension(auth): Extension<AuthContext>,
+) -> AppResult<Json<Value>> {
+    state.store.project(&project).await?;
+    state
+        .agents
+        .delete_chat_toph(auth.user.id, &project, &chat, &toph)
+        .await?;
+    Ok(Json(json!({"ok":true})))
+}
+
+pub(super) async fn delete_toph(
+    State(state): State<Arc<AppState>>,
+    Path((project, toph)): Path<(String, String)>,
+    Extension(auth): Extension<AuthContext>,
+) -> AppResult<Json<Value>> {
+    state.store.project(&project).await?;
+    state.agents.delete_toph(auth.user.id, &project, &toph).await?;
+    Ok(Json(json!({"ok":true})))
+}
+
 pub(super) async fn approve_agent(
     State(state): State<Arc<AppState>>,
     Path((project, call)): Path<(String, String)>,

@@ -2,6 +2,9 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { Bot, Database, FileCode2, FileDiff, Globe2, X } from "@toph/icons";
 import { useApp, type Tab } from "../store";
+import { chatDisplayName, chatTophs, useChats } from "../../features/conversations/store";
+import TophStack from "../../features/agents/components/TophStack";
+import { agentApi } from "../../features/agents/api";
 import { useSettings } from "../../features/settings/store";
 import { useConfirm } from "../../shared/ui/confirm";
 import { IconButton } from "@/shared/boardui/base/buttons/icon-button";
@@ -37,6 +40,7 @@ export default function Tabs() {
   const projectRoot = useApp((state) => state.projects.find((item) => item.id === state.activeProjectId)?.root ?? "");
   const confirmClose = useSettings((state) => state.confirmClose);
   const confirm = useConfirm();
+  const projectChats = useChats((state) => state.byProject);
   const [menu, setMenu] = useState<ContextMenuState | null>(null);
 
   useEffect(() => {
@@ -52,6 +56,20 @@ export default function Tabs() {
       window.removeEventListener("keydown", escape);
     };
   }, [menu]);
+
+  async function deleteConversation(tab: Tab) {
+    if (tab.kind !== "ai" || !tab.chatId) return;
+    const ok = await confirm({
+      title: "Apagar conversa?",
+      message: "As mensagens e as sessões desta tarefa serão removidas. Os Tophs continuam no projeto.",
+      confirmLabel: "Apagar conversa",
+      danger: true,
+    });
+    if (!ok) return;
+    await agentApi.deleteChat(tab.projectId, tab.chatId).catch(() => undefined);
+    useChats.getState().deleteConversation(tab.projectId, tab.chatId);
+    useApp.getState().closeTab(tab.id);
+  }
 
   async function requestClose(tab: Tab) {
     if (tab.dirty && confirmClose) {
@@ -107,6 +125,12 @@ export default function Tabs() {
     return root ? `${root}/${tab.path}` : tab.path;
   }
 
+  const baseLabels = tabs.map((tab) => {
+    const conversation = tab.kind === "ai" && tab.chatId
+      ? projectChats[tab.projectId]?.chats.find((chat) => chat.id === tab.chatId) ?? null
+      : null;
+    return conversation ? chatDisplayName(projectChats[tab.projectId], conversation, 2) : tab.title;
+  });
   const menuIndex = menu ? tabs.findIndex((tab) => tab.id === menu.tab.id) : -1;
   const menuRightTabs = menu && menuIndex >= 0 ? tabs.slice(menuIndex + 1) : [];
   const menuOtherTabs = menu ? tabs.filter((tab) => tab.id !== menu.tab.id) : [];
@@ -115,17 +139,38 @@ export default function Tabs() {
   return (
     <div className="flex min-h-10 items-center border-b bg-background-secondary-default px-1">
       <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto" role="tablist">
-        {tabs.map((tab) => {
+        {tabs.map((tab, index) => {
           const Icon = icons[tab.kind as keyof typeof icons] ?? icons.editor;
           const active = tab.id === activeTabId;
+          const conversation = tab.kind === "ai" && tab.chatId
+            ? projectChats[tab.projectId]?.chats.find((chat) => chat.id === tab.chatId) ?? null
+            : null;
+          const conversationTophs = conversation ? chatTophs(projectChats[tab.projectId], conversation.id) : [];
+          const baseLabel = baseLabels[index] ?? tab.title;
+          const occurrence = baseLabels.slice(0, index + 1).filter((value) => value === baseLabel).length;
+          const label = occurrence > 1 ? `${baseLabel} · ${occurrence}` : baseLabel;
           return (
             <div
               key={tab.id}
               role="tab"
               aria-selected={active}
               tabIndex={active ? 0 : -1}
-              onClick={() => setActiveTab(tab.id)}
-              onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") setActiveTab(tab.id); }}
+              onClick={() => {
+                setActiveTab(tab.id);
+                if (tab.kind === "ai" && tab.chatId) {
+                  useChats.getState().setActiveChat(tab.projectId, tab.chatId);
+                  useChats.getState().touchConversation(tab.projectId, tab.chatId);
+                }
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  setActiveTab(tab.id);
+                  if (tab.kind === "ai" && tab.chatId) {
+                    useChats.getState().setActiveChat(tab.projectId, tab.chatId);
+                    useChats.getState().touchConversation(tab.projectId, tab.chatId);
+                  }
+                }
+              }}
               onAuxClick={(event) => { if (event.button === 1) void requestClose(tab); }}
               onContextMenu={(event) => {
                 event.preventDefault();
@@ -136,7 +181,7 @@ export default function Tabs() {
                   y: Math.max(8, Math.min(event.clientY, window.innerHeight - 320)),
                 });
               }}
-              title={tab.path ?? tab.url ?? tab.title}
+              title={tab.path ?? tab.url ?? label}
               className={cx(
                 "group mx-0.5 flex h-8 max-w-[240px] shrink-0 cursor-pointer items-center gap-2 rounded-lg border px-2 text-body-2-medium",
                 active
@@ -144,15 +189,17 @@ export default function Tabs() {
                   : "border-transparent text-text-secondary hover:bg-background-primary-hover hover:text-text-primary",
               )}
             >
-              {tab.kind === "editor" || (tab.kind === "diff" && tab.path)
+              {conversationTophs.length > 0 ? (
+                <TophStack tophs={conversationTophs} size={18} ringClassName="ring-background-secondary-default" />
+              ) : tab.kind === "editor" || (tab.kind === "diff" && tab.path)
                 ? <FileIcon name={tab.path ?? tab.title} path={tab.path} size={14} />
                 : <Icon size={14} className="shrink-0" />}
-              <span className="min-w-0 flex-1 truncate">{tab.title}</span>
+              <span className="min-w-0 flex-1 truncate">{label}</span>
               {tab.dirty && <span className="size-1.5 shrink-0 rounded-full bg-accent-500" aria-label="Modificado" />}
               <IconButton
                 icon={X}
                 size="small"
-                aria-label={`Fechar ${tab.title}`}
+                aria-label={`Fechar ${label}`}
                 className="size-5 border-transparent bg-transparent p-0 opacity-0 shadow-none group-hover:opacity-100 [&_svg]:size-3"
                 onClick={(event) => { event.stopPropagation(); void requestClose(tab); }}
               />
@@ -187,6 +234,14 @@ export default function Tabs() {
               label="Fechar todas as abas"
               onSelect={() => { setMenu(null); void requestCloseMany(tabs); }}
             />
+            {menu.tab.kind === "ai" ? (
+              <div className="mt-1 border-t border-separator-border pt-1">
+                <MenuItem
+                  label="Apagar conversa"
+                  onSelect={() => { const tab = menu.tab; setMenu(null); void deleteConversation(tab); }}
+                />
+              </div>
+            ) : null}
             <MenuItem
               label="Fechar abas salvas"
               disabled={savedTabs.length === 0}

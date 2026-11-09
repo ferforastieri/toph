@@ -540,7 +540,7 @@ function AgentPicker({ agents, value, onChange }: { agents: Array<{ id: string; 
       <Button variant={everyone ? "primary" : "ghost"} size="xs" onClick={() => onChange([])}>Todos</Button>
       <Button variant={!everyone ? "primary" : "ghost"} size="xs" disabled={agents.length === 0} onClick={() => onChange(everyone ? [agents[0].id] : value)}>Só alguns</Button>
     </div>
-    {everyone ? <p className="text-caption-2-regular text-text-tertiary">Todos os Tophs do projeto, inclusive os que forem criados depois.</p> : agents.length === 0 ? <p className="text-caption-2-regular text-text-tertiary">Nenhum Toph no projeto. Adicione um Toph a uma equipe primeiro.</p> : <div className="flex flex-wrap gap-1.5">
+    {everyone ? <p className="text-caption-2-regular text-text-tertiary">Todos os Tophs do projeto, inclusive os que forem criados depois.</p> : agents.length === 0 ? <p className="text-caption-2-regular text-text-tertiary">Nenhum Toph no projeto ainda. Crie um Toph primeiro.</p> : <div className="flex flex-wrap gap-1.5">
       {agents.map((agent) => {
         const selected = value.includes(agent.id);
         return <button key={agent.id} type="button" onClick={() => toggle(agent.id)} className={cx("flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-caption-2-medium transition-colors", selected ? "border-accent-500 bg-accent-500/10 text-text-primary" : "border-border-button-default text-text-secondary hover:bg-background-primary-hover")}>

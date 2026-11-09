@@ -229,13 +229,13 @@ impl Repository {
         }
         sqlx::query("INSERT OR IGNORE INTO agent_sessions(id,user_id,project_id,chat_id,agent_id,title,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)")
             .bind(new_id()).bind(user).bind(project).bind(&agent.chat_id).bind(&agent.id).bind(&agent.name).bind(now()).bind(now()).execute(self.0.pool()).await?;
-        sqlx::query_as("SELECT id,chat_id,agent_id,title,archived,created_at,updated_at FROM agent_sessions WHERE user_id=? AND project_id=? AND agent_id=? AND archived=0")
-            .bind(user).bind(project).bind(&agent.id).fetch_one(self.0.pool()).await.map_err(Into::into)
+        sqlx::query_as("SELECT id,chat_id,agent_id,title,archived,created_at,updated_at FROM agent_sessions WHERE user_id=? AND project_id=? AND chat_id=? AND agent_id=? AND archived=0")
+            .bind(user).bind(project).bind(&agent.chat_id).bind(&agent.id).fetch_one(self.0.pool()).await.map_err(Into::into)
     }
 
-    pub async fn sessions(&self, user: i64, project: &str, agent: &str) -> AppResult<Vec<Session>> {
-        Ok(sqlx::query_as("SELECT id,chat_id,agent_id,title,archived,created_at,updated_at FROM agent_sessions WHERE user_id=? AND project_id=? AND agent_id=? ORDER BY updated_at DESC LIMIT 100")
-            .bind(user).bind(project).bind(agent).fetch_all(self.0.pool()).await?)
+    pub async fn sessions(&self, user: i64, project: &str, agent: &str, chat: &str) -> AppResult<Vec<Session>> {
+        Ok(sqlx::query_as("SELECT id,chat_id,agent_id,title,archived,created_at,updated_at FROM agent_sessions WHERE user_id=? AND project_id=? AND chat_id=? AND agent_id=? ORDER BY updated_at DESC LIMIT 100")
+            .bind(user).bind(project).bind(chat).bind(agent).fetch_all(self.0.pool()).await?)
     }
 
     pub async fn switch_session(
@@ -243,26 +243,28 @@ impl Repository {
         user: i64,
         project: &str,
         agent: &str,
+        chat: &str,
         selected: Option<&str>,
     ) -> AppResult<()> {
         let mut tx = self.0.pool().begin().await?;
-        let active:i64=sqlx::query_scalar("SELECT count(*) FROM agent_runs WHERE user_id=? AND project_id=? AND agent_id=? AND state IN ('queued','running','waiting')")
-            .bind(user).bind(project).bind(agent).fetch_one(&mut *tx).await?;
+        let active:i64=sqlx::query_scalar("SELECT count(*) FROM agent_runs WHERE user_id=? AND project_id=? AND chat_id=? AND agent_id=? AND state IN ('queued','running','waiting')")
+            .bind(user).bind(project).bind(chat).bind(agent).fetch_one(&mut *tx).await?;
         if active > 0 {
             return Err(AppError::Conflict);
         }
         if let Some(id) = selected {
-            let count:i64=sqlx::query_scalar("SELECT count(*) FROM agent_sessions WHERE id=? AND user_id=? AND project_id=? AND agent_id=?")
-                .bind(id).bind(user).bind(project).bind(agent).fetch_one(&mut *tx).await?;
+            let count:i64=sqlx::query_scalar("SELECT count(*) FROM agent_sessions WHERE id=? AND user_id=? AND project_id=? AND chat_id=? AND agent_id=?")
+                .bind(id).bind(user).bind(project).bind(chat).bind(agent).fetch_one(&mut *tx).await?;
             if count != 1 {
                 return Err(AppError::NotFound);
             }
         }
         sqlx::query(
-            "UPDATE agent_sessions SET archived=1 WHERE user_id=? AND project_id=? AND agent_id=?",
+            "UPDATE agent_sessions SET archived=1 WHERE user_id=? AND project_id=? AND chat_id=? AND agent_id=?",
         )
         .bind(user)
         .bind(project)
+        .bind(chat)
         .bind(agent)
         .execute(&mut *tx)
         .await?;

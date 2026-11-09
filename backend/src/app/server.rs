@@ -787,6 +787,14 @@ fn router(state: Arc<AppState>) -> Router {
             delete(delete_chat),
         )
         .route(
+            "/api/projects/{project_id}/agent/chats/{chat_id}/tophs/{toph_id}",
+            delete(delete_chat_toph),
+        )
+        .route(
+            "/api/projects/{project_id}/agent/tophs/{toph_id}",
+            delete(delete_toph),
+        )
+        .route(
             "/api/projects/{project_id}/agent/approvals/{call_id}",
             post(approve_agent),
         )

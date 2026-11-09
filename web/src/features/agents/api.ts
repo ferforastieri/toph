@@ -8,7 +8,6 @@ export interface AgentRun {
   state: "queued" | "running" | "waiting" | "completed" | "failed" | "cancelled" | "interrupted";
   error: string; createdAt: number; finishedAt?: number;
 }
-export interface AgentSession { id: string; chatId: string; agentId: string; title: string; archived: boolean; createdAt: number; updatedAt: number }
 export interface Approval { id: string; runId: string; agentId: string; name: string; arguments: string }
 export interface AgentQuestionPrompt {
   id: string; runId: string; agentId: string; name: string; arguments: string;
@@ -69,15 +68,16 @@ export interface EngineLimits {
 const root = (project: string) => `/projects/${encodeURIComponent(project)}/agent`;
 const post = (body: unknown): RequestInit => ({ method: "POST", body: JSON.stringify(body) });
 export const agentApi = {
-  start: (project: string, input: { requestId: string; chatId: string; chatDescription?: string; agentId: string; text: string; agents: ChatToph[]; attachments?: AgentAttachment[] }) => request<AgentRun>(`${root(project)}/runs`, post(input)),
+  start: (project: string, input: { requestId: string; chatId: string; chatDescription?: string; agentId: string; text: string; agents: Array<ChatToph & { chatId: string }>; attachments?: AgentAttachment[] }) => request<AgentRun>(`${root(project)}/runs`, post(input)),
   cancel: (project: string, run: string) => request(`${root(project)}/runs/${encodeURIComponent(run)}/cancel`, post({})),
   cancelAgent: (project: string, agentId: string) => request(`${root(project)}/cancel`, post({ agentId })),
   deleteChat: (project: string, chatId: string) => request(`${root(project)}/chats/${encodeURIComponent(chatId)}`, { method: "DELETE" }),
   snapshot: (project: string, chat: string, before?: number | null) => request<AgentSnapshot>(`${root(project)}/snapshot?chatId=${encodeURIComponent(chat)}${before == null ? "" : `&before=${before}`}`),
   searchMessages: (project: string, query: string) => request<AgentSearchResult[]>(`${root(project)}/search?q=${encodeURIComponent(query)}`),
   events: (project: string) => `${getApiBase()}/api${root(project)}/events`,
-  sessions: (project: string, agent: string) => request<AgentSession[]>(`${root(project)}/sessions?agentId=${encodeURIComponent(agent)}`),
-  switchSession: (project: string, agentId: string, sessionId: string | null) => request(`${root(project)}/sessions`, post({ agentId, sessionId })),
+  switchSession: (project: string, agentId: string, sessionId: string | null, chatId: string) => request(`${root(project)}/sessions`, post({ agentId, sessionId, chatId })),
+  deleteChatToph: (project: string, chatId: string, agentId: string) => request(`${root(project)}/chats/${encodeURIComponent(chatId)}/tophs/${encodeURIComponent(agentId)}`, { method: "DELETE" }),
+  deleteToph: (project: string, agentId: string) => request(`${root(project)}/tophs/${encodeURIComponent(agentId)}`, { method: "DELETE" }),
   approve: (project: string, call: string, approved: boolean) => request(`${root(project)}/approvals/${encodeURIComponent(call)}`, post({ approved })),
   answer: (project: string, call: string, answer: string) => request(`${root(project)}/approvals/${encodeURIComponent(call)}`, post({ answers: answer })),
   usage: (project: string, chat?: string) => request<AgentUsage>(`${root(project)}/usage${chat ? `?chatId=${encodeURIComponent(chat)}` : ""}`),

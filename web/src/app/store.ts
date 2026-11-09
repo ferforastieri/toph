@@ -21,6 +21,8 @@ export interface Tab {
   diff?: string;
   staged?: boolean;
   sessionId?: string;
+  /** Conversation id for `ai` tabs (one Toph or a group). */
+  chatId?: string;
   line?: number;
   table?: {
     schema: string;

@@ -7,10 +7,11 @@ interface Props {
   tophs: ChatToph[];
   size?: number;
   className?: string;
+  ringClassName?: string;
 }
 
-/** A small cluster of the Tophs in a team, used as the team's picture. */
-export default function TeamAvatar({ tophs, size = 28, className }: Props) {
+/** A small cluster of Tophs, used for a group task's picture. */
+export default function TophStack({ tophs, size = 28, className, ringClassName = "ring-background-primary-default" }: Props) {
   if (tophs.length === 0) {
     return (
       <span
@@ -29,16 +30,16 @@ export default function TeamAvatar({ tophs, size = 28, className }: Props) {
       {shown.map((toph, index) => (
         <span
           key={toph.id}
-          className={cx("inline-flex rounded-full ring-2 ring-background-primary-default", index > 0 && "-ms-2")}
+          className={cx("inline-flex rounded-full ring-2", ringClassName, index > 0 && "-ms-2")}
           style={{ zIndex: shown.length - index }}
           title={toph.name}
         >
-          <BotAvatar bot={toph} size={avatar} />
+          <BotAvatar bot={toph} size={avatar} look={false} />
         </span>
       ))}
       {tophs.length > shown.length ? (
         <span
-          className="-ms-2 flex shrink-0 items-center justify-center rounded-full bg-background-tertiary-default text-[9px] font-semibold text-text-secondary ring-2 ring-background-primary-default"
+          className={cx("-ms-2 flex shrink-0 items-center justify-center rounded-full bg-background-tertiary-default text-[9px] font-semibold text-text-secondary ring-2", ringClassName)}
           style={{ width: avatar, height: avatar }}
         >
           +{tophs.length - shown.length}

@@ -1,5 +1,5 @@
 import { Plus } from "@toph/icons";
-import { TOPH_PRESETS, chatTophs, useChats, type TophPreset } from "../../conversations/store";
+import { TOPH_PRESETS, useChats, type TophPreset } from "../../conversations/store";
 import BotAvatar from "./BotAvatar";
 import { Modal } from "@/shared/boardui/base/modal/modal";
 import { useIsMobile } from "../../../shared/ui/useIsMobile";
@@ -7,7 +7,6 @@ import { useIsMobile } from "../../../shared/ui/useIsMobile";
 interface Props {
   open: boolean;
   projectId: string;
-  chatId: string | null;
   onClose: () => void;
   onCreated?: (tophId: string) => void;
 }
@@ -28,17 +27,16 @@ const CUSTOM_PRESET: TophPreset = {
   language: "auto",
 };
 
-/** Adds a pre-made Toph or a blank custom Toph to the active chat. */
-export default function TophGallery({ open, projectId, chatId, onClose, onCreated }: Props) {
+/** Adds a pre-made Toph or a blank custom Toph to the project. */
+export default function TophGallery({ open, projectId, onClose, onCreated }: Props) {
   const mobile = useIsMobile();
   const project = useChats((state) => state.byProject[projectId]);
-  const addToph = useChats((state) => state.addToph);
-  const existing = chatTophs(project, chatId);
+  const createToph = useChats((state) => state.createToph);
+  const existing = project?.tophs ?? [];
   const usedNames = new Set(existing.map((toph) => toph.name.toLowerCase()));
 
   function add(preset: TophPreset) {
-    if (!chatId) return;
-    const toph = addToph(projectId, chatId, preset);
+    const toph = createToph(projectId, preset);
     if (!toph) return;
     onClose();
     onCreated?.(toph.id);
@@ -58,7 +56,7 @@ export default function TophGallery({ open, projectId, chatId, onClose, onCreate
     <Modal
       isOpen={open}
       onClose={onClose}
-      title="Adicionar Toph à equipe"
+      title="Novo Toph"
       description="Sugestões prontas — escolha uma e ajuste nome, papel, cor, prompt e ferramentas."
       placement={mobile ? "bottom" : "center"}
       size={mobile ? "lg" : "md"}

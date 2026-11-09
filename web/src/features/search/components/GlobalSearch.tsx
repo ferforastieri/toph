@@ -2,8 +2,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Bot, Folder, LoaderCircle, Search, Settings2, Sparkles } from "@toph/icons";
 import { useApp } from "../../../app/store";
 import { agentApi, type AgentSearchResult } from "../../agents/api";
-import { teamChats, useChats, type ChatToph, type TophChat } from "../../conversations/store";
-import TeamAvatar from "../../agents/components/TeamAvatar";
+import { chatDisplayName, chatTophs, conversations, latestChatForToph, useChats, type ChatToph, type TophChat } from "../../conversations/store";
+import { requestOpenChat } from "../../conversations/navigation";
+import TophStack from "../../agents/components/TophStack";
 import BotAvatar from "../../agents/components/BotAvatar";
 import { Modal } from "@/shared/boardui/base/modal/modal";
 import { cx } from "@/shared/boardui/utils/cx";
@@ -23,8 +24,8 @@ const SETTINGS: Array<{ id: SettingsSection; title: string; subtitle: string }> 
 
 type Item =
   | { kind: "project"; key: string; projectId: string; title: string; subtitle: string }
-  | { kind: "team"; key: string; projectId: string; chat: TophChat; tophs: ChatToph[]; title: string; subtitle: string }
-  | { kind: "toph"; key: string; projectId: string; chatId: string; toph: ChatToph; title: string; subtitle: string }
+  | { kind: "chat"; key: string; projectId: string; chat: TophChat; tophs: ChatToph[]; title: string; subtitle: string }
+  | { kind: "toph"; key: string; projectId: string; chatId: string | null; toph: ChatToph; title: string; subtitle: string }
   | { kind: "settings"; key: string; section: SettingsSection; title: string; subtitle: string }
   | { kind: "message"; key: string; projectId: string; result: AgentSearchResult; toph?: ChatToph; title: string; subtitle: string };
 
@@ -33,7 +34,7 @@ function firstLine(value: string, limit = 110): string {
   return text.length > limit ? `${text.slice(0, limit - 1)}…` : text;
 }
 
-/** Command palette: projects, teams, Tophs, messages and settings. */
+/** Command palette: projects, tasks, Tophs, messages and settings. */
 export default function GlobalSearch() {
   const projects = useApp((state) => state.projects);
   const activeProjectId = useApp((state) => state.activeProjectId);
@@ -103,18 +104,12 @@ export default function GlobalSearch() {
   const items = useMemo(() => {
     const needle = query.trim().toLowerCase();
     const result: Item[] = [];
-    const teams = teamChats(project);
+    const chats = conversations(project);
     const tophs = project?.tophs ?? [];
-    const tophsByChat = new Map<string, ChatToph[]>();
-    for (const toph of tophs) {
-      const list = tophsByChat.get(toph.chatId) ?? [];
-      list.push(toph);
-      tophsByChat.set(toph.chatId, list);
-    }
 
     for (const message of messages) {
       const toph = tophs.find((item) => item.id === message.agentId);
-      const team = teams.find((item) => item.id === message.chatId);
+      const chat = chats.find((item) => item.id === message.chatId);
       result.push({
         kind: "message",
         key: `m:${message.id}`,
@@ -122,7 +117,7 @@ export default function GlobalSearch() {
         result: message,
         toph,
         title: firstLine(message.text),
-        subtitle: `${toph?.name ?? "Toph"} · ${team?.name ?? "Equipe"} · ${new Date(message.createdAt).toLocaleDateString("pt-BR")}`,
+        subtitle: `${toph?.name ?? "Toph"} · ${chatDisplayName(project, chat) || "Conversa"} · ${new Date(message.createdAt).toLocaleDateString("pt-BR")}`,
       });
     }
 
@@ -131,32 +126,32 @@ export default function GlobalSearch() {
       result.push({ kind: "project", key: `p:${item.id}`, projectId: item.id, title: item.name, subtitle: item.root });
     }
 
-    for (const team of teams) {
-      const name = team.name || "Equipe";
-      const members = tophsByChat.get(team.id) ?? [];
-      if (needle && !`${name} ${team.description} ${members.map((m) => `${m.name} ${m.handle} ${m.role}`).join(" ")}`.toLowerCase().includes(needle)) continue;
+    for (const chat of chats) {
+      const members = chatTophs(project, chat.id);
+      const name = chatDisplayName(project, chat);
+      if (needle && !`${name} ${chat.description} ${members.map((m) => `${m.name} ${m.handle} ${m.role}`).join(" ")}`.toLowerCase().includes(needle)) continue;
       result.push({
-        kind: "team",
-        key: `t:${team.id}`,
+        kind: "chat",
+        key: `c:${chat.id}`,
         projectId: activeProjectId ?? "",
-        chat: team,
+        chat,
         tophs: members,
         title: name,
-        subtitle: `${members.length} Toph${members.length === 1 ? "" : "s"}${team.description ? ` · ${team.description}` : ""}`,
+        subtitle: `${members.length} Toph${members.length === 1 ? "" : "s"}${chat.description ? ` · ${chat.description}` : ""}`,
       });
     }
 
     for (const toph of tophs) {
       if (needle && !`${toph.name} ${toph.handle} ${toph.role} ${toph.description}`.toLowerCase().includes(needle)) continue;
-      const team = teams.find((item) => item.id === toph.chatId);
+      const chat = latestChatForToph(project, toph.id);
       result.push({
         kind: "toph",
         key: `h:${toph.id}`,
         projectId: activeProjectId ?? "",
-        chatId: toph.chatId,
+        chatId: chat?.id ?? null,
         toph,
         title: toph.name,
-        subtitle: `@${toph.handle} · ${toph.role}${team ? ` · ${team.name}` : ""}`,
+        subtitle: `@${toph.handle} · ${toph.role}`,
       });
     }
 
@@ -172,9 +167,9 @@ export default function GlobalSearch() {
     setActive(0);
   }, [query, messages.length]);
 
-  function openTeam(projectId: string, chatId: string) {
+  function openTask(projectId: string, chatId: string, title?: string) {
     if (projectId !== activeProjectId) setActiveProject(projectId);
-    useChats.getState().setActiveChat(projectId, chatId);
+    requestOpenChat(projectId, chatId, title);
     setSidebar("bots");
     setOpen(false);
   }
@@ -186,15 +181,20 @@ export default function GlobalSearch() {
       setOpen(false);
       return;
     }
-    if (item.kind === "team") {
-      openTeam(item.projectId, item.chat.id);
+    if (item.kind === "chat") {
+      openTask(item.projectId, item.chat.id, item.title);
       return;
     }
     if (item.kind === "toph") {
-      openTeam(item.projectId, item.chatId);
-      window.setTimeout(() => {
-        window.dispatchEvent(new CustomEvent("toph:toph-action", { detail: { action: "config", tophId: item.toph.id } }));
-      }, 120);
+      const chat = item.chatId
+        ? project?.chats.find((entry) => entry.id === item.chatId)
+        : latestChatForToph(project, item.toph.id);
+      const created = chat ?? useChats.getState().createConversation(
+        item.projectId,
+        [item.toph.id],
+        { name: item.toph.name },
+      );
+      if (created) openTask(item.projectId, created.id, chatDisplayName(project, created));
       return;
     }
     if (item.kind === "settings") {
@@ -203,10 +203,10 @@ export default function GlobalSearch() {
       return;
     }
     if (item.kind === "message") {
-      openTeam(item.projectId, item.result.chatId);
+      openTask(item.projectId, item.result.chatId);
       void agentApi
-        .switchSession(item.projectId, item.result.agentId, item.result.sessionId)
-        .then(() => window.setTimeout(() => window.dispatchEvent(new CustomEvent("toph:refresh-chat")), 120))
+        .switchSession(item.projectId, item.result.agentId, item.result.sessionId, item.result.chatId)
+        .then(() => window.setTimeout(() => window.dispatchEvent(new CustomEvent("toph:refresh-chat")), 260))
         .catch(() => undefined);
     }
   }
@@ -216,7 +216,7 @@ export default function GlobalSearch() {
       isOpen={open}
       onClose={() => setOpen(false)}
       title="Busca global"
-      description="Equipes, Tophs, mensagens, projetos e configurações."
+      description="Tophs, tarefas, mensagens, projetos e configurações."
       size="md"
       bodyClassName="p-0"
     >
@@ -250,7 +250,7 @@ export default function GlobalSearch() {
         <div className="max-h-[min(60vh,520px)] min-h-24 overflow-y-auto p-2">
           {searching ? <p className="flex items-center gap-2 px-2 py-1 text-caption-2-regular text-text-tertiary"><LoaderCircle className="size-3 animate-spin" /> Buscando mensagens…</p> : null}
           {!items.length && query.trim() && !searching ? <p className="px-3 py-8 text-center text-caption-1-regular text-text-tertiary">Nada encontrado para “{query.trim()}”.</p> : null}
-          {!query.trim() ? <p className="px-3 py-8 text-center text-caption-1-regular text-text-tertiary">Digite para buscar equipes, Tophs, mensagens e configurações.</p> : null}
+          {!query.trim() ? <p className="px-3 py-8 text-center text-caption-1-regular text-text-tertiary">Digite para buscar Tophs, tarefas, mensagens e configurações.</p> : null}
           {items.map((item, index) => (
             <button
               key={item.key}
@@ -259,8 +259,8 @@ export default function GlobalSearch() {
               onClick={() => choose(item)}
               className={cx("flex w-full min-w-0 items-center gap-2.5 rounded-xl px-2 py-2 text-start transition-colors", index === active ? "bg-background-tertiary-default" : "hover:bg-background-primary-hover")}
             >
-              {item.kind === "team" ? (
-                <TeamAvatar tophs={item.tophs} size={28} />
+              {item.kind === "chat" ? (
+                <TophStack tophs={item.tophs} size={28} />
               ) : item.kind === "toph" ? (
                 <BotAvatar bot={item.toph} size={28} />
               ) : (
@@ -273,7 +273,7 @@ export default function GlobalSearch() {
                 <span className="truncate text-caption-2-regular text-text-tertiary">{item.subtitle}</span>
               </span>
               <span className="shrink-0 text-[10px] uppercase tracking-wide text-text-tertiary">
-                {item.kind === "message" ? "mensagem" : item.kind === "project" ? "projeto" : item.kind === "settings" ? "config" : item.kind === "toph" ? "toph" : "equipe"}
+                {item.kind === "message" ? "mensagem" : item.kind === "project" ? "projeto" : item.kind === "settings" ? "config" : item.kind === "toph" ? "toph" : "tarefa"}
               </span>
             </button>
           ))}

@@ -577,7 +577,8 @@ impl Runtime {
         Ok(())
     }
 
-    /// Removes a team's agents, runs, messages, sessions and legacy archive.
+    /// Removes a task's runs, messages and sessions. The Tophs are global and
+    /// stay in the project, so their profiles are not touched.
     /// The in-memory harness sessions for that chat are dropped too.
     pub async fn delete_chat(&self, user: i64, project: &str, chat: &str) -> AppResult<()> {
         let session_ids: Vec<String> = sqlx::query_scalar(
@@ -615,7 +616,6 @@ impl Runtime {
             "DELETE FROM agent_session_state WHERE session_id IN (SELECT id FROM agent_sessions WHERE user_id=? AND project_id=? AND chat_id=?)",
             "DELETE FROM agent_runs WHERE user_id=? AND project_id=? AND chat_id=?",
             "DELETE FROM agent_sessions WHERE user_id=? AND project_id=? AND chat_id=?",
-            "DELETE FROM agent_profiles WHERE user_id=? AND project_id=? AND chat_id=?",
             "DELETE FROM bot_messages WHERE user_id=? AND project_id=? AND channel=?",
         ] {
             sqlx::query(statement)
@@ -631,6 +631,93 @@ impl Runtime {
             .lock()
             .unwrap()
             .drop_where(|key| session_ids.iter().any(|id| id == key));
+        for id in &session_ids {
+            let _ = tokio::fs::remove_dir_all(super::cli::work_dir(id)).await;
+        }
+        Ok(())
+    }
+
+    /// Removes one Toph from one task: its runs, messages and harness sessions
+    /// in that conversation. The Toph itself and its other tasks are untouched.
+    pub async fn delete_chat_toph(&self, user: i64, project: &str, chat: &str, agent: &str) -> AppResult<()> {
+        let session_ids: Vec<String> = sqlx::query_scalar(
+            "SELECT id FROM agent_sessions WHERE user_id=? AND project_id=? AND chat_id=? AND agent_id=?",
+        )
+        .bind(user).bind(project).bind(chat).bind(agent)
+        .fetch_all(self.inner.repo.0.pool()).await?;
+        let active: Vec<String> = sqlx::query_scalar(
+            "SELECT id FROM agent_runs WHERE user_id=? AND project_id=? AND chat_id=? AND agent_id=? AND state IN ('queued','running','waiting')",
+        )
+        .bind(user).bind(project).bind(chat).bind(agent)
+        .fetch_all(self.inner.repo.0.pool()).await?;
+        {
+            let runs = self.inner.runs.lock().unwrap();
+            for id in &active {
+                if let Some(token) = runs.get(id) { token.cancel(); }
+            }
+        }
+        let mut tx = self.inner.repo.0.pool().begin().await?;
+        for statement in [
+            "DELETE FROM agent_tool_calls WHERE run_id IN (SELECT id FROM agent_runs WHERE user_id=? AND project_id=? AND chat_id=? AND agent_id=?)",
+            "DELETE FROM agent_model_calls WHERE run_id IN (SELECT id FROM agent_runs WHERE user_id=? AND project_id=? AND chat_id=? AND agent_id=?)",
+            "DELETE FROM agent_artifacts WHERE run_id IN (SELECT id FROM agent_runs WHERE user_id=? AND project_id=? AND chat_id=? AND agent_id=?)",
+            "DELETE FROM agent_events WHERE session_id IN (SELECT id FROM agent_sessions WHERE user_id=? AND project_id=? AND chat_id=? AND agent_id=?)",
+            "DELETE FROM agent_messages WHERE session_id IN (SELECT id FROM agent_sessions WHERE user_id=? AND project_id=? AND chat_id=? AND agent_id=?)",
+            "DELETE FROM agent_checkpoints WHERE session_id IN (SELECT id FROM agent_sessions WHERE user_id=? AND project_id=? AND chat_id=? AND agent_id=?)",
+            "DELETE FROM agent_session_state WHERE session_id IN (SELECT id FROM agent_sessions WHERE user_id=? AND project_id=? AND chat_id=? AND agent_id=?)",
+            "DELETE FROM agent_runs WHERE user_id=? AND project_id=? AND chat_id=? AND agent_id=?",
+            "DELETE FROM agent_sessions WHERE user_id=? AND project_id=? AND chat_id=? AND agent_id=?",
+        ] {
+            sqlx::query(statement)
+                .bind(user).bind(project).bind(chat).bind(agent)
+                .execute(&mut *tx).await?;
+        }
+        tx.commit().await?;
+        self.inner.sessions.lock().unwrap().drop_where(|key| session_ids.iter().any(|id| id == key));
+        for id in &session_ids {
+            let _ = tokio::fs::remove_dir_all(super::cli::work_dir(id)).await;
+        }
+        Ok(())
+    }
+
+    /// Removes a Toph from the project: every task's runs, messages and harness
+    /// sessions, plus its profile. The UI asks for confirmation first.
+    pub async fn delete_toph(&self, user: i64, project: &str, agent: &str) -> AppResult<()> {
+        let session_ids: Vec<String> = sqlx::query_scalar(
+            "SELECT id FROM agent_sessions WHERE user_id=? AND project_id=? AND agent_id=?",
+        )
+        .bind(user).bind(project).bind(agent)
+        .fetch_all(self.inner.repo.0.pool()).await?;
+        let active: Vec<String> = sqlx::query_scalar(
+            "SELECT id FROM agent_runs WHERE user_id=? AND project_id=? AND agent_id=? AND state IN ('queued','running','waiting')",
+        )
+        .bind(user).bind(project).bind(agent)
+        .fetch_all(self.inner.repo.0.pool()).await?;
+        {
+            let runs = self.inner.runs.lock().unwrap();
+            for id in &active {
+                if let Some(token) = runs.get(id) { token.cancel(); }
+            }
+        }
+        let mut tx = self.inner.repo.0.pool().begin().await?;
+        for statement in [
+            "DELETE FROM agent_tool_calls WHERE run_id IN (SELECT id FROM agent_runs WHERE user_id=? AND project_id=? AND agent_id=?)",
+            "DELETE FROM agent_model_calls WHERE run_id IN (SELECT id FROM agent_runs WHERE user_id=? AND project_id=? AND agent_id=?)",
+            "DELETE FROM agent_artifacts WHERE run_id IN (SELECT id FROM agent_runs WHERE user_id=? AND project_id=? AND agent_id=?)",
+            "DELETE FROM agent_events WHERE session_id IN (SELECT id FROM agent_sessions WHERE user_id=? AND project_id=? AND agent_id=?)",
+            "DELETE FROM agent_messages WHERE session_id IN (SELECT id FROM agent_sessions WHERE user_id=? AND project_id=? AND agent_id=?)",
+            "DELETE FROM agent_checkpoints WHERE session_id IN (SELECT id FROM agent_sessions WHERE user_id=? AND project_id=? AND agent_id=?)",
+            "DELETE FROM agent_session_state WHERE session_id IN (SELECT id FROM agent_sessions WHERE user_id=? AND project_id=? AND agent_id=?)",
+            "DELETE FROM agent_runs WHERE user_id=? AND project_id=? AND agent_id=?",
+            "DELETE FROM agent_sessions WHERE user_id=? AND project_id=? AND agent_id=?",
+            "DELETE FROM agent_profiles WHERE user_id=? AND project_id=? AND id=?",
+        ] {
+            sqlx::query(statement)
+                .bind(user).bind(project).bind(agent)
+                .execute(&mut *tx).await?;
+        }
+        tx.commit().await?;
+        self.inner.sessions.lock().unwrap().drop_where(|key| session_ids.iter().any(|id| id == key));
         for id in &session_ids {
             let _ = tokio::fs::remove_dir_all(super::cli::work_dir(id)).await;
         }

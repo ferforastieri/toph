@@ -8,7 +8,6 @@ import ChatMessages from "./ChatMessages";
 const project: Project = { id: "p", name: "Projeto", root: "/projeto", color: "#FFB547", createdAt: "", updatedAt: "" };
 const toph: ChatToph = {
   id: "toph",
-  chatId: "chat",
   name: "Beto",
   handle: "beto",
   role: "Dev",
