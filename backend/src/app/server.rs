@@ -765,7 +765,10 @@ fn router(state: Arc<AppState>) -> Router {
             "/api/projects/{project_id}/skills/{skill_id}/restore",
             post(restore_skill),
         )
-        .route("/api/projects/{project_id}/agent/runs", post(start_agent))
+        .route(
+            "/api/projects/{project_id}/agent/runs",
+            post(start_agent).layer(DefaultBodyLimit::max(32 * 1024 * 1024)),
+        )
         .route(
             "/api/projects/{project_id}/agent/cancel",
             post(cancel_project_agents),

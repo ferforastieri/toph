@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { AgentComposer } from "./AgentComposer";
 
@@ -91,6 +91,45 @@ describe("AgentComposer actions", () => {
     fireEvent.click(screen.getByRole("button", { name: "Parar" }));
     expect(onStop).toHaveBeenCalledOnce();
     expect(onSend).not.toHaveBeenCalled();
+  });
+
+  it("keeps send available while a run is active", () => {
+    const onSend = vi.fn();
+    render(
+      <AgentComposer
+        value="enviar mesmo executando"
+        onChange={vi.fn()}
+        onSend={onSend}
+        onStop={vi.fn()}
+        busy
+        placeholder="Mensagem"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Interromper e enviar" }));
+    expect(onSend).toHaveBeenCalledWith("enviar mesmo executando", []);
+  });
+
+  it("sends a dropped image together with the message", async () => {
+    const onSend = vi.fn();
+    render(
+      <AgentComposer
+        value="descreva a imagem"
+        onChange={vi.fn()}
+        onSend={onSend}
+        busy={false}
+        placeholder="Mensagem"
+      />,
+    );
+    const image = new File([new Uint8Array([137, 80, 78, 71])], "drop.png", { type: "image/png" });
+    fireEvent.drop(screen.getByRole("textbox", { name: "Mensagem para o agente" }).closest("form")!, {
+      dataTransfer: { files: [image] },
+    });
+
+    expect(await screen.findByRole("img", { name: "drop.png" })).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Enviar" }));
+    await waitFor(() => expect(onSend).toHaveBeenCalledOnce());
+    expect(onSend.mock.calls[0][1][0]).toMatchObject({ name: "drop.png", mime: "image/png", size: 4 });
   });
 
   it("submits the message on the first click", () => {

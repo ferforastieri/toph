@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ArrowDown, Bot, LoaderCircle, UserRound } from "@toph/icons";
 import type { Project } from "../../../shared/api";
+import { ApiError } from "../../../shared/api";
 import { chatDisplayName, chatTophs, useChats } from "../store";
 import { findModel, useAI } from "../../providers/store";
 import { useTophDrafts } from "../../agents/drafts";
@@ -91,7 +92,13 @@ export default function BotStudioTab({ project, conversationId, mobile = false, 
     try {
       await agentApi.start(project.id, { requestId, chatId: chat.id, chatDescription: chat.description, agentId: "router", text: value, agents: tophs.map((toph) => ({ ...toph, chatId: chat.id })), attachments });
       pendingRequest.current = null; clearDraft(draftKey); await native.refresh();
-    } catch (e) { native.setError(e instanceof Error ? e.message : "Não foi possível iniciar a execução"); }
+    } catch (e) {
+      native.setError(
+        e instanceof ApiError && e.status === 413
+          ? "O anexo é grande demais para o servidor. Remova alguma imagem e tente de novo."
+          : e instanceof Error ? e.message : "Não foi possível iniciar a execução",
+      );
+    }
     finally { sendLock.current = false; setSending(false); }
   }
   sendNowRef.current = sendNow;

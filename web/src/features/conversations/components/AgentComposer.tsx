@@ -26,6 +26,8 @@ interface Props {
 
 export function AgentComposer({ value, onChange, onSend, onStop, busy, placeholder, hint = "", allowAttachments = true, modeControls, history = [], members = [] }: Props) {
   const [attachments, setAttachments] = useState<AgentAttachment[]>([]);
+  const attachmentsRef = useRef<AgentAttachment[]>([]);
+  attachmentsRef.current = attachments;
   const [error, setError] = useState("");
   const [dragging, setDragging] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -75,6 +77,14 @@ export function AgentComposer({ value, onChange, onSend, onStop, busy, placehold
         reader.readAsDataURL(file);
       }).catch(() => "");
       if (uri) next.push({ name: file.name, uri, mime: file.type || "application/octet-stream", size: file.size });
+    }
+    if (next.length > 0) {
+      const total = attachmentsRef.current.reduce((sum, file) => sum + file.size, 0)
+        + next.reduce((sum, file) => sum + file.size, 0);
+      if (total > 8 * 1024 * 1024) {
+        setError("Os anexos somam mais de 8 MB. Remova algum e tente de novo.");
+        return;
+      }
     }
     setAttachments((current) => [...current, ...next].slice(0, 6));
   }
