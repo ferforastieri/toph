@@ -400,7 +400,7 @@ impl Repository {
         let text = body["content"]
             .as_str()
             .map(str::to_string)
-            .unwrap_or_else(|| body["content"].to_string());
+            .unwrap_or_else(|| super::context::content_text(&body["content"]));
         let mut tx = self.0.pool().begin().await?;
         sqlx::query("INSERT INTO agent_messages(id,session_id,run_id,role,body,display,content_text,estimated_tokens,created_at) VALUES(?,?,?,?,?,?,?,?,?)")
             .bind(id).bind(&ctx.run.session_id).bind(&ctx.run.id).bind(body["role"].as_str().unwrap_or("assistant"))

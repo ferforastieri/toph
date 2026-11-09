@@ -27,6 +27,7 @@ interface Props {
 export function AgentComposer({ value, onChange, onSend, onStop, busy, placeholder, hint = "", allowAttachments = true, modeControls, history = [], members = [] }: Props) {
   const [attachments, setAttachments] = useState<AgentAttachment[]>([]);
   const [error, setError] = useState("");
+  const [dragging, setDragging] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const areaRef = useRef<HTMLTextAreaElement>(null);
   const localHistory = useRef<string[]>([]);
@@ -166,7 +167,7 @@ export function AgentComposer({ value, onChange, onSend, onStop, busy, placehold
       <ComposerLoader active={busy} radius={20} surface={false}>
         <form
           onSubmit={(event) => { event.preventDefault(); event.stopPropagation(); if (!busy) submit(); }}
-          className="flex flex-col gap-0 overflow-hidden rounded-[20px] border border-border-button-default bg-background-primary-default shadow-sm transition-[border-color,box-shadow] duration-200 focus-within:border-border-button-hover focus-within:ring-4 focus-within:ring-accent-500/10"
+          className="relative flex flex-col gap-0 overflow-hidden rounded-[20px] border border-border-button-default bg-background-primary-default shadow-sm transition-[border-color,box-shadow] duration-200 focus-within:border-border-button-hover focus-within:ring-4 focus-within:ring-accent-500/10"
           onKeyDownCapture={(event) => {
             if (event.target !== areaRef.current) return;
             if (mention && mentionItems.length > 0) {
@@ -187,7 +188,38 @@ export function AgentComposer({ value, onChange, onSend, onStop, busy, placehold
             const files = clipboard.files.length > 0 ? clipboard.files : Array.from(clipboard.items).map((item) => item.kind === "file" ? item.getAsFile() : null).filter((file): file is File => Boolean(file));
             if (files.length > 0) { event.preventDefault(); void pickFiles(files); }
           }}
+          onDragEnter={(event) => {
+            if (!allowAttachments) return;
+            event.preventDefault();
+            event.stopPropagation();
+            setDragging(true);
+          }}
+          onDragOver={(event) => {
+            if (!allowAttachments) return;
+            event.preventDefault();
+            event.stopPropagation();
+            event.dataTransfer.dropEffect = "copy";
+            if (!dragging) setDragging(true);
+          }}
+          onDragLeave={(event) => {
+            if (!allowAttachments) return;
+            event.preventDefault();
+            if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
+            setDragging(false);
+          }}
+          onDrop={(event) => {
+            if (!allowAttachments) return;
+            event.preventDefault();
+            event.stopPropagation();
+            setDragging(false);
+            void pickFiles(event.dataTransfer.files);
+          }}
         >
+          {dragging ? (
+            <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center rounded-[20px] border-2 border-dashed border-accent-500/60 bg-background-primary-default/85 text-caption-1-semibold text-accent-600">
+              Solte as imagens aqui
+            </div>
+          ) : null}
           {attachments.length > 0 && (
             <div className="flex flex-wrap items-start gap-2 px-4 pt-3">
               {attachments.map((file, index) => file.mime.startsWith("image/") ? (

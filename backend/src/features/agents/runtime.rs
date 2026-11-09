@@ -531,7 +531,11 @@ impl Runtime {
                 // A run ends when it finishes or when the user cancels it. There is
                 // no wall-clock cap: long browser sessions and refactors are legit.
                 let result = match preparation {
-                    Ok(()) => runtime.execute_cli(&ctx, &config, &token).await,
+                    Ok(()) => {
+                        runtime
+                            .execute_cli(&ctx, &config, &token, &run_attachments)
+                            .await
+                    }
                     Err(error) => Err(error),
                 };
                 if let Ok(text) = &result {
@@ -1093,6 +1097,7 @@ Se a mensagem depender de uma ferramenta ou MCP, prefira quem tem acesso a ele; 
         ctx: &'a RunContext,
         config: &'a AiConfig,
         cancel: &'a CancellationToken,
+        attachments: &'a [Attachment],
     ) -> BoxFuture<'a, AppResult<String>> {
         Box::pin(async move {
             self.inner.repo.state(&ctx.run.id, "running", "").await?;
@@ -1236,6 +1241,7 @@ Trabalhe no projeto atual. Para concluir uma alteração, rode os testes ou o bu
                         &gateway_url,
                         &plan.as_ref().map(|plan| plan.id.as_str()).unwrap_or(""),
                         &ctx.root,
+                        attachments,
                         cancel,
                         &mut on_text,
                     )
@@ -1747,7 +1753,7 @@ Trabalhe no projeto atual. Para concluir uma alteração, rode os testes ou o bu
             let result = match tokio::spawn(async move {
                 runtime.prepare(&child_ctx, &child_task, &[]).await?;
                 runtime
-                    .execute_cli(&child_ctx, &config, &child_cancel)
+                    .execute_cli(&child_ctx, &config, &child_cancel, &[])
                     .await
             })
             .await

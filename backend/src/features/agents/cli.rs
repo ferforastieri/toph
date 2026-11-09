@@ -1,3 +1,5 @@
+use base64::engine::general_purpose::STANDARD;
+use base64::Engine;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 
@@ -9,7 +11,7 @@ use tokio_util::sync::CancellationToken;
 use crate::ai::AiConfig;
 use crate::errors::{bad_request, AppResult};
 
-use super::models::AgentSpec;
+use super::models::{AgentSpec, Attachment};
 
 /// A stable private home/config directory per Toph session. The engine now runs
 /// in the project itself, but OpenCode still needs a fixed home whose config
@@ -26,6 +28,57 @@ pub fn work_dir(session_id: &str) -> PathBuf {
         })
         .collect();
     std::env::temp_dir().join(format!("toph-cli-{safe}"))
+}
+
+/// Writes image attachments into the private CLI home so OpenCode can attach
+/// them with `--file`. The prompt itself is plain text; without this the model
+/// only sees an `artifact:` reference and cannot inspect the image.
+pub async fn attachment_files(dir: &Path, attachments: &[Attachment]) -> AppResult<Vec<PathBuf>> {
+    if attachments.is_empty() {
+        return Ok(Vec::new());
+    }
+    tokio::fs::create_dir_all(dir).await?;
+    let mut files = Vec::new();
+    for (index, attachment) in attachments.iter().enumerate() {
+        if !attachment.mime.starts_with("image/") {
+            continue;
+        }
+        let Some((_, encoded)) = attachment.uri.split_once(";base64,") else {
+            continue;
+        };
+        let data = STANDARD
+            .decode(encoded)
+            .map_err(|error| bad_request(error.to_string()))?;
+        let original = Path::new(&attachment.name)
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or("imagem");
+        let safe = original
+            .chars()
+            .map(|ch| {
+                if ch.is_ascii_alphanumeric() || matches!(ch, '.' | '-' | '_') {
+                    ch
+                } else {
+                    '_'
+                }
+            })
+            .collect::<String>();
+        let extension = match attachment.mime.as_str() {
+            "image/jpeg" => "jpg",
+            "image/webp" => "webp",
+            "image/gif" => "gif",
+            _ => "png",
+        };
+        let name = if Path::new(&safe).extension().is_some() {
+            safe
+        } else {
+            format!("{safe}.{extension}")
+        };
+        let path = dir.join(format!("{index}-{name}"));
+        tokio::fs::write(&path, data).await?;
+        files.push(path);
+    }
+    Ok(files)
 }
 
 #[derive(Clone, Debug, Default)]
@@ -479,8 +532,8 @@ pub async fn run_codex(
     Ok((text, usage))
 }
 
-/// Runs one OpenCode turn. The CLI gets an empty working directory and only
-/// the Toph gateway as a tool source; its own tools are disabled by config.
+/// Runs one OpenCode turn. The CLI runs inside the project and gets only the
+/// Toph gateway as a tool source; its own tools are disabled by config.
 pub async fn run_opencode<F>(
     model: &str,
     system: &str,
@@ -488,6 +541,7 @@ pub async fn run_opencode<F>(
     gateway: &str,
     session_id: &str,
     project: &Path,
+    attachments: &[Attachment],
     cancel: &CancellationToken,
     mut on_text: F,
 ) -> AppResult<(String, CliUsage)>
@@ -499,6 +553,7 @@ where
     // one. Its private home/config stays in a stable temp directory; project
     // config files are ignored so only the generated gateway config applies.
     let home = work_dir(session_id);
+    let files = attachment_files(&home.join("attachments"), attachments).await?;
     let config_home = home.join(".config");
     let config_dir = config_home.join("opencode");
     tokio::fs::create_dir_all(&config_dir).await?;
@@ -529,7 +584,11 @@ where
         .arg("--agent")
         .arg("toph")
         .arg("-m")
-        .arg(model)
+        .arg(model);
+    for file in &files {
+        command.arg("--file").arg(file);
+    }
+    command
         .arg(prompt)
         .current_dir(project)
         .env("OPENCODE_CONFIG_CONTENT", config.to_string())
