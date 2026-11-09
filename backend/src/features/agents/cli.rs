@@ -88,6 +88,19 @@ pub struct CliUsage {
     pub cached: i64,
 }
 
+/// A completed tool call reported by a native harness. The runtime stores it
+/// as a normal Toph tool message so the transcript keeps the same shape.
+#[derive(Clone, Debug)]
+pub struct NativeTool {
+    pub id: String,
+    pub name: String,
+    pub input: Value,
+    pub output: Value,
+    pub error: Option<String>,
+    pub started_at: Option<i64>,
+    pub finished_at: Option<i64>,
+}
+
 /// Maps a Toph connection to the provider id OpenCode uses for the same API.
 /// `custom` connections are identified by their base URL; unknown endpoints
 /// keep the OpenCode Go default so a legacy model id still has a valid shape.
@@ -170,28 +183,13 @@ pub fn opencode_model(agent: &AgentSpec, config: &AiConfig) -> String {
     }
 }
 
-fn opencode_config(model: &str, system: &str, gateway: &str) -> Value {
+fn opencode_config(model: &str, system: &str) -> Value {
     json!({
         "$schema": "https://opencode.ai/config.json",
         "share": "disabled",
         "autoupdate": false,
         "snapshot": false,
         "model": model,
-        "mcp": {
-            "servers": {
-                "toph": {
-                    "type": "remote",
-                    "url": gateway,
-                    "oauth": false,
-                    "codemode": false,
-                    "disabled": false
-                }
-            }
-        },
-        "permissions": [
-            { "action": "*", "resource": "*", "effect": "deny" },
-            { "action": "toph_*", "resource": "*", "effect": "allow" }
-        ],
         "agents": {
             "toph": {
                 "mode": "primary",
@@ -200,26 +198,6 @@ fn opencode_config(model: &str, system: &str, gateway: &str) -> Value {
         }
     })
 }
-
-/// Codex features that would give the agent its own shell, files or
-/// subagents. Its only tool source must be the Toph gateway.
-const CODEX_DISABLED_FEATURES: &[&str] = &[
-    "shell_tool",
-    "unified_exec",
-    "apps",
-    "plugins",
-    "browser_use",
-    "computer_use",
-    "in_app_browser",
-    "image_generation",
-    "multi_agent",
-    "goals",
-    "view_image",
-    "tool_suggest",
-    "skill_search",
-    "hooks",
-    "memories",
-];
 
 fn tail(text: &str) -> String {
     let chars = text.chars().collect::<Vec<_>>();
@@ -320,44 +298,30 @@ async fn run_capture(
     Ok((stdout, stderr))
 }
 
-/// Runs Claude Code headless with the Toph gateway as its only MCP server.
-/// The JSON result carries the final text and the subscription usage.
+/// Runs Claude Code headless with its native harness: native tools, project
+/// config/skills and the Toph system prompt. Toph still owns the chat, run
+/// state and final transcript.
 pub async fn run_claude(
     model: &str,
     effort: &str,
     system: &str,
     prompt: &str,
-    gateway: &str,
     cwd: &Path,
     cancel: &CancellationToken,
+    _on_tool: &mut (dyn FnMut(NativeTool) + Send),
 ) -> AppResult<(String, CliUsage)> {
     let binary = super::engines::find_binary("claude").ok_or_else(|| {
         bad_request(
             "O Claude Code não está instalado. Instale em Configurações → Harness e tente de novo.",
         )
     })?;
-    let mcp = json!({
-        "mcpServers": {
-            "toph": { "type": "http", "url": gateway }
-        }
-    })
-    .to_string();
     let mut args = vec![
         "-p".to_string(),
         "--output-format".into(),
         "json".into(),
         "--system-prompt".into(),
         system.to_string(),
-        "--tools".into(),
-        "".into(),
-        "--strict-mcp-config".into(),
-        "--setting-sources".into(),
-        "".into(),
-        "--mcp-config".into(),
-        mcp,
-        "--allowedTools".into(),
-        "mcp__toph".into(),
-        "--no-session-persistence".into(),
+        "--dangerously-skip-permissions".into(),
     ];
     if let Some(model) = provider_model(model, &["claude", "sonnet", "opus", "haiku"]) {
         args.push("--model".into());
@@ -371,7 +335,6 @@ pub async fn run_claude(
         &binary,
         &args,
         &[
-            ("TOPH_MCP_URL", gateway.to_string()),
             ("CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC", "1".into()),
             ("MCP_TOOL_TIMEOUT", "900000".into()),
         ],
@@ -424,15 +387,15 @@ pub async fn run_claude(
     ))
 }
 
-/// Runs Codex headless (`codex exec --json`) with an empty read-only sandbox
-/// and the Toph gateway as its only MCP server.
+/// Runs Codex headless with its native harness (`codex exec --json`). Native
+/// shell/edit/search tools are enabled; Toph only stores the run and messages.
 pub async fn run_codex(
     model: &str,
     system: &str,
     prompt: &str,
-    gateway: &str,
     cwd: &Path,
     cancel: &CancellationToken,
+    on_tool: &mut (dyn FnMut(NativeTool) + Send),
 ) -> AppResult<(String, CliUsage)> {
     let binary = super::engines::find_binary("codex").ok_or_else(|| {
         bad_request(
@@ -443,11 +406,8 @@ pub async fn run_codex(
         "exec".to_string(),
         "--json".into(),
         "--ephemeral".into(),
-        "--ignore-user-config".into(),
-        "--ignore-rules".into(),
         "--skip-git-repo-check".into(),
-        "-s".into(),
-        "read-only".into(),
+        "--full-auto".into(),
         "-C".into(),
         cwd.display().to_string(),
         "-c".into(),
@@ -455,28 +415,7 @@ pub async fn run_codex(
             "developer_instructions={}",
             serde_json::to_string(system).unwrap_or_else(|_| "\"\"".into())
         ),
-        "-c".into(),
-        format!(
-            "mcp_servers.toph.url={}",
-            serde_json::to_string(gateway).unwrap_or_else(|_| "\"\"".into())
-        ),
-        "-c".into(),
-        "mcp_servers.toph.default_tools_approval_mode=\"approve\"".into(),
-        "-c".into(),
-        "mcp_servers.toph.tool_timeout_sec=900".into(),
-        "-c".into(),
-        "project_doc_max_bytes=0".into(),
-        "-c".into(),
-        "skills.include_instructions=false".into(),
-        "-c".into(),
-        "skills.bundled.enabled=false".into(),
-        "-c".into(),
-        "web_search=\"disabled\"".into(),
     ];
-    for feature in CODEX_DISABLED_FEATURES {
-        args.push("--disable".into());
-        args.push((*feature).into());
-    }
     if let Some(model) = provider_model(model, &["gpt", "codex", "o3", "o4", "chatgpt"]) {
         args.push("-m".into());
         args.push(model);
@@ -493,13 +432,54 @@ pub async fn run_codex(
         match value["type"].as_str().unwrap_or("") {
             "item.completed" => {
                 let item = &value["item"];
-                if item["type"].as_str() == Some("agent_message") {
+                let kind = item["type"].as_str().unwrap_or("");
+                if kind == "agent_message" {
                     if let Some(part) = item["text"].as_str() {
                         if !text.is_empty() {
                             text.push_str("\n\n");
                         }
                         text.push_str(part);
                     }
+                }
+                let id = item["id"].as_str().unwrap_or("").to_string();
+                let (name, input, output, tool_error) = match kind {
+                    "command_execution" => {
+                        let exit = item["exit_code"].as_i64().unwrap_or(0);
+                        (
+                            "shell".to_string(),
+                            json!({"command": item["command"]}),
+                            json!({
+                                "exitCode": exit,
+                                "stdout": item["aggregated_output"].as_str().unwrap_or(""),
+                                "stderr": ""
+                            }),
+                            (exit != 0).then(|| format!("exit code {exit}")),
+                        )
+                    }
+                    "file_change" => (
+                        "edit_file".to_string(),
+                        json!({"changes": item["changes"]}),
+                        item["changes"].clone(),
+                        None,
+                    ),
+                    "mcp_tool_call" => (
+                        "mcp_call".to_string(),
+                        json!({"server": item["server"], "tool": item["tool"], "arguments": item["arguments"]}),
+                        item["result"].clone(),
+                        None,
+                    ),
+                    _ => continue,
+                };
+                if !id.is_empty() {
+                    on_tool(NativeTool {
+                        id,
+                        name,
+                        input,
+                        output,
+                        error: tool_error,
+                        started_at: None,
+                        finished_at: None,
+                    });
                 }
             }
             "turn.completed" => {
@@ -532,34 +512,33 @@ pub async fn run_codex(
     Ok((text, usage))
 }
 
-/// Runs one OpenCode turn. The CLI runs inside the project and gets only the
-/// Toph gateway as a tool source; its own tools are disabled by config.
-pub async fn run_opencode<F>(
+/// Runs one OpenCode turn with its native harness. Native tools, project
+/// config, skills and plugins stay available; Toph injects identity and stores
+/// the transcript.
+pub async fn run_opencode<F, T>(
     model: &str,
     system: &str,
     prompt: &str,
-    gateway: &str,
     session_id: &str,
     project: &Path,
     attachments: &[Attachment],
     cancel: &CancellationToken,
     mut on_text: F,
+    mut on_tool: T,
 ) -> AppResult<(String, CliUsage)>
 where
     F: FnMut(&str),
+    T: FnMut(NativeTool) + Send,
 {
-    let config = opencode_config(model, system, gateway);
-    // The engine runs inside the project so its reported workspace is the real
-    // one. Its private home/config stays in a stable temp directory; project
-    // config files are ignored so only the generated gateway config applies.
+    let config = opencode_config(model, system);
     let home = work_dir(session_id);
     let files = attachment_files(&home.join("attachments"), attachments).await?;
-    let config_home = home.join(".config");
-    let config_dir = config_home.join("opencode");
-    tokio::fs::create_dir_all(&config_dir).await?;
-    let config_path = config_dir.join("opencode.json");
+    tokio::fs::create_dir_all(&home).await?;
+    let config_path = home.join("opencode.json");
     tokio::fs::write(&config_path, config.to_string()).await?;
     let real_home = std::env::var("HOME").unwrap_or_else(|_| "/home/fernando".into());
+    let config_home =
+        std::env::var("XDG_CONFIG_HOME").unwrap_or_else(|_| format!("{real_home}/.config"));
     let data_home =
         std::env::var("XDG_DATA_HOME").unwrap_or_else(|_| format!("{real_home}/.local/share"));
     // systemd starts Toph with a minimal PATH; resolve the CLI the same way the
@@ -581,6 +560,7 @@ where
         .arg(session_id)
         .arg("--format")
         .arg("json")
+        .arg("--auto")
         .arg("--agent")
         .arg("toph")
         .arg("-m")
@@ -593,9 +573,8 @@ where
         .current_dir(project)
         .env("OPENCODE_CONFIG_CONTENT", config.to_string())
         .env("OPENCODE_CONFIG", &config_path)
-        .env("OPENCODE_CONFIG_PROJECT_DISABLE", "1")
-        .env("HOME", &home)
-        .env("XDG_CONFIG_HOME", &config_home)
+        .env("HOME", real_home)
+        .env("XDG_CONFIG_HOME", config_home)
         .env("XDG_DATA_HOME", data_home)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
@@ -644,7 +623,33 @@ where
                         }
                     }
                     "tool_use" => {
-                        // The gateway already records and shows the tool call.
+                        let part = &value["part"];
+                        let state = &part["state"];
+                        let status = state["status"].as_str().unwrap_or("completed");
+                        if status != "completed" && status != "error" { continue; }
+                        let id = part["id"].as_str().unwrap_or("").to_string();
+                        let name = part["tool"].as_str().unwrap_or("tool").to_string();
+                        let input = state["input"].clone();
+                        let output = if state["output"].is_null() {
+                            state["metadata"]["content"].clone()
+                        } else {
+                            state["output"].clone()
+                        };
+                        let error = if status == "error" {
+                            state["error"].as_str().map(str::to_string)
+                                .or_else(|| state["output"].as_str().map(str::to_string))
+                        } else { None };
+                        if !id.is_empty() {
+                            on_tool(NativeTool {
+                                id,
+                                name,
+                                input,
+                                output,
+                                error,
+                                started_at: state["time"]["start"].as_i64(),
+                                finished_at: state["time"]["end"].as_i64(),
+                            });
+                        }
                     }
                     "step_finish" => {
                         let tokens=&value["part"]["tokens"];

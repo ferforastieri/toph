@@ -1,6 +1,5 @@
 use super::{
     activity, cli, context, event,
-    gateway::Gateway,
     models::*,
     repository::Repository,
     tools::{self, Tools},
@@ -1123,10 +1122,10 @@ Se a mensagem depender de uma ferramenta ou MCP, prefira quem tem acesso a ele; 
     }
 
     /// The tail instruction every fresh or resumed engine turn gets.
-    const CLI_INSTRUCTION: &'static str = "Responda à última mensagem do usuário. Use apenas as ferramentas do gateway Toph para ler, editar e rodar comandos; não use ferramentas embutidas da CLI. Se precisar de contexto antigo, use a ferramenta de busca de histórico do gateway em vez de adivinhar.";
+    const CLI_INSTRUCTION: &'static str = "Responda à última mensagem do usuário. Use as ferramentas nativas do seu harness para ler, editar e rodar comandos no projeto. Se precisar de contexto antigo, consulte o histórico do projeto em vez de adivinhar.";
 
-    /// Runs one turn on an external CLI. The CLI owns the agent loop; Toph owns
-    /// the context, the gateway tools and the approvals.
+    /// Runs one turn on an external CLI. The CLI owns the native agent loop and
+    /// tools; Toph still owns the chat, run state and transcript.
     fn execute_cli<'a>(
         &'a self,
         ctx: &'a RunContext,
@@ -1137,27 +1136,9 @@ Se a mensagem depender de uma ferramenta ou MCP, prefira quem tem acesso a ele; 
         Box::pin(async move {
             self.inner.repo.state(&ctx.run.id, "running", "").await?;
             self.event(ctx,"run",json!({"id":ctx.run.id,"chatId":ctx.run.chat_id,"sessionId":ctx.run.session_id,"agentId":ctx.agent.id,"state":"running","error":"","parentId":ctx.run.parent_id,"createdAt":ctx.run.created_at}));
-            let mut system = self.build_system(ctx, config).await?;
-            let mut gateway_tools = tools::gateway_definitions(&ctx.agent, &ctx.skills);
-            if ctx.roster.len() > 1 && ctx.depth < 2 {
-                gateway_tools.push(tools::delegate_definition());
-            }
+            let system = self.build_system(ctx, config).await?;
             let engine = ctx.agent.engine.as_str();
             let engine_label = super::engines::label(engine);
-            let available = gateway_tools
-                .iter()
-                .filter_map(|tool| tool["name"].as_str())
-                .map(|name| format!("`{name}`"))
-                .collect::<Vec<_>>()
-                .join(", ");
-            system.push_str(&format!(
-            "\n\n## Ferramentas\n\
-Você está rodando via {engine_label}. As ferramentas embutidas da CLI estão desligadas. \
-Suas únicas ferramentas são as do gateway Toph: {available}. \
-No OpenCode elas aparecem como `toph_<nome>`; nos outros harnesses, com o prefixo do servidor MCP `toph`. \
-Use-as para ler, editar e rodar comandos. Não diga que usou uma ferramenta que não chamou. \
-Trabalhe no projeto atual. Para concluir uma alteração, rode os testes ou o build com a ferramenta `shell` e mostre o resultado."
-        ));
             let model = if engine == "opencode" {
                 cli::opencode_model(&ctx.agent, config)
             } else if ctx.agent.model.trim().is_empty() {
@@ -1165,13 +1146,6 @@ Trabalhe no projeto atual. Para concluir uma alteração, rode os testes ou o bu
             } else {
                 ctx.agent.model.clone()
             };
-            let (gateway_url, gateway_task) = Gateway::start(
-                self.clone(),
-                ctx.clone(),
-                gateway_tools.clone(),
-                cancel.clone(),
-            )
-            .await?;
             self.inner.sessions.lock().unwrap().sweep();
             let transcript = self.inner.repo.transcript(&ctx.run.session_id).await?;
             let shown = transcript
@@ -1186,7 +1160,6 @@ Trabalhe no projeto atual. Para concluir uma alteração, rode os testes ou o bu
                     "engine": ctx.agent.engine,
                     "model": model,
                     "system": system,
-                    "tools": gateway_tools,
                     "agentMode": ctx.agent.agent_mode,
                     "permissionMode": ctx.agent.permission_mode,
                     "root": ctx.root.display().to_string(),
@@ -1227,6 +1200,18 @@ Trabalhe no projeto atual. Para concluir uma alteração, rode os testes ou o bu
             let mut full = String::new();
             let mut last_event = Instant::now();
             let started = Instant::now();
+            let (tool_tx, mut tool_rx) = tokio::sync::mpsc::unbounded_channel::<cli::NativeTool>();
+            let recorder = {
+                let runtime = self.clone();
+                let tool_ctx = ctx.clone();
+                tokio::spawn(async move {
+                    while let Some(tool) = tool_rx.recv().await {
+                        if let Err(error) = runtime.record_native_tool(&tool_ctx, tool).await {
+                            tracing::warn!(%error, "record native tool");
+                        }
+                    }
+                })
+            };
             let result = {
                 let mut on_text = |chunk: &str| {
                     let offset = full.encode_utf16().count();
@@ -1250,43 +1235,53 @@ Trabalhe no projeto atual. Para concluir uma alteração, rode os testes ou o bu
                     }
                 };
                 match engine {
-                    "claude" => cli::run_claude(
-                        &model,
-                        &ctx.agent.effort,
-                        &system,
-                        &prompt,
-                        &gateway_url,
-                        &work,
-                        cancel,
-                    )
-                    .await,
-                    "codex" => cli::run_codex(
-                        &model,
-                        &system,
-                        &prompt,
-                        &gateway_url,
-                        &work,
-                        cancel,
-                    )
-                    .await,
-                    "opencode" => cli::run_opencode(
-                        &model,
-                        &system,
-                        &prompt,
-                        &gateway_url,
-                        &plan.as_ref().map(|plan| plan.id.as_str()).unwrap_or(""),
-                        &ctx.root,
-                        attachments,
-                        cancel,
-                        &mut on_text,
-                    )
-                    .await,
+                    "claude" => {
+                        let tx = tool_tx.clone();
+                        cli::run_claude(
+                            &model,
+                            &ctx.agent.effort,
+                            &system,
+                            &prompt,
+                            &work,
+                            cancel,
+                            &mut |tool| { let _ = tx.send(tool); },
+                        )
+                        .await
+                    }
+                    "codex" => {
+                        let tx = tool_tx.clone();
+                        cli::run_codex(
+                            &model,
+                            &system,
+                            &prompt,
+                            &work,
+                            cancel,
+                            &mut |tool| { let _ = tx.send(tool); },
+                        )
+                        .await
+                    }
+                    "opencode" => {
+                        let tx = tool_tx.clone();
+                        cli::run_opencode(
+                            &model,
+                            &system,
+                            &prompt,
+                            &plan.as_ref().map(|plan| plan.id.as_str()).unwrap_or(""),
+                            &ctx.root,
+                            attachments,
+                            cancel,
+                            &mut on_text,
+                            &mut |tool| { let _ = tx.send(tool); },
+                        )
+                        .await
+                    }
                     other => Err(bad_request(format!(
                         "O harness {other} ainda não está ligado ao runtime. Use OpenCode, Claude Code ou Codex."
                     ))),
                 }
             };
-            gateway_task.abort();
+            drop(tool_tx);
+            let _ = recorder.await;
             self.inner.drafts.lock().unwrap().remove(&ctx.run.id);
             let (text, usage) = match result {
                 Ok(value) => value,
@@ -1366,12 +1361,11 @@ Trabalhe no projeto atual. Para concluir uma alteração, rode os testes ou o bu
         })
     }
 
-    /// Compact transcript for the CLI. Tool output already went through the
-    /// gateway; replaying it would only burn context. The model can search the
-    /// full history with `toph_search_history`.
+    /// Compact transcript for engines without a native resumable session.
+    /// OpenCode resumes its own session and only receives the unsent tail.
     async fn cli_transcript(&self, ctx: &RunContext) -> AppResult<String> {
         let rows = sqlx::query(
-            "SELECT role,content_text FROM agent_messages WHERE session_id=? AND role IN ('user','assistant') AND content_text<>'' AND id NOT LIKE 'import-%' ORDER BY seq DESC LIMIT 12",
+            "SELECT role,content_text FROM agent_messages WHERE session_id=? AND role IN ('user','assistant') AND content_text<>'' AND id NOT LIKE 'import-%' ORDER BY seq DESC LIMIT 40",
         )
         .bind(&ctx.run.session_id)
         .fetch_all(self.inner.repo.0.pool())
@@ -1382,7 +1376,7 @@ Trabalhe no projeto atual. Para concluir uma alteração, rode os testes ou o bu
             .map(|row| {
                 let role: String = row.get("role");
                 let text: String = row.get("content_text");
-                let text = text.chars().take(2_500).collect::<String>();
+                let text = text.chars().take(4_000).collect::<String>();
                 format!("[{role}]\n{text}")
             })
             .collect::<Vec<_>>();
@@ -1421,31 +1415,6 @@ Trabalhe no projeto atual. Para concluir uma alteração, rode os testes ou o bu
         if !ctx.chat_description.is_empty() {
             extra.push_str("\nContexto compartilhado do chat:\n");
             extra.push_str(&ctx.chat_description);
-        }
-        if !ctx.skills.is_empty() {
-            extra.push_str(
-                "\n## Suas skills\nReceitas que o usuário aprovou para tipos de tarefa. Quando a tarefa bater com o \"quando usar\", leia a receita com a ferramenta `read_skill` do gateway antes de começar e siga.\n",
-            );
-            for skill in &ctx.skills {
-                extra.push_str(&format!("- {}: {}\n", skill.name, skill.description));
-            }
-        }
-        if !ctx.agent.mcp_servers.is_empty() {
-            let servers = self
-                .inner
-                .tools
-                .mcp
-                .selected(&ctx.agent.mcp_servers)
-                .await
-                .unwrap_or_default();
-            if !servers.is_empty() {
-                extra.push_str(
-                    "\n## Integrações MCP\nEstes são os únicos servidores MCP ligados a você. Para ver as ferramentas de um servidor, chame `mcp_list` com `server` igual ao nome exato (ou ao id). Para usar uma ferramenta, chame `mcp_call` com `server`, `tool` e `arguments`. Não invente nomes de servidor nem use servidores de outros aplicativos.\n",
-                );
-                for (id, name) in servers {
-                    extra.push_str(&format!("- {name} (id `{id}`)\n"));
-                }
-            }
         }
         if ctx.routed.len() > 1 {
             let peers = ctx
@@ -1516,6 +1485,56 @@ Trabalhe no projeto atual. Para concluir uma alteração, rode os testes ou o bu
             &config.connection_name(),
             &config.provider,
         ))
+    }
+
+    /// Stores a tool call reported by a native harness as a regular Toph
+    /// message. Native harnesses execute the tool themselves; this is only the
+    /// transcript/UI bridge.
+    async fn record_native_tool(&self, ctx: &RunContext, tool: cli::NativeTool) -> AppResult<()> {
+        let created = tool.started_at.unwrap_or_else(now);
+        let finished = tool.finished_at.unwrap_or_else(now);
+        let failed = tool.error.is_some();
+        let content = tool
+            .error
+            .clone()
+            .or_else(|| match &tool.output {
+                Value::String(text) => Some(text.clone()),
+                value if !value.is_null() => Some(value.to_string()),
+                _ => None,
+            })
+            .unwrap_or_default();
+        let label = activity::tool_activity(&tool.name, &tool.input);
+        let id = format!("native-{}-{}", ctx.run.id, tool.id);
+        let display = json!({
+            "id": id,
+            "chatId": ctx.run.chat_id,
+            "tophId": ctx.agent.id,
+            "sessionId": ctx.run.session_id,
+            "runId": ctx.run.id,
+            "role": "tool",
+            "title": tool.name,
+            "activity": label,
+            "phase": "engine",
+            "content": content,
+            "detail": json!({"input": tool.input, "output": tool.output}).to_string(),
+            "status": if failed { "error" } else { "complete" },
+            "durationMs": finished.saturating_sub(created),
+            "createdAt": created,
+        });
+        let seq = self
+            .inner
+            .repo
+            .message(
+                ctx,
+                &id,
+                json!({"role":"tool","name":tool.name,"content":content}),
+                display.clone(),
+            )
+            .await?;
+        let mut display = display;
+        display["seq"] = json!(seq);
+        self.event(ctx, "message", display);
+        Ok(())
     }
 
     /// Executes one tool call coming from the external CLI through the local
