@@ -167,7 +167,10 @@ pub(super) async fn delete_toph(
     Extension(auth): Extension<AuthContext>,
 ) -> AppResult<Json<Value>> {
     state.store.project(&project).await?;
-    state.agents.delete_toph(auth.user.id, &project, &toph).await?;
+    state
+        .agents
+        .delete_toph(auth.user.id, &project, &toph)
+        .await?;
     Ok(Json(json!({"ok":true})))
 }
 

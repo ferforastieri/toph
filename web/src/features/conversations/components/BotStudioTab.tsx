@@ -14,7 +14,6 @@ import ConversationSettings from "./ConversationSettings";
 import BotAvatar from "../../agents/components/BotAvatar";
 import { unlockBotSound } from "../sound";
 import { Button } from "@/shared/boardui/base/buttons/button";
-import { IconButton } from "@/shared/boardui/base/buttons/icon-button";
 import { cx } from "@/shared/boardui/utils/cx";
 
 interface Props {
@@ -145,7 +144,7 @@ export default function BotStudioTab({ project, conversationId, mobile = false, 
           placeholder={tophs.length === 1 ? `Mensagem para ${tophs[0].name}` : "Mensagem para o grupo"}
           hint={tophs.length === 1 ? "Esta tarefa é só sua com este Toph" : "Quem estiver na conversa responde · use @ para chamar alguém"}
           history={native.messages.filter((m) => m.role === "user").map((m) => m.content)}
-          modeControls={<div className="flex items-center gap-0.5"><IconButton icon={UserRound} size="small" aria-label="Participantes da conversa" title="Participantes e contexto" onClick={() => setSettingsOpen(true)} /><ChatUsageMeter chatName={title} model={activeModelDisplay} /></div>} members={tophs} />
+          modeControls={<div className="flex items-center gap-0.5"><Button type="button" variant="ghost" size="small" iconOnly leadingIcon={UserRound} aria-label="Participantes da conversa" title="Participantes e contexto" onClick={() => setSettingsOpen(true)} /><ChatUsageMeter chatName={title} model={activeModelDisplay} /></div>} members={tophs} />
       </div>}
     </section>
     <ConversationSettings open={settingsOpen} project={project} chat={chat} projectChats={stored} onClose={() => setSettingsOpen(false)} />

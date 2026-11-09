@@ -77,8 +77,57 @@ fn mentioned_agents(text: &str, roster: &[AgentSpec], exclude: &str) -> Vec<Agen
     found
 }
 
-fn mentioned_agent(text: &str, roster: &[AgentSpec]) -> Option<AgentSpec> {
-    mentioned_agents(text, roster, "").into_iter().next()
+const MAX_ROUTED: usize = 2;
+const MAX_MENTIONS: usize = 3;
+
+#[derive(Clone, Debug, Default)]
+struct RouteChoice {
+    handles: Vec<String>,
+    everyone: bool,
+    reason: String,
+}
+
+/// The router replies with JSON; models sometimes wrap it in a fence.
+fn parse_route(text: &str) -> Option<RouteChoice> {
+    let start = text.find('{')?;
+    let end = text.rfind('}')?;
+    let value = serde_json::from_str::<Value>(&text[start..=end]).ok()?;
+    let handles = value
+        .get("handles")
+        .and_then(Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(Value::as_str)
+                .map(|handle| {
+                    handle
+                        .trim()
+                        .trim_start_matches('@')
+                        .trim_matches(|c: char| !c.is_alphanumeric() && c != '-' && c != '_')
+                        .to_lowercase()
+                })
+                .filter(|handle| !handle.is_empty())
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    let everyone = value.get("todos").and_then(Value::as_bool).unwrap_or(false)
+        || value
+            .get("everyone")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
+    let reason = value
+        .get("reason")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .trim()
+        .chars()
+        .take(120)
+        .collect();
+    Some(RouteChoice {
+        handles,
+        everyone,
+        reason,
+    })
 }
 
 /// The handoff screen replies with JSON; models sometimes wrap it in a fence.
@@ -307,20 +356,37 @@ impl Runtime {
                 return Err(bad_request("Invalid agent configuration"));
             }
         }
-        let mut roster = input.agents;
-        let mut agent = if input.agent_id.is_empty() || input.agent_id == "router" {
-            self.route_agent(&roster, &input.text).await?
+        let RunInput {
+            request_id,
+            chat_id,
+            chat_description,
+            text,
+            agent_id,
+            session_id,
+            agents,
+            attachments,
+        } = input;
+        let mut roster = agents;
+        let mut responders = if agent_id.is_empty() || agent_id == "router" {
+            self.route_agents(user, project, &chat_id, &roster, &text)
+                .await?
         } else {
-            roster
+            vec![roster
                 .iter()
-                .find(|agent| agent.id == input.agent_id)
+                .find(|agent| agent.id == agent_id)
                 .cloned()
-                .ok_or_else(|| bad_request("Unknown agent"))?
+                .ok_or_else(|| bad_request("Unknown agent"))?]
         };
-        agent.model = self.inner.ai.migrate_agent_model(&agent.model).await?;
-        let config = self.inner.ai.resolve(&agent.model).await?;
-        if let Some(selected) = roster.iter_mut().find(|item| item.id == agent.id) {
-            *selected = agent.clone();
+        if responders.is_empty() {
+            responders.push(roster[0].clone());
+        }
+        // Resolve every responder's model before opening any session, so the
+        // roster written to the database already carries the migrated models.
+        for responder in &mut responders {
+            responder.model = self.inner.ai.migrate_agent_model(&responder.model).await?;
+            if let Some(selected) = roster.iter_mut().find(|item| item.id == responder.id) {
+                *selected = responder.clone();
+            }
         }
         let project_row = self.inner.repo.0.project(project).await?;
         let root = self
@@ -329,131 +395,239 @@ impl Runtime {
             .workspace
             .validate_root(std::path::Path::new(&project_row.root))?;
         self.inner.repo.profiles(user, project, &roster).await?;
-        let mut session = self
-            .inner
-            .repo
-            .session(user, project, &agent, input.session_id.as_deref())
-            .await?;
-        // Layouts created before the single-conversation migration kept the
-        // active session under an old individual chat id. Moving it to the
-        // team chat makes its history visible and keeps new runs there.
-        if session.chat_id != agent.chat_id {
-            sqlx::query(
-                "UPDATE agent_sessions SET chat_id=? WHERE id=? AND user_id=? AND project_id=?",
-            )
-            .bind(&agent.chat_id)
-            .bind(&session.id)
-            .bind(user)
-            .bind(project)
-            .execute(self.inner.repo.0.pool())
-            .await?;
-            session.chat_id = agent.chat_id.clone();
-        }
-        // Reserve admission before any run is committed; never queue without a bound.
-        let token = CancellationToken::new();
-        let admission = new_id();
-        {
-            let mut runs = self.inner.runs.lock().unwrap();
-            if runs.len() >= 16 {
-                return Err(AppError::RateLimited);
-            }
-            runs.insert(admission.clone(), token.clone());
-        }
-        let created = self
-            .inner
-            .repo
-            .create_run(user, project, &session, &input.request_id, None, &agent)
-            .await;
-        self.inner.runs.lock().unwrap().remove(&admission);
-        let run = match created {
-            Ok(run) => run,
-            Err(AppError::Conflict) => {
-                if let Some(run) = self
-                    .inner
-                    .repo
-                    .request_run(user, project, &input.request_id)
-                    .await?
-                {
-                    return Ok(run);
+        let routed_ids = responders
+            .iter()
+            .map(|agent| agent.id.clone())
+            .collect::<Vec<_>>();
+
+        let mut primary: Option<Run> = None;
+        for (index, responder) in responders.into_iter().enumerate() {
+            let primary_responder = index == 0;
+            let config = match self.inner.ai.resolve(&responder.model).await {
+                Ok(config) => config,
+                Err(error) if !primary_responder => {
+                    tracing::warn!(%error, agent = %responder.handle, "secondary responder has no usable model");
+                    continue;
                 }
-                return Err(AppError::Conflict);
-            }
-            Err(error) => return Err(error),
-        };
-        self.inner
-            .runs
-            .lock()
-            .unwrap()
-            .insert(run.id.clone(), token.clone());
-        let skills = self.inner.skills.for_agent(project, &agent.id).await?;
-        let ctx = RunContext {
-            run: run.clone(),
-            user_id: user,
-            project_id: project.into(),
-            root,
-            agent,
-            roster,
-            skills,
-            chat_description: input.chat_description,
-            depth: 0,
-            request: input.text.clone(),
-        };
-        let runtime = self.clone();
-        tokio::spawn(async move {
-            let preparation = runtime.prepare(&ctx, &input.text, &input.attachments).await;
-            drop(input.attachments);
-            drop(input.text);
-            // A run ends when it finishes or when the user cancels it. There is
-            // no wall-clock cap: long browser sessions and refactors are legit.
-            let result = match preparation {
-                Ok(()) => runtime.execute_cli(&ctx, &config, &token).await,
-                Err(error) => Err(error),
+                Err(error) => return Err(error),
             };
-            if let Ok(text) = &result {
-                if !token.is_cancelled() {
-                    runtime.auto_handoff(&ctx, text, &token).await;
-                }
+            let mut session = self
+                .inner
+                .repo
+                .session(
+                    user,
+                    project,
+                    &responder,
+                    if primary_responder {
+                        session_id.as_deref()
+                    } else {
+                        None
+                    },
+                )
+                .await?;
+            // Layouts created before the single-conversation migration kept
+            // the active session under an old individual chat id. Moving it to
+            // the current chat makes its history visible and keeps new runs there.
+            if session.chat_id != responder.chat_id {
+                sqlx::query(
+                    "UPDATE agent_sessions SET chat_id=? WHERE id=? AND user_id=? AND project_id=?",
+                )
+                .bind(&responder.chat_id)
+                .bind(&session.id)
+                .bind(user)
+                .bind(project)
+                .execute(self.inner.repo.0.pool())
+                .await?;
+                session.chat_id = responder.chat_id.clone();
             }
-            runtime.finish(&ctx, result, token.is_cancelled()).await;
-        });
-        Ok(run)
+            // Reserve admission before any run is committed; never queue without a bound.
+            let token = CancellationToken::new();
+            let admission = new_id();
+            {
+                let mut runs = self.inner.runs.lock().unwrap();
+                if runs.len() >= 16 {
+                    if primary_responder {
+                        return Err(AppError::RateLimited);
+                    }
+                    break;
+                }
+                runs.insert(admission.clone(), token.clone());
+            }
+            let run_request_id = if primary_responder {
+                request_id.clone()
+            } else {
+                format!("{}-{}", request_id, responder.id)
+            };
+            let created = self
+                .inner
+                .repo
+                .create_run(user, project, &session, &run_request_id, None, &responder)
+                .await;
+            self.inner.runs.lock().unwrap().remove(&admission);
+            let run = match created {
+                Ok(run) => run,
+                Err(AppError::Conflict) => {
+                    if primary_responder {
+                        if let Some(run) = self
+                            .inner
+                            .repo
+                            .request_run(user, project, &request_id)
+                            .await?
+                        {
+                            return Ok(run);
+                        }
+                        return Err(AppError::Conflict);
+                    }
+                    continue;
+                }
+                Err(error) => {
+                    if primary_responder {
+                        return Err(error);
+                    }
+                    tracing::warn!(%error, agent = %responder.handle, "secondary responder could not start");
+                    continue;
+                }
+            };
+            self.inner
+                .runs
+                .lock()
+                .unwrap()
+                .insert(run.id.clone(), token.clone());
+            let skills = self.inner.skills.for_agent(project, &responder.id).await?;
+            let ctx = RunContext {
+                run: run.clone(),
+                user_id: user,
+                project_id: project.into(),
+                root: root.clone(),
+                agent: responder,
+                roster: roster.clone(),
+                skills,
+                chat_description: chat_description.clone(),
+                depth: 0,
+                secondary: !primary_responder,
+                routed: routed_ids.clone(),
+                request: text.clone(),
+            };
+            let runtime = self.clone();
+            let run_text = text.clone();
+            let run_attachments = attachments.clone();
+            tokio::spawn(async move {
+                let preparation = runtime.prepare(&ctx, &run_text, &run_attachments).await;
+                // A run ends when it finishes or when the user cancels it. There is
+                // no wall-clock cap: long browser sessions and refactors are legit.
+                let result = match preparation {
+                    Ok(()) => runtime.execute_cli(&ctx, &config, &token).await,
+                    Err(error) => Err(error),
+                };
+                if let Ok(text) = &result {
+                    if !token.is_cancelled() {
+                        runtime.auto_handoff(&ctx, text, &token).await;
+                    }
+                }
+                runtime.finish(&ctx, result, token.is_cancelled()).await;
+            });
+            if primary_responder {
+                primary = Some(run);
+            }
+        }
+        primary.ok_or_else(|| bad_request("No Toph could start this task"))
     }
 
-    /// Chooses who answers. An explicit @handle wins; otherwise the router
-    /// model reads the team roster and the message. Nobody owns the team:
-    /// the choice belongs to each message.
-    async fn route_agent(&self, roster: &[AgentSpec], text: &str) -> AppResult<AgentSpec> {
+    /// Chooses the Tophs that answer. An explicit @handle wins; otherwise the
+    /// router returns a small JSON plan: zero to two handles, or everyone for
+    /// a message addressed to the whole group. Nobody owns the group: the
+    /// choice belongs to each message.
+    async fn route_agents(
+        &self,
+        user: i64,
+        project: &str,
+        chat: &str,
+        roster: &[AgentSpec],
+        text: &str,
+    ) -> AppResult<Vec<AgentSpec>> {
         if roster.is_empty() {
-            return Err(bad_request("Nenhum Toph nesta equipe."));
+            return Err(bad_request("Nenhum Toph nesta conversa."));
         }
-        if let Some(agent) = mentioned_agent(text, roster) {
-            return Ok(agent);
+        let mentioned = mentioned_agents(text, roster, "");
+        if !mentioned.is_empty() {
+            return Ok(mentioned.into_iter().take(MAX_MENTIONS).collect());
         }
         if roster.len() == 1 {
-            return Ok(roster[0].clone());
+            return Ok(vec![roster[0].clone()]);
         }
         let team = roster
             .iter()
             .map(|agent| {
-                format!(
+                let mut line = format!(
                     "@{} — {} — {}",
                     agent.handle,
                     agent.role,
                     agent.description.chars().take(180).collect::<String>()
-                )
+                );
+                if !agent.tools.is_empty() {
+                    line.push_str(&format!(
+                        " · ferramentas: {}",
+                        agent
+                            .tools
+                            .iter()
+                            .take(12)
+                            .cloned()
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    ));
+                }
+                if !agent.mcp_servers.is_empty() {
+                    line.push_str(&format!(
+                        " · MCPs: {}",
+                        agent
+                            .mcp_servers
+                            .iter()
+                            .take(12)
+                            .cloned()
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    ));
+                }
+                line
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        let recent = self
+            .inner
+            .repo
+            .recent_chat(user, project, chat, 8, None)
+            .await
+            .unwrap_or_default();
+        let history = recent
+            .iter()
+            .map(|(role, toph_id, text)| {
+                let name = if role == "user" {
+                    "Usuário".to_string()
+                } else {
+                    roster
+                        .iter()
+                        .find(|agent| agent.id == *toph_id)
+                        .map(|agent| agent.name.clone())
+                        .unwrap_or_else(|| "Toph".into())
+                };
+                format!("[{name}] {text}")
             })
             .collect::<Vec<_>>()
             .join("\n");
         let messages = vec![
             crate::ai::Message {
                 role: "system".into(),
-                content: json!(
-                    "Você é o roteador de uma equipe de Tophs. Escolha qual Toph deve responder à mensagem do usuário pelo papel e descrição de cada um. Responda somente com o handle, sem @ e sem explicação."
-                ),
+                content: json!(r#"Você decide quais Tophs de um grupo devem responder à última mensagem do usuário. Responda SOMENTE com JSON, sem texto em volta, no formato {"handles": ["..."], "todos": false, "reason": "..."}:
+- "handles": de 0 a 2 handles, só da lista de Tophs; prefira 1.
+- "todos": true quando a mensagem é para o grupo todo (um cumprimento, "pessoal", uma pergunta para todos, uma apresentação): nesse caso todos os Tophs respondem.
+- "reason": um motivo de até 12 palavras, em português.
+Se a mensagem depender de uma ferramenta ou MCP, prefira quem tem acesso a ele; se ninguém tiver, escolha pelo papel. Um cumprimento nunca fica sem resposta. Deixe a lista vazia apenas quando ninguém precisa responder: um agradecimento, um recado, uma conversa já encerrada."#),
             },
             crate::ai::Message {
                 role: "user".into(),
-                content: json!(format!("Equipe:\n{team}\n\nMensagem:\n{text}\n\nQuem responde?")),
+                content: json!(format!(
+                    "Tophs do grupo:\n{team}\n\nConversa recente:\n{history}\n\nMensagem:\n{text}\n\nQuem responde?"
+                )),
             },
         ];
         let answer = match tokio::time::timeout(
@@ -463,22 +637,42 @@ impl Runtime {
         .await
         {
             Ok(Ok(answer)) => answer,
-            _ => return Ok(roster[0].clone()),
+            _ => return Ok(vec![roster[0].clone()]),
         };
-        let handle = answer
-            .trim()
-            .trim_start_matches('@')
-            .split_whitespace()
-            .next()
-            .unwrap_or("")
-            .trim_matches(|c: char| !c.is_alphanumeric() && c != '-' && c != '_');
-        Ok(roster
-            .iter()
-            .find(|agent| {
-                agent.handle.eq_ignore_ascii_case(handle) || agent.name.eq_ignore_ascii_case(handle)
-            })
-            .cloned()
-            .unwrap_or_else(|| roster[0].clone()))
+        let Some(choice) = parse_route(&answer) else {
+            return Ok(vec![roster[0].clone()]);
+        };
+        let mut picked: Vec<AgentSpec> = if choice.everyone {
+            roster.to_vec()
+        } else {
+            choice
+                .handles
+                .iter()
+                .filter_map(|handle| {
+                    roster.iter().find(|agent| {
+                        agent.handle.eq_ignore_ascii_case(handle)
+                            || agent.name.eq_ignore_ascii_case(handle)
+                    })
+                })
+                .cloned()
+                .collect()
+        };
+        let mut seen = std::collections::HashSet::new();
+        picked.retain(|agent| seen.insert(agent.id.clone()));
+        if !choice.everyone {
+            picked.truncate(MAX_ROUTED);
+        }
+        if picked.is_empty() {
+            // Toph has no standalone user-message store, so an empty route
+            // falls back to the first Toph instead of losing the message.
+            picked.push(roster[0].clone());
+        }
+        tracing::info!(
+            handles = ?picked.iter().map(|agent| agent.handle.as_str()).collect::<Vec<_>>(),
+            reason = %choice.reason,
+            "routed group message"
+        );
+        Ok(picked)
     }
 
     async fn prepare(
@@ -540,7 +734,8 @@ impl Runtime {
         } else {
             json!({"role":"user","content":parts})
         };
-        let display = json!({"id":id,"chatId":ctx.run.chat_id,"tophId":ctx.agent.id,"sessionId":ctx.run.session_id,"runId":ctx.run.id,"model":ctx.agent.model,"agentMode":ctx.agent.agent_mode,"role":if ctx.depth==0{"user"}else{"system"},"content":if ctx.depth==0{text.to_owned()}else{format!("Tarefa para @{}: {}",ctx.agent.handle,text)},"status":"complete","createdAt":now()});
+        let visible = ctx.depth == 0 && !ctx.secondary;
+        let display = json!({"id":id,"chatId":ctx.run.chat_id,"tophId":ctx.agent.id,"sessionId":ctx.run.session_id,"runId":ctx.run.id,"model":ctx.agent.model,"agentMode":ctx.agent.agent_mode,"role":if ctx.depth==0{"user"}else{"system"},"content":if ctx.depth==0{text.to_owned()}else{format!("Tarefa para @{}: {}",ctx.agent.handle,text)},"status":"complete","createdAt":now(),"hidden":!visible});
         let seq = self
             .inner
             .repo
@@ -548,7 +743,9 @@ impl Runtime {
             .await?;
         let mut display = display;
         display["seq"] = json!(seq);
-        self.event(ctx, "message", display);
+        if visible {
+            self.event(ctx, "message", display);
+        }
         Ok(())
     }
 
@@ -639,7 +836,13 @@ impl Runtime {
 
     /// Removes one Toph from one task: its runs, messages and harness sessions
     /// in that conversation. The Toph itself and its other tasks are untouched.
-    pub async fn delete_chat_toph(&self, user: i64, project: &str, chat: &str, agent: &str) -> AppResult<()> {
+    pub async fn delete_chat_toph(
+        &self,
+        user: i64,
+        project: &str,
+        chat: &str,
+        agent: &str,
+    ) -> AppResult<()> {
         let session_ids: Vec<String> = sqlx::query_scalar(
             "SELECT id FROM agent_sessions WHERE user_id=? AND project_id=? AND chat_id=? AND agent_id=?",
         )
@@ -653,7 +856,9 @@ impl Runtime {
         {
             let runs = self.inner.runs.lock().unwrap();
             for id in &active {
-                if let Some(token) = runs.get(id) { token.cancel(); }
+                if let Some(token) = runs.get(id) {
+                    token.cancel();
+                }
             }
         }
         let mut tx = self.inner.repo.0.pool().begin().await?;
@@ -673,7 +878,11 @@ impl Runtime {
                 .execute(&mut *tx).await?;
         }
         tx.commit().await?;
-        self.inner.sessions.lock().unwrap().drop_where(|key| session_ids.iter().any(|id| id == key));
+        self.inner
+            .sessions
+            .lock()
+            .unwrap()
+            .drop_where(|key| session_ids.iter().any(|id| id == key));
         for id in &session_ids {
             let _ = tokio::fs::remove_dir_all(super::cli::work_dir(id)).await;
         }
@@ -686,8 +895,11 @@ impl Runtime {
         let session_ids: Vec<String> = sqlx::query_scalar(
             "SELECT id FROM agent_sessions WHERE user_id=? AND project_id=? AND agent_id=?",
         )
-        .bind(user).bind(project).bind(agent)
-        .fetch_all(self.inner.repo.0.pool()).await?;
+        .bind(user)
+        .bind(project)
+        .bind(agent)
+        .fetch_all(self.inner.repo.0.pool())
+        .await?;
         let active: Vec<String> = sqlx::query_scalar(
             "SELECT id FROM agent_runs WHERE user_id=? AND project_id=? AND agent_id=? AND state IN ('queued','running','waiting')",
         )
@@ -696,7 +908,9 @@ impl Runtime {
         {
             let runs = self.inner.runs.lock().unwrap();
             for id in &active {
-                if let Some(token) = runs.get(id) { token.cancel(); }
+                if let Some(token) = runs.get(id) {
+                    token.cancel();
+                }
             }
         }
         let mut tx = self.inner.repo.0.pool().begin().await?;
@@ -717,7 +931,11 @@ impl Runtime {
                 .execute(&mut *tx).await?;
         }
         tx.commit().await?;
-        self.inner.sessions.lock().unwrap().drop_where(|key| session_ids.iter().any(|id| id == key));
+        self.inner
+            .sessions
+            .lock()
+            .unwrap()
+            .drop_where(|key| session_ids.iter().any(|id| id == key));
         for id in &session_ids {
             let _ = tokio::fs::remove_dir_all(super::cli::work_dir(id)).await;
         }
@@ -1124,6 +1342,22 @@ Trabalhe no projeto atual. Para concluir uma alteração, rode os testes ou o bu
                 extra.push_str(&format!("- {}: {}\n", skill.name, skill.description));
             }
         }
+        if ctx.routed.len() > 1 {
+            let peers = ctx
+                .roster
+                .iter()
+                .filter(|agent| {
+                    agent.id != ctx.agent.id && ctx.routed.iter().any(|id| id == &agent.id)
+                })
+                .map(|agent| format!("@{}", agent.handle))
+                .collect::<Vec<_>>();
+            if !peers.is_empty() {
+                extra.push_str(&format!(
+                    "\nNesta mensagem, {} também estão respondendo. Não delegue para eles; faça a sua parte e deixe a resposta deles chegar.\n",
+                    peers.join(", ")
+                ));
+            }
+        }
         match self.inner.tools.workspace.read(&ctx.root, "AGENTS.md") {
             Ok(file) => {
                 if file.content.len() > 12000 {
@@ -1135,6 +1369,38 @@ Trabalhe no projeto atual. Para concluir uma alteração, rode os testes ou o bu
             Err(AppError::NotFound) => {}
             Err(AppError::Io(error)) if error.kind() == std::io::ErrorKind::NotFound => {}
             Err(error) => return Err(error),
+        }
+        // In a group, every Toph sees the conversation that came before its
+        // own turn, including what the other Tophs said. The current turn is
+        // excluded: each responder already receives the user message itself.
+        if ctx.roster.len() > 1 {
+            let recent = self
+                .inner
+                .repo
+                .recent_chat(
+                    ctx.user_id,
+                    &ctx.project_id,
+                    &ctx.run.chat_id,
+                    16,
+                    Some(ctx.run.created_at),
+                )
+                .await
+                .unwrap_or_default();
+            if !recent.is_empty() {
+                extra.push_str("\n## Conversa recente desta tarefa\n");
+                for (role, toph_id, line) in recent {
+                    let name = if role == "user" {
+                        "Usuário".to_string()
+                    } else {
+                        ctx.roster
+                            .iter()
+                            .find(|agent| agent.id == toph_id)
+                            .map(|agent| agent.name.clone())
+                            .unwrap_or_else(|| "Toph".into())
+                    };
+                    extra.push_str(&format!("[{name}] {line}\n"));
+                }
+            }
         }
         Ok(context::instructions(
             &ctx.agent,
@@ -1158,6 +1424,7 @@ Trabalhe no projeto atual. Para concluir uma alteração, rode os testes ou o bu
         args: Value,
         cancel: &CancellationToken,
     ) -> AppResult<Value> {
+        let started = Instant::now();
         let tid = new_id();
         let call_id = if call_id.trim().is_empty() {
             tid.clone()
@@ -1276,6 +1543,7 @@ Trabalhe no projeto atual. Para concluir uma alteração, rode os testes ou o bu
         display["content"] = json!(result.to_string());
         display["detail"] = json!(json!({"input":args,"output":result}).to_string());
         display["status"] = json!(if failed { "error" } else { "complete" });
+        display["durationMs"] = json!(started.elapsed().as_millis() as i64);
         let seq = self
             .inner
             .repo
@@ -1326,6 +1594,31 @@ Trabalhe no projeto atual. Para concluir uma alteração, rode os testes ou o bu
                 .cloned()
                 .ok_or_else(|| bad_request(format!("Toph @{handle} não está nesta equipe.")))?;
             target.chat_id = parent.run.chat_id.clone();
+            if parent.routed.len() > 1 && parent.routed.iter().any(|id| id == &target.id) {
+                return Ok(json!({
+                    "agent": target.handle,
+                    "busy": true,
+                    "text": format!(
+                        "@{} já foi escolhido para responder a esta mesma mensagem. Não delegue de novo: faça a sua parte e deixe a resposta dele chegar.",
+                        target.handle
+                    )
+                }));
+            }
+            let busy: i64 = sqlx::query_scalar(
+                "SELECT count(*) FROM agent_runs WHERE user_id=? AND project_id=? AND chat_id=? AND agent_id=? AND state IN ('queued','running','waiting')",
+            )
+            .bind(parent.user_id).bind(&parent.project_id).bind(&parent.run.chat_id).bind(&target.id)
+            .fetch_one(self.inner.repo.0.pool()).await.unwrap_or(0);
+            if busy > 0 {
+                return Ok(json!({
+                    "agent": target.handle,
+                    "busy": true,
+                    "text": format!(
+                        "@{} já está respondendo nesta conversa. Não delegue de novo; faça a sua parte e deixe a resposta dele chegar.",
+                        target.handle
+                    )
+                }));
+            }
             let model = self.inner.ai.migrate_agent_model(&target.model).await?;
             let config = self.inner.ai.resolve(&model).await?;
             let mut session = self
@@ -1372,6 +1665,8 @@ Trabalhe no projeto atual. Para concluir uma alteração, rode os testes ou o bu
                 skills,
                 chat_description: parent.chat_description.clone(),
                 depth: parent.depth + 1,
+                secondary: false,
+                routed: parent.routed.clone(),
                 request: task.to_string(),
             };
             self.inner
@@ -1461,6 +1756,9 @@ Trabalhe no projeto atual. Para concluir uma alteração, rode os testes ou o bu
             return;
         }
         let mut candidates = mentioned_agents(text, &ctx.roster, &ctx.agent.id);
+        if ctx.routed.len() > 1 {
+            candidates.retain(|agent| !ctx.routed.iter().any(|id| id == &agent.id));
+        }
         // A delegated child does not hand work back to its caller: the caller
         // already receives the child's answer through the delegate tool.
         if let Some(parent_id) = &ctx.run.parent_id {
@@ -1626,6 +1924,19 @@ mod tests {
         );
         assert!(parse_handles("ninguém").is_empty());
         assert!(parse_handles("{\"handles\":[]}").is_empty());
+    }
+
+    #[test]
+    fn router_plan_reads_multiple_handles_and_everyone() {
+        let plan = parse_route("```json\n{\"handles\":[\"@Beto\",\"nico\"],\"todos\":false,\"reason\":\"pesquisa e dev\"}\n```").unwrap();
+        assert_eq!(plan.handles, vec!["beto".to_string(), "nico".to_string()]);
+        assert!(!plan.everyone);
+        assert_eq!(plan.reason, "pesquisa e dev");
+
+        let everyone =
+            parse_route("{\"handles\":[],\"everyone\":true,\"reason\":\"pessoal\"}").unwrap();
+        assert!(everyone.everyone);
+        assert!(parse_route("sem json").is_none());
     }
 
     #[test]

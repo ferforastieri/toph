@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { ChevronDown, Copy, LoaderCircle } from "@toph/icons";
+import { Check, ChevronDown, Copy, LoaderCircle, X } from "@toph/icons";
 import type { AiMessage } from "../../../app/store";
 import type { Project } from "../../../shared/api";
 import type { ChatToph } from "../store";
 import { isActive, type AgentQuestionPrompt, type AgentRun, type NativeMessage } from "../../agents/api";
 import { TranscriptMessage, toolLabel } from "./AgentTranscript";
+import { stepDuration, toolError, toolStep } from "../steps";
 import AgentQuestionCard from "./AgentQuestionCard";
 import BotAvatar from "../../agents/components/BotAvatar";
 import { Button } from "@/shared/boardui/base/buttons/button";
@@ -165,7 +166,7 @@ function AgentMessage({ message, toph, project, grouped, steps }: {
             />
           </div>
         )}
-        <RunSteps steps={steps} working={message.status === "running"} />
+        <RunSteps steps={steps} working={message.status === "running"} startedAt={message.createdAt} />
         <div className="md min-w-0 [&_p:first-child]:mt-0 [&_pre:first-child]:mt-0 [&_ul:first-child]:mt-0 [&_ol:first-child]:mt-0 [&_p:last-child]:mb-0 [&_pre:last-child]:mb-0 [&_ul:last-child]:mb-0 [&_ol:last-child]:mb-0">
           <StreamedTranscript message={message} project={project} />
         </div>
@@ -175,23 +176,68 @@ function AgentMessage({ message, toph, project, grouped, steps }: {
 }
 
 function stepLabel(message: NativeMessage): string {
-  if (message.activity) return message.activity;
-  if (message.role === "reasoning") return message.content || "analisou o problema";
-  return fallbackActivity(message);
+  return toolStep(message).label;
 }
 
 function StepItem({ message }: { message: NativeMessage }) {
+  const view = toolStep(message);
+  const error = view.error ?? toolError(message);
+  const duration = stepDuration(message.durationMs);
+  const running = message.status === "running";
   const failed = message.status === "error";
+  const [allInput, setAllInput] = useState(false);
+  const [whole, setWhole] = useState(false);
   return (
-    <div data-testid="chat-step" className="flex min-w-0 items-center gap-2 py-0.5 text-[12.5px] leading-relaxed text-text-secondary">
-      <span className={cx("size-1.5 shrink-0 rounded-full", failed ? "bg-status-rose-text" : "bg-accent-500/50")} />
-      <span className={cx("min-w-0 truncate", failed && "text-status-rose-text")}>{stepLabel(message)}</span>
-      {message.status === "running" ? <LoaderCircle className="size-3.5 shrink-0 animate-spin text-accent-500" /> : null}
+    <div
+      data-testid="chat-step"
+      className="flex min-w-0 flex-wrap items-start gap-x-2 gap-y-1 py-0.5 text-[12.5px] leading-relaxed text-text-secondary"
+    >
+      <span className={cx(
+        "mt-0.5 flex size-[18px] shrink-0 items-center justify-center rounded-full",
+        failed ? "bg-status-rose-background text-status-rose-text" : running ? "text-accent-500" : "bg-status-lime-background text-status-lime-text",
+      )}>
+        {running ? <LoaderCircle className="size-3.5 animate-spin" /> : failed ? <X size={12} /> : <Check size={12} />}
+      </span>
+      <span className={cx("shrink-0 font-medium", failed ? "text-status-rose-text" : "text-text-primary")}>{view.label}</span>
+      {view.note ? null : view.detail ? <code className="min-w-0 max-w-full truncate text-[11.5px] text-text-tertiary" dir="ltr">{view.detail}</code> : null}
+      {duration ? <span className="ms-auto shrink-0 tabular-nums text-[11px] text-text-tertiary">{duration}</span> : null}
+      {view.note ? <span className="basis-full whitespace-pre-wrap break-words ps-[26px] text-[12px] leading-relaxed text-text-secondary">{view.note}</span> : null}
+      {view.input ? (
+        <code
+          className={cx("basis-full cursor-pointer whitespace-pre-wrap break-words rounded-md bg-background-secondary-default px-2 py-1 text-[11.5px] leading-relaxed text-text-secondary ms-[26px]", whole && "cursor-text")}
+          title={allInput ? undefined : "Ver tudo"}
+          onClick={() => setAllInput((value) => !value)}
+          dir="ltr"
+        >
+          <span className={cx("block", !allInput && "line-clamp-2")}>{view.input}</span>
+        </code>
+      ) : null}
+      {view.output ? <span className="basis-full ps-[26px] text-[12px] text-text-tertiary">→ {view.output}</span> : null}
+      {error ? (
+        <span
+          className={cx("basis-full cursor-pointer whitespace-pre-wrap break-words ps-[26px] text-[12px] leading-relaxed text-status-rose-text", whole && "cursor-text")}
+          title={whole ? undefined : "Ver tudo"}
+          onClick={() => setWhole((value) => !value)}
+        >
+          <span className={cx("block", !whole && "line-clamp-3")}>{error}</span>
+        </span>
+      ) : null}
     </div>
   );
 }
 
-function RunSteps({ steps, working, defaultOpen = false }: { steps: NativeMessage[]; working: boolean; defaultOpen?: boolean }) {
+function ThoughtStep({ ms }: { ms: number }) {
+  const duration = stepDuration(ms);
+  return (
+    <div data-testid="chat-thought" className="flex min-w-0 items-center gap-2 py-0.5 text-[12.5px] leading-relaxed text-text-secondary">
+      <span className="flex size-[18px] shrink-0 items-center justify-center rounded-full bg-status-lime-background text-status-lime-text"><Check size={12} /></span>
+      <span className="font-medium text-text-primary">Pensou</span>
+      {duration ? <span className="ms-auto shrink-0 tabular-nums text-[11px] text-text-tertiary">{duration}</span> : null}
+    </div>
+  );
+}
+
+function RunSteps({ steps, working, defaultOpen = false, startedAt }: { steps: NativeMessage[]; working: boolean; defaultOpen?: boolean; startedAt?: number }) {
   const [open, setOpen] = useState(working || defaultOpen);
   useEffect(() => {
     if (working) setOpen(true);
@@ -203,9 +249,12 @@ function RunSteps({ steps, working, defaultOpen = false }: { steps: NativeMessag
   const first = steps.reduce((value, message) => Math.min(value, message.createdAt), Number.POSITIVE_INFINITY);
   const last = steps.reduce((value, message) => Math.max(value, message.createdAt), 0);
   const elapsed = last > first ? Math.max(0, Math.round((last - first) / 1000)) : 0;
+  const hasThought = steps.some((message) => message.role === "reasoning");
+  const thoughtMs = !hasThought && startedAt && Number.isFinite(first) && first > startedAt ? first - startedAt : 0;
+  const stepCount = steps.length + (thoughtMs > 0 ? 1 : 0);
   const summary = working
     ? current ? `${stepLabel(current)}…` : steps.length === 0 ? "Lendo o pedido…" : "Pensando…"
-    : `${failed ? "" : "Pronto · "}${steps.length} ${steps.length === 1 ? "passo" : "passos"}${elapsed > 0 ? ` · ${elapsed < 60 ? `${elapsed}s` : `${Math.floor(elapsed / 60)}m ${String(elapsed % 60).padStart(2, "0")}s`}` : ""}`;
+    : `${failed ? "" : "Pronto · "}${stepCount} ${stepCount === 1 ? "passo" : "passos"}${elapsed > 0 ? ` · ${elapsed < 60 ? `${elapsed}s` : `${Math.floor(elapsed / 60)}m ${String(elapsed % 60).padStart(2, "0")}s`}` : ""}`;
   return (
     <div className="my-0.5 max-w-[600px] text-[12.5px]">
       <button
@@ -224,6 +273,7 @@ function RunSteps({ steps, working, defaultOpen = false }: { steps: NativeMessag
       </button>
       {open && steps.length > 0 ? (
         <div className="ms-1 mt-0.5 flex flex-col gap-0.5 border-s-2 border-separator-border py-1 ps-3">
+          {thoughtMs > 0 ? <ThoughtStep ms={thoughtMs} /> : null}
           {steps.map((message) => <StepItem key={message.id} message={message} />)}
         </div>
       ) : null}

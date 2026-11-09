@@ -130,6 +130,12 @@ pub struct RunContext {
     pub skills: Vec<super::skill_service::ManagedSkill>,
     pub chat_description: String,
     pub depth: usize,
+    /// A second responder chosen by the router. Its copy of the user message
+    /// stays hidden in the UI; the primary responder owns the visible bubble.
+    pub secondary: bool,
+    /// Tophs the router chose for the same message. They answer together, so
+    /// a handoff to one of them would duplicate the turn.
+    pub routed: Vec<String>,
     /// The current request text, used when the session has no transcript yet.
     pub request: String,
 }

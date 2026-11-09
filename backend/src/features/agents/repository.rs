@@ -142,6 +142,42 @@ impl Repository {
         Ok(out)
     }
 
+    /// Recent visible lines from the whole task, for the router. Hidden copies
+    /// of the user message held by secondary responders are left out.
+    pub async fn recent_chat(
+        &self,
+        user: i64,
+        project: &str,
+        chat: &str,
+        limit: i64,
+        before: Option<i64>,
+    ) -> AppResult<Vec<(String, String, String)>> {
+        let rows = sqlx::query(
+            "SELECT m.role,m.content_text,m.display FROM agent_messages m JOIN agent_sessions s ON s.id=m.session_id \
+             WHERE s.user_id=? AND s.project_id=? AND s.chat_id=? AND s.archived=0 \
+               AND m.role IN ('user','assistant') AND m.content_text<>'' \
+               AND COALESCE(json_extract(m.display,'$.hidden'),0)=0 \
+               AND (? IS NULL OR m.created_at<?) \
+             ORDER BY m.seq DESC LIMIT ?",
+        )
+        .bind(user).bind(project).bind(chat).bind(before).bind(before).bind(limit)
+        .fetch_all(self.0.pool()).await?;
+        let mut out = Vec::new();
+        for row in rows.into_iter().rev() {
+            let display: Value =
+                serde_json::from_str(row.get::<&str, _>("display")).unwrap_or(Value::Null);
+            out.push((
+                row.get::<String, _>("role"),
+                display["tophId"].as_str().unwrap_or("").to_string(),
+                row.get::<String, _>("content_text")
+                    .chars()
+                    .take(700)
+                    .collect(),
+            ));
+        }
+        Ok(out)
+    }
+
     pub async fn backfill_events(&self) -> AppResult<()> {
         sqlx::query(
             "INSERT INTO agent_events(id,session_id,run_id,kind,payload,created_at)
@@ -159,7 +195,26 @@ impl Repository {
     }
 
     pub async fn import_local_history(&self, ctx: &RunContext) -> AppResult<()> {
-        if ctx.depth != 0 {
+        // Secondary responders already receive the visible user message in
+        // their own session; importing the archived copy would duplicate the
+        // bubble and bring another agent's transcript into this session.
+        if ctx.depth != 0 || ctx.secondary {
+            return Ok(());
+        }
+        // Legacy import is for a chat with no agent transcript at all. A new
+        // responder joining an existing task already sees the shared history
+        // in its prompt; importing the archive here would duplicate the user
+        // bubbles in the timeline.
+        let chat_messages: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM agent_messages m JOIN agent_sessions s ON s.id=m.session_id \
+             WHERE s.user_id=? AND s.project_id=? AND s.chat_id=?",
+        )
+        .bind(ctx.user_id)
+        .bind(&ctx.project_id)
+        .bind(&ctx.run.chat_id)
+        .fetch_one(self.0.pool())
+        .await?;
+        if chat_messages > 0 {
             return Ok(());
         }
         let mut tx = self.0.pool().begin().await?;
@@ -233,7 +288,13 @@ impl Repository {
             .bind(user).bind(project).bind(&agent.chat_id).bind(&agent.id).fetch_one(self.0.pool()).await.map_err(Into::into)
     }
 
-    pub async fn sessions(&self, user: i64, project: &str, agent: &str, chat: &str) -> AppResult<Vec<Session>> {
+    pub async fn sessions(
+        &self,
+        user: i64,
+        project: &str,
+        agent: &str,
+        chat: &str,
+    ) -> AppResult<Vec<Session>> {
         Ok(sqlx::query_as("SELECT id,chat_id,agent_id,title,archived,created_at,updated_at FROM agent_sessions WHERE user_id=? AND project_id=? AND chat_id=? AND agent_id=? ORDER BY updated_at DESC LIMIT 100")
             .bind(user).bind(project).bind(chat).bind(agent).fetch_all(self.0.pool()).await?)
     }
@@ -420,6 +481,7 @@ impl Repository {
             "SELECT m.id,m.session_id,s.chat_id,s.agent_id,m.role,substr(m.content_text,1,400) AS text,m.created_at \
              FROM agent_messages m JOIN agent_sessions s ON s.id=m.session_id \
              WHERE s.user_id=? AND s.project_id=? AND m.role IN ('user','assistant') AND m.content_text<>'' \
+               AND COALESCE(json_extract(m.display,'$.hidden'),0)=0 \
                AND instr(lower(m.content_text), lower(?))>0 \
              ORDER BY m.seq DESC LIMIT ?",
         )
@@ -486,7 +548,7 @@ impl Repository {
         chat: &str,
         before: Option<i64>,
     ) -> AppResult<Value> {
-        let rows=sqlx::query("SELECT m.seq,m.display FROM agent_messages m JOIN agent_sessions s ON s.id=m.session_id WHERE s.user_id=? AND s.project_id=? AND s.chat_id=? AND s.archived=0 AND (? IS NULL OR m.seq<?) ORDER BY m.seq DESC LIMIT 161")
+        let rows=sqlx::query("SELECT m.seq,m.display FROM agent_messages m JOIN agent_sessions s ON s.id=m.session_id WHERE s.user_id=? AND s.project_id=? AND s.chat_id=? AND s.archived=0 AND COALESCE(json_extract(m.display,'$.hidden'),0)=0 AND (? IS NULL OR m.seq<?) ORDER BY m.seq DESC LIMIT 161")
             .bind(user).bind(project).bind(chat).bind(before).bind(before).fetch_all(self.0.pool()).await?;
         let more = rows.len() > 160;
         let mut items = Vec::new();

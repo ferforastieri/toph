@@ -50,7 +50,7 @@ describe("ChatMessages timeline", () => {
     );
 
     const first = screen.getByText("primeira resposta");
-    const read = screen.getByText("leu `src/a.ts`");
+    const read = screen.getByText("src/a.ts");
     const third = screen.getByText("terceira resposta");
     expect(first.compareDocumentPosition(read) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(read.compareDocumentPosition(third) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
@@ -90,9 +90,21 @@ describe("ChatMessages timeline", () => {
     expect(mine.querySelector("p")).toHaveClass("bg-background-tertiary-default");
   });
 
-  it("never shows a raw shell command", () => {
+  it("shows the executed command, its output and duration in the step", () => {
     const messages: NativeMessage[] = [
-      { id: "shell", chatId: "chat", tophId: "toph", role: "tool", title: "shell", content: JSON.stringify({ command: "rm -rf /" }), status: "complete", createdAt: 1, seq: 10 },
+      {
+        id: "shell",
+        chatId: "chat",
+        tophId: "toph",
+        role: "tool",
+        title: "shell",
+        content: JSON.stringify({ exitCode: 0, stdout: "ok\n", stderr: "" }),
+        detail: JSON.stringify({ input: { command: "printf 'ok'" }, output: { exitCode: 0, stdout: "ok\n", stderr: "" } }),
+        status: "complete",
+        durationMs: 1200,
+        createdAt: 1,
+        seq: 10,
+      },
     ];
 
     render(
@@ -105,7 +117,9 @@ describe("ChatMessages timeline", () => {
       />,
     );
 
-    expect(screen.getByText("executou um comando no projeto")).toBeInTheDocument();
-    expect(screen.queryByText(/rm -rf/)).not.toBeInTheDocument();
+    expect(screen.getByText("Rodou")).toBeInTheDocument();
+    expect(screen.getAllByText("printf 'ok'").length).toBeGreaterThan(0);
+    expect(screen.getByText(/→ ok/)).toBeInTheDocument();
+    expect(screen.getByText("1,2s")).toBeInTheDocument();
   });
 });
