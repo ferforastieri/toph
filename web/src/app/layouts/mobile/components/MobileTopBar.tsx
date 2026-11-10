@@ -67,7 +67,7 @@ export default function MobileTopBar({
             onClick={onProjects}
             aria-label={`Projeto ${project.name}. Selecionar projeto${unreadCount > 0 ? `, ${unreadCount} notificações não lidas` : ""}`}
             title={`${project.name}\n${project.root}`}
-            className="relative flex size-9 shrink-0 items-center justify-center rounded-full border border-border-button-default bg-background-primary-default transition-[border-color,background-color,transform] duration-300 hover:border-border-button-hover hover:bg-background-primary-hover active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus-ring"
+            className="relative flex size-9 shrink-0 items-center justify-center rounded-full border border-border-button-default bg-background-secondary-default transition-[border-color,background-color,transform] duration-300 hover:border-border-button-hover hover:bg-background-primary-hover active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus-ring"
           >
             <ProjectMonogram project={project} size={26} />
             {unreadCount > 0 ? (

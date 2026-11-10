@@ -467,7 +467,13 @@ export default function MobileApp() {
 
       <Modal isOpen={projectsOpen} onClose={() => setProjectsOpen(false)} label="Projetos" placement="bottom" size="sm" bodyClassName="p-2.5" swipeToClose>
         <ProjectSwitcher
-          onSelect={(id) => { setActiveProject(id); setProjectsOpen(false); setScreen("bots"); }}
+          onSelect={(id) => {
+            // Choosing a project must clear its badge, like the desktop rail.
+            useApp.getState().markProjectNotificationsRead(id);
+            setActiveProject(id);
+            setProjectsOpen(false);
+            setScreen("bots");
+          }}
           onCloseProject={(id) => requestCloseProject(id)}
         />
       </Modal>
