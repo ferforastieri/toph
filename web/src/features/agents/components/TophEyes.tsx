@@ -2,19 +2,24 @@ import type { CSSProperties, HTMLAttributes } from "react";
 import { cx } from "@/shared/boardui/utils/cx";
 import { TOPH_EYES, type TophEyeBox } from "../eyes";
 
-/** Extra room around each eye so the patch always covers the original eye. */
-const EYE_PAD_X = 9;
-const EYE_PAD_Y = 7;
+/** Feathered margin around each eye so the antialiased edge is never clipped. */
+const EYE_FEATHER = 2;
 
 const EYE_TRANSFORM = "translate3d(var(--toph-look-x, 0px), var(--toph-look-y, 0px), 0)";
 
-/** Same mask recipe as the landing hero: a tight radial ellipse around each eye. */
+/**
+ * The mask must stay fully opaque over the whole eye: the solid core is sized
+ * for the larger eye dimension so both axes are covered, and only the padding
+ * fades out. A smaller core clips the eye into a bar.
+ */
 function eyeMask(box: TophEyeBox): string {
   const cx = ((box.x + box.w / 2) / 256) * 100;
   const cy = ((box.y + box.h / 2) / 256) * 100;
-  const rx = ((box.w / 2 + EYE_PAD_X) / 256) * 100;
-  const ry = ((box.h / 2 + EYE_PAD_Y) / 256) * 100;
-  return `radial-gradient(ellipse ${rx}% ${ry}% at ${cx}% ${cy}%, #000 52%, transparent 100%)`;
+  const rx = ((box.w / 2 + EYE_FEATHER) / 256) * 100;
+  const ry = ((box.h / 2 + EYE_FEATHER) / 256) * 100;
+  const long = Math.max(box.w, box.h);
+  const solid = (long / (long + EYE_FEATHER * 2)) * 100;
+  return `radial-gradient(ellipse ${rx}% ${ry}% at ${cx}% ${cy}%, #000 ${solid.toFixed(1)}%, transparent 100%)`;
 }
 
 export function avatarColorStyle(color: string, image: string): CSSProperties {
