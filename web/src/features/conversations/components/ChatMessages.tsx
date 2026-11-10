@@ -102,7 +102,7 @@ function timeLabel(value: number): string {
   return new Date(value).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 }
 
-function useStreamedText(message: NativeMessage): string {
+function useStreamedText(message: NativeMessage, mobile: boolean): string {
   // Only messages that just landed are typed out; history renders at once.
   const animate = useRef(Date.now() - message.createdAt < 15_000);
   const target = useRef(message.content.length);
@@ -110,15 +110,18 @@ function useStreamedText(message: NativeMessage): string {
   const [shown, setShown] = useState(() => (animate.current ? 0 : message.content.length));
   useEffect(() => {
     if (!animate.current) return;
+    // Phones repaint Markdown slower; reveal in fewer, larger steps.
+    const interval = mobile ? 120 : REVEAL_MS;
+    const factor = mobile ? 0.45 : REVEAL_FACTOR;
     const timer = window.setInterval(() => {
       setShown((current) => {
         const goal = target.current;
         if (current >= goal) return current;
-        return Math.min(goal, current + Math.max(1, Math.ceil((goal - current) * REVEAL_FACTOR)));
+        return Math.min(goal, current + Math.max(1, Math.ceil((goal - current) * factor)));
       });
-    }, REVEAL_MS);
+    }, interval);
     return () => window.clearInterval(timer);
-  }, []);
+  }, [mobile]);
   if (shown >= message.content.length) return message.content;
   let end = shown;
   // Never split a surrogate pair while typing.
@@ -127,8 +130,8 @@ function useStreamedText(message: NativeMessage): string {
   return message.content.slice(0, end);
 }
 
-function StreamedTranscript({ message, project }: { message: NativeMessage; project: Project }) {
-  const text = useStreamedText(message);
+function StreamedTranscript({ message, project, mobile }: { message: NativeMessage; project: Project; mobile: boolean }) {
+  const text = useStreamedText(message, mobile);
   const value = useMemo(() => ({ ...toTranscriptMessage(message), text }), [message, text]);
   return (
     <TranscriptMessage
@@ -149,11 +152,12 @@ function UserMessage({ message }: { message: NativeMessage }) {
   );
 }
 
-function AgentMessage({ message, toph, project, grouped }: {
+function AgentMessage({ message, toph, project, grouped, mobile }: {
   message: NativeMessage;
   toph: ChatToph;
   project: Project;
   grouped: boolean;
+  mobile: boolean;
 }) {
   return (
     <article data-testid="chat-agent-message" className="toph-msg-in group/msg flex min-w-0 gap-3 py-1.5">
@@ -176,7 +180,7 @@ function AgentMessage({ message, toph, project, grouped }: {
           </div>
         )}
         <div className="md min-w-0 [&_p:first-child]:mt-0 [&_pre:first-child]:mt-0 [&_ul:first-child]:mt-0 [&_ol:first-child]:mt-0 [&_p:last-child]:mb-0 [&_pre:last-child]:mb-0 [&_ul:last-child]:mb-0 [&_ol:last-child]:mb-0">
-          <StreamedTranscript message={message} project={project} />
+          <StreamedTranscript message={message} project={project} mobile={mobile} />
         </div>
       </div>
     </article>
@@ -327,6 +331,7 @@ export default function ChatMessages({
   tophs,
   runs,
   project,
+  mobile = false,
   questions = [],
   onAnswer,
 }: Props) {
@@ -415,6 +420,7 @@ export default function ChatMessages({
           toph={toph}
           project={project}
           grouped={grouped}
+          mobile={mobile}
         />,
       );
       lastTophId = toph.id;
