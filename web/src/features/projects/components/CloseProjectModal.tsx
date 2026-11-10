@@ -38,13 +38,13 @@ export default function CloseProjectModal({ open, project, busy = false, error =
         <div className="flex gap-3 rounded-2xl border border-status-rose-text/20 bg-status-rose-background p-3 text-status-rose-text">
           <AlertTriangle size={18} className="mt-0.5 shrink-0" />
           <div className="min-w-0 text-caption-1-regular leading-relaxed">
-            <p className="font-medium">Os terminais deste projeto serão encerrados.</p>
-            <p className="mt-1 text-status-rose-text/80">Terminais, sessões de debug e execuções de IA abertas no projeto param. Outros projetos não são afetados.</p>
+            <p className="font-medium">Todos os processos deste projeto serão encerrados.</p>
+            <p className="mt-1 text-status-rose-text/80">Isso inclui terminais, servidores, watchers, debug e execuções de IA abertas no projeto.</p>
           </div>
         </div>
 
         <div className="grid gap-2 text-caption-1-regular text-text-secondary">
-          <span className="flex items-center gap-2"><TerminalSquare size={15} className="text-text-tertiary" /> Terminais deste projeto e seus processos</span>
+          <span className="flex items-center gap-2"><TerminalSquare size={15} className="text-text-tertiary" /> Terminais e processos filhos</span>
           <span className="flex items-center gap-2"><Bot size={15} className="text-text-tertiary" /> Execuções de IA e sessões de debug</span>
         </div>
 

@@ -55,21 +55,23 @@ pub(super) async fn close_project(
     State(state): State<Arc<AppState>>,
     Path(project_id): Path<String>,
 ) -> AppResult<Json<Value>> {
-    state.store.project(&project_id).await?;
+    let project = state.store.project(&project_id).await?;
     state.agents.cancel_project(None, &project_id, None).await?;
     let terminals = state.terminals.close_project(&project_id);
     let had_debug = state.debug.get(&project_id).is_some();
     state.debug.close_project(&project_id).await;
-    // Closing a project ends its own terminals (their process groups are killed
-    // on close) and its agent runs. It must not sweep the filesystem by working
-    // directory: that killed processes from nested projects, from other open
-    // projects and from tools the user was running outside Toph.
+    let root = project.root.clone();
+    let cleanup = tokio::task::spawn_blocking(move || {
+        crate::processes::terminate_project_processes(FsPath::new(&root))
+    })
+    .await
+    .map_err(|error| crate::errors::internal(error.to_string()))?;
     Ok(Json(json!({
         "ok": true,
         "terminals": terminals,
         "debug": had_debug,
-        "processes": [],
-        "failed": [],
+        "processes": cleanup.terminated,
+        "failed": cleanup.failed,
     })))
 }
 

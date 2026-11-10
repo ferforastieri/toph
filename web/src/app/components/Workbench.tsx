@@ -889,10 +889,11 @@ export default function Workbench() {
       }
       closeProjectTab(id);
       setCloseTarget(null);
-      const count = result.terminals;
-      notify("info", count > 0
-        ? `Projeto ${target.name} fechado. ${count} terminal${count === 1 ? "" : "s"} encerrado${count === 1 ? "" : "s"}.`
-        : `Projeto ${target.name} fechado.`);
+      const count = result.processes.length;
+      notify("info", `Projeto ${target.name} fechado. ${count} processo${count === 1 ? "" : "s"} encerrado${count === 1 ? "" : "s"}.`);
+      if (result.failed.length > 0) {
+        notify("error", `${result.failed.length} processo${result.failed.length === 1 ? "" : "s"} não puderam ser encerrados.`);
+      }
     } catch (error) {
       setCloseError(error instanceof Error ? error.message : "Não foi possível fechar o projeto.");
     } finally {
