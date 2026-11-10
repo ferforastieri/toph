@@ -21,8 +21,21 @@ beforeAll(() => {
 afterEach(cleanup);
 
 describe("AgentComposer actions", () => {
-  it("uses BoardUI buttons for audio and send", () => {
-    render(
+  it("fuses voice and send into a single action button", () => {
+    const { rerender } = render(
+      <AgentComposer
+        value=""
+        onChange={vi.fn()}
+        onSend={vi.fn()}
+        busy={false}
+        placeholder="Mensagem"
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "Gravar áudio" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Enviar" })).not.toBeInTheDocument();
+
+    rerender(
       <AgentComposer
         value="Olá"
         onChange={vi.fn()}
@@ -32,16 +45,15 @@ describe("AgentComposer actions", () => {
       />,
     );
 
-    const audio = screen.getByRole("button", { name: "Gravar áudio" });
     const send = screen.getByRole("button", { name: "Enviar" });
-    expect(audio).toBeVisible();
     expect(send).toHaveClass("bg-button-primary");
+    expect(screen.queryByRole("button", { name: "Gravar áudio" })).not.toBeInTheDocument();
   });
 
-  it("keeps the microphone next to the send button", () => {
+  it("keeps the fused action button last, after attachments", () => {
     render(
       <AgentComposer
-        value="Olá"
+        value=""
         onChange={vi.fn()}
         onSend={vi.fn()}
         busy={false}
@@ -50,10 +62,8 @@ describe("AgentComposer actions", () => {
     );
 
     const attach = screen.getByRole("button", { name: "Anexar arquivo" });
-    const audio = screen.getByRole("button", { name: "Gravar áudio" });
-    const send = screen.getByRole("button", { name: "Enviar" });
-    expect(attach.compareDocumentPosition(audio) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(audio.compareDocumentPosition(send) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const action = screen.getByRole("button", { name: "Gravar áudio" });
+    expect(attach.compareDocumentPosition(action) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("shows a preview when an image is pasted", async () => {
@@ -74,12 +84,12 @@ describe("AgentComposer actions", () => {
     expect(await screen.findByRole("img", { name: "colada.png" })).toHaveAttribute("src", expect.stringMatching(/^data:image\/png;base64,/));
   });
 
-  it("stops the running agent without submitting the draft", () => {
+  it("fuses the stop action into the same button while a run is active", () => {
     const onStop = vi.fn();
     const onSend = vi.fn();
     render(
       <AgentComposer
-        value="rascunho que não deve ser enviado"
+        value=""
         onChange={vi.fn()}
         onSend={onSend}
         onStop={onStop}
@@ -88,12 +98,33 @@ describe("AgentComposer actions", () => {
       />,
     );
 
+    expect(screen.queryByRole("button", { name: "Enviar" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Parar" }));
     expect(onStop).toHaveBeenCalledOnce();
     expect(onSend).not.toHaveBeenCalled();
   });
 
-  it("queues the next message while a run is active", () => {
+  it("turns the stop button into queue-send once there is a draft", () => {
+    const onSend = vi.fn();
+    const onStop = vi.fn();
+    render(
+      <AgentComposer
+        value="rascunho"
+        onChange={vi.fn()}
+        onSend={onSend}
+        onStop={onStop}
+        busy
+        placeholder="Mensagem"
+      />,
+    );
+
+    expect(screen.queryByRole("button", { name: "Parar" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Enfileirar mensagem" }));
+    expect(onSend).toHaveBeenCalledWith("rascunho", []);
+    expect(onStop).not.toHaveBeenCalled();
+  });
+
+  it("queues the next message on Enter while a run is active", () => {
     const onSend = vi.fn();
     render(
       <AgentComposer
@@ -106,7 +137,7 @@ describe("AgentComposer actions", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Enfileirar mensagem" }));
+    fireEvent.keyDown(screen.getByRole("textbox", { name: "Mensagem para o agente" }), { key: "Enter" });
     expect(onSend).toHaveBeenCalledWith("enviar mesmo executando", []);
   });
 

@@ -273,19 +273,13 @@ export function AgentComposer({ value, onChange, onSend, onStop, busy, placehold
             {allowAttachments ? <Button type="button" variant="ghost" size="small" iconOnly leadingIcon={ImagePlus} aria-label="Anexar arquivo" title="Anexar arquivo (Ctrl+U)" onClick={() => fileRef.current?.click()} /> : null}
             <span className="min-w-0 flex-1 truncate text-[11.5px] text-text-tertiary">{hint}</span>
             {modeControls ? <div className="flex shrink-0 items-center gap-0.5">{modeControls}</div> : null}
-            <Button
-              type="button"
-              variant={audio.recording ? "danger" : "ghost"}
-              size="small"
-              iconOnly
-              leadingIcon={audio.processing ? LoaderCircle : audio.recording ? Square : Mic}
-              onClick={() => audio.recording ? audio.stop() : void audio.start()}
-              disabled={busy || audio.processing || !audio.supported}
-              aria-label={audio.processing ? "Processando áudio" : audio.recording ? "Parar gravação" : "Gravar áudio"}
-              title={audio.supported ? (audio.recording ? "Parar gravação" : "Gravar áudio") : "Gravação de áudio indisponível"}
-              className={audio.processing ? "shrink-0 [&_svg]:animate-spin" : "shrink-0"}
-            />
-            {busy && onStop ? (
+            {audio.processing ? (
+              <Button type="button" variant="secondary" size="small" iconOnly leadingIcon={LoaderCircle} disabled aria-label="Processando áudio" title="Processando áudio" className="shrink-0 rounded-full [&_svg]:animate-spin" />
+            ) : audio.recording ? (
+              <Button type="button" variant="danger" size="small" iconOnly leadingIcon={Square} onClick={() => audio.stop()} aria-label="Parar gravação" title="Parar gravação e transcrever" className="shrink-0 rounded-full" />
+            ) : value.trim() || attachments.length > 0 ? (
+              <Button type="submit" variant="primary" size="small" iconOnly leadingIcon={ArrowUp} aria-label={busy ? "Enfileirar mensagem" : "Enviar"} title={busy ? "Enviar quando a execução atual terminar" : "Enviar"} className="shrink-0 rounded-full" />
+            ) : busy && onStop ? (
               <Button
                 type="button"
                 variant="secondary"
@@ -298,8 +292,20 @@ export function AgentComposer({ value, onChange, onSend, onStop, busy, placehold
                 title="Parar execução"
                 className="shrink-0 rounded-full"
               />
-            ) : null}
-            <Button type="submit" variant="primary" size="small" iconOnly leadingIcon={ArrowUp} disabled={audio.recording || audio.processing || (!value.trim() && attachments.length === 0)} aria-label={busy ? "Enfileirar mensagem" : "Enviar"} title={busy ? "Enviar quando a execução atual terminar" : "Enviar"} className="shrink-0 rounded-full" />
+            ) : (
+              <Button
+                type="button"
+                variant="ghost"
+                size="small"
+                iconOnly
+                leadingIcon={Mic}
+                onClick={() => void audio.start()}
+                disabled={busy || !audio.supported}
+                aria-label="Gravar áudio"
+                title={audio.supported ? "Gravar áudio" : "Gravação de áudio indisponível"}
+                className="shrink-0 rounded-full"
+              />
+            )}
           </div>
         </form>
       </ComposerLoader>

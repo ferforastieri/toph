@@ -234,7 +234,7 @@ export default function BotStudioTab({ project, conversationId, mobile = false, 
         {modelError && <p role="alert" className="px-3 text-xs text-text-error-primary">{modelError}</p>}
         <AgentComposer value={text} onChange={(value) => setDraft(draftKey, value)} onSend={(value, files) => void send(value, files)} onStop={() => void stop()} busy={busy}
           placeholder={tophs.length === 1 ? `Mensagem para ${tophs[0].name}` : "Mensagem para o grupo"}
-          hint={busy ? "Sua mensagem entra na fila" : tophs.length === 1 ? "Esta tarefa é só sua com este Toph" : "Quem estiver na conversa responde · use @ para chamar alguém"}
+          hint={busy ? "Sua mensagem entra na fila" : tophs.length === 1 ? "" : "Quem estiver na conversa responde · use @ para chamar alguém"}
           history={native.messages.filter((m) => m.role === "user").map((m) => m.content)}
           modeControls={<div className="flex items-center gap-0.5"><Button type="button" variant="ghost" size="small" iconOnly leadingIcon={UserRound} aria-label="Participantes da conversa" title="Participantes e contexto" onClick={() => setSettingsOpen(true)} /><ChatUsageMeter chatName={title} model={activeModelDisplay} /></div>} members={tophs} />
       </div>}
