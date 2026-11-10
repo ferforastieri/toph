@@ -1,4 +1,5 @@
 import { useApp } from "../../app/store";
+import { api } from "../../shared/api";
 import { playBotResponseSound } from "../conversations/sound";
 import { isNotificationRedundant } from "./suppress";
 import { currentConversationView } from "./view";
@@ -30,7 +31,15 @@ export function handleAiCompletion(payload: AiCompletionPayload): void {
   if (isNotificationRedundant(
     { projectId, chatId: payload.chatId, botId: payload.botId },
     currentConversationView(),
-  )) return;
+  )) {
+    // The answer is already on screen here, so it was not shown. The server
+    // still stores it for the other devices: mark it read so this client does
+    // not resurrect it on the next hydration.
+    if (payload.notificationId) {
+      void api.markNotificationsRead({ ids: [payload.notificationId] }).catch(() => undefined);
+    }
+    return;
+  }
   const added = state.addNotification({
     kind: "ai",
     title: payload.botName?.trim() || payload.title?.trim() || "Resposta da IA",

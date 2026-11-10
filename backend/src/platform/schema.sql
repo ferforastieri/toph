@@ -93,3 +93,23 @@ CREATE TABLE IF NOT EXISTS push_tokens (
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS notifications (
+    id TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    kind TEXT NOT NULL DEFAULT 'ai',
+    title TEXT NOT NULL,
+    body TEXT NOT NULL,
+    project_id TEXT,
+    project_name TEXT,
+    chat_id TEXT,
+    session_id TEXT,
+    bot_id TEXT,
+    bot_name TEXT,
+    bot_role TEXT,
+    notification_id TEXT,
+    created_at INTEGER NOT NULL,
+    is_read INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_notifications_user
+    ON notifications(user_id, created_at DESC);

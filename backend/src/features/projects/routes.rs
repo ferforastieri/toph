@@ -1,6 +1,56 @@
 use super::*;
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct OpenProjectsRequest {
+    #[serde(default)]
+    open_project_ids: Vec<String>,
+}
+
+const MAX_OPEN_PROJECTS: usize = 5;
+
+pub(super) async fn get_open_projects(
+    State(state): State<Arc<AppState>>,
+    Extension(context): Extension<AuthContext>,
+) -> AppResult<Json<Value>> {
+    let key = format!("open_projects:{}", context.user.id);
+    let raw = state.store.setting(&key).await.unwrap_or_default();
+    let saved: Vec<String> = serde_json::from_str(&raw).unwrap_or_default();
+    let projects = state.store.list_projects().await?;
+    let open: Vec<String> = saved
+        .into_iter()
+        .filter(|id| projects.iter().any(|project| project.id == *id))
+        .take(MAX_OPEN_PROJECTS)
+        .collect();
+    Ok(Json(json!({ "openProjectIds": open })))
+}
+
+pub(super) async fn save_open_projects(
+    State(state): State<Arc<AppState>>,
+    Extension(context): Extension<AuthContext>,
+    Json(input): Json<OpenProjectsRequest>,
+) -> AppResult<Json<Value>> {
+    let projects = state.store.list_projects().await?;
+    let mut open: Vec<String> = Vec::new();
+    for id in input.open_project_ids {
+        let id = id.trim().to_string();
+        if !id.is_empty() && !open.contains(&id) && projects.iter().any(|project| project.id == id)
+        {
+            open.push(id);
+        }
+        if open.len() >= MAX_OPEN_PROJECTS {
+            break;
+        }
+    }
+    let key = format!("open_projects:{}", context.user.id);
+    state
+        .store
+        .set_setting(&key, &serde_json::to_string(&open)?)
+        .await?;
+    Ok(Json(json!({ "openProjectIds": open })))
+}
+
+#[derive(Deserialize)]
 pub(super) struct ProjectRequest {
     name: String,
     root: String,

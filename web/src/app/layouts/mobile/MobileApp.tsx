@@ -395,7 +395,6 @@ export default function MobileApp() {
             project={project}
             user={user}
             unreadCount={unreadCount}
-            tabCount={tabs.length}
             activeTitle={activeTab?.title}
             onScreen={selectScreen}
             onTophs={openConversations}
@@ -437,7 +436,6 @@ export default function MobileApp() {
 
       <MobileBottomNav
         screen={screen}
-        tabCount={tabs.length}
         unreadCount={unreadCount}
         onSelect={selectScreen}
       />

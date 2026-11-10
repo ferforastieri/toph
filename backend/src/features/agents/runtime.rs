@@ -45,6 +45,7 @@ struct PeerReply {
 
 #[derive(Clone, Debug)]
 pub struct CompletionNotice {
+    pub user_id: i64,
     pub project_id: String,
     pub chat_id: String,
     pub session_id: String,
@@ -1164,6 +1165,7 @@ Se a mensagem depender de uma ferramenta ou MCP, prefira quem tem acesso a ele; 
         if state == "completed" && ctx.depth == 0 && !answer.is_empty() {
             if let Some(handler) = self.inner.on_complete.read().unwrap().as_ref() {
                 handler(CompletionNotice {
+                    user_id: ctx.user_id,
                     project_id: ctx.project_id.clone(),
                     chat_id: ctx.run.chat_id.clone(),
                     session_id: ctx.run.session_id.clone(),

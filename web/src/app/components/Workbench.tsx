@@ -111,6 +111,7 @@ export default function Workbench() {
   const projects = useApp((state) => state.projects);
   const user = useApp((state) => state.user);
   const activeProjectId = useApp((state) => state.activeProjectId);
+  const openProjectIds = useApp((state) => state.openProjectIds);
   const setProjects = useApp((state) => state.setProjects);
   const setActiveProject = useApp((state) => state.setActiveProject);
   const closeProjectTab = useApp((state) => state.closeProjectTab);
@@ -324,6 +325,76 @@ export default function Workbench() {
   }, [setSidebar, setTerminalOpen, terminalEnabled]);
 
   useProjectStream(projectEventsEnabled);
+
+  // The open project list is shared across devices: pull it once, then push
+  // every change. Notifications come from the same server store.
+  const openProjectsReady = useRef(false);
+  const syncedOpenProjects = useRef("");
+  useEffect(() => {
+    let cancelled = false;
+    const pull = async () => {
+      try {
+        const ids = await api.openProjects();
+        if (cancelled) return;
+        if (ids.length > 0) {
+          syncedOpenProjects.current = ids.join("|");
+          useApp.getState().setOpenProjectIds(ids);
+        } else {
+          // Nothing saved yet (first device on this account): publish the list
+          // this client already had so the others pick it up.
+          const local = useApp.getState().openProjectIds;
+          if (local.length > 0) {
+            syncedOpenProjects.current = local.join("|");
+            await api.saveOpenProjects(local);
+          }
+        }
+      } catch {
+        // Offline: keep the local list and try again on the next change.
+      } finally {
+        if (!cancelled) openProjectsReady.current = true;
+      }
+    };
+    const pullNotifications = () => {
+      void api.notifications()
+        .then((items) => { if (!cancelled) useApp.getState().hydrateNotifications(items); })
+        .catch(() => undefined);
+    };
+    void pull();
+    pullNotifications();
+
+    // Coming back to this device must show what happened on the other ones.
+    const resync = () => {
+      if (document.visibilityState === "hidden") return;
+      pullNotifications();
+      if (!openProjectsReady.current) return;
+      const current = useApp.getState().openProjectIds.join("|");
+      if (current === syncedOpenProjects.current) {
+        void pull();
+      } else {
+        // A local change is still on its way to the server; do not clobber it.
+        syncedOpenProjects.current = current;
+        void api.saveOpenProjects(useApp.getState().openProjectIds).catch(() => undefined);
+      }
+    };
+    document.addEventListener("visibilitychange", resync);
+    window.addEventListener("focus", resync);
+    return () => {
+      cancelled = true;
+      document.removeEventListener("visibilitychange", resync);
+      window.removeEventListener("focus", resync);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!openProjectsReady.current) return;
+    const snapshot = openProjectIds.join("|");
+    const timer = window.setTimeout(() => {
+      void api.saveOpenProjects(openProjectIds)
+        .then(() => { syncedOpenProjects.current = snapshot; })
+        .catch(() => undefined);
+    }, 400);
+    return () => window.clearTimeout(timer);
+  }, [openProjectIds]);
 
   // Old sessions only know their Toph names; read their first message once so
   // the tab labels can show what each conversation is about.

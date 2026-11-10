@@ -34,7 +34,6 @@ interface Props {
   project: Project;
   user: User | null;
   unreadCount: number;
-  tabCount: number;
   activeTitle?: string;
   onScreen: (screen: MobileScreen) => void;
   onTophs: () => void;
@@ -101,7 +100,6 @@ export default function MobileMoreScreen({
   project,
   user,
   unreadCount,
-  tabCount,
   activeTitle,
   onScreen,
   onTophs,
@@ -127,7 +125,7 @@ export default function MobileMoreScreen({
     { id: "debug", label: "Debug", description: "Breakpoints e console", icon: Bug, onSelect: () => onScreen("debug") },
     { id: "terminal", label: "Terminal", description: "Shell do projeto", icon: TerminalSquare, onSelect: onTerminal },
     { id: "search", label: "Busca global", description: "Tophs, tarefas e arquivos", icon: Search, onSelect: () => window.dispatchEvent(new CustomEvent("toph:global-search")) },
-    { id: "workspace", label: "Trabalho", description: activeTitle ? `Aba: ${activeTitle}` : "Editor e abas", icon: Boxes, onSelect: () => onScreen("workspace"), badge: tabCount },
+    { id: "workspace", label: "Trabalho", description: activeTitle ? `Aba: ${activeTitle}` : "Editor e abas", icon: Boxes, onSelect: () => onScreen("workspace") },
   ];
 
   const tophActions: Action[] = [

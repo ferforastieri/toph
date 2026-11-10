@@ -5,7 +5,6 @@ import type { MobileScreen } from "./mobile-nav";
 
 interface Props {
   screen: MobileScreen;
-  tabCount: number;
   unreadCount: number;
   onSelect: (screen: MobileScreen) => void;
 }
@@ -20,7 +19,7 @@ const tabs: Array<{ id: MobileScreen; label: string; icon: ComponentType<{ class
 
 const moreScreens: MobileScreen[] = ["db", "web", "debug", "more"];
 
-export default function MobileBottomNav({ screen, tabCount, unreadCount, onSelect }: Props) {
+export default function MobileBottomNav({ screen, unreadCount, onSelect }: Props) {
   return (
     <nav
       aria-label="Navegação principal"
@@ -30,7 +29,7 @@ export default function MobileBottomNav({ screen, tabCount, unreadCount, onSelec
         {tabs.map((item) => {
           const Icon = item.icon;
           const active = screen === item.id || (item.id === "more" && moreScreens.includes(screen));
-          const badge = item.id === "workspace" ? tabCount : item.id === "more" ? unreadCount : 0;
+          const badge = item.id === "more" ? unreadCount : 0;
           return (
             <button
               key={item.id}
@@ -50,10 +49,7 @@ export default function MobileBottomNav({ screen, tabCount, unreadCount, onSelec
               >
                 <Icon className="size-[19px]" />
                 {badge > 0 ? (
-                  <span className={cx(
-                    "absolute -end-0.5 -top-0.5 flex min-w-[15px] items-center justify-center rounded-full px-1 text-[9px] font-semibold leading-[15px]",
-                    item.id === "more" ? "bg-status-rose-text text-white" : "bg-accent-500 text-[#1b1b1b]",
-                  )}>
+                  <span className="absolute -end-0.5 -top-0.5 flex min-w-[13px] items-center justify-center rounded-full bg-status-rose-text px-0.5 text-[8px] font-semibold leading-[13px] text-white">
                     {badge > 9 ? "9+" : badge}
                   </span>
                 ) : null}

@@ -1,8 +1,6 @@
 import type { ComponentType } from "react";
 import { Users, X } from "@toph/icons";
 import type { Project } from "../../../../shared/api";
-import NotificationBadge from "../../../../features/notifications/components/NotificationBadge";
-import ProjectMonogram from "../../../../features/projects/components/ProjectMonogram";
 import BrandMark from "@toph/brand";
 import { cx } from "@/shared/boardui/utils/cx";
 
@@ -66,12 +64,18 @@ export default function MobileTopBar({
             type="button"
             onClick={onProjects}
             aria-label={`Projeto ${project.name}. Selecionar projeto${unreadCount > 0 ? `, ${unreadCount} notificações não lidas` : ""}`}
-            title={project.name}
-            className="relative flex size-9 shrink-0 items-center justify-center rounded-full border border-border-button-default bg-background-primary-default transition-[border-color,background-color,transform] duration-300 hover:border-border-button-hover hover:bg-background-primary-hover active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus-ring"
+            title={`${project.name}\n${project.root}`}
+            className="relative flex h-9 max-w-[128px] shrink-0 items-center gap-1.5 rounded-full border border-border-button-default bg-background-primary-default px-2.5 transition-[border-color,background-color,transform] duration-300 hover:border-border-button-hover hover:bg-background-primary-hover active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus-ring min-[420px]:max-w-[168px]"
           >
-            <ProjectMonogram project={project} size={26} />
+            <span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: project.color || "#FFB547" }} aria-hidden="true" />
+            <span className="min-w-0 truncate text-caption-2-semibold text-text-secondary">{project.name}</span>
             {unreadCount > 0 ? (
-              <NotificationBadge count={unreadCount} size={16} tone="light" className="absolute -top-1 -end-1 z-10" />
+              <span
+                className="absolute -end-1 -top-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-status-rose-text px-0.5 text-[8px] font-semibold leading-none text-white ring-2 ring-background-secondary-default"
+                aria-hidden="true"
+              >
+                {unreadCount > 9 ? "9+" : unreadCount}
+              </span>
             ) : null}
           </button>
           {onClose ? (

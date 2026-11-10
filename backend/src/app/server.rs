@@ -416,6 +416,25 @@ impl AppState {
             session_id: Some(notice.session_id.clone()),
             tab_id: Some(tab_id.clone()),
         };
+        let stored = crate::features::notifications::repository::StoredNotification {
+            id: notification_id.clone(),
+            kind: "ai".into(),
+            title: event.title.clone(),
+            body: event.body.clone(),
+            project_id: Some(notice.project_id.clone()),
+            project_name: (!project_name.is_empty()).then(|| project_name.clone()),
+            chat_id: Some(notice.chat_id.clone()),
+            session_id: Some(notice.session_id.clone()),
+            bot_id: Some(notice.agent_id.clone()),
+            bot_name: Some(notice.agent_name.clone()),
+            bot_role: (!notice.agent_role.is_empty()).then(|| notice.agent_role.clone()),
+            notification_id: Some(notification_id.clone()),
+            created_at: event.created_at,
+            is_read: false,
+        };
+        if let Err(error) = self.store.save_notification(notice.user_id, &stored).await {
+            tracing::warn!(%error, "could not persist notification");
+        }
         let _ = self.notifications.send(event);
         if self.push.enabled() {
             let message = PushMessage {
@@ -603,11 +622,20 @@ fn router(state: Arc<AppState>) -> Router {
         .route("/api/auth/logout", post(logout))
         .route("/api/update", get(update_status).post(start_update))
         .route("/api/push/tokens", post(register_push_token))
+        .route(
+            "/api/notifications",
+            get(list_notifications).delete(clear_notifications),
+        )
+        .route("/api/notifications/read", post(mark_notifications_read))
         .route("/api/notifications/bot", post(notify_bot))
         .route("/api/pet", get(get_pet).put(save_pet))
         .route("/api/notifications/stream", get(notification_stream))
         .route("/api/events/ws", get(events_ws))
         .route("/api/projects", get(list_projects).post(create_project))
+        .route(
+            "/api/open-projects",
+            get(get_open_projects).put(save_open_projects),
+        )
         .route(
             "/api/projects/{project_id}",
             get(get_project).put(update_project).delete(delete_project),
@@ -1223,6 +1251,7 @@ mod lifecycle_tests {
 
         state
             .emit_agent_completion(CompletionNotice {
+                user_id: 1,
                 project_id: project.id.clone(),
                 chat_id: "chat-1".into(),
                 session_id: "session-1".into(),

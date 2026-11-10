@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import type { Project, User } from "../shared/api";
 import { isDesktopClient } from "../features/settings/store";
+import { api } from "../shared/api";
 
 export type TabKind = "editor" | "db" | "ai" | "web" | "diff";
 export type Sidebar = "files" | "scm" | "db" | "ai" | "web" | "bots" | "debug" | "settings";
@@ -180,6 +181,8 @@ interface AppState {
   setAuthReady: (ready: boolean) => void;
   setProjects: (projects: Project[]) => void;
   setActiveProject: (id: string | null) => void;
+  /** Adopt the server's open project list (shared across devices). */
+  setOpenProjectIds: (ids: string[]) => void;
   closeProjectTab: (id: string) => void;
   openTab: (tab: Tab) => void;
   closeTab: (id: string) => void;
@@ -202,6 +205,8 @@ interface AppState {
   notify: (kind: Toast["kind"], message: string) => void;
   dismissToast: (id: number) => void;
   addNotification: (notification: NewNotification) => boolean;
+  /** Merge the notifications persisted on the server. */
+  hydrateNotifications: (items: AppNotification[]) => void;
   markNotificationRead: (id: string) => void;
   markProjectNotificationsRead: (projectId: string) => void;
   markChatNotificationsRead: (chatId: string) => void;
@@ -255,6 +260,22 @@ export const useApp = create<AppState>((set, get) => ({
       if (activeProjectId && !openProjectIds.includes(activeProjectId)) {
         return state;
       }
+      persistProjectState(activeProjectId, openProjectIds);
+      return { activeProjectId, openProjectIds };
+    }),
+  setOpenProjectIds: (ids) =>
+    set((state) => {
+      // The server already validates the ids; do not filter against the local
+      // project list because it may not be loaded yet on a fresh device.
+      const openProjectIds = [...new Set(ids)]
+        .filter((id): id is string => typeof id === "string" && id.trim().length > 0)
+        .slice(0, MAX_OPEN_PROJECTS);
+      const activeProjectId =
+        openProjectIds.length === 0
+          ? null
+          : state.activeProjectId && openProjectIds.includes(state.activeProjectId)
+            ? state.activeProjectId
+            : openProjectIds[0];
       persistProjectState(activeProjectId, openProjectIds);
       return { activeProjectId, openProjectIds };
     }),
@@ -394,6 +415,37 @@ export const useApp = create<AppState>((set, get) => ({
   },
   dismissToast: (id) =>
     set((state) => ({ toasts: state.toasts.filter((toast) => toast.id !== id) })),
+  hydrateNotifications: (items) =>
+    set((state) => {
+      // The server list is authoritative (it is what every other device sees),
+      // so notifications removed elsewhere disappear here too. Only entries that
+      // were never persisted are kept, and only while they are still fresh.
+      const previous = new Map<string, AppNotification>();
+      for (const item of state.notifications) {
+        if (item.notificationId) previous.set(item.notificationId, item);
+      }
+      const merged = items.map((item) => {
+        const local = item.notificationId ? previous.get(item.notificationId) : undefined;
+        return local
+          ? { ...item, id: local.id, read: local.read || item.read }
+          : item;
+      });
+      const pending = state.notifications.filter(
+        (item) => !item.notificationId && Date.now() - item.createdAt < 60_000,
+      );
+      const seen = new Set<string>();
+      const next = [...merged, ...pending]
+        .filter((item) => {
+          const key = item.notificationId || item.id;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        })
+        .sort((a, b) => b.createdAt - a.createdAt)
+        .slice(0, MAX_NOTIFICATIONS);
+      persistNotifications(next);
+      return { notifications: next };
+    }),
   addNotification: (notification) => {
     const state = get();
     const duplicate = notification.notificationId
@@ -419,15 +471,20 @@ export const useApp = create<AppState>((set, get) => ({
     set({ notifications: next });
     return true;
   },
-  markNotificationRead: (id) =>
+  markNotificationRead: (id) => {
+    const target = get().notifications.find((notification) => notification.id === id);
+    const serverId = target?.notificationId || target?.id || id;
+    void api.markNotificationsRead({ ids: [serverId] }).catch(() => undefined);
     set((state) => {
       const next = state.notifications.map((notification) =>
         notification.id === id ? { ...notification, read: true } : notification,
       );
       persistNotifications(next);
       return { notifications: next };
-    }),
-  markProjectNotificationsRead: (projectId) =>
+    });
+  },
+  markProjectNotificationsRead: (projectId) => {
+    void api.markNotificationsRead({ projectId }).catch(() => undefined);
     set((state) => {
       let changed = false;
       const next = state.notifications.map((notification) => {
@@ -440,8 +497,10 @@ export const useApp = create<AppState>((set, get) => ({
       if (!changed) return state;
       persistNotifications(next);
       return { notifications: next };
-    }),
-  markChatNotificationsRead: (chatId) =>
+    });
+  },
+  markChatNotificationsRead: (chatId) => {
+    void api.markNotificationsRead({ chatId }).catch(() => undefined);
     set((state) => {
       let changed = false;
       const next = state.notifications.map((notification) => {
@@ -454,16 +513,21 @@ export const useApp = create<AppState>((set, get) => ({
       if (!changed) return state;
       persistNotifications(next);
       return { notifications: next };
-    }),
-  markAllNotificationsRead: () =>
+    });
+  },
+  markAllNotificationsRead: () => {
+    void api.markNotificationsRead({ all: true }).catch(() => undefined);
     set((state) => {
       const next = state.notifications.map((notification) => ({ ...notification, read: true }));
       persistNotifications(next);
       return { notifications: next };
-    }),
-  clearNotifications: () =>
+    });
+  },
+  clearNotifications: () => {
+    void api.clearNotifications().catch(() => undefined);
     set(() => {
       persistNotifications([]);
       return { notifications: [] };
-    }),
+    });
+  },
 }));

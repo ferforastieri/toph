@@ -1,4 +1,62 @@
 use super::*;
+use crate::features::notifications::repository::StoredNotification;
+
+pub(super) async fn list_notifications(
+    State(state): State<Arc<AppState>>,
+    Extension(context): Extension<AuthContext>,
+) -> AppResult<Json<Vec<StoredNotification>>> {
+    Ok(Json(
+        state.store.list_notifications(context.user.id, 200).await?,
+    ))
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(super) struct MarkNotificationsRequest {
+    #[serde(default)]
+    ids: Vec<String>,
+    #[serde(default)]
+    chat_id: String,
+    #[serde(default)]
+    project_id: String,
+    #[serde(default)]
+    all: bool,
+}
+
+pub(super) async fn mark_notifications_read(
+    State(state): State<Arc<AppState>>,
+    Extension(context): Extension<AuthContext>,
+    Json(input): Json<MarkNotificationsRequest>,
+) -> AppResult<Json<Value>> {
+    let user = context.user.id;
+    if input.all {
+        state.store.mark_all_notifications_read(user).await?;
+    } else if !input.chat_id.trim().is_empty() {
+        state
+            .store
+            .mark_chat_notifications_read(user, input.chat_id.trim())
+            .await?;
+    } else if !input.project_id.trim().is_empty() {
+        state
+            .store
+            .mark_project_notifications_read(user, input.project_id.trim())
+            .await?;
+    } else if !input.ids.is_empty() {
+        state
+            .store
+            .mark_notifications_read(user, &input.ids)
+            .await?;
+    }
+    Ok(Json(json!({ "ok": true })))
+}
+
+pub(super) async fn clear_notifications(
+    State(state): State<Arc<AppState>>,
+    Extension(context): Extension<AuthContext>,
+) -> AppResult<Json<Value>> {
+    state.store.clear_notifications(context.user.id).await?;
+    Ok(Json(json!({ "ok": true })))
+}
 
 #[derive(Deserialize)]
 pub(super) struct PushTokenRequest {
@@ -50,7 +108,7 @@ pub(super) struct BotNotificationRequest {
 
 pub(super) async fn notify_bot(
     State(state): State<Arc<AppState>>,
-    Extension(_context): Extension<AuthContext>,
+    Extension(context): Extension<AuthContext>,
     Json(input): Json<BotNotificationRequest>,
 ) -> AppResult<Json<Value>> {
     let project_id = input.project_id.trim();
@@ -96,11 +154,12 @@ pub(super) async fn notify_bot(
         input.tab_id.trim().to_string()
     };
 
+    let created_at = chrono::Utc::now().timestamp_millis();
     let event = NotificationEvent {
         event_type: "ai.done".into(),
         title: display_title.clone(),
         body: body.clone(),
-        created_at: chrono::Utc::now().timestamp_millis(),
+        created_at,
         notification_id: Some(notification_id.clone()),
         project_id: Some(project_id.to_string()),
         project_name: Some(project.name.clone()),
@@ -111,6 +170,29 @@ pub(super) async fn notify_bot(
         session_id: (!session_id.is_empty()).then(|| session_id.to_string()),
         tab_id: Some(tab_id.clone()),
     };
+    let stored = StoredNotification {
+        id: notification_id.clone(),
+        kind: "ai".into(),
+        title: display_title.clone(),
+        body: body.clone(),
+        project_id: Some(project_id.to_string()),
+        project_name: Some(project.name.clone()),
+        chat_id: (!chat_id.is_empty()).then(|| chat_id.to_string()),
+        session_id: (!session_id.is_empty()).then(|| session_id.to_string()),
+        bot_id: Some(bot_id.to_string()),
+        bot_name: Some(title.clone()),
+        bot_role: (!bot_role.is_empty()).then(|| bot_role.to_string()),
+        notification_id: Some(notification_id.clone()),
+        created_at,
+        is_read: false,
+    };
+    if let Err(error) = state
+        .store
+        .save_notification(context.user.id, &stored)
+        .await
+    {
+        tracing::warn!(%error, "could not persist notification");
+    }
     let _ = state.notifications.send(event);
 
     if state.push.enabled() {

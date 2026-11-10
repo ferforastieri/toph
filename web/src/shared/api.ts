@@ -509,6 +509,43 @@ export const api = {
     return request("/update");
   },
 
+  /** Notifications persisted on the server, shared by every client. */
+  async notifications(): Promise<Array<{
+    id: string;
+    kind: "ai" | "system";
+    title: string;
+    body: string;
+    createdAt: number;
+    read: boolean;
+    projectId?: string;
+    projectName?: string;
+    chatId?: string;
+    sessionId?: string;
+    notificationId?: string;
+    botId?: string;
+    botName?: string;
+    botRole?: string;
+  }>> {
+    return request("/notifications");
+  },
+
+  async markNotificationsRead(input: { ids?: string[]; chatId?: string; projectId?: string; all?: boolean }): Promise<void> {
+    await request("/notifications/read", { method: "POST", ...json(input) });
+  },
+
+  async clearNotifications(): Promise<void> {
+    await request("/notifications", { method: "DELETE" });
+  },
+
+  async openProjects(): Promise<string[]> {
+    const result = await request<{ openProjectIds: string[] }>("/open-projects");
+    return result.openProjectIds;
+  },
+
+  async saveOpenProjects(openProjectIds: string[]): Promise<void> {
+    await request("/open-projects", { method: "PUT", ...json({ openProjectIds }) });
+  },
+
   async startUpdate(): Promise<UpdateStart> {
     return request("/update", { method: "POST", ...json({}) });
   },
