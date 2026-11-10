@@ -509,10 +509,19 @@ function TerminalView({ session, theme, clearNonce, focusNonce, mobile, onOutput
   openFileCallback.current = onOpenFile;
 
   useEffect(() => {
-    if (!hostRef.current) return;
+    const host = hostRef.current;
+    if (!host) return;
     let disposed = false;
     let socket: WebSocket | null = null;
     let resizeObserver: ResizeObserver | null = null;
+    let fitFrame = 0;
+    let reconnectTimer = 0;
+    let heartbeatTimer = 0;
+    let probeTimer = 0;
+    let attempts = 0;
+    let openedAt = 0;
+    let lastSeen = 0;
+    let sawPong = false;
     const term = new Terminal({
       convertEol: true,
       cursorBlink: true,
@@ -537,7 +546,7 @@ function TerminalView({ session, theme, clearNonce, focusNonce, mobile, onOutput
     });
     const fit = new FitAddon();
     term.loadAddon(fit);
-    term.open(hostRef.current);
+    term.open(host);
     termRef.current = term;
     const linkDisposable = term.registerLinkProvider({
       provideLinks: (lineNumber, callback) => {
@@ -586,24 +595,141 @@ function TerminalView({ session, theme, clearNonce, focusNonce, mobile, onOutput
         callback(links.length > 0 ? links : undefined);
       },
     });
-    fit.fit();
-    if (!mobile) term.focus();
-    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    socket = new WebSocket(`${protocol}//${window.location.host}/api/terminals/${encodeURIComponent(session.id)}/ws`);
-    socket.binaryType = "arraybuffer";
-    socket.onopen = () => { if (!disposed) { fit.fit(); socket?.send(JSON.stringify({ type: "resize", cols: term.cols, rows: term.rows })); } };
-    socket.onmessage = (event) => {
-      if (typeof event.data === "string") { term.write(event.data); outputCallback.current(event.data); }
-      else { const bytes = new Uint8Array(event.data); term.write(bytes); outputCallback.current(new TextDecoder().decode(bytes)); }
+    const repaint = () => { if (!disposed) term.refresh(0, Math.max(0, term.rows - 1)); };
+    // Fitting while the panel is hidden or mid-animation resizes the PTY to a
+    // tiny grid, which leaves the buffer full of wrapped fragments ("pixelado").
+    const fitNow = () => {
+      if (disposed) return;
+      const rect = host.getBoundingClientRect();
+      if (rect.width < 40 || rect.height < 40) return;
+      fit.fit();
     };
-    socket.onclose = () => { if (!disposed) undefined; };
-    socket.onerror = () => { if (!disposed) undefined; };
+    const scheduleFit = (after?: () => void) => {
+      if (disposed) return;
+      if (fitFrame) cancelAnimationFrame(fitFrame);
+      fitFrame = requestAnimationFrame(() => {
+        fitFrame = 0;
+        fitNow();
+        after?.();
+      });
+    };
+    const sendResize = (target: WebSocket) => {
+      if (target.readyState !== WebSocket.OPEN) return;
+      try { target.send(JSON.stringify({ type: "resize", cols: term.cols, rows: term.rows })); } catch { /* socket already closing */ }
+    };
+    const isControl = (data: string) => {
+      if (!data.startsWith("{")) return false;
+      try {
+        if ((JSON.parse(data) as { type?: string } | null)?.type === "pong") {
+          sawPong = true;
+          return true;
+        }
+        return false;
+      } catch { return false; }
+    };
+    const connect = () => {
+      if (disposed) return;
+      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+      const ws = new WebSocket(`${protocol}//${window.location.host}/api/terminals/${encodeURIComponent(session.id)}/ws`);
+      socket = ws;
+      ws.binaryType = "arraybuffer";
+      ws.onopen = () => {
+        if (disposed) { ws.close(); return; }
+        openedAt = Date.now();
+        lastSeen = Date.now();
+        // The server replays its output ring on every connection, so drop the
+        // stale local state first to avoid duplicated or ghost lines.
+        term.reset();
+        scheduleFit(() => { sendResize(ws); term.scrollToBottom(); });
+      };
+      ws.onmessage = (event) => {
+        lastSeen = Date.now();
+        if (typeof event.data === "string") {
+          if (isControl(event.data)) return;
+          term.write(event.data);
+          outputCallback.current(event.data);
+        } else {
+          const bytes = new Uint8Array(event.data);
+          term.write(bytes);
+          outputCallback.current(new TextDecoder().decode(bytes));
+        }
+      };
+      ws.onclose = () => {
+        if (socket === ws) socket = null;
+        if (disposed) return;
+        // A connection that survived a few seconds is considered healthy, so a
+        // later drop reconnects quickly instead of escalating the backoff.
+        attempts = openedAt > 0 && Date.now() - openedAt < 3_000 ? attempts + 1 : 0;
+        openedAt = 0;
+        if (attempts > 5) {
+          term.write("\r\n\x1b[2m[conexão com o terminal caiu. Use \"Reconectar terminal\".]\x1b[0m\r\n");
+          return;
+        }
+        const delay = Math.min(15_000, 500 * 2 ** attempts);
+        window.clearTimeout(reconnectTimer);
+        reconnectTimer = window.setTimeout(connect, delay);
+      };
+      ws.onerror = () => { try { ws.close(); } catch { /* already closed */ } };
+    };
+    scheduleFit();
+    if (!mobile) term.focus();
+    connect();
     const encoder = new TextEncoder();
     term.onData((data) => { if (socket?.readyState === WebSocket.OPEN) socket.send(encoder.encode(data)); });
     term.onResize(({ cols, rows }) => { if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: "resize", cols, rows })); });
-    resizeObserver = new ResizeObserver(() => fit.fit());
-    resizeObserver.observe(hostRef.current);
-    return () => { disposed = true; linkDisposable.dispose(); resizeObserver?.disconnect(); socket?.close(); term.dispose(); termRef.current = null; };
+    heartbeatTimer = window.setInterval(() => {
+      const ws = socket;
+      if (!ws || ws.readyState !== WebSocket.OPEN) return;
+      // A half-open socket (backgrounded tab, network switch) never fires
+      // "close"; probe it and force a reconnect when the server stops replying.
+      if (document.visibilityState === "visible" && sawPong && lastSeen > 0 && Date.now() - lastSeen > 45_000) {
+        try { ws.close(); } catch { /* ignore */ }
+        return;
+      }
+      try { ws.send(JSON.stringify({ type: "ping" })); } catch { /* ignore */ }
+    }, 15_000);
+    const onVisible = () => {
+      if (document.visibilityState !== "visible") return;
+      scheduleFit(repaint);
+      const ws = socket;
+      if (!ws) {
+        // A reconnect scheduled while the tab was hidden was throttled; run it now.
+        if (reconnectTimer) { window.clearTimeout(reconnectTimer); reconnectTimer = 0; connect(); }
+        return;
+      }
+      if (ws.readyState !== WebSocket.OPEN) return;
+      sendResize(ws);
+      try { ws.send(JSON.stringify({ type: "ping" })); } catch { /* ignore */ }
+      window.clearTimeout(probeTimer);
+      probeTimer = window.setTimeout(() => {
+        if (!disposed && sawPong && Date.now() - lastSeen > 5_000) { try { ws.close(); } catch { /* ignore */ } }
+      }, 6_000);
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onVisible);
+    window.addEventListener("pageshow", onVisible);
+    resizeObserver = new ResizeObserver(() => scheduleFit());
+    resizeObserver.observe(host);
+    // If the terminal was created before the webfont finished loading, the
+    // cached cell metrics stay wrong and text renders blurred/blocky.
+    if (typeof document.fonts?.ready?.then === "function") {
+      void document.fonts.ready.then(() => scheduleFit(repaint)).catch(() => undefined);
+    }
+    return () => {
+      disposed = true;
+      linkDisposable.dispose();
+      resizeObserver?.disconnect();
+      if (fitFrame) cancelAnimationFrame(fitFrame);
+      window.clearTimeout(reconnectTimer);
+      window.clearTimeout(probeTimer);
+      window.clearInterval(heartbeatTimer);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onVisible);
+      window.removeEventListener("pageshow", onVisible);
+      socket?.close();
+      term.dispose();
+      termRef.current = null;
+    };
   }, [session.id, theme]);
 
   useEffect(() => {

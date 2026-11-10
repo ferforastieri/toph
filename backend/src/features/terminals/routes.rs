@@ -97,19 +97,32 @@ pub(super) async fn terminal_socket(
         return;
     }
     let mut heartbeat = tokio::time::interval(Duration::from_secs(2));
+    let mut last_client = tokio::time::Instant::now();
     loop {
         tokio::select! {
             incoming = socket.recv() => {
+                last_client = tokio::time::Instant::now();
                 match incoming {
                     Some(Ok(Message::Binary(data))) => {
                         if session.write(&data).is_err() { break; }
                     }
                     Some(Ok(Message::Text(text))) => {
                         if let Ok(value) = serde_json::from_str::<Value>(&text) {
-                            if value.get("type").and_then(Value::as_str) == Some("resize") {
-                                let cols = value.get("cols").and_then(Value::as_u64).unwrap_or(0) as u16;
-                                let rows = value.get("rows").and_then(Value::as_u64).unwrap_or(0) as u16;
-                                let _ = session.resize(cols, rows);
+                            match value.get("type").and_then(Value::as_str) {
+                                Some("resize") => {
+                                    let cols = value.get("cols").and_then(Value::as_u64).unwrap_or(0) as u16;
+                                    let rows = value.get("rows").and_then(Value::as_u64).unwrap_or(0) as u16;
+                                    let _ = session.resize(cols, rows);
+                                }
+                                // Liveness probe from the browser: a socket that
+                                // goes silent (backgrounded tab, network switch)
+                                // is detected client-side once pongs stop.
+                                Some("ping") => {
+                                    if socket.send(Message::Text(r#"{"type":"pong"}"#.into())).await.is_err() {
+                                        break;
+                                    }
+                                }
+                                _ => {}
                             }
                         }
                     }
@@ -128,7 +141,11 @@ pub(super) async fn terminal_socket(
                 }
             }
             _ = heartbeat.tick() => {
-                if closed.load(std::sync::atomic::Ordering::SeqCst) { break; }
+                if closed.load(std::sync::atomic::Ordering::SeqCst)
+                    || last_client.elapsed() > Duration::from_secs(90)
+                {
+                    break;
+                }
             }
         }
     }
