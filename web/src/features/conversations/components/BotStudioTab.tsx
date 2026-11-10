@@ -146,7 +146,6 @@ export default function BotStudioTab({ project, conversationId, mobile = false, 
       await native.refresh(true);
       return;
     }
-    if (value.trim() === "/compact") { native.setError("O contexto é compactado automaticamente conforme o orçamento de tokens. O histórico completo permanece salvo."); return; }
     // The backend router chooses who answers; an @handle in the text wins.
     sendLock.current = true; setSending(true); native.setError(""); follow.current = true;
     const subject = sessionSubject(value);
