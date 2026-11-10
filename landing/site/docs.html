@@ -7,8 +7,8 @@
 <meta name="description" content="Documentação do Toph: instalação, configuração, Tophs individuais e em grupo, motores, MCP, skills, aprovações, workbench, Git, bancos, debug, anexos e instruções para agentes de IA.">
 <meta property="og:title" content="Toph Docs · Instalação, Tophs e workbench">
 <meta property="og:description" content="Tudo o que o Toph faz e como usar, com um guia de instalação feito para agentes de IA.">
-<meta property="og:image" content="https://tophs.vira.ia.br/assets/brand/toph-og.png">
-<meta property="og:url" content="https://tophs.vira.ia.br/docs">
+<meta property="og:image" content="https://ferforastieri.github.io/toph/assets/brand/toph-og.png">
+<meta property="og:url" content="https://ferforastieri.github.io/toph/docs.html">
 <meta property="og:type" content="website">
 <meta name="theme-color" content="#050505">
 <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1">
@@ -19,12 +19,12 @@
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Toph Docs · Instalação, Tophs, workbench e agentes">
 <meta name="twitter:description" content="Tudo o que o Toph faz e como usar, com um guia de instalação feito para agentes de IA.">
-<meta name="twitter:image" content="https://tophs.vira.ia.br/assets/brand/toph-og.png">
+<meta name="twitter:image" content="https://ferforastieri.github.io/toph/assets/brand/toph-og.png">
 <meta name="twitter:image:alt" content="Toph Docs">
-<link rel="sitemap" type="application/xml" href="https://tophs.vira.ia.br/sitemap.xml">
-<link rel="canonical" href="https://tophs.vira.ia.br/docs">
-<link rel="alternate" type="text/markdown" href="https://tophs.vira.ia.br/docs.md" title="Toph docs in Markdown">
-<link rel="alternate" type="text/plain" href="https://tophs.vira.ia.br/llms.txt" title="Toph for AI agents">
+<link rel="sitemap" type="application/xml" href="https://ferforastieri.github.io/toph/sitemap.xml">
+<link rel="canonical" href="https://ferforastieri.github.io/toph/docs.html">
+<link rel="alternate" type="text/markdown" href="https://ferforastieri.github.io/toph/docs.md" title="Toph docs in Markdown">
+<link rel="alternate" type="text/plain" href="https://ferforastieri.github.io/toph/llms.txt" title="Toph for AI agents">
 <link rel="icon" type="image/png" href="assets/brand/favicon-32.png">
 <link rel="apple-touch-icon" href="assets/brand/favicon-180.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -158,34 +158,34 @@ footer.site-footer nav { display: flex; gap: 16px; flex-wrap: wrap; }
       "@type": "TechArticle",
       "headline": "Toph Docs · Instalação, Tophs, workbench e agentes",
       "description": "Documentação do Toph: instalação, configuração, Tophs individuais e em grupo, motores, MCP, skills, aprovações, workbench, Git, bancos, debug, anexos e instruções para agentes de IA.",
-      "url": "https://tophs.vira.ia.br/docs",
-      "mainEntityOfPage": "https://tophs.vira.ia.br/docs",
+      "url": "https://ferforastieri.github.io/toph/docs.html",
+      "mainEntityOfPage": "https://ferforastieri.github.io/toph/docs.html",
       "inLanguage": "pt-BR",
       "dateModified": "2026-11-09",
       "author": {
         "@type": "Organization",
         "name": "Toph",
-        "url": "https://tophs.vira.ia.br/"
+        "url": "https://ferforastieri.github.io/toph/"
       },
       "publisher": {
         "@type": "Organization",
         "name": "Toph",
-        "url": "https://tophs.vira.ia.br/",
-        "logo": "https://tophs.vira.ia.br/assets/brand/toph-mark.png"
+        "url": "https://ferforastieri.github.io/toph/",
+        "logo": "https://ferforastieri.github.io/toph/assets/brand/toph-mark.png"
       },
       "about": {
         "@type": "SoftwareApplication",
         "name": "Toph",
         "applicationCategory": "DeveloperApplication",
         "operatingSystem": "macOS, Linux, Windows",
-        "url": "https://tophs.vira.ia.br/"
+        "url": "https://ferforastieri.github.io/toph/"
       }
     },
     {
       "@type": "BreadcrumbList",
       "itemListElement": [
-        { "@type": "ListItem", "position": 1, "name": "Toph", "item": "https://tophs.vira.ia.br/" },
-        { "@type": "ListItem", "position": 2, "name": "Docs", "item": "https://tophs.vira.ia.br/docs" }
+        { "@type": "ListItem", "position": 1, "name": "Toph", "item": "https://ferforastieri.github.io/toph/" },
+        { "@type": "ListItem", "position": 2, "name": "Docs", "item": "https://ferforastieri.github.io/toph/docs.html" }
       ]
     }
   ]
@@ -458,7 +458,7 @@ TOPH_TRUSTED_PROXIES=        <span class="comment"># IP do proxy, se houver</spa
         <li>Os dados ficam em <code>TOPH_DATA_DIR/toph.db</code>; a chave mestra em <code>TOPH_DATA_DIR/master.key</code>. Faça backup dos dois juntos.</li>
       </ul>
       <h3>Prompt pronto para uma IA</h3>
-      <div class="copy-wrap"><button class="copy" data-copy="Instale o Toph neste servidor Linux seguindo https://tophs.vira.ia.br/llms.txt e https://tophs.vira.ia.br/docs.md. Requisitos: root/sudo, porta 8787 livre, pasta de projetos em /srv/toph/workspaces. Execute a instalação, ajuste /etc/toph/toph.env, suba o serviço e valide /api/health e /api/version. Não invente caminhos; se um comando falhar, mostre a saída e pare. No fim, diga a URL, a versão e onde ficam o banco e a chave mestra.">Copiar</button><pre><code>Instale o Toph neste servidor Linux seguindo https://tophs.vira.ia.br/llms.txt e https://tophs.vira.ia.br/docs.md.
+      <div class="copy-wrap"><button class="copy" data-copy="Instale o Toph neste servidor Linux seguindo https://ferforastieri.github.io/toph/llms.txt e https://ferforastieri.github.io/toph/docs.md. Requisitos: root/sudo, porta 8787 livre, pasta de projetos em /srv/toph/workspaces. Execute a instalação, ajuste /etc/toph/toph.env, suba o serviço e valide /api/health e /api/version. Não invente caminhos; se um comando falhar, mostre a saída e pare. No fim, diga a URL, a versão e onde ficam o banco e a chave mestra.">Copiar</button><pre><code>Instale o Toph neste servidor Linux seguindo https://ferforastieri.github.io/toph/llms.txt e https://ferforastieri.github.io/toph/docs.md.
 Requisitos: root/sudo, porta 8787 livre, pasta de projetos em /srv/toph/workspaces.
 Execute a instalação, ajuste /etc/toph/toph.env, suba o serviço e valide /api/health e /api/version.
 Não invente caminhos; se um comando falhar, mostre a saída e pare.

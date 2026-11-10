@@ -2,9 +2,9 @@
 
 > Self-hosted AI agent workbench. One or more Tophs work inside your project with the engine, model, tools and permissions you choose. Open source, Apache-2.0.
 
-Site: https://tophs.vira.ia.br/
-Docs: https://tophs.vira.ia.br/docs
-Markdown: https://tophs.vira.ia.br/docs.md
+Site: https://ferforastieri.github.io/toph/
+Docs: https://ferforastieri.github.io/toph/docs.html
+Markdown: https://ferforastieri.github.io/toph/docs.md
 Source: https://github.com/ferforastieri/toph
 Releases: https://github.com/ferforastieri/toph/releases
 
@@ -45,4 +45,4 @@ Goal: install and verify Toph.
 - Do not invent paths; use the values in `/etc/toph/toph.env`.
 - If a command fails, show the output and stop; do not claim success.
 - Report at the end: URL, version, data directory, database path and master key path.
-- Full guide: https://tophs.vira.ia.br/docs.md
+- Full guide: https://ferforastieri.github.io/toph/docs.md

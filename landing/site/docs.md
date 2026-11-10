@@ -2,9 +2,9 @@
 
 > Toph is a self-hosted AI agent workbench. One or more Tophs work inside your project with the engine, model, tools and permissions you choose. Open source (Apache-2.0).
 
-- Site: https://tophs.vira.ia.br/
-- Docs: https://tophs.vira.ia.br/docs
-- Markdown docs: https://tophs.vira.ia.br/docs.md
+- Site: https://ferforastieri.github.io/toph/
+- Docs: https://ferforastieri.github.io/toph/docs.html
+- Markdown docs: https://ferforastieri.github.io/toph/docs.md
 - Source: https://github.com/ferforastieri/toph
 - Releases: https://github.com/ferforastieri/toph/releases
 
