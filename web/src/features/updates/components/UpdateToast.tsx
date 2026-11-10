@@ -126,6 +126,8 @@ export default function UpdateToast() {
     let cancelled = false;
 
     async function check() {
+      // A hidden tab has nothing to show; the visibility handler checks again.
+      if (document.visibilityState !== "visible") return;
       try {
         const next = await api.updateStatus();
         if (!cancelled) setStatus(next);
@@ -135,7 +137,7 @@ export default function UpdateToast() {
     }
 
     void check();
-    const timer = window.setInterval(check, 30_000);
+    const timer = window.setInterval(check, 60_000);
     const onVisible = () => {
       if (document.visibilityState === "visible") void check();
     };

@@ -3,10 +3,14 @@ use std::time::{Duration, Instant};
 
 use crate::config::Config;
 use crate::errors::{AppError, AppResult};
+use reqwest::header::{AUTHORIZATION, ETAG, IF_NONE_MATCH};
+use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
 
 pub const VERSION: &str = env!("TOPH_VERSION");
-const CACHE_TTL: Duration = Duration::from_secs(120);
+// The toast polls the status; keep GitHub calls rare. `If-None-Match`
+// violations return 304, which GitHub does not count against the rate limit.
+const CACHE_TTL: Duration = Duration::from_secs(10 * 60);
 
 #[derive(Debug, Clone)]
 pub struct UpdateManager {
@@ -16,12 +20,14 @@ pub struct UpdateManager {
     request: std::path::PathBuf,
     state: std::path::PathBuf,
     client: reqwest::Client,
+    token: String,
     cache: Arc<Mutex<UpdateCache>>,
 }
 
 #[derive(Default, Debug)]
 struct UpdateCache {
     checked: Option<Instant>,
+    etag: String,
     latest: String,
     assets: Vec<UpdateInstaller>,
     apk_url: String,
@@ -87,6 +93,21 @@ struct UpdateState {
 
 impl UpdateManager {
     pub fn new(config: &Config) -> Self {
+        // The releases API allows 60 anonymous calls per hour per IP. A token
+        // (or a `github-token` file in the data dir) raises that to 5.000/h.
+        let token = std::env::var("TOPH_GITHUB_TOKEN")
+            .or_else(|_| std::env::var("GITHUB_TOKEN"))
+            .unwrap_or_default()
+            .trim()
+            .to_string();
+        let token = if token.is_empty() {
+            std::fs::read_to_string(config.data_dir.join("github-token"))
+                .unwrap_or_default()
+                .trim()
+                .to_string()
+        } else {
+            token
+        };
         Self {
             repo: config.update_repo.clone(),
             helper: config.update_helper.clone(),
@@ -97,7 +118,21 @@ impl UpdateManager {
                 .timeout(Duration::from_secs(10))
                 .build()
                 .unwrap_or_else(|_| reqwest::Client::new()),
+            token,
             cache: Arc::new(Mutex::new(UpdateCache::default())),
+        }
+    }
+
+    fn github_get(&self, url: &str) -> reqwest::RequestBuilder {
+        let request = self
+            .client
+            .get(url)
+            .header("Accept", "application/vnd.github+json")
+            .header("User-Agent", format!("toph-update-check/{VERSION}"));
+        if self.token.is_empty() {
+            request
+        } else {
+            request.header(AUTHORIZATION, format!("Bearer {}", self.token))
         }
     }
 
@@ -151,11 +186,13 @@ impl UpdateManager {
         {
             return Err(AppError::Conflict);
         }
-        let latest = self.latest_release().await.0;
+        let (latest, latest_error) = self.latest_release().await;
         if latest.is_empty() {
-            return Err(AppError::Upstream(
-                "Não foi possível consultar as releases do Toph.".into(),
-            ));
+            return Err(AppError::Upstream(if latest_error.is_empty() {
+                "Não foi possível consultar as releases do Toph.".into()
+            } else {
+                latest_error
+            }));
         }
         if !newer_release(&latest, VERSION) {
             return Ok(UpdateStart {
@@ -176,30 +213,61 @@ impl UpdateManager {
     }
 
     async fn latest_release(&self) -> (String, String) {
-        if let Ok(cache) = self.cache.lock() {
-            if cache
-                .checked
-                .is_some_and(|checked| checked.elapsed() < CACHE_TTL)
-            {
-                return (cache.latest.clone(), cache.error.clone());
+        let (etag, cached) = match self.cache.lock() {
+            Ok(cache) => {
+                // A failed lookup retries sooner so a rate-limit window or a
+                // network blip recovers without waiting the full TTL.
+                let ttl = if cache.error.is_empty() {
+                    CACHE_TTL
+                } else {
+                    Duration::from_secs(60)
+                };
+                if cache
+                    .checked
+                    .is_some_and(|checked| checked.elapsed() < ttl)
+                {
+                    return (cache.latest.clone(), cache.error.clone());
+                }
+                (
+                    cache.etag.clone(),
+                    (cache.latest.clone(), cache.assets.clone(), cache.apk_url.clone()),
+                )
             }
-        }
+            Err(_) => (String::new(), (String::new(), Vec::new(), String::new())),
+        };
         let url = format!("https://api.github.com/repos/{}/releases/latest", self.repo);
         let result = async {
-            let response = self
-                .client
-                .get(url)
-                .header("Accept", "application/vnd.github+json")
-                .header("User-Agent", format!("toph-update-check/{VERSION}"))
+            let mut request = self.github_get(&url);
+            if !etag.is_empty() {
+                request = request.header(IF_NONE_MATCH, &etag);
+            }
+            let response = request
                 .send()
                 .await
                 .map_err(|_| "Não foi possível consultar as releases do Toph.".to_string())?;
-            if !response.status().is_success() {
+            if response.status() == StatusCode::NOT_MODIFIED {
+                // Nothing changed since the cached release; 304s are free.
+                return Ok((cached.0, cached.1, cached.2, String::new()));
+            }
+            let status = response.status();
+            if status == StatusCode::FORBIDDEN || status == StatusCode::TOO_MANY_REQUESTS {
                 return Err(format!(
-                    "GitHub respondeu HTTP {} ao consultar releases.",
-                    response.status()
+                    "O GitHub limitou as consultas de atualização ({}). Defina TOPH_GITHUB_TOKEN no servidor ou tente novamente em alguns minutos.",
+                    status.as_u16()
                 ));
             }
+            if !status.is_success() {
+                return Err(format!(
+                    "GitHub respondeu HTTP {} ao consultar releases.",
+                    status
+                ));
+            }
+            let etag = response
+                .headers()
+                .get(ETAG)
+                .and_then(|value| value.to_str().ok())
+                .unwrap_or_default()
+                .to_string();
             let release: GithubRelease = response
                 .json()
                 .await
@@ -251,11 +319,11 @@ impl UpdateManager {
             } else {
                 apk_url
             };
-            Ok((release.tag_name, assets, apk_url))
+            Ok((release.tag_name, assets, apk_url, etag))
         }
         .await;
-        let (latest, assets, apk_url, error) = match result {
-            Ok((latest, assets, apk_url)) => (latest, assets, apk_url, String::new()),
+        let (latest, assets, apk_url, etag, error) = match result {
+            Ok((latest, assets, apk_url, etag)) => (latest, assets, apk_url, etag, String::new()),
             Err(error) => {
                 // Keep the last known release when GitHub is temporarily
                 // unreachable instead of making the update toast disappear.
@@ -270,11 +338,17 @@ impl UpdateManager {
                         )
                     })
                     .unwrap_or_default();
-                (previous.0, previous.1, previous.2, error)
+                match self.latest_tag_via_redirect().await {
+                    Some(tag) => (tag, previous.1, previous.2, String::new(), String::new()),
+                    None => (previous.0, previous.1, previous.2, String::new(), error),
+                }
             }
         };
         if let Ok(mut cache) = self.cache.lock() {
             cache.checked = Some(Instant::now());
+            if !etag.is_empty() {
+                cache.etag = etag;
+            }
             cache.latest = latest.clone();
             cache.assets = assets;
             cache.apk_url = apk_url;
@@ -283,16 +357,33 @@ impl UpdateManager {
         (latest, error)
     }
 
+    /// Last resort when the API is rate limited: GitHub redirects
+    /// `/releases/latest` to the tag, and that path is not rate limited.
+    async fn latest_tag_via_redirect(&self) -> Option<String> {
+        let url = format!("https://github.com/{}/releases/latest", self.repo);
+        let response = self
+            .client
+            .get(url)
+            .header("User-Agent", format!("toph-update-check/{VERSION}"))
+            .send()
+            .await
+            .ok()?;
+        let final_url = response.url().clone();
+        let tag = final_url
+            .path_segments()?
+            .filter(|segment| !segment.is_empty())
+            .next_back()?
+            .to_string();
+        parse_version(&tag).is_some().then_some(tag)
+    }
+
     async fn latest_apk_url(&self) -> Option<String> {
         let url = format!(
             "https://api.github.com/repos/{}/releases?per_page=20",
             self.repo
         );
         let releases: Vec<GithubRelease> = self
-            .client
-            .get(url)
-            .header("Accept", "application/vnd.github+json")
-            .header("User-Agent", format!("toph-update-check/{VERSION}"))
+            .github_get(&url)
             .send()
             .await
             .ok()?
