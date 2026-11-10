@@ -41,7 +41,59 @@ jobs:
           set -euo pipefail
           git fetch --tags --force
           BASE_REF="$(git describe --tags --abbrev=0 --match 'v*' HEAD^ 2>/dev/null || true)"
-          BASE_REF="$BASE_REF" node tools/scripts/changed-components.mjs
+          if [ -n "$BASE_REF" ]; then
+            files="$(git diff --name-only "$BASE_REF..$HEAD_REF" || git ls-files)"
+          else
+            files="$(git ls-files)"
+          fi
+          has_prefix() {
+            local line prefix
+            while IFS= read -r line; do
+              for prefix in "$@"; do
+                case "$line" in "$prefix"*) return 0 ;; esac
+              done
+            done <<< "$files"
+            return 1
+          }
+          has_file() {
+            local line name
+            while IFS= read -r line; do
+              for name in "$@"; do
+                [ "$line" = "$name" ] && return 0
+              done
+            done <<< "$files"
+            return 1
+          }
+          web=false
+          if has_prefix web/ packages/ || has_file package.json package-lock.json tsconfig.json vite.config.ts; then web=true; fi
+          backend=false
+          if has_prefix backend/ web/ packages/ || has_file package.json package-lock.json; then backend=true; fi
+          server=$backend
+          client=false
+          if has_prefix desktop/ packages/ || has_file package.json package-lock.json; then client=true; fi
+          shared=false
+          if has_prefix packages/native/ packages/launcher/; then shared=true; fi
+          android=false
+          if has_prefix mobile/ packages/brand/ || [ "$shared" = true ] || has_file package.json package-lock.json .github/workflows/ci.yml .github/workflows/release.yml; then android=true; fi
+          desktop=false
+          if [ "$client" = true ] || [ "$backend" = true ] || [ "$web" = true ] || [ "$shared" = true ] || has_prefix .github/workflows/desktop.yml; then desktop=true; fi
+          landing=false
+          if has_prefix landing/; then landing=true; fi
+          installer=false
+          if has_file install.sh; then installer=true; fi
+          releasable=false
+          if [ "$server" = true ] || [ "$android" = true ] || [ "$desktop" = true ] || [ "$installer" = true ]; then releasable=true; fi
+          count="$(printf '%s\n' "$files" | grep -c . || true)"
+          {
+            echo "web=$web"
+            echo "server=$server"
+            echo "android=$android"
+            echo "desktop=$desktop"
+            echo "landing=$landing"
+            echo "installer=$installer"
+            echo "releasable=$releasable"
+            echo "files=$count"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Determine next version
         id: version
@@ -50,7 +102,56 @@ jobs:
         run: |
           set -euo pipefail
           git fetch --tags --force
-          node tools/scripts/next-version.mjs
+          latest="$(git tag --list 'v*' --sort=-v:refname | head -n1)"
+          at_head="$(git tag --points-at HEAD --list 'v*' | paste -sd ', ' -)"
+          emit() { printf '%s\n' "$@" >> "$GITHUB_OUTPUT"; }
+          if [ "${RELEASABLE:-false}" = "false" ]; then
+            emit "release=false" "reason=no releasable component changed"
+            exit 0
+          fi
+          if [ -n "$at_head" ]; then
+            emit "release=false" "reason=HEAD is already tagged $at_head"
+            exit 0
+          fi
+          range="HEAD"
+          [ -n "$latest" ] && range="$latest..HEAD"
+          mapfile -d '' raw < <(git log "$range" --format='%B%x00' || true)
+          messages=()
+          for message in "${raw[@]}"; do
+            message="${message#"${message%%[![:space:]]*}"}"
+            message="${message%"${message##*[![:space:]]}"}"
+            [ -n "$message" ] && messages+=("$message")
+          done
+          if [ "${#messages[@]}" -eq 0 ]; then
+            emit "release=false" "reason=no commits since ${latest:-the start}"
+            exit 0
+          fi
+          bump=patch
+          for message in "${messages[@]}"; do
+            subject="${message%%$'\n'*}"
+            if [[ "$subject" =~ ^[A-Za-z]+(\([^\)]*\))?!: ]] || grep -qE '(^|\n)BREAKING[ -]CHANGE:' <<< "$message"; then
+              bump=major
+              continue
+            fi
+            if [[ "$subject" =~ ^feat(\([^\)]*\))?: ]] && [ "$bump" != "major" ]; then
+              bump=minor
+            fi
+          done
+          if [[ "$latest" =~ ^v?([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+            major="${BASH_REMATCH[1]}"
+            minor="${BASH_REMATCH[2]}"
+            patch="${BASH_REMATCH[3]}"
+          else
+            major=0
+            minor=0
+            patch=0
+          fi
+          case "$bump" in
+            major) version="$((major + 1)).0.0" ;;
+            minor) version="${major}.$((minor + 1)).0" ;;
+            *) version="${major}.${minor}.$((patch + 1))" ;;
+          esac
+          emit "release=true" "version=$version" "tag=v$version" "bump=$bump" "base=${latest:-none}" "commits=${#messages[@]}"
 
   server:
     needs: prepare
@@ -157,11 +258,7 @@ jobs:
           echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$ANDROID_KEYSTORE_PATH"
           export NDK_HOME="${ANDROID_HOME:-$ANDROID_SDK_ROOT}/ndk/28.2.13676358"
           cd mobile
-          npm run sync-brand
-          npm run tauri -- android init
           npm run icons
-          npm run android:patch
-          node scripts/configure-android-signing.mjs
           npm run tauri -- android build --apk --target aarch64 --config "{\"version\":\"${TOPH_VERSION_NAME}\"}"
           APK=$(find src-tauri/gen/android/app/build/outputs/apk -name 'app-universal-release.apk' -print -quit)
           cp "$APK" "../toph-v${TOPH_VERSION_NAME}.apk"

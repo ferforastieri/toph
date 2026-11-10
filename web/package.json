@@ -7,13 +7,7 @@
     "dev": "vite --host 0.0.0.0",
     "build": "vite build",
     "preview": "vite preview --host 0.0.0.0",
-    "predev": "npm run sync-brand && npm run sync-material-icons && npm run sync-oniguruma && npm run monaco",
-    "prebuild": "npm run sync-brand && npm run sync-material-icons && npm run sync-oniguruma && npm run monaco",
-    "test": "vitest run --config vitest.config.ts",
-    "sync-brand": "node ../packages/brand/scripts/sync.mjs",
-    "sync-material-icons": "node scripts/sync-material-icons.mjs",
-    "sync-oniguruma": "node scripts/sync-oniguruma.mjs",
-    "monaco": "node scripts/copy-monaco.mjs"
+    "test": "vitest run --config vitest.config.ts"
   },
   "dependencies": {
     "@fontsource/ibm-plex-mono": "^5.2.7",

@@ -6,9 +6,6 @@
   "exports": {
     ".": "./src/index.ts"
   },
-  "scripts": {
-    "sync": "node scripts/sync.mjs"
-  },
   "peerDependencies": {
     "react": "^19.3.1"
   }

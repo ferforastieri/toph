@@ -4,9 +4,9 @@
   "version": "0.99.9",
   "identifier": "br.com.ferforastieri.toph",
   "build": {
-    "beforeDevCommand": "npm run sync-brand && npm run dev",
+    "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "npm run sync-brand && npm run build",
+    "beforeBuildCommand": "npm run build",
     "frontendDist": "../dist"
   },
   "app": {

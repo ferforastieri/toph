@@ -6,10 +6,7 @@
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "vite build",
-    "preview": "vite preview --host 0.0.0.0",
-    "predev": "npm run sync-brand",
-    "prebuild": "npm run sync-brand",
-    "sync-brand": "node ../../packages/brand/scripts/sync.mjs"
+    "preview": "vite preview --host 0.0.0.0"
   },
   "dependencies": {
     "@fontsource-variable/inter": "^5.2.8",

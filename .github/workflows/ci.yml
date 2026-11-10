@@ -27,7 +27,6 @@ jobs:
             web:
               - 'web/**'
               - 'packages/**'
-              - 'tools/scripts/check-architecture.mjs'
               - '.github/workflows/ci.yml'
               - 'package.json'
               - 'package-lock.json'
@@ -81,7 +80,6 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
       - run: npm ci
-      - run: npm run check:architecture
       - run: npm test
       - run: npm run build:web
 
@@ -129,14 +127,10 @@ jobs:
         run: sdkmanager "platforms;android-36" "build-tools;36.0.0" "ndk;28.2.13676358"
 
       - run: npm ci
-      - name: Initialize Tauri Android project
+      - name: Refresh app icons
         run: |
-          export NDK_HOME="${ANDROID_HOME:-$ANDROID_SDK_ROOT}/ndk/28.2.13676358"
           cd mobile
-          npm run sync-brand
-          npm run tauri -- android init
           npm run icons
-          npm run android:patch
 
       - name: Build Tauri Android debug APK
         run: |

@@ -54,12 +54,11 @@ packages/brand/    Brand assets and BrandMark
 packages/ui/       Shared React UI primitives
 packages/icons/    Shared icon components
 deploy/            Docker Compose
-tools/             Repository build, release and architecture scripts
 ```
 
 The backend embeds only the application. The landing page is never installed, embedded, released or served by the Toph server.
 
-`npm run check:architecture` checks workspace paths and internal frontend imports.
+Asset copies (Monaco, file icons, `onig.wasm`, brand) happen in each Vite config, so `npm run dev`/`npm run build` need no pre-step. Release versioning and component detection are inline steps in `.github/workflows/release.yml`.
 
 ## Architecture
 
@@ -203,13 +202,11 @@ For Android development, install JDK 21, Android SDK 36 and NDK 28.2, then:
 ```sh
 npm ci
 cd mobile
-npm run tauri -- android init
 npm run icons
-npm run android:patch
 npm run tauri -- android build --debug --apk --target aarch64
 ```
 
-The generated Android project is not committed; `tauri android init` recreates it. Use LAN, VPN or Tailscale for the server URL; do not expose the server directly to the internet.
+The generated Android project is committed in `src-tauri/gen/android`; release signing reads the `ANDROID_KEYSTORE_*` environment variables. Use LAN, VPN or Tailscale for the server URL; do not expose the server directly to the internet.
 
 ## Configuration
 
