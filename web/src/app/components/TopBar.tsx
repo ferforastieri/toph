@@ -5,7 +5,7 @@ import { useApp, type Sidebar } from "../store";
 import { featureEnabled, useSettings, type WorkspaceFeature } from "../../features/settings/store";
 import type { Project } from "../../shared/api";
 import ProjectSwitcher from "../../features/projects/components/ProjectSwitcher";
-import ProjectTophAvatar from "../../features/projects/components/ProjectTophAvatar";
+import ProjectMonogram from "../../features/projects/components/ProjectMonogram";
 import QuickOpen from "../../features/explorer/components/QuickOpen";
 import { Button } from "@/shared/boardui/base/buttons/button";
 import { Modal } from "@/shared/boardui/base/modal/modal";
@@ -243,7 +243,7 @@ export default function TopBar({ onOpenProject, onCloseProject, onGoHome, projec
                   title={`${project.name}\n${project.root}`}
                   aria-current={active ? "page" : undefined}
                 >
-                  <ProjectTophAvatar project={project} size={20} showInitial />
+                  <ProjectMonogram project={project} size={20} />
                   <span className="max-w-[160px] truncate">{project.name}</span>
                 </button>
                 <button
@@ -289,6 +289,7 @@ export function ProjectRail({ onOpenProject, onCloseProject, onGoHome, onQuickOp
   const notifications = useApp((state) => state.notifications);
   const markProjectNotificationsRead = useApp((state) => state.markProjectNotificationsRead);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [hoveredProject, setHoveredProject] = useState<string | null>(null);
 
   const openProjects = useMemo(
     () => openProjectIds
@@ -308,7 +309,7 @@ export function ProjectRail({ onOpenProject, onCloseProject, onGoHome, onQuickOp
 
   return (
     <>
-      <aside className="relative z-40 me-1 flex w-12 shrink-0 flex-col items-center gap-2 rounded-3xl border border-border-button-white bg-background-primary-default px-0 py-3 shadow-sidebar" aria-label="Projetos e ferramentas">
+      <aside className="relative z-50 me-1 flex w-12 shrink-0 flex-col items-center gap-2 rounded-3xl border border-border-button-white bg-background-primary-default px-0 py-3 shadow-sidebar" aria-label="Projetos e ferramentas">
         <button
           type="button"
           onClick={() => {
@@ -328,7 +329,14 @@ export function ProjectRail({ onOpenProject, onCloseProject, onGoHome, onQuickOp
             const active = project.id === activeProjectId;
             const unread = unreadFor(project.id);
             return (
-              <div key={project.id} className="group relative">
+              <div
+                key={project.id}
+                className="relative"
+                onPointerEnter={() => setHoveredProject(project.id)}
+                onPointerLeave={() => setHoveredProject((current) => (current === project.id ? null : current))}
+                onFocus={() => setHoveredProject(project.id)}
+                onBlur={() => setHoveredProject((current) => (current === project.id ? null : current))}
+              >
                 {unread > 0 ? (
                   <span className="absolute -end-1 -top-1 z-10">
                     <ProjectNotificationBell projectId={project.id} projectName={project.name} count={unread} size={12} />
@@ -345,10 +353,15 @@ export function ProjectRail({ onOpenProject, onCloseProject, onGoHome, onQuickOp
                   )}
                   aria-label={`Abrir ${project.name}`}
                   aria-current={active ? "page" : undefined}
-                  title={`${project.name}\n${project.root}`}
                 >
-                  <ProjectTophAvatar project={project} size={30} showInitial />
+                  <ProjectMonogram project={project} size={30} />
                 </button>
+                {hoveredProject === project.id ? (
+                  <span className="pointer-events-none absolute start-full top-1/2 z-50 ms-1 -translate-y-1/2 rounded-xl border border-border-button-default bg-background-primary-default px-2.5 py-1.5 shadow-dropdown">
+                    <span className="block max-w-[260px] truncate text-caption-1-medium text-text-primary">{project.name}</span>
+                    <span className="block max-w-[260px] truncate text-[10px] text-text-tertiary">{project.root}</span>
+                  </span>
+                ) : null}
                 <button
                   type="button"
                   onClick={(event) => {

@@ -2,7 +2,7 @@ import type { ComponentType } from "react";
 import { Users, X } from "@toph/icons";
 import type { Project } from "../../../../shared/api";
 import NotificationBadge from "../../../../features/notifications/components/NotificationBadge";
-import ProjectTophAvatar from "../../../../features/projects/components/ProjectTophAvatar";
+import ProjectMonogram from "../../../../features/projects/components/ProjectMonogram";
 import BrandMark from "@toph/brand";
 import { cx } from "@/shared/boardui/utils/cx";
 
@@ -69,7 +69,7 @@ export default function MobileTopBar({
             title={project.name}
             className="relative flex size-9 shrink-0 items-center justify-center rounded-full border border-border-button-default bg-background-primary-default transition-[border-color,background-color,transform] duration-300 hover:border-border-button-hover hover:bg-background-primary-hover active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus-ring"
           >
-            <ProjectTophAvatar project={project} size={26} showInitial />
+            <ProjectMonogram project={project} size={26} />
             {unreadCount > 0 ? (
               <NotificationBadge count={unreadCount} size={16} tone="light" className="absolute -top-1 -end-1 z-10" />
             ) : null}
