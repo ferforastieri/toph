@@ -6,8 +6,9 @@ import TophEyes from "../../agents/components/TophEyes";
 import { usePointerLook } from "../../../shared/ui/usePointerLook";
 
 const PET_BASE = `${import.meta.env.BASE_URL}tophs/`;
-const PET_VERSION = "?v=3";
+const PET_VERSION = "?v=4";
 const FALLBACK = `${PET_BASE}toph-core.png${PET_VERSION}`;
+const FALLBACK_EYELESS = `${PET_BASE}toph-core-eyeless.png${PET_VERSION}`;
 
 export default function PetSprite({
   kind,
@@ -27,12 +28,18 @@ export default function PetSprite({
   const level = petLevel(commits);
   const source = `${PET_BASE}${kind}.png${PET_VERSION}`;
   const [image, setImage] = useState(source);
+  const [eyesMissing, setEyesMissing] = useState(false);
   const lookRef = usePointerLook<HTMLSpanElement>({ disabled: !look });
   const scale = 0.82 + level * 0.045;
   const filter = level >= 5 ? "saturate(1.16) brightness(1.06)" : level >= 3 ? "saturate(1.08)" : undefined;
-  const activeAvatar = image === FALLBACK ? "toph-core" : kind;
+  const core = image === FALLBACK;
+  // The body must not carry its own eyes while the sprite draws them.
+  const animated = look && !eyesMissing;
+  const base = animated ? (core ? FALLBACK_EYELESS : `${PET_BASE}${kind}-eyeless.png${PET_VERSION}`) : image;
+  const activeAvatar = core ? "toph-core" : kind;
 
   useEffect(() => setImage(source), [source]);
+  useEffect(() => setEyesMissing(false), [source]);
 
   return (
     <span
@@ -45,22 +52,22 @@ export default function PetSprite({
       {level >= 2 ? <span className={cx("absolute inset-[10%] rounded-full bg-accent-500/15 blur-md transition-all", level >= 4 && "inset-[4%] bg-accent-500/25")} /> : null}
       {level >= 4 ? <span className="absolute inset-[5%] rounded-full border border-accent-500/35" /> : null}
       <img
-        src={image}
+        src={base}
         alt=""
         draggable={false}
-        onError={() => { if (image !== FALLBACK) setImage(FALLBACK); }}
+        onError={() => { if (!core) setImage(FALLBACK); }}
         className="relative size-full select-none object-contain drop-shadow-[0_2px_2px_rgba(0,0,0,0.18)] transition-[scale,filter] duration-500"
         style={{
           scale: String(scale),
           filter,
         }}
       />
-      {look ? (
+      {animated ? (
         <TophEyes
           avatar={activeAvatar}
-          image={image}
           imageStyle={{ filter }}
           scale={scale}
+          onMissing={() => setEyesMissing(true)}
         />
       ) : null}
       {level >= 3 ? <Sparkles className="absolute right-0 top-0 size-[22%] text-status-amber-text drop-shadow-sm" /> : null}

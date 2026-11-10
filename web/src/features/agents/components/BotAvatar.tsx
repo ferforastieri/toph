@@ -21,12 +21,16 @@ export default function BotAvatar({ bot, size = 36, className, style, look = tru
   const source = `${AVATAR_BASE}${bot.avatar}.png${AVATAR_VERSION}`;
   const eyeless = `${AVATAR_BASE}${bot.avatar}-eyeless.png${AVATAR_VERSION}`;
   const [image, setImage] = useState(source);
+  const [eyesMissing, setEyesMissing] = useState(false);
   const lookRef = usePointerLook<HTMLSpanElement>({ disabled: !look });
   const core = image === CORE_AVATAR;
-  const base = look ? (core ? CORE_EYELESS : eyeless) : image;
+  // Without an eye sprite the still art (with its own eyes) is the honest fallback.
+  const animated = look && !eyesMissing;
+  const base = animated ? (core ? CORE_EYELESS : eyeless) : image;
   const activeAvatar = core ? "toph-core" : bot.avatar;
 
   useEffect(() => setImage(source), [source]);
+  useEffect(() => setEyesMissing(false), [source]);
 
   return (
     <span
@@ -48,12 +52,12 @@ export default function BotAvatar({ bot, size = 36, className, style, look = tru
         />
         <TophColorOverlay color={bot.color} image={base} data-avatar-color={bot.color} />
       </span>
-      {look ? (
+      {animated ? (
         <TophEyes
           avatar={activeAvatar}
-          image={image}
           color={bot.color}
           imageClassName="grayscale"
+          onMissing={() => setEyesMissing(true)}
         />
       ) : null}
     </span>

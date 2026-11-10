@@ -7,7 +7,8 @@ import { BOT_AVATARS } from "../../agents/avatars";
 describe("PetSprite", () => {
   it("uses an existing generated Toph asset as the independent user avatar", () => {
     const { container } = render(<PetSprite kind="toph-prism" animate={false} />);
-    expect(container.querySelector("img")).toHaveAttribute("src", `${import.meta.env.BASE_URL}tophs/toph-prism.png?v=3`);
+    expect(container.querySelector("img")).toHaveAttribute("src", `${import.meta.env.BASE_URL}tophs/toph-prism-eyeless.png?v=4`);
+    expect(container.querySelector("[data-toph-eyes]")).toHaveAttribute("data-toph-eyes", "toph-prism");
     expect(container.querySelector("svg")).not.toBeInTheDocument();
   });
 

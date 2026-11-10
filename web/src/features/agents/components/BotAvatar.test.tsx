@@ -11,8 +11,10 @@ describe("BotAvatar", () => {
 
   it("renders independent eye layers and leaves the body still", () => {
     const { container } = render(<BotAvatar bot={{ name: "Toph Prisma", color: "#7FD4E8", avatar: "toph-prism" }} size={40} />);
-    expect(container.querySelectorAll("[data-toph-eye]")).toHaveLength(2);
-    expect(container.querySelectorAll("[data-toph-eye] img")[0]).toHaveAttribute("src", `${import.meta.env.BASE_URL}tophs/toph-prism.png?v=4`);
+    const eyes = container.querySelectorAll("[data-toph-eyes]");
+    expect(eyes).toHaveLength(1);
+    expect(eyes[0]).toHaveAttribute("data-toph-eyes", "toph-prism");
+    expect(eyes[0].querySelector("img")).toHaveAttribute("src", `${import.meta.env.BASE_URL}tophs/toph-prism-eyes.png?v=1`);
     expect(container.querySelector("img")?.parentElement).not.toHaveAttribute("style");
   });
 });

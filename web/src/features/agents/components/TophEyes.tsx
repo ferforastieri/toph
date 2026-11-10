@@ -1,26 +1,9 @@
 import type { CSSProperties, HTMLAttributes } from "react";
 import { cx } from "@/shared/boardui/utils/cx";
-import { TOPH_EYES, type TophEyeBox } from "../eyes";
-
-/** Feathered margin around each eye so the antialiased edge is never clipped. */
-const EYE_FEATHER = 2;
 
 const EYE_TRANSFORM = "translate3d(var(--toph-look-x, 0px), var(--toph-look-y, 0px), 0)";
 
-/**
- * The mask must stay fully opaque over the whole eye: the solid core is sized
- * for the larger eye dimension so both axes are covered, and only the padding
- * fades out. A smaller core clips the eye into a bar.
- */
-function eyeMask(box: TophEyeBox): string {
-  const cx = ((box.x + box.w / 2) / 256) * 100;
-  const cy = ((box.y + box.h / 2) / 256) * 100;
-  const rx = ((box.w / 2 + EYE_FEATHER) / 256) * 100;
-  const ry = ((box.h / 2 + EYE_FEATHER) / 256) * 100;
-  const long = Math.max(box.w, box.h);
-  const solid = (long / (long + EYE_FEATHER * 2)) * 100;
-  return `radial-gradient(ellipse ${rx}% ${ry}% at ${cx}% ${cy}%, #000 ${solid.toFixed(1)}%, transparent 100%)`;
-}
+const EYE_VERSION = "?v=1";
 
 export function avatarColorStyle(color: string, image: string): CSSProperties {
   return {
@@ -55,61 +38,48 @@ export function TophColorOverlay({ color, image, className, style, ...props }: C
 interface Props {
   /** Avatar slug, e.g. "toph-prism". */
   avatar: string;
-  /** Resolved image URL currently rendered by the base layer. */
-  image: string;
   color?: string;
   imageClassName?: string;
   imageStyle?: CSSProperties;
   /** Mirrors the CSS `scale` applied to the base image, when any. */
   scale?: number;
+  /** The avatar has no eye sprite yet: let the caller fall back to static art. */
+  onMissing?: () => void;
 }
 
 /**
- * Renders only the eye regions on top of an avatar. The patches are copies of
- * the same image, so the body stays completely still while both eyes follow
- * the pointer through the `--toph-look-x` / `--toph-look-y` CSS variables.
+ * Draws the avatar's eyes as a transparent sprite on top of the eyeless body.
+ * The sprite carries only the eye pixels — never the skin around them — so
+ * moving it leaves no ghost ring behind, and the body stays still.
+ *
+ * Sprites live in `public/tophs/<avatar>-eyes.png` and are generated from the
+ * full/eyeless pair by `web/scripts/toph-eyes.py`.
  */
-export default function TophEyes({ avatar, image, color, imageClassName, imageStyle, scale }: Props) {
-  const eyes = TOPH_EYES[avatar] ?? TOPH_EYES["toph-core"];
-  if (!eyes) return null;
+export default function TophEyes({ avatar, color, imageClassName, imageStyle, scale, onMissing }: Props) {
+  const sprite = `${import.meta.env.BASE_URL}tophs/${avatar}-eyes.png${EYE_VERSION}`;
 
   return (
-    <>
-      {eyes.map((box, index) => {
-        const mask = eyeMask(box);
-        return (
-          <span
-            key={index}
-            aria-hidden
-            data-toph-eye={index}
-            className="pointer-events-none absolute inset-0 block"
-            style={{
-              WebkitMaskImage: mask,
-              maskImage: mask,
-              WebkitMaskPosition: "center",
-              maskPosition: "center",
-              WebkitMaskRepeat: "no-repeat",
-              maskRepeat: "no-repeat",
-              WebkitMaskSize: "100% 100%",
-              maskSize: "100% 100%",
-              transform: EYE_TRANSFORM,
-              transition: "transform 70ms linear",
-              scale: scale === undefined ? undefined : String(scale),
-            }}
-          >
-            <img
-              src={image}
-              alt=""
-              width={256}
-              height={256}
-              draggable={false}
-              className={cx("size-full select-none object-contain", imageClassName)}
-              style={imageStyle}
-            />
-            {color ? <TophColorOverlay color={color} image={image} /> : null}
-          </span>
-        );
-      })}
-    </>
+    <span
+      aria-hidden
+      data-toph-eyes={avatar}
+      className="pointer-events-none absolute inset-0 block"
+      style={{
+        transform: EYE_TRANSFORM,
+        transition: "transform 70ms linear",
+        scale: scale === undefined ? undefined : String(scale),
+      }}
+    >
+      <img
+        src={sprite}
+        alt=""
+        width={256}
+        height={256}
+        draggable={false}
+        onError={onMissing}
+        className={cx("size-full select-none object-contain", imageClassName)}
+        style={imageStyle}
+      />
+      {color ? <TophColorOverlay color={color} image={sprite} /> : null}
+    </span>
   );
 }
