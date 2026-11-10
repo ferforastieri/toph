@@ -1285,7 +1285,9 @@ Se a mensagem depender de uma ferramenta ou MCP, prefira quem tem acesso a ele; 
                                 runtime.record_native_part(&tool_ctx, index, &text).await
                             }
                             NativeRecord::Reasoning { index, text } => {
-                                runtime.record_native_reasoning(&tool_ctx, index, &text).await
+                                runtime
+                                    .record_native_reasoning(&tool_ctx, index, &text)
+                                    .await
                             }
                         };
                         if let Err(error) = recorded {
@@ -1466,7 +1468,12 @@ Se a mensagem depender de uma ferramenta ou MCP, prefira quem tem acesso a ele; 
     /// Stores one finished text part reported by a native harness as its own
     /// assistant message, so intermediate narration keeps its place in the
     /// transcript instead of being glued to the final answer.
-    async fn record_native_part(&self, ctx: &RunContext, index: usize, text: &str) -> AppResult<()> {
+    async fn record_native_part(
+        &self,
+        ctx: &RunContext,
+        index: usize,
+        text: &str,
+    ) -> AppResult<()> {
         if text.trim().is_empty() {
             return Ok(());
         }
@@ -1501,7 +1508,12 @@ Se a mensagem depender de uma ferramenta ou MCP, prefira quem tem acesso a ele; 
 
     /// Stores the model's thinking for this step. It is a step in the run
     /// details, not part of the answer, so it never enters the prompt context.
-    async fn record_native_reasoning(&self, ctx: &RunContext, index: usize, text: &str) -> AppResult<()> {
+    async fn record_native_reasoning(
+        &self,
+        ctx: &RunContext,
+        index: usize,
+        text: &str,
+    ) -> AppResult<()> {
         if text.trim().is_empty() {
             return Ok(());
         }
