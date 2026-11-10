@@ -51,6 +51,9 @@ export default function BotStudioTab({ project, conversationId, mobile = false, 
   const previousCount = useRef(0);
   const sendLock = useRef(false);
   const lastTop = useRef(0);
+  const programmaticScroll = useRef(false);
+  const settleTimer = useRef(0);
+  const touchStartTop = useRef(0);
   const pendingScroll = useRef<{ height: number; top: number } | null>(null);
   const pendingRequest = useRef<{ text: string; id: string } | null>(null);
   const activeModel = tophs[0]?.model || config?.model || "";
@@ -60,17 +63,33 @@ export default function BotStudioTab({ project, conversationId, mobile = false, 
   const lastError = lastRun && ["failed", "interrupted"].includes(lastRun.state) ? lastRun.error : "";
   const title = chatDisplayName(stored, chat);
 
+  /** Pin to the end and ignore the scroll events this move generates. */
+  function pinToBottom() {
+    const element = scroller.current;
+    if (!element) return;
+    programmaticScroll.current = true;
+    window.clearTimeout(settleTimer.current);
+    element.scrollTop = element.scrollHeight;
+    lastTop.current = element.scrollTop;
+    settleTimer.current = window.setTimeout(() => {
+      programmaticScroll.current = false;
+    }, 150);
+  }
+
   useEffect(() => {
     const refresh = () => { void native.refresh(true); };
     window.addEventListener("toph:refresh-chat", refresh);
     return () => window.removeEventListener("toph:refresh-chat", refresh);
   }, [native.refresh]);
+  useEffect(() => () => window.clearTimeout(settleTimer.current), []);
   useEffect(() => {
     follow.current = true;
     setAtBottom(true);
     setQueued([]);
     pendingScroll.current = null;
     lastTop.current = 0;
+    programmaticScroll.current = false;
+    window.clearTimeout(settleTimer.current);
     previousChat.current = chat?.id;
     previousCount.current = 0;
   }, [chat?.id]);
@@ -84,8 +103,10 @@ export default function BotStudioTab({ project, conversationId, mobile = false, 
     previousCount.current = native.messages.length;
     if (!follow.current && !force) return;
     follow.current = true;
+    // Force the pin even if a layout scroll event arrives before the frame.
+    pinToBottom();
     const frame = requestAnimationFrame(() => {
-      if (scroller.current && follow.current) scroller.current.scrollTop = scroller.current.scrollHeight;
+      if (follow.current) pinToBottom();
     });
     return () => cancelAnimationFrame(frame);
   }, [chat?.id, native.messages, native.approvals, busy]);
@@ -98,7 +119,7 @@ export default function BotStudioTab({ project, conversationId, mobile = false, 
       if (!follow.current) return;
       if (frame) cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {
-        if (scroller.current && follow.current) scroller.current.scrollTop = scroller.current.scrollHeight;
+        if (follow.current) pinToBottom();
       });
     });
     observer.observe(content);
@@ -204,10 +225,29 @@ export default function BotStudioTab({ project, conversationId, mobile = false, 
     )}>
       {embedded && headerControl ? <div className="absolute end-2 top-2 z-20">{headerControl}</div> : null}
       <div className="relative flex min-h-0 flex-1 flex-col">
-        <div ref={scroller} className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-x-none" onScroll={(event) => {
-          const el = event.currentTarget; const movedUp = el.scrollTop < lastTop.current - 1; lastTop.current = el.scrollTop;
-          follow.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80 && !movedUp; setAtBottom(follow.current);
-        }}>
+        <div
+          ref={scroller}
+          data-toph-scroller
+          className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-x-none"
+          onScroll={(event) => {
+            const el = event.currentTarget;
+            if (programmaticScroll.current) { lastTop.current = el.scrollTop; return; }
+            lastTop.current = el.scrollTop;
+            // Only reaching the end turns following back on. Layout shifts and
+            // scroll anchoring must never switch it off; the wheel/touch
+            // handlers below detect a deliberate scroll up.
+            const atEnd = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+            if (atEnd) follow.current = true;
+            setAtBottom(atEnd);
+          }}
+          onWheel={(event) => {
+            if (event.deltaY < 0 && event.currentTarget.scrollTop > 8) follow.current = false;
+          }}
+          onTouchStart={(event) => { touchStartTop.current = event.currentTarget.scrollTop; }}
+          onTouchMove={(event) => {
+            if (event.currentTarget.scrollTop < touchStartTop.current - 4) follow.current = false;
+          }}
+        >
           <div key={chat.id} ref={contentRef} className={cx("toph-view-in mx-auto flex min-h-full w-full min-w-0 max-w-[860px] flex-col gap-2 overflow-x-hidden [&_img]:max-w-full [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_table]:block [&_table]:max-w-full [&_table]:overflow-x-auto", compact ? (embedded ? "px-4 pt-10 pb-2" : "px-4 pt-4 pb-2") : "px-7 pt-6 pb-3")}>
             {native.hasMore && <Button variant="ghost" size="small" disabled={native.loading} onClick={older}>{native.loading ? <><LoaderCircle size={14} className="animate-spin" /> Carregando mensagens antigas…</> : "Carregar mensagens anteriores"}</Button>}
             {!stored?.hydrated ? <div className="my-auto flex items-center justify-center gap-2 py-8 text-caption-1-regular text-text-tertiary"><LoaderCircle size={16} className="animate-spin" /> Carregando conversas…</div>
