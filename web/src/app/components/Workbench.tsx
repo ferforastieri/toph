@@ -340,10 +340,14 @@ export default function Workbench() {
           syncedOpenProjects.current = ids.join("|");
           useApp.getState().setOpenProjectIds(ids);
         } else {
-          // Nothing saved yet (first device on this account): publish the list
-          // this client already had so the others pick it up.
+          // Nothing saved yet (first run on this account). The desktop is the
+          // reference workspace, so a phone must not replace its open projects
+          // with whatever list it happened to keep locally. A phone still
+          // publishes when the user opens or closes a project on purpose.
           const local = useApp.getState().openProjectIds;
-          if (local.length > 0) {
+          const phoneShell =
+            isMobileViewport() || /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+          if (local.length > 0 && !phoneShell) {
             syncedOpenProjects.current = local.join("|");
             await api.saveOpenProjects(local);
           }
