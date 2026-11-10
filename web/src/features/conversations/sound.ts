@@ -8,7 +8,7 @@ function getContext(): AudioContext | null {
     if (!Ctor) return null;
     context = new Ctor();
   }
-  if (context.state === "suspended") void context.resume();
+  if (context.state === "suspended") void context.resume().catch(() => undefined);
   return context;
 }
 
@@ -17,10 +17,7 @@ export function unlockBotSound(): void {
   getContext();
 }
 
-/** Short two-tone signal used when a bot finishes a response. */
-export function playBotResponseSound(): void {
-  const audio = getContext();
-  if (!audio) return;
+function beep(audio: AudioContext): void {
   const start = audio.currentTime + 0.01;
   const gain = audio.createGain();
   gain.gain.setValueAtTime(0.0001, start);
@@ -43,4 +40,19 @@ export function playBotResponseSound(): void {
   second.connect(gain);
   second.start(start + 0.12);
   second.stop(start + 0.32);
+}
+
+/** Short two-tone signal used when a bot finishes a response. */
+export function playBotResponseSound(): void {
+  const audio = getContext();
+  if (!audio) return;
+  // WebViews only allow audio after a user gesture; wait for the resume when the
+  // context is still suspended instead of dropping the signal silently.
+  if (audio.state === "suspended") {
+    void audio.resume().then(() => {
+      if (audio.state === "running") beep(audio);
+    }).catch(() => undefined);
+    return;
+  }
+  beep(audio);
 }

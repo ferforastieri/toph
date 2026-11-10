@@ -1,9 +1,1 @@
-export type MobileScreen =
-  | "bots"
-  | "files"
-  | "scm"
-  | "db"
-  | "web"
-  | "debug"
-  | "workspace"
-  | "more";
+export type { MobileScreen } from "../../store";

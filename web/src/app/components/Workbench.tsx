@@ -19,6 +19,8 @@ import BranchPicker from "../../features/git/components/BranchPicker";
 import TopBar, { ProjectRail } from "./TopBar";
 import QuickOpen from "../../features/explorer/components/QuickOpen";
 import ActivityPopover from "../../features/notifications/components/ActivityPopover";
+import { handleAiCompletion, type AiCompletionPayload } from "../../features/notifications/completion";
+import { unlockBotSound } from "../../features/conversations/sound";
 import SidebarHeader from "./SidebarHeader";
 import { IconButton } from "@/shared/boardui/base/buttons/icon-button";
 import BrandMark from "@toph/brand";
@@ -258,6 +260,17 @@ export default function Workbench() {
     void loadAI().then(() => loadModels());
   }, [loadAI, loadModels]);
 
+  // WebViews block audio until the user interacts, so warm the audio context on
+  // the first gesture and revive it if the system suspended it later.
+  useEffect(() => {
+    window.addEventListener("pointerdown", unlockBotSound, true);
+    window.addEventListener("keydown", unlockBotSound, true);
+    return () => {
+      window.removeEventListener("pointerdown", unlockBotSound, true);
+      window.removeEventListener("keydown", unlockBotSound, true);
+    };
+  }, []);
+
   // Warm the branch list for the active project so opening the selector is instant.
   useEffect(() => {
     if (!activeProjectId || !sourceControlEnabled) return;
@@ -327,54 +340,13 @@ export default function Workbench() {
   }, [activeProjectId, filesEnabled, sourceControlEnabled]);
 
   useEffect(() => {
-    type PushPayload = {
-      title?: string;
-      body?: string;
-      notificationId?: string;
-      projectId?: string;
-      projectName?: string;
-      botId?: string;
-      botName?: string;
-      botRole?: string;
-      sessionId?: string;
-      chatId?: string;
-      tabId?: string;
-      opened?: string;
-    };
+    type PushPayload = AiCompletionPayload & { opened?: string };
     const handler = (payload: PushPayload) => {
       if (payload.opened === "true" && payload.projectId) {
         window.setTimeout(() => window.dispatchEvent(new CustomEvent("toph:open-bot", { detail: payload })), 0);
         return;
       }
-      const state = useApp.getState();
-      const projectId = payload.projectId || state.activeProjectId || undefined;
-      if (!projectId) return;
-      const chats = useChats.getState().byProject[projectId];
-      const activeTab = state.tabs.find((tab) => tab.id === state.activeTabId);
-      const activeHasChat = payload.chatId
-        ? activeTab?.kind === "ai" && activeTab.chatId === payload.chatId
-        : Boolean(payload.botId && chats?.tophs.some((toph) => toph.id === payload.botId));
-      if (
-        document.visibilityState === "visible" &&
-        document.hasFocus() &&
-        state.sidebar === "bots" &&
-        state.activeProjectId === projectId &&
-        (activeHasChat || (!payload.botId && !payload.chatId))
-      ) return;
-      state.addNotification({
-        kind: "ai",
-        title: payload.botName?.trim() || payload.title?.trim() || "Resposta da IA",
-        body: payload.body?.trim() || "A IA terminou de responder.",
-        projectId,
-        projectName: payload.projectName?.trim() || state.projects.find((project) => project.id === projectId)?.name,
-        tabId: payload.tabId || `bots:${projectId}`,
-        chatId: payload.chatId,
-        sessionId: payload.sessionId,
-        notificationId: payload.notificationId,
-        botId: payload.botId,
-        botName: payload.botName,
-        botRole: payload.botRole,
-      });
+      handleAiCompletion(payload);
     };
     (window as unknown as { __tophPush?: (payload: PushPayload) => void }).__tophPush = handler;
 

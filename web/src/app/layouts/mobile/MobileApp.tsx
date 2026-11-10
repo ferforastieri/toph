@@ -51,7 +51,8 @@ export default function MobileApp() {
   const activeTab = tabs.find((tab) => tab.id === activeTabId) ?? null;
   const unreadCount = notifications.filter((notification) => !notification.read).length;
 
-  const [screen, setScreen] = useState<MobileScreen>("bots");
+  const screen = useApp((state) => state.mobileScreen);
+  const setScreen = useApp((state) => state.setMobileScreen);
   const screenTitles: Record<MobileScreen, string> = {
     bots: "Toph",
     files: "Arquivos",
@@ -178,49 +179,6 @@ export default function MobileApp() {
     if (chat) useChats.getState().setActiveChat(pending.projectId, chat.id);
     pendingBot.current = null;
   }, [activeProjectId, chatsHydrated]);
-
-  useEffect(() => {
-    type PushPayload = {
-      projectId?: string;
-      projectName?: string;
-      botId?: string;
-      botName?: string;
-      botRole?: string;
-      chatId?: string;
-      sessionId?: string;
-      tabId?: string;
-      notificationId?: string;
-      title?: string;
-      body?: string;
-      opened?: string;
-    };
-    const handler = (payload: PushPayload) => {
-      if (payload.opened === "true") {
-        window.setTimeout(() => window.dispatchEvent(new CustomEvent("toph:open-bot", { detail: payload })), 0);
-        return;
-      }
-      const projectId = payload.projectId || activeProjectId || undefined;
-      if (!projectId) return;
-      useApp.getState().addNotification({
-        kind: "ai",
-        title: payload.botName?.trim() || payload.title?.trim() || "Resposta da IA",
-        body: payload.body?.trim() || "A IA terminou de responder.",
-        projectId,
-        projectName: payload.projectName || projects.find((item) => item.id === projectId)?.name,
-        tabId: payload.tabId || `bots:${projectId}`,
-        chatId: payload.chatId,
-        sessionId: payload.sessionId,
-        notificationId: payload.notificationId,
-        botId: payload.botId,
-        botName: payload.botName,
-        botRole: payload.botRole,
-      });
-    };
-    (window as unknown as { __tophPush?: (payload: PushPayload) => void }).__tophPush = handler;
-    return () => {
-      delete (window as unknown as { __tophPush?: (payload: PushPayload) => void }).__tophPush;
-    };
-  }, [activeProjectId, projects]);
 
   function selectScreen(next: MobileScreen) {
     setScreen(next);

@@ -5,6 +5,9 @@ import { isDesktopClient } from "../features/settings/store";
 export type TabKind = "editor" | "db" | "ai" | "web" | "diff";
 export type Sidebar = "files" | "scm" | "db" | "ai" | "web" | "bots" | "debug" | "settings";
 
+/** Screen shown by the compact mobile shell. */
+export type MobileScreen = "bots" | "files" | "scm" | "db" | "web" | "debug" | "workspace" | "more";
+
 export interface Tab {
   id: string;
   kind: TabKind;
@@ -164,6 +167,7 @@ interface AppState {
   tabs: Tab[];
   activeTabId: string | null;
   sidebar: Sidebar;
+  mobileScreen: MobileScreen;
   terminalOpen: boolean;
   aiPanelOpen: boolean;
   aiDockTab: Tab | null;
@@ -183,6 +187,7 @@ interface AppState {
   updateTab: (id: string, patch: Partial<Tab>) => void;
   setTabs: (tabs: Tab[], activeTabId?: string | null) => void;
   setSidebar: (sidebar: Sidebar) => void;
+  setMobileScreen: (screen: MobileScreen) => void;
   setTerminalOpen: (open: boolean) => void;
   setAiPanelOpen: (open: boolean) => void;
   toggleAiPanel: () => void;
@@ -196,7 +201,7 @@ interface AppState {
   setAiStreaming: (tabId: string, streaming: boolean) => void;
   notify: (kind: Toast["kind"], message: string) => void;
   dismissToast: (id: number) => void;
-  addNotification: (notification: NewNotification) => void;
+  addNotification: (notification: NewNotification) => boolean;
   markNotificationRead: (id: string) => void;
   markProjectNotificationsRead: (projectId: string) => void;
   markAllNotificationsRead: () => void;
@@ -212,6 +217,7 @@ export const useApp = create<AppState>((set, get) => ({
   tabs: [],
   activeTabId: null,
   sidebar: isDesktopClient() ? "bots" : "files",
+  mobileScreen: "bots",
   terminalOpen: initialLayoutVisibility.terminalOpen,
   aiPanelOpen: initialLayoutVisibility.aiPanelOpen,
   aiDockTab: null,
@@ -323,6 +329,7 @@ export const useApp = create<AppState>((set, get) => ({
           : (tabs[0]?.id ?? null),
     }),
   setSidebar: (sidebar) => set({ sidebar }),
+  setMobileScreen: (mobileScreen) => set({ mobileScreen }),
   setTerminalOpen: (terminalOpen) => {
     persistLayoutVisibility(terminalOpen, get().aiPanelOpen);
     set({ terminalOpen });
@@ -386,30 +393,31 @@ export const useApp = create<AppState>((set, get) => ({
   },
   dismissToast: (id) =>
     set((state) => ({ toasts: state.toasts.filter((toast) => toast.id !== id) })),
-  addNotification: (notification) =>
-    set((state) => {
-      const duplicate = notification.notificationId
-        ? state.notifications.some((item) => item.notificationId === notification.notificationId)
-        : state.notifications.some(
-            (item) =>
-              item.kind === notification.kind &&
-              item.title === notification.title &&
-              item.body === notification.body &&
-              Date.now() - item.createdAt < 5000,
-          );
-      if (duplicate) return state;
-      const next: AppNotification[] = [
-        {
-          ...notification,
-          id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-          createdAt: Date.now(),
-          read: false,
-        },
-        ...state.notifications,
-      ].slice(0, MAX_NOTIFICATIONS);
-      persistNotifications(next);
-      return { notifications: next };
-    }),
+  addNotification: (notification) => {
+    const state = get();
+    const duplicate = notification.notificationId
+      ? state.notifications.some((item) => item.notificationId === notification.notificationId)
+      : state.notifications.some(
+          (item) =>
+            item.kind === notification.kind &&
+            item.title === notification.title &&
+            item.body === notification.body &&
+            Date.now() - item.createdAt < 5000,
+        );
+    if (duplicate) return false;
+    const next: AppNotification[] = [
+      {
+        ...notification,
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        createdAt: Date.now(),
+        read: false,
+      },
+      ...state.notifications,
+    ].slice(0, MAX_NOTIFICATIONS);
+    persistNotifications(next);
+    set({ notifications: next });
+    return true;
+  },
   markNotificationRead: (id) =>
     set((state) => {
       const next = state.notifications.map((notification) =>
