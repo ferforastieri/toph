@@ -11,9 +11,10 @@ import BotAvatar from "../../agents/components/BotAvatar";
 import { Button } from "@/shared/boardui/base/buttons/button";
 import { cx } from "@/shared/boardui/utils/cx";
 
-/** Streamed Markdown is repainted about seven times a second instead of on
- * every token. The server keeps the full text; this only paces the paint. */
-const STREAM_MS = 140;
+/** The harnesses report a whole text part at the end of each step, so the
+ * reveal is paced here: each new chunk types in instead of popping at once. */
+const REVEAL_MS = 45;
+const REVEAL_FACTOR = 0.16;
 
 const transcriptCache = new WeakMap<NativeMessage, AiMessage>();
 function messageOrder(a: NativeMessage, b: NativeMessage): number {
@@ -102,19 +103,28 @@ function timeLabel(value: number): string {
 }
 
 function useStreamedText(message: NativeMessage): string {
-  const running = message.status === "running";
-  const latest = useRef(message.content);
-  latest.current = message.content;
-  const [text, setText] = useState(message.content);
+  // Only messages that just landed are typed out; history renders at once.
+  const animate = useRef(Date.now() - message.createdAt < 15_000);
+  const target = useRef(message.content.length);
+  target.current = message.content.length;
+  const [shown, setShown] = useState(() => (animate.current ? 0 : message.content.length));
   useEffect(() => {
-    if (!running) return;
-    const timer = window.setInterval(() => setText(latest.current), STREAM_MS);
+    if (!animate.current) return;
+    const timer = window.setInterval(() => {
+      setShown((current) => {
+        const goal = target.current;
+        if (current >= goal) return current;
+        return Math.min(goal, current + Math.max(1, Math.ceil((goal - current) * REVEAL_FACTOR)));
+      });
+    }, REVEAL_MS);
     return () => window.clearInterval(timer);
-  }, [running]);
-  useEffect(() => {
-    if (!running) setText(message.content);
-  }, [message.content, running]);
-  return running ? text : message.content;
+  }, []);
+  if (shown >= message.content.length) return message.content;
+  let end = shown;
+  // Never split a surrogate pair while typing.
+  const code = message.content.charCodeAt(end - 1);
+  if (end > 1 && code >= 0xd800 && code <= 0xdbff) end -= 1;
+  return message.content.slice(0, end);
 }
 
 function StreamedTranscript({ message, project }: { message: NativeMessage; project: Project }) {
@@ -139,12 +149,11 @@ function UserMessage({ message }: { message: NativeMessage }) {
   );
 }
 
-function AgentMessage({ message, toph, project, grouped, steps }: {
+function AgentMessage({ message, toph, project, grouped }: {
   message: NativeMessage;
   toph: ChatToph;
   project: Project;
   grouped: boolean;
-  steps: NativeMessage[];
 }) {
   return (
     <article data-testid="chat-agent-message" className="toph-msg-in group/msg flex min-w-0 gap-3 py-1.5">
@@ -166,7 +175,6 @@ function AgentMessage({ message, toph, project, grouped, steps }: {
             />
           </div>
         )}
-        <RunSteps steps={steps} working={message.status === "running"} startedAt={message.createdAt} />
         <div className="md min-w-0 [&_p:first-child]:mt-0 [&_pre:first-child]:mt-0 [&_ul:first-child]:mt-0 [&_ol:first-child]:mt-0 [&_p:last-child]:mb-0 [&_pre:last-child]:mb-0 [&_ul:last-child]:mb-0 [&_ol:last-child]:mb-0">
           <StreamedTranscript message={message} project={project} />
         </div>
@@ -201,7 +209,15 @@ function StepItem({ message }: { message: NativeMessage }) {
       <span className={cx("shrink-0 font-medium", failed ? "text-status-rose-text" : "text-text-primary")}>{view.label}</span>
       {view.note ? null : view.detail ? <code className="min-w-0 max-w-full truncate text-[11.5px] text-text-tertiary" dir="ltr">{view.detail}</code> : null}
       {duration ? <span className="ms-auto shrink-0 tabular-nums text-[11px] text-text-tertiary">{duration}</span> : null}
-      {view.note ? <span className="basis-full whitespace-pre-wrap break-words ps-[26px] text-[12px] leading-relaxed text-text-secondary">{view.note}</span> : null}
+      {view.note ? (
+        <span
+          className={cx("basis-full cursor-pointer whitespace-pre-wrap break-words ps-[26px] text-[12px] leading-relaxed text-text-secondary", whole && "cursor-text")}
+          title={whole ? undefined : "Ver tudo"}
+          onClick={() => setWhole((value) => !value)}
+        >
+          <span className={cx("block", !whole && "line-clamp-6")}>{view.note}</span>
+        </span>
+      ) : null}
       {view.input ? (
         <code
           className={cx("basis-full cursor-pointer whitespace-pre-wrap break-words rounded-md bg-background-secondary-default px-2 py-1 text-[11.5px] leading-relaxed text-text-secondary ms-[26px]", whole && "cursor-text")}
@@ -268,6 +284,9 @@ function RunSteps({ steps, working, defaultOpen = false, startedAt }: { steps: N
         <span className={cx("shrink-0", working && "toph-steps-shimmer")}>{summary}</span>
         {working && labels.length > 0 ? <span className="min-w-0 truncate text-text-tertiary">{labels.slice(0, 3).join(", ")}</span> : null}
       </button>
+      {open && steps.length === 0 && working ? (
+        <p className="ms-1 mt-0.5 border-s-2 border-separator-border py-1 ps-3 text-[12.5px] text-text-tertiary">Ainda pensando…</p>
+      ) : null}
       {open && steps.length > 0 ? (
         <div className="ms-1 mt-0.5 flex flex-col gap-0.5 border-s-2 border-separator-border py-1 ps-3">
           {thoughtMs > 0 ? <ThoughtStep ms={thoughtMs} /> : null}
@@ -313,18 +332,6 @@ export default function ChatMessages({
 }: Props) {
   const ordered = useMemo(() => [...messages].sort(messageOrder), [messages]);
   const activeRuns = runs.filter(isActive);
-  const assistantRuns = useMemo(() => new Set(ordered.filter((message) => message.role === "assistant" && message.runId).map((message) => message.runId!)), [ordered]);
-  const stepsByRun = useMemo(() => {
-    const map = new Map<string, NativeMessage[]>();
-    for (const message of ordered) {
-      if ((message.role === "tool" || message.role === "reasoning" || message.role === "activity") && message.runId && assistantRuns.has(message.runId)) {
-        const list = map.get(message.runId) ?? [];
-        list.push(message);
-        map.set(message.runId, list);
-      }
-    }
-    return map;
-  }, [ordered, assistantRuns]);
 
   function currentActivity(toph: ChatToph, run: AgentRun): { label: string; detail?: string } {
     const own = ordered.filter((message) => message.tophId === toph.id && message.createdAt >= run.createdAt);
@@ -386,9 +393,6 @@ export default function ChatMessages({
       continue;
     }
 
-    if ((message.role === "activity" || message.role === "tool" || message.role === "reasoning") && message.runId && assistantRuns.has(message.runId)) {
-      continue;
-    }
     const grouped = lastTophId === toph.id && message.createdAt - lastTophAt < groupWindow;
     if (message.role === "activity" || message.role === "tool" || message.role === "reasoning") {
       if (!pendingToph || pendingToph.id !== toph.id) {
@@ -411,7 +415,6 @@ export default function ChatMessages({
           toph={toph}
           project={project}
           grouped={grouped}
-          steps={message.runId ? stepsByRun.get(message.runId) ?? [] : []}
         />,
       );
       lastTophId = toph.id;
@@ -422,7 +425,7 @@ export default function ChatMessages({
   flushSteps();
 
   for (const run of activeRuns) {
-    if (ordered.some((message) => message.runId === run.id && message.role === "assistant")) continue;
+    if (ordered.some((message) => message.runId === run.id && message.role === "assistant" && message.status === "running")) continue;
     const toph = tophs.find((item) => item.id === run.agentId);
     if (!toph) continue;
     const activity = currentActivity(toph, run);

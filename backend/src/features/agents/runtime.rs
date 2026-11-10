@@ -25,6 +25,14 @@ use tokio_util::sync::CancellationToken;
 
 type CompletionHandler = Arc<dyn Fn(CompletionNotice) + Send + Sync>;
 
+/// A transcript item reported by a native harness, recorded in arrival order so
+/// text parts and tool calls appear in the chat exactly where they happened.
+enum NativeRecord {
+    Tool(cli::NativeTool),
+    Text { index: usize, text: String },
+    Reasoning { index: usize, text: String },
+}
+
 /// One earlier answer from the same group turn. Group members run in sequence
 /// so the next Toph can see the work that already exists; this is the minimal
 /// handoff, not a rebuilt conversation history.
@@ -1246,57 +1254,67 @@ Se a mensagem depender de uma ferramenta ou MCP, prefira quem tem acesso a ele; 
             }
             let work = cli::work_dir(&ctx.run.session_id);
             tokio::fs::create_dir_all(&work).await?;
+            let streaming_parts = engine == "opencode";
             let mid = format!("{}-engine", ctx.run.id);
             let display = json!({"id":mid,"userId":ctx.user_id,"projectId":ctx.project_id,"chatId":ctx.run.chat_id,"tophId":ctx.agent.id,"sessionId":ctx.run.session_id,"runId":ctx.run.id,"model":model,"agentMode":ctx.agent.agent_mode,"role":"assistant","content":"","status":"running","createdAt":now()});
-            self.inner
-                .drafts
-                .lock()
-                .unwrap()
-                .insert(ctx.run.id.clone(), display.clone());
-            self.event(ctx, "message", display.clone());
-            let runtime = self.clone();
-            let live_ctx = ctx.clone();
-            let mut draft = display.clone();
-            let mut full = String::new();
-            let mut last_event = Instant::now();
+            // Harnesses that report text as it happens persist each finished
+            // part as its own message, in order with the tool calls. The other
+            // harnesses only return the final answer, so a running draft keeps
+            // the chat from looking frozen.
+            if !streaming_parts {
+                self.inner
+                    .drafts
+                    .lock()
+                    .unwrap()
+                    .insert(ctx.run.id.clone(), display.clone());
+                self.event(ctx, "message", display.clone());
+            }
             let started = Instant::now();
-            let (tool_tx, mut tool_rx) = tokio::sync::mpsc::unbounded_channel::<cli::NativeTool>();
+            let mut last_answer = String::new();
+            let (record_tx, mut record_rx) = tokio::sync::mpsc::unbounded_channel::<NativeRecord>();
             let recorder = {
                 let runtime = self.clone();
                 let tool_ctx = ctx.clone();
                 tokio::spawn(async move {
-                    while let Some(tool) = tool_rx.recv().await {
-                        if let Err(error) = runtime.record_native_tool(&tool_ctx, tool).await {
-                            tracing::warn!(%error, "record native tool");
+                    while let Some(item) = record_rx.recv().await {
+                        let recorded = match item {
+                            NativeRecord::Tool(tool) => {
+                                runtime.record_native_tool(&tool_ctx, tool).await
+                            }
+                            NativeRecord::Text { index, text } => {
+                                runtime.record_native_part(&tool_ctx, index, &text).await
+                            }
+                            NativeRecord::Reasoning { index, text } => {
+                                runtime.record_native_reasoning(&tool_ctx, index, &text).await
+                            }
+                        };
+                        if let Err(error) = recorded {
+                            tracing::warn!(%error, "record native event");
                         }
                     }
                 })
             };
             let result = {
+                let mut part_index = 0usize;
+                let mut reasoning_index = 0usize;
                 let mut on_text = |chunk: &str| {
-                    let offset = full.encode_utf16().count();
-                    full.push_str(chunk);
-                    if let Value::String(content) = &mut draft["content"] {
-                        content.push_str(chunk);
-                    }
-                    if last_event.elapsed() >= Duration::from_millis(80) {
-                        runtime
-                            .inner
-                            .drafts
-                            .lock()
-                            .unwrap()
-                            .insert(live_ctx.run.id.clone(), draft.clone());
-                        runtime.event(
-                            &live_ctx,
-                            "delta",
-                            json!({"id":draft["id"],"offset":offset,"text":chunk}),
-                        );
-                        last_event = Instant::now();
-                    }
+                    part_index += 1;
+                    last_answer = chunk.to_string();
+                    let _ = record_tx.send(NativeRecord::Text {
+                        index: part_index,
+                        text: chunk.to_string(),
+                    });
+                };
+                let mut on_reasoning = |chunk: &str| {
+                    reasoning_index += 1;
+                    let _ = record_tx.send(NativeRecord::Reasoning {
+                        index: reasoning_index,
+                        text: chunk.to_string(),
+                    });
                 };
                 match engine {
                     "claude" => {
-                        let tx = tool_tx.clone();
+                        let tx = record_tx.clone();
                         let session = cli::session_uuid(&ctx.run.session_id);
                         let resume = sqlx::query_scalar::<_, i64>(
                             "SELECT COUNT(*) FROM agent_messages WHERE session_id=? AND role='assistant'",
@@ -1317,13 +1335,13 @@ Se a mensagem depender de uma ferramenta ou MCP, prefira quem tem acesso a ele; 
                             &session,
                             resume,
                             cancel,
-                            &mut |tool| { let _ = tx.send(tool); },
+                            &mut |tool| { let _ = tx.send(NativeRecord::Tool(tool)); },
                         )
                         .await
                         .map(|(text, usage)| (text, usage, None))
                     }
                     "codex" => {
-                        let tx = tool_tx.clone();
+                        let tx = record_tx.clone();
                         let session = self
                             .inner
                             .repo
@@ -1339,12 +1357,12 @@ Se a mensagem depender de uma ferramenta ou MCP, prefira quem tem acesso a ele; 
                             &mcp_servers,
                             (!session.trim().is_empty()).then_some(session.as_str()),
                             cancel,
-                            &mut |tool| { let _ = tx.send(tool); },
+                            &mut |tool| { let _ = tx.send(NativeRecord::Tool(tool)); },
                         )
                         .await
                     }
                     "opencode" => {
-                        let tx = tool_tx.clone();
+                        let tx = record_tx.clone();
                         cli::run_opencode(
                             &model,
                             &system,
@@ -1356,7 +1374,8 @@ Se a mensagem depender de uma ferramenta ou MCP, prefira quem tem acesso a ele; 
                             &mcp_servers,
                             cancel,
                             &mut on_text,
-                            &mut |tool| { let _ = tx.send(tool); },
+                            &mut on_reasoning,
+                            &mut |tool| { let _ = tx.send(NativeRecord::Tool(tool)); },
                         )
                         .await
                         .map(|(text, usage)| (text, usage, None))
@@ -1366,7 +1385,7 @@ Se a mensagem depender de uma ferramenta ou MCP, prefira quem tem acesso a ele; 
                     ))),
                 }
             };
-            drop(tool_tx);
+            drop(record_tx);
             let _ = recorder.await;
             self.inner.drafts.lock().unwrap().remove(&ctx.run.id);
             let (text, usage, codex_thread) = match result {
@@ -1379,6 +1398,31 @@ Se a mensagem depender de uma ferramenta ou MCP, prefira quem tem acesso a ele; 
                     .repo
                     .save_ledger(&ctx.run.session_id, &thread)
                     .await;
+            }
+            if streaming_parts {
+                // Each part is already persisted (and streamed) as it arrived.
+                if last_answer.trim().is_empty() {
+                    return Err(bad_request(format!(
+                        "O {engine_label} terminou sem resposta."
+                    )));
+                }
+                let answer = last_answer.clone();
+                let _ = sqlx::query(
+            "INSERT INTO agent_model_calls(id,run_id,kind,provider,model,input_tokens,output_tokens,cached_tokens,reasoning_tokens,estimated_input,duration_ms,finish,created_at) VALUES(?,?,?,?,?,?,?,?,0,0,?,'stop',?)",
+        )
+        .bind(new_id())
+        .bind(&ctx.run.id)
+        .bind("engine")
+        .bind("opencode")
+        .bind(&model)
+        .bind(usage.input)
+        .bind(usage.output)
+        .bind(usage.cached)
+        .bind(started.elapsed().as_millis() as i64)
+        .bind(now())
+        .execute(self.inner.repo.0.pool())
+        .await;
+                return Ok(answer);
             }
             if text.trim().is_empty() {
                 return Err(bad_request(format!(
@@ -1417,6 +1461,77 @@ Se a mensagem depender de uma ferramenta ou MCP, prefira quem tem acesso a ele; 
         .await;
             Ok(text)
         })
+    }
+
+    /// Stores one finished text part reported by a native harness as its own
+    /// assistant message, so intermediate narration keeps its place in the
+    /// transcript instead of being glued to the final answer.
+    async fn record_native_part(&self, ctx: &RunContext, index: usize, text: &str) -> AppResult<()> {
+        if text.trim().is_empty() {
+            return Ok(());
+        }
+        let id = format!("native-{}-part-{index}", ctx.run.id);
+        let display = json!({
+            "id": id,
+            "chatId": ctx.run.chat_id,
+            "tophId": ctx.agent.id,
+            "sessionId": ctx.run.session_id,
+            "runId": ctx.run.id,
+            "role": "assistant",
+            "phase": "engine",
+            "content": text,
+            "status": "complete",
+            "createdAt": now(),
+        });
+        let seq = self
+            .inner
+            .repo
+            .message(
+                ctx,
+                &id,
+                json!({"role":"assistant","content":text}),
+                display.clone(),
+            )
+            .await?;
+        let mut display = display;
+        display["seq"] = json!(seq);
+        self.event(ctx, "message", display);
+        Ok(())
+    }
+
+    /// Stores the model's thinking for this step. It is a step in the run
+    /// details, not part of the answer, so it never enters the prompt context.
+    async fn record_native_reasoning(&self, ctx: &RunContext, index: usize, text: &str) -> AppResult<()> {
+        if text.trim().is_empty() {
+            return Ok(());
+        }
+        let id = format!("native-{}-reasoning-{index}", ctx.run.id);
+        let display = json!({
+            "id": id,
+            "chatId": ctx.run.chat_id,
+            "tophId": ctx.agent.id,
+            "sessionId": ctx.run.session_id,
+            "runId": ctx.run.id,
+            "role": "reasoning",
+            "phase": "engine",
+            "content": text,
+            "status": "complete",
+            "createdAt": now(),
+        });
+        let seq = self
+            .inner
+            .repo
+            .message(
+                ctx,
+                &id,
+                json!({"role":"reasoning","content":text}),
+                display.clone(),
+            )
+            .await?;
+        let mut display = display;
+        display["seq"] = json!(seq);
+        self.event(ctx, "message", display);
+        Ok(())
     }
 
     /// Stores a tool call reported by a native harness as a regular Toph

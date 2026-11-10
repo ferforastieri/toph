@@ -878,7 +878,7 @@ pub async fn run_codex(
 /// Runs one OpenCode turn with its native harness. Native tools, project
 /// config, skills and plugins stay available; Toph injects identity and stores
 /// the transcript.
-pub async fn run_opencode<F, T>(
+pub async fn run_opencode<F, R, T>(
     model: &str,
     system: &str,
     prompt: &str,
@@ -889,10 +889,12 @@ pub async fn run_opencode<F, T>(
     mcp_servers: &[Server],
     cancel: &CancellationToken,
     mut on_text: F,
+    mut on_reasoning: R,
     mut on_tool: T,
 ) -> AppResult<(String, CliUsage)>
 where
     F: FnMut(&str),
+    R: FnMut(&str),
     T: FnMut(NativeTool) + Send,
 {
     let home = work_dir(session_id);
@@ -927,6 +929,7 @@ where
         .arg("--format")
         .arg("json")
         .arg("--auto")
+        .arg("--thinking")
         .arg("--agent")
         .arg("toph")
         .arg("-m")
@@ -967,6 +970,7 @@ where
     let mut text = String::new();
     let mut usage = CliUsage::default();
     let mut error: Option<String> = None;
+    let mut seen_parts = std::collections::HashSet::new();
     loop {
         tokio::select! {
             _=cancel.cancelled()=>{
@@ -980,8 +984,23 @@ where
                     "text" => {
                         if let Some(part)=value["part"]["text"].as_str() {
                             if !part.is_empty() {
-                                text.push_str(part);
-                                on_text(part);
+                                // The CLI prints each finished text part once; the
+                                // id guards against duplicated snapshots.
+                                let part_id = value["part"]["id"].as_str().unwrap_or("").to_string();
+                                if part_id.is_empty() || seen_parts.insert(format!("text:{part_id}")) {
+                                    text.push_str(part);
+                                    on_text(part);
+                                }
+                            }
+                        }
+                    }
+                    "reasoning" => {
+                        if let Some(part)=value["part"]["text"].as_str() {
+                            if !part.trim().is_empty() {
+                                let part_id = value["part"]["id"].as_str().unwrap_or("").to_string();
+                                if part_id.is_empty() || seen_parts.insert(format!("reasoning:{part_id}")) {
+                                    on_reasoning(part);
+                                }
                             }
                         }
                     }
