@@ -36,7 +36,7 @@ export default function WebSidebar({ onOpenWeb, embedded = false, headerControl 
       <div className="min-h-0 flex-1 overflow-y-auto p-1">
         {targets.map((target) => (
           <div className="group flex items-center gap-0.5 px-1" key={target.id}>
-            <Button variant="ghost" size="small" className="h-8 min-w-0 flex-1 justify-start px-1.5" onClick={() => onOpenWeb(target)}>
+            <Button variant="ghost" size="small" className="h-8 min-w-0 flex-1 justify-start gap-1.5 px-1.5" onClick={() => onOpenWeb(target)}>
               <Globe2 size={15} className="text-foreground-icon-secondary" /><span className="truncate text-caption-1-regular">{target.name}</span>
             </Button>
             <IconLinkButton icon={ExternalLink} size="small" aria-label="Abrir externamente" title="Abrir externamente" href={target.url} target="_blank" rel="noreferrer" className="border-transparent bg-transparent shadow-none" />
@@ -74,8 +74,8 @@ function WebTargetForm({ onCreated }: { onCreated: () => void }) {
     <form className="flex shrink-0 flex-col gap-2 border-b p-2" onSubmit={submit}>
       <Input placeholder="Nome" value={name} onChange={setName} isRequired />
       <Input placeholder="grafana.home.arpa ou https://app.exemplo.com" value={url} onChange={setUrl} isRequired />
-      <p className="px-1 text-[10px] leading-relaxed text-text-tertiary">Pode colar sem esquema: usamos http para endereços locais e https para os demais.</p>
-      <Button size="small" disabled={busy} className="w-full">{busy ? "Adicionando..." : "Adicionar web app"}</Button>
+      <p className="px-1 text-[10px] leading-relaxed text-text-tertiary">Pode colar sem esquema: usamos http para endereços locais e https para os demais. O preview abre pelo servidor, então localhost aponta para ele.</p>
+      <Button type="submit" size="small" disabled={busy} className="w-full">{busy ? "Adicionando..." : "Adicionar web app"}</Button>
     </form>
   );
 }

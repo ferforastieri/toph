@@ -177,7 +177,7 @@ function ConnectionForm({ projectRoot, onCreated }: { projectRoot: string; onCre
       </Select>
       <Input placeholder={hints[driver]} value={dsn} onChange={setDsn} isRequired />
       <Checkbox isSelected={readOnly} onChange={setReadOnly}>Somente leitura</Checkbox>
-      <Button size="small" disabled={busy} className="w-full">{busy ? "Adicionando..." : "Adicionar conexão"}</Button>
+      <Button type="submit" size="small" disabled={busy} className="w-full">{busy ? "Adicionando..." : "Adicionar conexão"}</Button>
     </form>
   );
 }
