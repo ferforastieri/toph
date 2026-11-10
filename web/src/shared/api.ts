@@ -603,6 +603,25 @@ export const api = {
     );
   },
 
+  /** Raw bytes, used to preview images instead of decoding them as text. */
+  async fileBlob(projectId: string, path: string): Promise<Blob> {
+    const response = await fetch(
+      `${apiBase}${API_BASE}/projects/${encodeURIComponent(projectId)}/raw?path=${encodeURIComponent(path)}`,
+      { credentials: "include" },
+    );
+    if (!response.ok) {
+      let message = response.statusText;
+      try {
+        const body = (await response.json()) as { error?: string };
+        message = body.error ?? message;
+      } catch {
+        // Binary or empty error body.
+      }
+      throw new ApiError(response.status, message);
+    }
+    return response.blob();
+  },
+
   async saveFile(
     projectId: string,
     path: string,

@@ -4,6 +4,7 @@ import { languageFor } from "../../../shared/lib";
 import { useApp, type Tab } from "../../../app/store";
 import CodeEditor from "./CodeEditor";
 import FileIcon from "../../explorer/components/FileIcon";
+import { isImagePath } from "../image";
 import { Breadcrumb, BreadcrumbItem } from "@/shared/boardui/base/breadcrumb/breadcrumb";
 import { Badge } from "@/shared/boardui/base/badges/badge";
 import { useProjectEvents } from "../../projects/events";
@@ -24,12 +25,17 @@ export default function EditorPanel({ tab, project, onOpenChanges, mobile = fals
   const notify = useApp((state) => state.notify);
   const [blame, setBlame] = useState<GitBlameLine[]>([]);
   const [stale, setStale] = useState(false);
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [imageError, setImageError] = useState<string | null>(null);
+  const [imageVersion, setImageVersion] = useState(0);
+  const [contentError, setContentError] = useState<string | null>(null);
   const loadDebug = useDebug((state) => state.load);
   const breakpoints = useDebug((state) => state.byProject[project.id]?.breakpoints) ?? NO_BREAKPOINTS;
   const debugLocation = useDebug((state) => state.locations[project.id] ?? null);
   const toggleBreakpoint = useDebug((state) => state.toggleBreakpoint);
   const tabRef = useRef(tab);
   tabRef.current = tab;
+  const image = isImagePath(tab.path);
 
   useEffect(() => {
     if (!debugEnabled) return;
@@ -41,6 +47,10 @@ export default function EditorPanel({ tab, project, onOpenChanges, mobile = fals
     if (!tab.path) return;
     const broad = event.type === "sync" || event.type === "git";
     if (!broad && event.path !== tab.path) return;
+    if (image) {
+      setImageVersion((version) => version + 1);
+      return;
+    }
     const current = tabRef.current;
     if (current.dirty) {
       if (!broad) setStale(true);
@@ -60,8 +70,35 @@ export default function EditorPanel({ tab, project, onOpenChanges, mobile = fals
   });
 
   useEffect(() => {
-    if (tab.content !== undefined || !tab.path) return;
+    if (!image || !tab.path) {
+      setImageUrl(null);
+      setImageError(null);
+      return;
+    }
     let cancelled = false;
+    let objectUrl: string | null = null;
+    setImageUrl(null);
+    setImageError(null);
+    api
+      .fileBlob(project.id, tab.path)
+      .then((blob) => {
+        if (cancelled) return;
+        objectUrl = URL.createObjectURL(blob);
+        setImageUrl(objectUrl);
+      })
+      .catch((error) => {
+        if (!cancelled) setImageError(error instanceof Error ? error.message : "Não foi possível abrir a imagem.");
+      });
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [image, imageVersion, project.id, tab.path]);
+
+  useEffect(() => {
+    if (image || tab.content !== undefined || !tab.path) return;
+    let cancelled = false;
+    setContentError(null);
     api
       .file(project.id, tab.path)
       .then((file) => {
@@ -70,7 +107,9 @@ export default function EditorPanel({ tab, project, onOpenChanges, mobile = fals
       })
       .catch((error) => {
         if (cancelled) return;
-        notify("error", error instanceof Error ? error.message : "Could not open file.");
+        const binary = error instanceof ApiError && error.status === 415;
+        setContentError(binary ? "Arquivo binário: prévia não disponível." : error instanceof Error ? error.message : "Could not open file.");
+        if (!binary) notify("error", error instanceof Error ? error.message : "Could not open file.");
       })
     return () => {
       cancelled = true;
@@ -111,7 +150,7 @@ export default function EditorPanel({ tab, project, onOpenChanges, mobile = fals
     }
   }, [notify, project.id, tab.content, tab.hash, tab.id, tab.path, updateTab]);
 
-  if (tab.content === undefined) return <div className="flex h-full items-center justify-center text-sm text-muted-foreground">Abrindo {tab.path}...</div>;
+  if (!image && tab.content === undefined && !contentError) return <div className="flex h-full items-center justify-center text-sm text-muted-foreground">Abrindo {tab.path}...</div>;
 
   return (
     <div className="flex h-full min-h-0 w-full flex-1 flex-col">
@@ -134,7 +173,21 @@ export default function EditorPanel({ tab, project, onOpenChanges, mobile = fals
         </div>
       ) : null}
       <div className="min-h-0 flex-1 overflow-hidden [&_.iPadShowKeyboard]:hidden">
-        <CodeEditor path={tab.path ?? tab.title} projectId={project.id} projectRoot={project.root} onOpenChanges={onOpenChanges} value={tab.content} language={languageFor(tab.path ?? tab.title)} line={tab.line} blame={blame} breakpoints={breakpoints.filter((item) => item.path === tab.path)} debugLine={debugLocation?.path === tab.path ? debugLocation?.line : undefined} onToggleBreakpoint={tab.path ? (line) => toggleBreakpoint(project.id, tab.path!, line) : undefined} onChange={(content) => updateTab(tab.id, { content, dirty: true })} onCursorPosition={(line, column) => { window.dispatchEvent(new CustomEvent("toph:cursor", { detail: { line, column, language: languageFor(tab.path ?? tab.title) } })); }} onSave={() => void save()} />
+        {image ? (
+          <div className="flex h-full w-full items-center justify-center overflow-auto bg-background-full p-4">
+            {imageError ? (
+              <p className="max-w-md text-center text-sm text-text-tertiary">{imageError}</p>
+            ) : imageUrl ? (
+              <img src={imageUrl} alt={tab.path ?? tab.title} className="max-h-full max-w-full object-contain" />
+            ) : (
+              <p className="text-sm text-text-tertiary">Abrindo {tab.path}...</p>
+            )}
+          </div>
+        ) : contentError ? (
+          <div className="flex h-full w-full items-center justify-center p-6 text-center text-sm text-text-tertiary">{contentError}</div>
+        ) : (
+          <CodeEditor path={tab.path ?? tab.title} projectId={project.id} projectRoot={project.root} onOpenChanges={onOpenChanges} value={tab.content ?? ""} language={languageFor(tab.path ?? tab.title)} line={tab.line} blame={blame} breakpoints={breakpoints.filter((item) => item.path === tab.path)} debugLine={debugLocation?.path === tab.path ? debugLocation?.line : undefined} onToggleBreakpoint={tab.path ? (line) => toggleBreakpoint(project.id, tab.path!, line) : undefined} onChange={(content) => updateTab(tab.id, { content, dirty: true })} onCursorPosition={(line, column) => { window.dispatchEvent(new CustomEvent("toph:cursor", { detail: { line, column, language: languageFor(tab.path ?? tab.title) } })); }} onSave={() => void save()} />
+        )}
       </div>
     </div>
   );
