@@ -250,7 +250,17 @@ export const useApp = create<AppState>((set, get) => ({
       persistProjectState(activeProjectId, openProjectIds);
       return { projects, activeProjectId, openProjectIds };
     }),
-  setActiveProject: (activeProjectId) =>
+  setActiveProject: (activeProjectId) => {
+    const state = get();
+    if (
+      activeProjectId
+      && !state.openProjectIds.includes(activeProjectId)
+      && state.openProjectIds.length >= MAX_OPEN_PROJECTS
+    ) {
+      // Do not fail silently: a click that cannot open a project must say why.
+      state.notify("info", `Máximo de ${MAX_OPEN_PROJECTS} projetos abertos. Feche um para abrir outro.`);
+      return;
+    }
     set((state) => {
       const alreadyOpen = !activeProjectId || state.openProjectIds.includes(activeProjectId);
       const openProjectIds =
@@ -262,7 +272,8 @@ export const useApp = create<AppState>((set, get) => ({
       }
       persistProjectState(activeProjectId, openProjectIds);
       return { activeProjectId, openProjectIds };
-    }),
+    });
+  },
   setOpenProjectIds: (ids) =>
     set((state) => {
       // The server already validates the ids; do not filter against the local
