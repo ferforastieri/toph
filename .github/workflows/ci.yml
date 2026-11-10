@@ -127,6 +127,15 @@ jobs:
         run: sdkmanager "platforms;android-36" "build-tools;36.0.0" "ndk;28.2.13676358"
 
       - run: npm ci
+      - name: Add Firebase client config
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          if [ -z "$GOOGLE_SERVICES_JSON" ]; then
+            echo "::error::GOOGLE_SERVICES_JSON secret is not set"
+            exit 1
+          fi
+          printf '%s' "$GOOGLE_SERVICES_JSON" > mobile/src-tauri/gen/android/app/google-services.json
       - name: Refresh app icons
         run: |
           cd mobile

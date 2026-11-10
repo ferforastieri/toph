@@ -206,7 +206,7 @@ npm run icons
 npm run tauri -- android build --debug --apk --target aarch64
 ```
 
-The generated Android project is committed in `src-tauri/gen/android`; release signing reads the `ANDROID_KEYSTORE_*` environment variables. Use LAN, VPN or Tailscale for the server URL; do not expose the server directly to the internet.
+The generated Android project is committed in `src-tauri/gen/android`; release signing reads the `ANDROID_KEYSTORE_*` environment variables. The Firebase client config (`app/google-services.json`) is not in git: CI writes it from the `GOOGLE_SERVICES_JSON` secret, and local Android builds expect a copy of that file at the same path (ignored by git). Use LAN, VPN or Tailscale for the server URL; do not expose the server directly to the internet.
 
 ## Configuration
 

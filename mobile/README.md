@@ -14,6 +14,10 @@ The Android adaptive icon uses a dark brand background and the Toph foreground
 at 42% of the 108dp canvas, keeping the mark inside the 66dp safe zone on
 circular and squircle launchers. Regenerate icons with `npm run icons`.
 
+The Firebase client config (`src-tauri/gen/android/app/google-services.json`)
+is not tracked. CI writes it from the `GOOGLE_SERVICES_JSON` secret; for a local
+Android build, copy the Firebase `google-services.json` to that path.
+
 The launcher is shared with desktop in `packages/launcher/`. Both targets
 compile `packages/native/src/lib.rs`; Android excludes the embedded Rust server
 through target-specific Cargo dependencies and Rust configuration.
