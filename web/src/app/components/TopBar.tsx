@@ -331,7 +331,7 @@ export function ProjectRail({ onOpenProject, onCloseProject, onGoHome, onQuickOp
             return (
               <div
                 key={project.id}
-                className="relative"
+                className="group relative"
                 onPointerEnter={() => setHoveredProject(project.id)}
                 onPointerLeave={() => setHoveredProject((current) => (current === project.id ? null : current))}
                 onFocus={() => setHoveredProject(project.id)}
@@ -368,7 +368,10 @@ export function ProjectRail({ onOpenProject, onCloseProject, onGoHome, onQuickOp
                     event.stopPropagation();
                     onCloseProject(project.id);
                   }}
-                  className="pointer-events-none absolute -bottom-1 -start-1 z-10 flex size-4 items-center justify-center rounded-full bg-background-primary-default text-status-rose-text opacity-0 shadow-sm transition-opacity hover:bg-status-rose-background focus-visible:pointer-events-auto focus-visible:opacity-100 focus-visible:outline-none group-hover:pointer-events-auto group-hover:opacity-100"
+                  className={cx(
+                    "absolute -bottom-1 -start-1 z-10 flex size-4 items-center justify-center rounded-full bg-background-primary-default text-status-rose-text shadow-sm transition-opacity hover:bg-status-rose-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus-ring",
+                    hoveredProject === project.id ? "opacity-100" : "pointer-events-none opacity-0",
+                  )}
                   aria-label={`Fechar ${project.name}`}
                   title={`Fechar ${project.name}`}
                 >
