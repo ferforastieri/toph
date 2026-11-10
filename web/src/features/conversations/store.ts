@@ -37,6 +37,8 @@ export interface TophChat {
   id: string;
   /** Empty means "use the participants' names" in the UI. */
   name: string;
+  /** What the session is about, derived from its first user message. */
+  subject: string;
   /** Context applied to every participant of this task. */
   description: string;
   /** One id is an individual task; two or more make a group. */
@@ -330,6 +332,7 @@ function sanitizeProject(input: ProjectChats | null | undefined): ProjectChats {
     return [{
       id: item.id,
       name,
+      subject: typeof item.subject === "string" ? item.subject.trim() : "",
       description: item.description ?? "",
       participantIds,
       createdAt: Number.isFinite(item.createdAt) ? Number(item.createdAt) : now,
@@ -341,6 +344,7 @@ function sanitizeProject(input: ProjectChats | null | undefined): ProjectChats {
     chats = [{
       id: newId("chat"),
       name: "",
+      subject: "",
       description: "",
       participantIds: [...tophs.map((toph) => toph.id)],
       createdAt: now,
@@ -400,7 +404,7 @@ interface ChatStore {
   forget: (projectId: string) => void;
   /** Creates a task with one Toph (individual) or several (group). */
   createConversation: (projectId: string, participantIds: string[], options?: { name?: string; description?: string }) => TophChat | null;
-  updateChat: (projectId: string, chatId: string, patch: Partial<Pick<TophChat, "name" | "description">>) => void;
+  updateChat: (projectId: string, chatId: string, patch: Partial<Pick<TophChat, "name" | "subject" | "description">>) => void;
   deleteConversation: (projectId: string, chatId: string) => void;
   setActiveChat: (projectId: string, chatId: string | null) => void;
   createToph: (projectId: string, preset: TophPreset) => ChatToph | null;
@@ -466,6 +470,7 @@ export const useChats = create<ChatStore>((set, get) => ({
     const chat: TophChat = {
       id: newId("chat"),
       name: options.name?.trim() ?? "",
+      subject: "",
       description: options.description?.trim() ?? "",
       participantIds: unique,
       createdAt: now,
@@ -494,6 +499,7 @@ export const useChats = create<ChatStore>((set, get) => ({
                 ? {
                     ...chat,
                     name: patch.name === undefined ? chat.name : patch.name.trim(),
+                    subject: patch.subject === undefined ? chat.subject : patch.subject.trim(),
                     description: patch.description === undefined ? chat.description : patch.description.trim(),
                     updatedAt: Date.now(),
                   }
@@ -838,6 +844,42 @@ export function chatDisplayName(project: ProjectChats | undefined, chat: TophCha
 export function messagesForChat(project: ProjectChats | undefined, chatId: string | null | undefined): ChatMessage[] {
   if (!project || !chatId) return [];
   return project.messages.filter((message) => message.chatId === chatId);
+}
+
+/** First meaningful line of a message, used as the session subject. */
+export function sessionSubject(text: string): string {
+  const clean = text
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/[#>*_`~]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!clean) return "";
+  return clean.length > 72 ? `${clean.slice(0, 69).trimEnd()}…` : clean;
+}
+
+/**
+ * What the conversation is about. Explicit titles win; sessions named after
+ * their participants (`name = Toph`) fall back to the first user message, then
+ * to the task description, so the list never reads like a Toph directory.
+ */
+export function chatSessionTitle(project: ProjectChats | undefined, chat: TophChat | null | undefined, maxNames = 2): string {
+  if (!chat) return "";
+  const members = chatTophs(project, chat.id);
+  const participants = members.map((toph) => toph.name).join(" + ");
+  const fallback = chatDisplayName(project, chat, maxNames);
+  const explicit = chat.name.trim();
+  const autoNamed = !explicit || explicit === participants || explicit === (members[0]?.name ?? "") || explicit === fallback;
+  if (!autoNamed) return explicit;
+  const stored = (chat.subject ?? "").trim();
+  if (stored) return stored;
+  const firstUser = messagesForChat(project, chat.id).find((message) => message.role === "user" && message.content.trim());
+  if (firstUser) {
+    const legacy = sessionSubject(firstUser.content);
+    if (legacy) return legacy;
+  }
+  const description = sessionSubject(chat.description);
+  if (description) return description;
+  return fallback;
 }
 
 export function activeChat(project: ProjectChats | undefined): TophChat | null {

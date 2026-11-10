@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode }
 import { ArrowDown, Bot, LoaderCircle, Timer } from "@toph/icons";
 import type { Project } from "../../../shared/api";
 import { ApiError } from "../../../shared/api";
-import { chatDisplayName, chatTophs, useChats } from "../store";
+import { chatDisplayName, chatTophs, sessionSubject, useChats } from "../store";
 import { findModel, useAI } from "../../providers/store";
 import { useTophDrafts } from "../../agents/drafts";
 import { agentApi, isActive, type NativeMessage } from "../../agents/api";
@@ -128,6 +128,8 @@ export default function BotStudioTab({ project, conversationId, mobile = false, 
     if (value.trim() === "/compact") { native.setError("O contexto é compactado automaticamente conforme o orçamento de tokens. O histórico completo permanece salvo."); return; }
     // The backend router chooses who answers; an @handle in the text wins.
     sendLock.current = true; setSending(true); native.setError(""); follow.current = true;
+    const subject = sessionSubject(value);
+    if (subject && !chat.subject?.trim()) useChats.getState().updateChat(project.id, chat.id, { subject });
     useChats.getState().touchConversation(project.id, chat.id);
     const identity = JSON.stringify([chat.id, "router", value, attachments, tophs.map((toph) => toph.id)]);
     const requestId = pendingRequest.current?.text === identity ? pendingRequest.current.id : Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, "0")).join("");

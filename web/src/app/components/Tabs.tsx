@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Bot, Database, FileCode2, FileDiff, Globe2, X } from "@toph/icons";
 import { useApp, type Tab } from "../store";
-import { chatDisplayName, chatTophs, useChats } from "../../features/conversations/store";
+import { chatSessionTitle, chatTophs, useChats } from "../../features/conversations/store";
 import TophStack from "../../features/agents/components/TophStack";
 import { agentApi } from "../../features/agents/api";
 import { useSettings } from "../../features/settings/store";
@@ -41,6 +41,12 @@ export default function Tabs() {
   const confirmClose = useSettings((state) => state.confirmClose);
   const confirm = useConfirm();
   const projectChats = useChats((state) => state.byProject);
+  const notifications = useApp((state) => state.notifications);
+  const markChatNotificationsRead = useApp((state) => state.markChatNotificationsRead);
+  const unreadChats = useMemo(
+    () => new Set(notifications.filter((notification) => !notification.read && notification.chatId).map((notification) => notification.chatId!)),
+    [notifications],
+  );
   const [menu, setMenu] = useState<ContextMenuState | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -139,7 +145,7 @@ export default function Tabs() {
     const conversation = tab.kind === "ai" && tab.chatId
       ? projectChats[tab.projectId]?.chats.find((chat) => chat.id === tab.chatId) ?? null
       : null;
-    return conversation ? chatDisplayName(projectChats[tab.projectId], conversation, 2) : tab.title;
+    return conversation ? chatSessionTitle(projectChats[tab.projectId], conversation) : tab.title;
   });
   const menuIndex = menu ? tabs.findIndex((tab) => tab.id === menu.tab.id) : -1;
   const menuRightTabs = menu && menuIndex >= 0 ? tabs.slice(menuIndex + 1) : [];
@@ -169,6 +175,7 @@ export default function Tabs() {
               onClick={() => {
                 setActiveTab(tab.id);
                 if (tab.kind === "ai" && tab.chatId) {
+                  markChatNotificationsRead(tab.chatId);
                   useChats.getState().setActiveChat(tab.projectId, tab.chatId);
                   useChats.getState().touchConversation(tab.projectId, tab.chatId);
                 }
@@ -206,6 +213,9 @@ export default function Tabs() {
                 ? <FileIcon name={tab.path ?? tab.title} path={tab.path} size={14} />
                 : <Icon size={14} className="shrink-0" />}
               <span className="min-w-0 flex-1 truncate">{label}</span>
+              {tab.kind === "ai" && tab.chatId && unreadChats.has(tab.chatId) ? (
+                <span className="size-1.5 shrink-0 rounded-full bg-status-amber-text" title="Resposta nova" aria-label="Resposta nova" />
+              ) : null}
               {tab.dirty && <span className="size-1.5 shrink-0 rounded-full bg-accent-500" aria-label="Modificado" />}
               <IconButton
                 icon={X}

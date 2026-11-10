@@ -45,7 +45,7 @@ function seedProject(activeTabChatId: string | null): void {
     byProject: {
       p1: {
         version: 5,
-        chats: [{ id: "c1", name: "", description: "", participantIds: ["bot1"], createdAt: 1, updatedAt: 1 }],
+        chats: [{ id: "c1", name: "", subject: "", description: "", participantIds: ["bot1"], createdAt: 1, updatedAt: 1 }],
         tophs: [],
         messages: [],
         activeChatId: "c1",

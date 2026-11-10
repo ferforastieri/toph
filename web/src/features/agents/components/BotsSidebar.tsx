@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Bot, Plus, Users } from "@toph/icons";
 import type { Project } from "../../../shared/api";
-import { chatDisplayName, chatsForToph, latestChatForToph, useChats } from "../../conversations/store";
+import { chatDisplayName, chatSessionTitle, chatsForToph, latestChatForToph, useChats } from "../../conversations/store";
 import { openChatTab } from "../../conversations/navigation";
+import { ensureChatSubjects } from "../../conversations/subjects";
 import { agentApi } from "../api";
 import TophGallery from "./TophGallery";
 import TophRow from "./TophRow";
@@ -13,6 +14,7 @@ import { Button } from "@/shared/boardui/base/buttons/button";
 import { Modal } from "@/shared/boardui/base/modal/modal";
 import SidebarHeader from "../../../app/components/SidebarHeader";
 import { useConfirm } from "../../../shared/ui/confirm";
+import { useApp } from "../../../app/store";
 
 interface Props {
   project: Project;
@@ -26,6 +28,7 @@ export default function BotsSidebar({ project, headerControl, onSelectChat }: Pr
   const ensure = useChats((state) => state.ensure);
   const createConversation = useChats((state) => state.createConversation);
   const removeToph = useChats((state) => state.removeToph);
+  const notifications = useApp((state) => state.notifications);
   const confirm = useConfirm();
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [groupOpen, setGroupOpen] = useState(false);
@@ -35,6 +38,13 @@ export default function BotsSidebar({ project, headerControl, onSelectChat }: Pr
   useEffect(() => {
     ensure(project.id);
   }, [ensure, project.id]);
+
+  useEffect(() => {
+    const latest = (chats?.tophs ?? [])
+      .map((toph) => latestChatForToph(chats, toph.id))
+      .filter((chat): chat is NonNullable<typeof chat> => Boolean(chat));
+    void ensureChatSubjects(project.id, latest);
+  }, [project.id, chats?.chats, chats?.tophs]);
 
   const tophs = chats?.tophs ?? [];
   const selectedIds = useMemo(() => {
@@ -51,10 +61,20 @@ export default function BotsSidebar({ project, headerControl, onSelectChat }: Pr
     );
   }
 
+  function unreadForToph(tophId: string): number {
+    const chatIds = new Set((chats?.chats ?? []).filter((chat) => chat.participantIds.includes(tophId)).map((chat) => chat.id));
+    return notifications.filter(
+      (notification) => !notification.read
+        && notification.projectId === project.id
+        && (notification.botId === tophId || (notification.chatId ? chatIds.has(notification.chatId) : false)),
+    ).length;
+  }
+
   function openTask(chatId: string) {
     const current = useChats.getState().byProject[project.id];
     const chat = current?.chats.find((item) => item.id === chatId);
     if (!chat) return;
+    useApp.getState().markChatNotificationsRead(chatId);
     useChats.getState().setActiveChat(project.id, chatId);
     useChats.getState().touchConversation(project.id, chatId);
     openChatTab(project.id, chatId, chatDisplayName(current, chat, 2));
@@ -134,6 +154,7 @@ export default function BotsSidebar({ project, headerControl, onSelectChat }: Pr
           <div className="flex flex-col gap-0.5">
             {tophs.map((toph) => {
               const groups = groupsOf(toph.id);
+              const latest = latestChatForToph(chats, toph.id);
               return (
                 <TophRow
                   key={toph.id}
@@ -141,6 +162,8 @@ export default function BotsSidebar({ project, headerControl, onSelectChat }: Pr
                   selected={selectedIds.has(toph.id)}
                   groupCount={groups.length}
                   groupNames={groups.map((chat) => chatDisplayName(chats, chat))}
+                  subject={latest ? chatSessionTitle(chats, latest) : ""}
+                  unread={unreadForToph(toph.id)}
                   onOpen={() => openToph(toph.id)}
                   onNew={() => newTask(toph.id)}
                   onConfig={() => setConfigId(toph.id)}
@@ -161,6 +184,7 @@ export default function BotsSidebar({ project, headerControl, onSelectChat }: Pr
 
       <TophTasksSheet
         open={Boolean(tasksToph)}
+        projectId={project.id}
         toph={tasksToph}
         projectChats={chats}
         chats={tasks}

@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { Plus } from "@toph/icons";
 import type { Project } from "../../../shared/api";
-import { chatDisplayName, chatsForToph, latestChatForToph, useChats } from "../../../features/conversations/store";
+import { chatDisplayName, chatSessionTitle, chatsForToph, latestChatForToph, useChats } from "../../../features/conversations/store";
 import { agentApi } from "../../../features/agents/api";
+import { ensureChatSubjects } from "../../../features/conversations/subjects";
 import TophGallery from "../../../features/agents/components/TophGallery";
 import TophStartActions from "../../../features/agents/components/TophStartActions";
 import TophRow from "../../../features/agents/components/TophRow";
@@ -11,6 +12,7 @@ import CreateGroupModal from "../../../features/conversations/components/CreateG
 import TophTasksSheet from "../../../features/conversations/components/TophTasksSheet";
 import { Modal } from "@/shared/boardui/base/modal/modal";
 import { useConfirm } from "../../../shared/ui/confirm";
+import { useApp } from "../../store";
 
 interface Props {
   open: boolean;
@@ -25,6 +27,7 @@ export default function MobileConversationsSheet({ open, project, onClose, onSel
   const ensure = useChats((state) => state.ensure);
   const createConversation = useChats((state) => state.createConversation);
   const removeToph = useChats((state) => state.removeToph);
+  const notifications = useApp((state) => state.notifications);
   const confirm = useConfirm();
   const [galleryOpen, setGalleryOpen] = useState(false);
   const [groupOpen, setGroupOpen] = useState(false);
@@ -34,6 +37,13 @@ export default function MobileConversationsSheet({ open, project, onClose, onSel
   useEffect(() => {
     ensure(project.id);
   }, [ensure, project.id]);
+
+  useEffect(() => {
+    const latest = (chats?.tophs ?? [])
+      .map((toph) => latestChatForToph(chats, toph.id))
+      .filter((chat): chat is NonNullable<typeof chat> => Boolean(chat));
+    void ensureChatSubjects(project.id, latest);
+  }, [project.id, chats?.chats, chats?.tophs]);
 
   const tophs = chats?.tophs ?? [];
   const configToph = tophs.find((toph) => toph.id === configId) ?? null;
@@ -46,7 +56,17 @@ export default function MobileConversationsSheet({ open, project, onClose, onSel
     );
   }
 
+  function unreadForToph(tophId: string): number {
+    const chatIds = new Set((chats?.chats ?? []).filter((chat) => chat.participantIds.includes(tophId)).map((chat) => chat.id));
+    return notifications.filter(
+      (notification) => !notification.read
+        && notification.projectId === project.id
+        && (notification.botId === tophId || (notification.chatId ? chatIds.has(notification.chatId) : false)),
+    ).length;
+  }
+
   function select(chatId: string) {
+    useApp.getState().markChatNotificationsRead(chatId);
     useChats.getState().setActiveChat(project.id, chatId);
     useChats.getState().touchConversation(project.id, chatId);
     onClose();
@@ -108,6 +128,7 @@ export default function MobileConversationsSheet({ open, project, onClose, onSel
             </button>
           ) : tophs.map((toph) => {
             const groups = groupsOf(toph.id);
+            const latest = latestChatForToph(chats, toph.id);
             return (
               <TophRow
                 key={toph.id}
@@ -115,6 +136,8 @@ export default function MobileConversationsSheet({ open, project, onClose, onSel
                 compact
                 groupCount={groups.length}
                 groupNames={groups.map((chat) => chatDisplayName(chats, chat))}
+                subject={latest ? chatSessionTitle(chats, latest) : ""}
+                unread={unreadForToph(toph.id)}
                 onOpen={() => openToph(toph.id)}
                 onNew={() => newTask(toph.id)}
                 onConfig={() => setConfigId(toph.id)}
@@ -134,6 +157,7 @@ export default function MobileConversationsSheet({ open, project, onClose, onSel
 
       <TophTasksSheet
         open={Boolean(tasksToph)}
+        projectId={project.id}
         toph={tasksToph}
         projectChats={chats}
         chats={tasks}

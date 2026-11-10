@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   activeChat,
+  chatSessionTitle,
   chatDisplayName,
   chatsForToph,
   chatTophs,
@@ -185,7 +186,7 @@ describe("useChats v5", () => {
   it("hydrates and snapshots the v5 model", () => {
     useChats.getState().load("p", {
       version: 5,
-      chats: [{ id: "chat", name: "", description: "", participantIds: [], createdAt: 1, updatedAt: 1 }],
+      chats: [{ id: "chat", name: "", subject: "", description: "", participantIds: [], createdAt: 1, updatedAt: 1 }],
       tophs: [],
       messages: [],
       activeChatId: "chat",
@@ -197,6 +198,23 @@ describe("useChats v5", () => {
     const snapshot = useChats.getState().snapshot("p")!;
     expect(snapshot.version).toBe(5);
     expect(snapshot).not.toHaveProperty("messages");
+  });
+
+  it("titles a session by its subject instead of the Toph names", () => {
+    const leo = useChats.getState().createToph("p", preset("Leo", "Dev"))!;
+    const chat = useChats.getState().createConversation("p", [leo.id], { name: "Leo" })!;
+    expect(chatSessionTitle(useChats.getState().byProject.p, chat)).toBe("Leo");
+    useChats.getState().updateChat("p", chat.id, { subject: "Ajustar o login" });
+    const updated = useChats.getState().byProject.p.chats.find((item) => item.id === chat.id)!;
+    expect(chatSessionTitle(useChats.getState().byProject.p, updated)).toBe("Ajustar o login");
+  });
+
+  it("keeps an explicit session title and falls back to the description", () => {
+    const leo = useChats.getState().createToph("p", preset("Leo", "Dev"))!;
+    const named = useChats.getState().createConversation("p", [leo.id], { name: "Revisão do checkout" })!;
+    expect(chatSessionTitle(useChats.getState().byProject.p, named)).toBe("Revisão do checkout");
+    const described = useChats.getState().createConversation("p", [leo.id], { description: "Planejar a migração" })!;
+    expect(chatSessionTitle(useChats.getState().byProject.p, described)).toBe("Planejar a migração");
   });
 
   it("keeps messages in their task and removes them with the task", () => {

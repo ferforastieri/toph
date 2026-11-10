@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { History, MessageSquarePlus, MoreHorizontal, Settings2, Trash2, UserRound, Users } from "@toph/icons";
+import { History, MessageSquarePlus, MoreHorizontal, Settings2, Trash2, Users } from "@toph/icons";
 import type { ChatToph } from "../../conversations/store";
 import BotAvatar from "./BotAvatar";
 import { Button } from "@/shared/boardui/base/buttons/button";
@@ -19,10 +19,14 @@ interface Props {
   groupCount?: number;
   /** Group names, used as the badge tooltip. */
   groupNames?: string[];
+  /** Subject of the session this row opens, when there is one. */
+  subject?: string;
+  /** Unread answers for this Toph. */
+  unread?: number;
 }
 
 /** Toph row used by the desktop sidebar and the mobile chat sheet. */
-export default function TophRow({ toph, onOpen, onNew, onConfig, onSessions, onRemove, compact = false, selected = false, groupCount = 0, groupNames = [] }: Props) {
+export default function TophRow({ toph, onOpen, onNew, onConfig, onSessions, onRemove, compact = false, selected = false, groupCount = 0, groupNames = [], subject = "", unread = 0 }: Props) {
   const [menuOpen, setMenuOpen] = useState(false);
   const actionVisibility = selected
     ? "opacity-100"
@@ -45,6 +49,16 @@ export default function TophRow({ toph, onOpen, onNew, onConfig, onSessions, onR
         <span className="flex min-w-0 flex-1 flex-col gap-0.5">
           <span className="flex min-w-0 items-center gap-1.5">
             <span className="truncate text-caption-1-medium text-text-primary">{toph.name}</span>
+            {unread > 0 ? (
+              <span
+                className="flex size-2 shrink-0 rounded-full bg-accent-500 shadow-[0_0_0_2px_var(--color-background-primary-default)]"
+                title={`${unread} resposta${unread === 1 ? "" : "s"} não lida${unread === 1 ? "" : "s"}`}
+                aria-label={`${unread} resposta${unread === 1 ? "" : "s"} não lida${unread === 1 ? "" : "s"}`}
+              />
+            ) : null}
+            <span className="max-w-[84px] shrink-0 truncate rounded-full bg-background-tertiary-default px-1.5 py-px text-[9px] font-medium text-text-tertiary" title={toph.role || "Toph"}>
+              {toph.role || "Toph"}
+            </span>
             {groupCount > 0 ? (
               <span
                 title={groupNames.length > 0 ? `Em grupo: ${groupNames.join(", ")}` : `Em ${groupCount} grupo${groupCount === 1 ? "" : "s"}`}
@@ -55,14 +69,8 @@ export default function TophRow({ toph, onOpen, onNew, onConfig, onSessions, onR
               </span>
             ) : null}
           </span>
-          <span className="flex min-w-0 items-center gap-1 text-caption-2-regular text-text-secondary">
-            <span className="truncate">{toph.role || "Toph"}</span>
-            <span className="text-text-tertiary" aria-hidden="true">·</span>
-            {groupCount > 0 ? (
-              <span className="inline-flex shrink-0 items-center gap-0.5 text-accent-600"><Users size={9} />em grupo</span>
-            ) : (
-              <span className="inline-flex shrink-0 items-center gap-0.5 text-text-tertiary"><UserRound size={9} />individual</span>
-            )}
+          <span className="min-w-0 truncate text-caption-2-regular text-text-tertiary" title={subject || undefined}>
+            {subject || "sem tarefas"}
           </span>
         </span>
       </button>

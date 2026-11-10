@@ -204,6 +204,7 @@ interface AppState {
   addNotification: (notification: NewNotification) => boolean;
   markNotificationRead: (id: string) => void;
   markProjectNotificationsRead: (projectId: string) => void;
+  markChatNotificationsRead: (chatId: string) => void;
   markAllNotificationsRead: () => void;
   clearNotifications: () => void;
 }
@@ -431,6 +432,20 @@ export const useApp = create<AppState>((set, get) => ({
       let changed = false;
       const next = state.notifications.map((notification) => {
         if (!notification.read && notification.projectId === projectId) {
+          changed = true;
+          return { ...notification, read: true };
+        }
+        return notification;
+      });
+      if (!changed) return state;
+      persistNotifications(next);
+      return { notifications: next };
+    }),
+  markChatNotificationsRead: (chatId) =>
+    set((state) => {
+      let changed = false;
+      const next = state.notifications.map((notification) => {
+        if (!notification.read && notification.chatId === chatId) {
           changed = true;
           return { ...notification, read: true };
         }

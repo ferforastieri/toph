@@ -5,7 +5,8 @@ import { Bot, ChevronDown, ChevronRight, GitBranch, PanelLeftClose, PanelLeftOpe
 import { api, getApiBase, type Project, type SchemaTable, type WebTarget } from "../../shared/api";
 import { basename, expandGitPattern, quoteIdentifier, sanitizeBranchName } from "../../shared/lib";
 import { useApp, MAX_OPEN_PROJECTS, type Sidebar, type Tab } from "../store";
-import { chatDisplayName, latestChatForToph, useChats, type ProjectChats } from "../../features/conversations/store";
+import { chatDisplayName, latestChatForToph, useChats, type ProjectChats, type TophChat } from "../../features/conversations/store";
+import { ensureChatSubjects } from "../../features/conversations/subjects";
 import { chatTabId } from "../../features/conversations/navigation";
 import { useAI } from "../../features/providers/store";
 import { PROJECT_EVENT, type ProjectEvent } from "../../features/projects/events";
@@ -32,7 +33,7 @@ import { Radio, RadioGroup } from "@/shared/boardui/base/radio/radio";
 import { Kbd } from "@/shared/boardui/base/kbd/kbd";
 import { Modal } from "@/shared/boardui/base/modal/modal";
 import ResizeHandle from "../../shared/ui/resize";
-import { useIsMobile } from "../../shared/ui/useIsMobile";
+import { isMobileViewport, useIsMobile } from "../../shared/ui/useIsMobile";
 import { useConfirm } from "../../shared/ui/confirm";
 import { useTophDrafts } from "../../features/agents/drafts";
 import { cx } from "@/shared/boardui/utils/cx";
@@ -323,6 +324,39 @@ export default function Workbench() {
   }, [setSidebar, setTerminalOpen, terminalEnabled]);
 
   useProjectStream(projectEventsEnabled);
+
+  // Old sessions only know their Toph names; read their first message once so
+  // the tab labels can show what each conversation is about.
+  useEffect(() => {
+    if (!activeProjectId || !chatsHydrated) return;
+    const projectChats = useChats.getState().byProject[activeProjectId];
+    if (!projectChats) return;
+    const openChats = tabs
+      .filter((tab) => tab.kind === "ai" && tab.chatId)
+      .map((tab) => projectChats.chats.find((chat) => chat.id === tab.chatId))
+      .filter((chat): chat is TophChat => Boolean(chat));
+    void ensureChatSubjects(activeProjectId, openChats);
+  }, [activeProjectId, chatsHydrated, tabs]);
+
+  // Reading a conversation clears its unread answers, but only while it is on
+  // screen: background completions keep their badge until the tab is opened.
+  useEffect(() => {
+    const mark = () => {
+      const state = useApp.getState();
+      const tab = state.tabs.find((item) => item.id === state.activeTabId);
+      if (!tab || tab.kind !== "ai" || !tab.chatId) return;
+      if (document.visibilityState !== "visible") return;
+      if (isMobileViewport() && state.mobileScreen !== "bots") return;
+      state.markChatNotificationsRead(tab.chatId);
+    };
+    mark();
+    document.addEventListener("visibilitychange", mark);
+    window.addEventListener("focus", mark);
+    return () => {
+      document.removeEventListener("visibilitychange", mark);
+      window.removeEventListener("focus", mark);
+    };
+  }, [activeTabId]);
 
   useEffect(() => {
     if (!activeProjectId || !filesEnabled && !sourceControlEnabled) {
