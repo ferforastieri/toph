@@ -144,3 +144,28 @@ export function readableTextOn(color: string): string {
   const luminance = (0.2126 * red + 0.7152 * green + 0.0722 * blue) / 255;
   return luminance > 0.58 ? "#111111" : "#ffffff";
 }
+
+/**
+ * Completes a bare host with the right scheme: local addresses stay on http,
+ * public hosts use https, and anything that already has a scheme is kept.
+ */
+export function normalizeHttpUrl(raw: string): string {
+  const value = raw.trim();
+  if (!value) return "";
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(value)) return value;
+  const host = value.split("/")[0].split(":")[0].toLowerCase();
+  const local =
+    host === "localhost" ||
+    host === "::1" ||
+    host === "0.0.0.0" ||
+    !host.includes(".") ||
+    host.startsWith("127.") ||
+    host.startsWith("192.168.") ||
+    host.startsWith("10.") ||
+    /^172\.(1[6-9]|2[0-9]|3[01])\./.test(host) ||
+    host.endsWith(".local") ||
+    host.endsWith(".lan") ||
+    host.endsWith(".internal") ||
+    host.endsWith(".home.arpa");
+  return `${local ? "http" : "https"}://${value}`;
+}

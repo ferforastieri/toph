@@ -1,15 +1,15 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { Bot, Plus } from "@toph/icons";
+import { Bot, Plus, Users } from "@toph/icons";
 import type { Project } from "../../../shared/api";
 import { chatDisplayName, chatsForToph, latestChatForToph, useChats } from "../../conversations/store";
 import { openChatTab } from "../../conversations/navigation";
 import { agentApi } from "../api";
 import TophGallery from "./TophGallery";
-import TophStartActions from "./TophStartActions";
 import TophRow from "./TophRow";
 import CreateGroupModal from "../../conversations/components/CreateGroupModal";
 import BotConfig from "./BotConfig";
 import TophTasksSheet from "../../conversations/components/TophTasksSheet";
+import { Button } from "@/shared/boardui/base/buttons/button";
 import { Modal } from "@/shared/boardui/base/modal/modal";
 import SidebarHeader from "../../../app/components/SidebarHeader";
 import { useConfirm } from "../../../shared/ui/confirm";
@@ -105,10 +105,13 @@ export default function BotsSidebar({ project, headerControl, onSelectChat }: Pr
         icon={<Bot size={15} className="text-accent-500" />}
         title="Tophs"
         count={<span className="rounded-full bg-background-tertiary-default px-1.5 text-caption-2-regular text-text-tertiary">{tophs.length}</span>}
+        actions={
+          <>
+            <Button variant="ghost" size="xs" iconOnly leadingIcon={Plus} aria-label="Novo Toph" title="Novo Toph" onClick={() => setGalleryOpen(true)} />
+            <Button variant="ghost" size="xs" iconOnly leadingIcon={Users} aria-label="Novo grupo" title="Novo grupo" onClick={() => setGroupOpen(true)} />
+          </>
+        }
       />
-      <div className="px-2.5 pb-1 pt-2">
-        <TophStartActions compact onCreateToph={() => setGalleryOpen(true)} onCreateGroup={() => setGroupOpen(true)} />
-      </div>
       <div className="min-h-0 flex-1 overflow-y-auto p-2.5 pt-1">
         {!chats?.hydrated ? (
           <div className="flex items-center justify-center gap-2 py-8 text-caption-1-regular text-text-tertiary">

@@ -7,15 +7,15 @@ interface Props {
   className?: string;
 }
 
-/** Up to two initials: "toph" → T, "minha-api" → MA. */
+/** Always two letters when possible: "toph" → TO, "minha-api" → MA. */
 export function projectInitials(name: string): string {
   const words = name
     .split(/[^\p{L}\p{N}]+/u)
     .map((word) => word.trim())
     .filter(Boolean);
-  if (words.length === 0) return name.slice(0, 1).toUpperCase() || "?";
-  if (words.length === 1) return words[0].slice(0, 1).toUpperCase();
-  return `${words[0].slice(0, 1)}${words[1].slice(0, 1)}`.toUpperCase();
+  if (words.length === 0) return name.slice(0, 2).toUpperCase() || "?";
+  if (words.length >= 2) return `${words[0].slice(0, 1)}${words[1].slice(0, 1)}`.toUpperCase();
+  return words[0].slice(0, 2).toUpperCase();
 }
 
 /** The project's own identity: initials on the project colour, never a Toph. */

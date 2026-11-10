@@ -6,6 +6,7 @@ import { useConfirm } from "../../../shared/ui/confirm";
 import { Button } from "@/shared/boardui/base/buttons/button";
 import { IconLinkButton } from "@/shared/boardui/base/buttons/icon-button";
 import { Input } from "@/shared/boardui/base/input/input";
+import { normalizeHttpUrl } from "../../../shared/lib";
 import SidebarHeader from "../../../app/components/SidebarHeader";
 
 interface Props { onOpenWeb: (target: WebTarget) => void; embedded?: boolean; headerControl?: ReactNode; }
@@ -61,15 +62,19 @@ function WebTargetForm({ onCreated }: { onCreated: () => void }) {
   const [url, setUrl] = useState("");
   const [busy, setBusy] = useState(false);
   async function submit(event: React.FormEvent) {
-    event.preventDefault(); setBusy(true);
-    try { await api.createWebTarget(name, url); onCreated(); }
+    event.preventDefault();
+    const target = normalizeHttpUrl(url);
+    if (!target) return;
+    setBusy(true);
+    try { await api.createWebTarget(name.trim() || target, target); onCreated(); }
     catch (err) { notify("error", err instanceof Error ? err.message : "Could not add web app."); }
     finally { setBusy(false); }
   }
   return (
     <form className="flex shrink-0 flex-col gap-2 border-b p-2" onSubmit={submit}>
       <Input placeholder="Nome" value={name} onChange={setName} isRequired />
-      <Input placeholder="https://grafana.home.arpa" value={url} onChange={setUrl} isRequired />
+      <Input placeholder="grafana.home.arpa ou https://app.exemplo.com" value={url} onChange={setUrl} isRequired />
+      <p className="px-1 text-[10px] leading-relaxed text-text-tertiary">Pode colar sem esquema: usamos http para endereços locais e https para os demais.</p>
       <Button size="small" disabled={busy} className="w-full">{busy ? "Adicionando..." : "Adicionar web app"}</Button>
     </form>
   );

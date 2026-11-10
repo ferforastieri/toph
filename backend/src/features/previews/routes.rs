@@ -1,5 +1,34 @@
 use super::*;
 
+/// Accepts both full URLs and bare hosts: "grafana.lan:3000" becomes
+/// "http://grafana.lan:3000".
+pub(super) fn parse_preview_url(raw: &str) -> Option<reqwest::Url> {
+    let value = raw.trim();
+    if value.is_empty() {
+        return None;
+    }
+    let candidate = if value.contains("://") {
+        value.to_string()
+    } else {
+        format!("http://{value}")
+    };
+    let url = reqwest::Url::parse(&candidate).ok()?;
+    (matches!(url.scheme(), "http" | "https") && url.host_str().is_some()).then_some(url)
+}
+
+fn request_reason(error: &reqwest::Error) -> String {
+    let mut parts = vec![error.to_string()];
+    let mut source = std::error::Error::source(error);
+    while let Some(cause) = source {
+        let text = cause.to_string();
+        if !text.is_empty() && !parts.iter().any(|part| part.contains(&text)) {
+            parts.push(text);
+        }
+        source = cause.source();
+    }
+    parts.join(" · ")
+}
+
 pub(super) async fn list_web_targets(
     State(state): State<Arc<AppState>>,
 ) -> AppResult<Json<Vec<WebTarget>>> {
@@ -18,11 +47,8 @@ pub(super) async fn create_web_target(
     State(state): State<Arc<AppState>>,
     Json(input): Json<WebTargetRequest>,
 ) -> AppResult<Response> {
-    let url = reqwest::Url::parse(&input.url)
-        .map_err(|_| AppError::BadRequest("url must be http or https".into()))?;
-    if !matches!(url.scheme(), "http" | "https") || url.host_str().is_none() {
-        return Err(AppError::BadRequest("url must be http or https".into()));
-    }
+    let url = parse_preview_url(&input.url)
+        .ok_or_else(|| AppError::BadRequest("url must be http or https".into()))?;
     let target = state
         .store
         .create_web_target(WebTarget {
@@ -48,6 +74,41 @@ pub(super) async fn delete_web_target(
 pub(super) struct WebPreviewQuery {
     url: String,
 }
+
+const PREVIEW_SHIMS: &str = r#"
+(function () {
+  if (window.__tophPreviewShims) return;
+  window.__tophPreviewShims = true;
+  function memoryStorage() {
+    var map = new Map();
+    return {
+      getItem: function (key) { return map.has(String(key)) ? map.get(String(key)) : null; },
+      setItem: function (key, value) { map.set(String(key), String(value)); },
+      removeItem: function (key) { map.delete(String(key)); },
+      clear: function () { map.clear(); },
+      key: function (index) { var keys = Array.from(map.keys()); return index < keys.length ? keys[index] : null; },
+      get length() { return map.size; }
+    };
+  }
+  ['localStorage', 'sessionStorage'].forEach(function (name) {
+    try { Object.defineProperty(window, name, { configurable: true, value: memoryStorage() }); } catch (error) {}
+  });
+  var cookies = new Map();
+  try {
+    Object.defineProperty(Document.prototype, 'cookie', {
+      configurable: true,
+      get: function () {
+        return Array.from(cookies).map(function (pair) { return pair[0] + '=' + pair[1]; }).join('; ');
+      },
+      set: function (value) {
+        var pair = String(value).split(';')[0];
+        var index = pair.indexOf('=');
+        if (index > 0) cookies.set(pair.slice(0, index).trim(), pair.slice(index + 1).trim());
+      }
+    });
+  } catch (error) {}
+})();
+"#;
 
 const PREVIEW_SCRIPT: &str = r#"
 (function () {
@@ -110,8 +171,9 @@ pub(super) fn rewrite_preview_html(html: &str, base_url: &str) -> String {
             && tag.contains("content-security-policy")
     });
     let injected = format!(
-        "<base href=\"{}\"><script>{}</script>",
+        "<base href=\"{}\"><script>{}</script><script>{}</script>",
         escape_preview(base_url),
+        PREVIEW_SHIMS,
         PREVIEW_SCRIPT,
     );
     let lower = html.to_ascii_lowercase();
@@ -147,19 +209,16 @@ pub(super) async fn web_preview(
     Query(query): Query<WebPreviewQuery>,
 ) -> Response {
     let raw_url = query.url.trim();
-    let target = match reqwest::Url::parse(raw_url) {
-        Ok(url) if matches!(url.scheme(), "http" | "https") => url,
-        _ => {
-            return preview_error(
-                "O endereço precisa ser uma URL http ou https válida.",
-                raw_url,
-                StatusCode::BAD_REQUEST,
-            )
-        }
+    let Some(target) = parse_preview_url(raw_url) else {
+        return preview_error(
+            "O endereço precisa ser uma URL http ou https válida.",
+            raw_url,
+            StatusCode::BAD_REQUEST,
+        );
     };
 
     let response = match state
-        .http
+        .preview_http
         .get(target.clone())
         .header(
             header::ACCEPT,
@@ -176,7 +235,10 @@ pub(super) async fn web_preview(
         Err(error) => {
             tracing::warn!(%error, url = %target, "web preview fetch failed");
             return preview_error(
-                "Não foi possível alcançar este endereço a partir do servidor.",
+                &format!(
+                    "Não foi possível alcançar este endereço a partir do servidor ({}).",
+                    request_reason(&error)
+                ),
                 target.as_str(),
                 StatusCode::BAD_GATEWAY,
             );

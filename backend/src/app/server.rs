@@ -111,6 +111,7 @@ pub struct AppState {
     pub notifications: broadcast::Sender<NotificationEvent>,
     pub update: UpdateManager,
     pub http: reqwest::Client,
+    pub preview_http: reqwest::Client,
     login_limiter: Arc<RateLimiter>,
     api_limiter: Arc<RateLimiter>,
 }
@@ -295,6 +296,15 @@ impl AppState {
             update: UpdateManager::new(&config),
             http: reqwest::Client::builder()
                 .timeout(Duration::from_secs(15))
+                .build()
+                .map_err(|error| AppError::Internal(error.into()))?,
+            // Homelab services often use self-signed certificates. The preview
+            // only fetches a page the user asked for, so accept them there and
+            // nowhere else.
+            preview_http: reqwest::Client::builder()
+                .timeout(Duration::from_secs(20))
+                .danger_accept_invalid_certs(true)
+                .redirect(reqwest::redirect::Policy::limited(6))
                 .build()
                 .map_err(|error| AppError::Internal(error.into()))?,
             config,
