@@ -5,7 +5,6 @@ import type { MobileScreen } from "./mobile-nav";
 
 interface Props {
   screen: MobileScreen;
-  unreadCount: number;
   onSelect: (screen: MobileScreen) => void;
 }
 
@@ -19,7 +18,7 @@ const tabs: Array<{ id: MobileScreen; label: string; icon: ComponentType<{ class
 
 const moreScreens: MobileScreen[] = ["db", "web", "debug", "more"];
 
-export default function MobileBottomNav({ screen, unreadCount, onSelect }: Props) {
+export default function MobileBottomNav({ screen, onSelect }: Props) {
   return (
     <nav
       aria-label="Navegação principal"
@@ -29,7 +28,6 @@ export default function MobileBottomNav({ screen, unreadCount, onSelect }: Props
         {tabs.map((item) => {
           const Icon = item.icon;
           const active = screen === item.id || (item.id === "more" && moreScreens.includes(screen));
-          const badge = item.id === "more" ? unreadCount : 0;
           return (
             <button
               key={item.id}
@@ -48,11 +46,6 @@ export default function MobileBottomNav({ screen, unreadCount, onSelect }: Props
                 )}
               >
                 <Icon className="size-[19px]" />
-                {badge > 0 ? (
-                  <span className="absolute -end-0.5 -top-0.5 flex min-w-[13px] items-center justify-center rounded-full bg-status-rose-text px-0.5 text-[8px] font-semibold leading-[13px] text-white">
-                    {badge > 9 ? "9+" : badge}
-                  </span>
-                ) : null}
               </span>
               <span className={cx("max-w-full truncate text-[10px] leading-3", active ? "font-semibold" : "font-medium")}>{item.label}</span>
             </button>

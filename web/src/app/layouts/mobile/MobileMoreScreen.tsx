@@ -33,7 +33,6 @@ type SettingsSection = "general" | "companion" | "appearance" | "skills" | "harn
 interface Props {
   project: Project;
   user: User | null;
-  unreadCount: number;
   activeTitle?: string;
   onScreen: (screen: MobileScreen) => void;
   onTophs: () => void;
@@ -99,7 +98,6 @@ function Section({ title, actions }: { title: string; actions: Action[] }) {
 export default function MobileMoreScreen({
   project,
   user,
-  unreadCount,
   activeTitle,
   onScreen,
   onTophs,
@@ -129,7 +127,7 @@ export default function MobileMoreScreen({
   ];
 
   const tophActions: Action[] = [
-    { id: "tophs", label: "Tophs", description: "Tarefas e grupos", icon: Users, onSelect: onTophs, badge: unreadCount },
+    { id: "tophs", label: "Tophs", description: "Tarefas e grupos", icon: Users, onSelect: onTophs },
     { id: "skills", label: "Skills", description: "Receitas dos Tophs", icon: Sparkles, onSelect: () => openSettings("skills") },
     { id: "harness", label: "Harness e MCP", description: "CLIs, modelos e MCPs", icon: PlugZap, onSelect: () => openSettings("harness") },
     { id: "email", label: "Email", description: "Contas dos Tophs", icon: Mail, onSelect: () => openSettings("email") },

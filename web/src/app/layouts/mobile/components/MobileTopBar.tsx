@@ -1,7 +1,6 @@
 import type { ComponentType } from "react";
-import { Users, X } from "@toph/icons";
+import { Bell, Users, X } from "@toph/icons";
 import type { Project } from "../../../../shared/api";
-import NotificationBadge from "../../../../features/notifications/components/NotificationBadge";
 import ProjectMonogram from "../../../../features/projects/components/ProjectMonogram";
 import BrandMark from "@toph/brand";
 import { cx } from "@/shared/boardui/utils/cx";
@@ -65,13 +64,15 @@ export default function MobileTopBar({
           <button
             type="button"
             onClick={onProjects}
-            aria-label={`Projeto ${project.name}. Selecionar projeto${unreadCount > 0 ? `, ${unreadCount} notificações não lidas` : ""}`}
+            aria-label={`Projeto ${project.name}. ${unreadCount > 0 ? `${unreadCount} notificações não lidas. ` : ""}Ver projetos abertos`}
             title={`${project.name}\n${project.root}`}
             className="relative flex size-9 shrink-0 items-center justify-center rounded-full border border-border-button-default bg-background-secondary-default transition-[border-color,background-color,transform] duration-300 hover:border-border-button-hover hover:bg-background-primary-hover active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus-ring"
           >
             <ProjectMonogram project={project} size={26} />
             {unreadCount > 0 ? (
-              <NotificationBadge count={unreadCount} size={16} tone="light" className="absolute -top-1 -end-1 z-10" />
+              <span className="absolute -end-0.5 -top-0.5 z-10 flex size-4 items-center justify-center rounded-full bg-background-primary-default text-accent-500 shadow-sm">
+                <Bell size={11} className="bell-ring origin-top" />
+              </span>
             ) : null}
           </button>
           {onClose ? (

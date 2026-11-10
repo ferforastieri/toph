@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Bot, Boxes, Bug, Database, Files, GitBranch, Globe2, MoreHorizontal, TerminalSquare } from "@toph/icons";
+import { Bot, Boxes, Bug, Database, Files, GitBranch, Globe2, MoreHorizontal, Plus, TerminalSquare } from "@toph/icons";
 import { api, type Project, type SchemaTable, type WebTarget } from "../../../shared/api";
 import { useApp } from "../../store";
 import { useIsMobile } from "../../../shared/ui/useIsMobile";
@@ -49,7 +49,9 @@ export default function MobileApp() {
   const mobile = useIsMobile();
   const project = projects.find((item) => item.id === activeProjectId) ?? null;
   const activeTab = tabs.find((tab) => tab.id === activeTabId) ?? null;
-  const unreadCount = notifications.filter((notification) => !notification.read).length;
+  const projectUnread = project
+    ? notifications.filter((notification) => !notification.read && notification.projectId === project.id).length
+    : 0;
 
   const screen = useApp((state) => state.mobileScreen);
   const setScreen = useApp((state) => state.setMobileScreen);
@@ -68,6 +70,7 @@ export default function MobileApp() {
   const pageIcon = screenIcons[screen];
   const [terminalOpen, setTerminalOpen] = useState(false);
   const [projectsOpen, setProjectsOpen] = useState(false);
+  const [projectPicker, setProjectPicker] = useState<"open" | "closed">("open");
   const [closeTarget, setCloseTarget] = useState<Project | null>(null);
   const [closeBusy, setCloseBusy] = useState(false);
   const [closeError, setCloseError] = useState("");
@@ -179,6 +182,18 @@ export default function MobileApp() {
     if (chat) useChats.getState().setActiveChat(pending.projectId, chat.id);
     pendingBot.current = null;
   }, [activeProjectId, chatsHydrated]);
+
+  function openProjectSheet() {
+    setProjectPicker("open");
+    setProjectsOpen(true);
+  }
+
+  function selectProjectFromSheet(id: string) {
+    useApp.getState().markProjectNotificationsRead(id);
+    setActiveProject(id);
+    setProjectsOpen(false);
+    setScreen("bots");
+  }
 
   function selectScreen(next: MobileScreen) {
     setScreen(next);
@@ -348,10 +363,10 @@ export default function MobileApp() {
         title={pageTitle}
         subtitle={pageSubtitle}
         project={project}
-        unreadCount={unreadCount}
+        unreadCount={projectUnread}
         icon={pageIcon}
         onTophs={openConversations}
-        onProjects={() => setProjectsOpen(true)}
+        onProjects={openProjectSheet}
         brandIcon={screen === "bots"}
       />
       <main className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background-primary-default">
@@ -394,12 +409,11 @@ export default function MobileApp() {
           <MobileMoreScreen
             project={project}
             user={user}
-            unreadCount={unreadCount}
             activeTitle={activeTab?.title}
             onScreen={selectScreen}
             onTophs={openConversations}
             onTerminal={() => setTerminalOpen(true)}
-            onProjects={() => setProjectsOpen(true)}
+            onProjects={openProjectSheet}
             onBranch={() => setBranchOpen(true)}
             onAccount={() => setAccountOpen(true)}
           />
@@ -436,7 +450,6 @@ export default function MobileApp() {
 
       <MobileBottomNav
         screen={screen}
-        unreadCount={unreadCount}
         onSelect={selectScreen}
       />
 
@@ -454,9 +467,9 @@ export default function MobileApp() {
             title="Terminal"
             subtitle={project.name}
             project={project}
-            unreadCount={unreadCount}
+            unreadCount={projectUnread}
             icon={TerminalSquare}
-            onProjects={() => { setTerminalOpen(false); setProjectsOpen(true); }}
+            onProjects={() => { setTerminalOpen(false); openProjectSheet(); }}
             onClose={() => setTerminalOpen(false)}
           />
           <div className="min-h-0 flex-1">
@@ -465,16 +478,36 @@ export default function MobileApp() {
         </div>
       )}
 
-      <Modal isOpen={projectsOpen} onClose={() => setProjectsOpen(false)} label="Projetos" placement="bottom" size="sm" bodyClassName="p-2.5" swipeToClose>
+      <Modal
+        isOpen={projectsOpen}
+        onClose={() => setProjectsOpen(false)}
+        label={projectPicker === "open" ? "Projetos abertos" : "Abrir projeto"}
+        placement="bottom"
+        size="sm"
+        bodyClassName="p-2.5"
+        swipeToClose
+      >
         <ProjectSwitcher
-          onSelect={(id) => {
-            // Choosing a project must clear its badge, like the desktop rail.
-            useApp.getState().markProjectNotificationsRead(id);
-            setActiveProject(id);
-            setProjectsOpen(false);
-            setScreen("bots");
-          }}
-          onCloseProject={(id) => requestCloseProject(id)}
+          onlyOpen={projectPicker === "open"}
+          onlyClosed={projectPicker === "closed"}
+          heading={projectPicker === "open" ? "Projetos abertos" : "Abrir projeto"}
+          action={projectPicker === "open" ? (
+            <Button
+              variant="secondary"
+              size="xs"
+              iconOnly
+              leadingIcon={Plus}
+              aria-label="Abrir outro projeto"
+              title="Abrir outro projeto"
+              onClick={() => setProjectPicker("closed")}
+            />
+          ) : (
+            <Button variant="secondary" size="xs" onClick={() => setProjectPicker("open")}>
+              Voltar
+            </Button>
+          )}
+          onSelect={selectProjectFromSheet}
+          onCloseProject={projectPicker === "open" ? (id) => requestCloseProject(id) : undefined}
         />
       </Modal>
 
