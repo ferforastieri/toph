@@ -17,14 +17,15 @@ interface Props {
   onStop?: () => void;
   busy: boolean;
   placeholder: string;
-  hint?: string;
   allowAttachments?: boolean;
+  /** Model and other pickers rendered next to the attach button. */
+  leadingControls?: ReactNode;
   modeControls?: ReactNode;
   history?: string[];
   members?: ChatToph[];
 }
 
-export function AgentComposer({ value, onChange, onSend, onStop, busy, placeholder, hint = "", allowAttachments = true, modeControls, history = [], members = [] }: Props) {
+export function AgentComposer({ value, onChange, onSend, onStop, busy, placeholder, allowAttachments = true, leadingControls, modeControls, history = [], members = [] }: Props) {
   const [attachments, setAttachments] = useState<AgentAttachment[]>([]);
   const attachmentsRef = useRef<AgentAttachment[]>([]);
   attachmentsRef.current = attachments;
@@ -271,7 +272,8 @@ export function AgentComposer({ value, onChange, onSend, onStop, busy, placehold
           />
           <div className="flex min-w-0 items-center gap-2 px-3 pb-2 pt-1">
             {allowAttachments ? <Button type="button" variant="ghost" size="small" iconOnly leadingIcon={ImagePlus} aria-label="Anexar arquivo" title="Anexar arquivo (Ctrl+U)" onClick={() => fileRef.current?.click()} /> : null}
-            <span className="min-w-0 flex-1 truncate text-[11.5px] text-text-tertiary">{hint}</span>
+            {leadingControls ? <div className="flex min-w-0 items-center gap-0.5">{leadingControls}</div> : null}
+            <span className="min-w-0 flex-1" />
             {modeControls ? <div className="flex shrink-0 items-center gap-0.5">{modeControls}</div> : null}
             {audio.processing ? (
               <Button type="button" variant="secondary" size="small" iconOnly leadingIcon={LoaderCircle} disabled aria-label="Processando áudio" title="Processando áudio" className="shrink-0 rounded-full [&_svg]:animate-spin" />

@@ -48,12 +48,13 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 describe("Toph chat controls", () => {
-  it.each([false, true])("uses the compact chat composer with only the plan limit (mobile=%s)", (mobile) => {
+  it.each([false, true])("keeps the model, the plan limit and the send controls in the composer (mobile=%s)", (mobile) => {
     render(<BotStudioTab project={project} conversationId={chatId} mobile={mobile} />);
     expect(screen.getByRole("button", { name: "Consumo do plano" })).toBeVisible();
-    expect(screen.queryByRole("button", { name: "Modelo e esforço" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Modelo e esforço" })).toBeVisible();
     expect(screen.queryByRole("button", { name: "Modo do agente" })).not.toBeInTheDocument();
     expect(screen.queryByText("Harness Toph · execução no servidor")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Sua mensagem entra na fila/)).not.toBeInTheDocument();
   });
 
   it("sends each Toph's own settings", async () => {
@@ -96,12 +97,23 @@ describe("Toph chat controls", () => {
     expect(screen.getByRole("textbox", { name: "Mensagem para o agente" })).toBeVisible();
   });
 
-  it("opens the task participants from the composer", async () => {
+  it("opens the task participants from the model menu", async () => {
     render(<BotStudioTab project={project} conversationId={chatId} />);
-    fireEvent.click(screen.getByRole("button", { name: "Participantes da conversa" }));
+    fireEvent.click(screen.getByRole("button", { name: "Modelo e esforço" }));
+    fireEvent.click(await screen.findByText("Participantes e contexto"));
     const dialog = await screen.findByRole("dialog", { name: "Conversa" });
     expect(within(dialog).getByText("Fernando")).toBeVisible();
     expect(within(dialog).getByText("Beto")).toBeVisible();
+  });
+
+  it("asks which Toph changes the model in a group conversation", async () => {
+    render(<BotStudioTab project={project} conversationId={chatId} />);
+    const trigger = screen.getByRole("button", { name: "Modelo e esforço" });
+    expect(within(trigger).getByText(/DeepSeek/)).toBeVisible();
+    fireEvent.click(trigger);
+    expect(await screen.findByText("Mudar o modelo de qual Toph?")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: /Beto/ }));
+    await waitFor(() => expect(within(trigger).getByText(/Review/)).toBeVisible());
   });
 
   it("shows how much of the plan limit is left", async () => {

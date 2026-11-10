@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { ArrowDown, Bot, LoaderCircle, Timer, UserRound } from "@toph/icons";
+import { ArrowDown, Bot, LoaderCircle, Timer } from "@toph/icons";
 import type { Project } from "../../../shared/api";
 import { ApiError } from "../../../shared/api";
 import { chatDisplayName, chatTophs, useChats } from "../store";
@@ -10,6 +10,7 @@ import { useAgentChat } from "../../agents/useAgentChat";
 import { AgentComposer, type AgentAttachment } from "./AgentComposer";
 import ChatMessages from "./ChatMessages";
 import ChatUsageMeter from "./ChatUsageMeter";
+import ConversationModelPicker from "./ConversationModelPicker";
 import ApprovalCard from "./ApprovalCard";
 import ConversationSettings from "./ConversationSettings";
 import BotAvatar from "../../agents/components/BotAvatar";
@@ -234,9 +235,9 @@ export default function BotStudioTab({ project, conversationId, mobile = false, 
         {modelError && <p role="alert" className="px-3 text-xs text-text-error-primary">{modelError}</p>}
         <AgentComposer value={text} onChange={(value) => setDraft(draftKey, value)} onSend={(value, files) => void send(value, files)} onStop={() => void stop()} busy={busy}
           placeholder={tophs.length === 1 ? `Mensagem para ${tophs[0].name}` : "Mensagem para o grupo"}
-          hint={busy ? "Sua mensagem entra na fila" : tophs.length === 1 ? "" : "Quem estiver na conversa responde · use @ para chamar alguém"}
           history={native.messages.filter((m) => m.role === "user").map((m) => m.content)}
-          modeControls={<div className="flex items-center gap-0.5"><Button type="button" variant="ghost" size="small" iconOnly leadingIcon={UserRound} aria-label="Participantes da conversa" title="Participantes e contexto" onClick={() => setSettingsOpen(true)} /><ChatUsageMeter chatName={title} model={activeModelDisplay} /></div>} members={tophs} />
+          leadingControls={<ConversationModelPicker projectId={project.id} tophs={tophs} onOpenSettings={() => setSettingsOpen(true)} />}
+          modeControls={<ChatUsageMeter chatName={title} model={activeModelDisplay} />} members={tophs} />
       </div>}
     </section>
     <ConversationSettings open={settingsOpen} project={project} chat={chat} projectChats={stored} onClose={() => setSettingsOpen(false)} />

@@ -7,16 +7,6 @@ import { cx } from "@/shared/boardui/utils/cx";
 import { Slider } from "@/shared/boardui/base/slider/slider";
 import ComposerMenu from "../../conversations/components/ComposerMenu";
 
-interface Props {
-  models: AIModel[];
-  model: string;
-  onModelChange: (value: string) => void;
-  effort: string;
-  efforts: string[];
-  onEffortChange?: (value: string) => void;
-  fullWidth?: boolean;
-}
-
 const EFFORT_LABEL: Record<string, string> = {
   minimal: "Mínimo",
   low: "Baixo",
@@ -27,22 +17,31 @@ const EFFORT_LABEL: Record<string, string> = {
   none: "Nenhum",
 };
 
-function effortLabel(value: string): string {
+export function effortLabel(value: string): string {
   if (!value) return "Padrão";
   return EFFORT_LABEL[value] ?? value;
 }
 
-export default function ModelPicker({ models, model, onModelChange, effort, efforts, onEffortChange, fullWidth = false }: Props) {
-  const [open, setOpen] = useState(false);
+interface OptionsProps {
+  models: AIModel[];
+  model: string;
+  onModelChange: (value: string) => void;
+  effort: string;
+  efforts: string[];
+  onEffortChange?: (value: string) => void;
+  /** Show the effort slider under a model with variants. */
+  inlineEffort?: boolean;
+  onPicked?: () => void;
+}
+
+/** Provider-grouped model list with the effort slider, shared by every picker. */
+export function ModelOptions({ models, model, onModelChange, effort, efforts, onEffortChange, inlineEffort = false, onPicked }: OptionsProps) {
   const [openProviders, setOpenProviders] = useState<Set<string>>(new Set());
   const [expandedModel, setExpandedModel] = useState("");
-
   const uniqueModels = useMemo(() => [...new Map(models.map((item) => [item.id, item])).values()], [models]);
   const selected = uniqueModels.find((item) => item.id === model);
-  const selectedInfo = selected ?? (model ? { id: model, label: model.split("/").pop() ?? model } : undefined);
-  const selectedProvider = selected ? modelGroup(selected) : modelGroup({ id: model, label: model.split("/").pop() ?? model });
   const variants = selected?.variants?.length ? selected.variants : efforts;
-  const inlineEffort = fullWidth && variants.length > 0 && Boolean(onEffortChange);
+  const showEffort = inlineEffort && variants.length > 0 && Boolean(onEffortChange);
 
   const groups = useMemo(() => {
     const grouped = new Map<string, AIModel[]>();
@@ -55,9 +54,9 @@ export default function ModelPicker({ models, model, onModelChange, effort, effo
   }, [uniqueModels, selected?.connectionLabel]);
 
   useEffect(() => {
-    if (!open || !selected) return;
+    if (!selected) return;
     setOpenProviders((current) => new Set(current).add(modelGroup(selected)));
-  }, [open, selected]);
+  }, [selected]);
 
   function toggleProvider(provider: string) {
     setOpenProviders((current) => {
@@ -71,7 +70,7 @@ export default function ModelPicker({ models, model, onModelChange, effort, effo
   function pick(item: AIModel, nextEffort: string, close = true) {
     onModelChange(item.id);
     if (nextEffort !== effort) onEffortChange?.(nextEffort);
-    if (close) setOpen(false);
+    if (close) onPicked?.();
   }
 
   function chooseModel(item: AIModel) {
@@ -85,6 +84,101 @@ export default function ModelPicker({ models, model, onModelChange, effort, effo
     if (nextEffort !== effort) onEffortChange?.(nextEffort);
     setExpandedModel(item.id);
   }
+
+  if (groups.length === 0) {
+    return <p className="px-2 py-3 text-caption-1-regular text-text-tertiary">Salve a configuração para carregar os modelos.</p>;
+  }
+
+  return (
+    <>
+      {groups.map(([provider, items]) => {
+        const expanded = openProviders.has(provider);
+        return (
+          <div key={provider} className="border-b border-separator-border last:border-b-0">
+            <button
+              type="button"
+              onClick={() => toggleProvider(provider)}
+              className="flex w-full items-center gap-2 rounded-xl px-2 py-2 text-start text-caption-1-semibold text-text-secondary transition-colors hover:bg-background-primary-hover hover:text-text-primary"
+            >
+              <ProviderIcon provider={provider} className="size-3.5 text-text-tertiary" />
+              <span className="min-w-0 flex-1 truncate">{providerLabel(provider)}</span>
+              <span className="rounded-full bg-background-tertiary-default px-1.5 text-caption-2-regular text-text-tertiary">{items.length}</span>
+              <ChevronDown size={13} className={cx("shrink-0 transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]", expanded ? "rotate-180" : "")} />
+            </button>
+            {expanded ? (
+              <div className="flex flex-col gap-0.5 pb-1">
+                {items.map((item) => {
+                  const active = item.id === model;
+                  const itemVariants = item.variants ?? [];
+                  const effortOpen = showEffort && expandedModel === item.id && itemVariants.length > 0;
+                  return (
+                    <div key={item.id}>
+                      <button
+                        type="button"
+                        onClick={() => chooseModel(item)}
+                        className={cx(
+                          "flex w-full items-center gap-2 rounded-lg px-2 py-2 text-start text-body-2-regular transition-colors",
+                          active ? "bg-background-secondary-hover text-text-primary" : "text-text-primary hover:bg-background-secondary-hover/60",
+                        )}
+                      >
+                        <span className="flex min-w-0 flex-1 flex-col truncate">
+                          <span className="truncate">{item.label}</span>
+                          {item.label !== item.id ? <span className="truncate text-caption-2-regular text-text-tertiary">{item.id}</span> : null}
+                        </span>
+                        {active ? <Check size={14} className="shrink-0 text-accent-500" /> : null}
+                        {itemVariants.length > 0 && showEffort ? <ChevronDown size={12} className={cx("shrink-0 text-text-tertiary transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]", effortOpen ? "rotate-180" : "")} /> : null}
+                      </button>
+                      {effortOpen ? (
+                        <div className="px-2 pb-3 pt-1">
+                          <div className="mb-1 flex items-center justify-between gap-2 text-caption-2-regular">
+                            <span className="text-text-tertiary">Esforço</span>
+                            <span className="text-text-secondary">{effortLabel(effort)}</span>
+                          </div>
+                          <Slider
+                            aria-label="Esforço"
+                            minValue={0}
+                            maxValue={itemVariants.length}
+                            step={1}
+                            value={effort && itemVariants.includes(effort) ? itemVariants.indexOf(effort) + 1 : 0}
+                            onChange={(value) => pick(item, Number(value) === 0 ? "" : itemVariants[Number(value) - 1] ?? "", false)}
+                            showTooltip={false}
+                            thumbLabel="Esforço"
+                          />
+                          <div className="flex items-center justify-between text-[10px] leading-none text-text-tertiary">
+                            <span>Padrão</span>
+                            <span>{effortLabel(itemVariants[itemVariants.length - 1])}</span>
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : null}
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
+interface Props {
+  models: AIModel[];
+  model: string;
+  onModelChange: (value: string) => void;
+  effort: string;
+  efforts: string[];
+  onEffortChange?: (value: string) => void;
+  fullWidth?: boolean;
+}
+
+export default function ModelPicker({ models, model, onModelChange, effort, efforts, onEffortChange, fullWidth = false }: Props) {
+  const [open, setOpen] = useState(false);
+  const uniqueModels = useMemo(() => [...new Map(models.map((item) => [item.id, item])).values()], [models]);
+  const selected = uniqueModels.find((item) => item.id === model);
+  const selectedInfo = selected ?? (model ? { id: model, label: model.split("/").pop() ?? model } : undefined);
+  const selectedProvider = selected ? modelGroup(selected) : modelGroup({ id: model, label: model.split("/").pop() ?? model });
+  const variants = selected?.variants?.length ? selected.variants : efforts;
 
   return (
     <ComposerMenu
@@ -104,76 +198,16 @@ export default function ModelPicker({ models, model, onModelChange, effort, effo
       contentClassName="max-h-[min(56vh,420px)] overflow-y-auto p-1.5"
     >
       {() => (
-        <>
-          {groups.length === 0 ? <p className="px-2 py-3 text-caption-1-regular text-text-tertiary">Salve a configuração para carregar os modelos.</p> : null}
-          {groups.map(([provider, items]) => {
-            const expanded = openProviders.has(provider);
-            return (
-              <div key={provider} className="border-b border-separator-border last:border-b-0">
-                <button
-                  type="button"
-                  onClick={() => toggleProvider(provider)}
-                  className="flex w-full items-center gap-2 rounded-xl px-2 py-2 text-start text-caption-1-semibold text-text-secondary transition-colors hover:bg-background-primary-hover hover:text-text-primary"
-                >
-                  <ProviderIcon provider={provider} className="size-3.5 text-text-tertiary" />
-                  <span className="min-w-0 flex-1 truncate">{providerLabel(provider)}</span>
-                  <span className="rounded-full bg-background-tertiary-default px-1.5 text-caption-2-regular text-text-tertiary">{items.length}</span>
-                  <ChevronDown size={13} className={cx("shrink-0 transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]", expanded ? "rotate-180" : "")} />
-                </button>
-                {expanded ? (
-                  <div className="flex flex-col gap-0.5 pb-1">
-                    {items.map((item) => {
-                      const active = item.id === model;
-                      const itemVariants = item.variants ?? [];
-                      const effortOpen = inlineEffort && expandedModel === item.id && itemVariants.length > 0;
-                      return (
-                        <div key={item.id}>
-                          <button
-                            type="button"
-                            onClick={() => chooseModel(item)}
-                            className={cx(
-                              "flex w-full items-center gap-2 rounded-lg px-2 py-2 text-start text-body-2-regular transition-colors",
-                              active ? "bg-background-secondary-hover text-text-primary" : "text-text-primary hover:bg-background-secondary-hover/60",
-                            )}
-                          >
-                             <span className="flex min-w-0 flex-1 flex-col truncate">
-                               <span className="truncate">{item.label}</span>
-                               {item.label !== item.id ? <span className="truncate text-caption-2-regular text-text-tertiary">{item.id}</span> : null}
-                             </span>
-                            {active ? <Check size={14} className="shrink-0 text-accent-500" /> : null}
-                            {itemVariants.length > 0 && inlineEffort ? <ChevronDown size={12} className={cx("shrink-0 text-text-tertiary transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]", effortOpen ? "rotate-180" : "")} /> : null}
-                          </button>
-                          {effortOpen ? (
-                            <div className="px-2 pb-3 pt-1">
-                              <div className="mb-1 flex items-center justify-between gap-2 text-caption-2-regular">
-                                <span className="text-text-tertiary">Esforço</span>
-                                <span className="text-text-secondary">{effortLabel(effort)}</span>
-                              </div>
-                              <Slider
-                                aria-label="Esforço"
-                                minValue={0}
-                                maxValue={itemVariants.length}
-                                step={1}
-                                value={effort && itemVariants.includes(effort) ? itemVariants.indexOf(effort) + 1 : 0}
-                                onChange={(value) => pick(item, Number(value) === 0 ? "" : itemVariants[Number(value) - 1] ?? "", false)}
-                                showTooltip={false}
-                                thumbLabel="Esforço"
-                              />
-                              <div className="flex items-center justify-between text-[10px] leading-none text-text-tertiary">
-                                <span>Padrão</span>
-                                <span>{effortLabel(itemVariants[itemVariants.length - 1])}</span>
-                              </div>
-                            </div>
-                          ) : null}
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : null}
-              </div>
-            );
-          })}
-        </>
+        <ModelOptions
+          models={models}
+          model={model}
+          onModelChange={onModelChange}
+          effort={effort}
+          efforts={efforts}
+          onEffortChange={onEffortChange}
+          inlineEffort={fullWidth}
+          onPicked={() => setOpen(false)}
+        />
       )}
     </ComposerMenu>
   );
