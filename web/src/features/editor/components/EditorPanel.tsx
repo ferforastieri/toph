@@ -5,6 +5,7 @@ import { useApp, type Tab } from "../../../app/store";
 import CodeEditor from "./CodeEditor";
 import FileIcon from "../../explorer/components/FileIcon";
 import { isImagePath } from "../image";
+import ImagePreview from "./ImagePreview";
 import { Breadcrumb, BreadcrumbItem } from "@/shared/boardui/base/breadcrumb/breadcrumb";
 import { Badge } from "@/shared/boardui/base/badges/badge";
 import { useProjectEvents } from "../../projects/events";
@@ -25,8 +26,6 @@ export default function EditorPanel({ tab, project, onOpenChanges, mobile = fals
   const notify = useApp((state) => state.notify);
   const [blame, setBlame] = useState<GitBlameLine[]>([]);
   const [stale, setStale] = useState(false);
-  const [imageUrl, setImageUrl] = useState<string | null>(null);
-  const [imageError, setImageError] = useState<string | null>(null);
   const [imageVersion, setImageVersion] = useState(0);
   const [contentError, setContentError] = useState<string | null>(null);
   const loadDebug = useDebug((state) => state.load);
@@ -68,32 +67,6 @@ export default function EditorPanel({ tab, project, onOpenChanges, mobile = fals
       })
       .catch(() => setStale(true));
   });
-
-  useEffect(() => {
-    if (!image || !tab.path) {
-      setImageUrl(null);
-      setImageError(null);
-      return;
-    }
-    let cancelled = false;
-    let objectUrl: string | null = null;
-    setImageUrl(null);
-    setImageError(null);
-    api
-      .fileBlob(project.id, tab.path)
-      .then((blob) => {
-        if (cancelled) return;
-        objectUrl = URL.createObjectURL(blob);
-        setImageUrl(objectUrl);
-      })
-      .catch((error) => {
-        if (!cancelled) setImageError(error instanceof Error ? error.message : "Não foi possível abrir a imagem.");
-      });
-    return () => {
-      cancelled = true;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-    };
-  }, [image, imageVersion, project.id, tab.path]);
 
   useEffect(() => {
     if (image || tab.content !== undefined || !tab.path) return;
@@ -173,16 +146,8 @@ export default function EditorPanel({ tab, project, onOpenChanges, mobile = fals
         </div>
       ) : null}
       <div className="min-h-0 flex-1 overflow-hidden [&_.iPadShowKeyboard]:hidden">
-        {image ? (
-          <div className="flex h-full w-full items-center justify-center overflow-auto bg-background-full p-4">
-            {imageError ? (
-              <p className="max-w-md text-center text-sm text-text-tertiary">{imageError}</p>
-            ) : imageUrl ? (
-              <img src={imageUrl} alt={tab.path ?? tab.title} className="max-h-full max-w-full object-contain" />
-            ) : (
-              <p className="text-sm text-text-tertiary">Abrindo {tab.path}...</p>
-            )}
-          </div>
+        {image && tab.path ? (
+          <ImagePreview key={tab.path} projectId={project.id} path={tab.path} version={imageVersion} />
         ) : contentError ? (
           <div className="flex h-full w-full items-center justify-center p-6 text-center text-sm text-text-tertiary">{contentError}</div>
         ) : (
