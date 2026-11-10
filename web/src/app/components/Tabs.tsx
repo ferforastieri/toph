@@ -4,7 +4,6 @@ import { Bot, Database, FileCode2, FileDiff, Globe2, X } from "@toph/icons";
 import { useApp, type Tab } from "../store";
 import { chatDisplayName, chatTophs, useChats } from "../../features/conversations/store";
 import TophStack from "../../features/agents/components/TophStack";
-import ProjectTophAvatar from "../../features/projects/components/ProjectTophAvatar";
 import { agentApi } from "../../features/agents/api";
 import { useSettings } from "../../features/settings/store";
 import { useConfirm } from "../../shared/ui/confirm";
@@ -39,7 +38,6 @@ export default function Tabs() {
   const setActiveTab = useApp((state) => state.setActiveTab);
   const setTabs = useApp((state) => state.setTabs);
   const projectRoot = useApp((state) => state.projects.find((item) => item.id === state.activeProjectId)?.root ?? "");
-  const project = useApp((state) => state.projects.find((item) => item.id === state.activeProjectId) ?? null);
   const confirmClose = useSettings((state) => state.confirmClose);
   const confirm = useConfirm();
   const projectChats = useChats((state) => state.byProject);
@@ -150,16 +148,6 @@ export default function Tabs() {
 
   return (
     <div className="flex min-h-10 items-center border-b bg-background-secondary-default px-1">
-      {project ? (
-        <span
-          className="me-1 hidden h-8 shrink-0 items-center gap-1.5 border-e border-separator-border pe-2.5 ps-1.5 min-[901px]:flex"
-          title={`${project.name}\n${project.root}`}
-          aria-label={`Projeto ${project.name}`}
-        >
-          <ProjectTophAvatar project={project} size={16} showInitial />
-          <span className="max-w-[150px] truncate text-caption-2-regular text-text-tertiary">{project.name}</span>
-        </span>
-      ) : null}
       <div ref={listRef} className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto" role="tablist">
         {tabs.map((tab, index) => {
           const Icon = icons[tab.kind as keyof typeof icons] ?? icons.editor;
