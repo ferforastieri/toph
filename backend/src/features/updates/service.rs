@@ -222,15 +222,16 @@ impl UpdateManager {
                 } else {
                     Duration::from_secs(60)
                 };
-                if cache
-                    .checked
-                    .is_some_and(|checked| checked.elapsed() < ttl)
-                {
+                if cache.checked.is_some_and(|checked| checked.elapsed() < ttl) {
                     return (cache.latest.clone(), cache.error.clone());
                 }
                 (
                     cache.etag.clone(),
-                    (cache.latest.clone(), cache.assets.clone(), cache.apk_url.clone()),
+                    (
+                        cache.latest.clone(),
+                        cache.assets.clone(),
+                        cache.apk_url.clone(),
+                    ),
                 )
             }
             Err(_) => (String::new(), (String::new(), Vec::new(), String::new())),
