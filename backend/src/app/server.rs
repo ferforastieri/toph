@@ -943,7 +943,8 @@ fn router(state: Arc<AppState>) -> Router {
 }
 
 async fn security_headers(request: Request<Body>, next: Next) -> Response {
-    let preview = request.uri().path() == "/api/web-preview";
+    let preview = request.uri().path() == "/api/web-preview"
+        || request.uri().path().starts_with("/api/web-preview/");
     let mut response = next.run(request).await;
     let headers = response.headers_mut();
     headers.insert(
