@@ -3,10 +3,14 @@ use sha2::{Digest, Sha256};
 use std::fs;
 use std::io::Write;
 use std::path::PathBuf;
-use std::sync::Mutex;
+use std::sync::{Mutex, OnceLock};
 use std::time::Duration;
 use tauri::{Manager, RunEvent, State};
 use url::Url;
+
+/// The launcher URL captured before the window navigates to a server. In dev
+/// this is the Vite URL; in a bundled app it is the custom protocol origin.
+static LAUNCHER_URL: OnceLock<Url> = OnceLock::new();
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -610,6 +614,19 @@ async fn local_pairing(
     })
 }
 
+/// Returns to the launcher and discards the saved server, so the user lands on
+/// the server/local-mode picker instead of reconnecting to the last server.
+#[cfg(not(target_os = "android"))]
+#[tauri::command]
+fn show_launcher(app: tauri::AppHandle) -> Result<(), String> {
+    let mut target = LAUNCHER_URL
+        .get()
+        .cloned()
+        .ok_or_else(|| "A URL do launcher não foi capturada no startup.".to_string())?;
+    target.set_query(Some("change=1"));
+    navigate_main(&app, target)
+}
+
 /// Navigates the launcher to a Toph URL read from a QR code. The server in the
 /// QR must answer the health check before the app navigates, so a stray or
 /// malicious QR cannot silently replace the launcher with an arbitrary page.
@@ -964,6 +981,7 @@ macro_rules! desktop_commands {
             validate_server,
             open_server,
             open_scanned_url,
+            show_launcher,
             start_local_server,
             open_local_server,
             local_pairing,
@@ -995,7 +1013,14 @@ pub fn run() {
     let mut builder = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
-        .setup(|_app| Ok(()))
+        .setup(|app| {
+            if let Some(window) = app.get_webview_window("main") {
+                if let Ok(url) = window.url() {
+                    let _ = LAUNCHER_URL.set(url);
+                }
+            }
+            Ok(())
+        })
         .invoke_handler(desktop_commands!());
 
     #[cfg(mobile)]

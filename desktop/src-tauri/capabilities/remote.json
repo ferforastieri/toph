@@ -15,6 +15,7 @@
   },
   "permissions": [
     "core:default",
-    "allow-download-update"
+    "allow-download-update",
+    "allow-show-launcher"
   ]
 }

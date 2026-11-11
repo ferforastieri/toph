@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useState } from "react";
 import { api, ApiError, setApiBase } from "../shared/api";
+import { isDesktopClient } from "../features/settings/store";
 import { useApp } from "./store";
 import Login from "../features/auth/components/Login";
 import ServerSetup from "../features/auth/components/ServerSetup";
@@ -12,6 +13,22 @@ import { usePet } from "../features/pet/store";
 import BrandMark from "@toph/brand";
 
 const SERVER_KEY = "toph_server_url";
+
+interface DesktopInternals {
+  invoke?: (command: string, args?: Record<string, unknown>) => Promise<unknown>;
+}
+
+/** Returns to the desktop launcher, where local mode and server URLs live. */
+async function openLauncher(): Promise<void> {
+  const internals = (window as unknown as { __TAURI_INTERNALS__?: DesktopInternals })
+    .__TAURI_INTERNALS__;
+  if (!internals?.invoke) return;
+  try {
+    await internals.invoke("show_launcher");
+  } catch (error) {
+    console.error(error);
+  }
+}
 
 function initialServerUrl(): string | null {
   const queryServer = new URLSearchParams(window.location.search).get("server");
@@ -110,7 +127,12 @@ function AppShell() {
   }
 
   if (!user) {
-    return <Login onChangeServer={changeServer} />;
+    return (
+      <Login
+        onChangeServer={changeServer}
+        onOpenLauncher={isDesktopClient() ? () => void openLauncher() : undefined}
+      />
+    );
   }
 
   return (

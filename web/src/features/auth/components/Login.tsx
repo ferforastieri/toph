@@ -8,9 +8,10 @@ import { Chip } from "@/shared/boardui/base/badges/chip";
 
 interface Props {
   onChangeServer?: () => void;
+  onOpenLauncher?: () => void;
 }
 
-export default function Login({ onChangeServer }: Props) {
+export default function Login({ onChangeServer, onOpenLauncher }: Props) {
   const setUser = useApp((state) => state.setUser);
   const notify = useApp((state) => state.notify);
   const [username, setUsername] = useState("admin");
@@ -54,6 +55,11 @@ export default function Login({ onChangeServer }: Props) {
         </form>
         <footer className="flex flex-col gap-2 text-center">
           <p className="text-caption-1-regular text-text-tertiary">O Toph é self-hosted. Em uma instalação nova, a senha inicial foi impressa no log do servidor.</p>
+          {onOpenLauncher && (
+            <Button type="button" size="small" className="w-full" onClick={onOpenLauncher}>
+              Voltar ao launcher
+            </Button>
+          )}
           {onChangeServer && <Button type="button" size="small" className="w-full" onClick={onChangeServer}>Alterar servidor</Button>}
         </footer>
       </section>

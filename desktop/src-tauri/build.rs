@@ -4,6 +4,7 @@ fn main() {
             "validate_server",
             "open_server",
             "open_scanned_url",
+            "show_launcher",
             "start_local_server",
             "open_local_server",
             "local_pairing",

@@ -158,6 +158,7 @@ export default function App() {
       if (params.get("change") === "1") {
         localStorage.removeItem(SERVER_KEY);
         localStorage.removeItem(LEGACY_RECENT_KEY);
+        setUrl("");
         params.delete("change");
         const query = params.toString();
         window.history.replaceState(
