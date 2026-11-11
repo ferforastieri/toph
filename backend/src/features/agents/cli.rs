@@ -479,6 +479,8 @@ async fn run_capture<S: AsRef<str>>(
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .kill_on_drop(true);
+    #[cfg(windows)]
+    command.creation_flags(0x08000000);
     for (key, value) in envs {
         command.env(key.as_ref(), value);
     }
@@ -950,6 +952,8 @@ where
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .kill_on_drop(true);
+    #[cfg(windows)]
+    command.creation_flags(0x08000000);
     #[cfg(unix)]
     command.process_group(0);
     let mut child = command.spawn().map_err(|error| {

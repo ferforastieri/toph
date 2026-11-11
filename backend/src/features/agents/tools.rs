@@ -572,6 +572,8 @@ pub async fn shell(
     #[cfg(unix)]
     let mut cmd = {
         let mut c = tokio::process::Command::new("/bin/sh");
+        #[cfg(windows)]
+        c.creation_flags(0x08000000);
         c.arg("-lc").arg(command);
         c.process_group(0);
         c
@@ -579,6 +581,8 @@ pub async fn shell(
     #[cfg(windows)]
     let mut cmd = {
         let mut c = tokio::process::Command::new("cmd.exe");
+        #[cfg(windows)]
+        c.creation_flags(0x08000000);
         c.arg("/C").arg(command);
         c
     };

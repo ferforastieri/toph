@@ -915,12 +915,11 @@ fn validate_branch_name(name: &str) -> AppResult<()> {
 }
 
 async fn git_output(root: &Path, args: &[&str]) -> AppResult<String> {
-    let output = Command::new("git")
-        .arg("-C")
-        .arg(root)
-        .args(args)
-        .output()
-        .await?;
+    let mut command = Command::new("git");
+    command.arg("-C").arg(root).args(args);
+    #[cfg(windows)]
+    command.creation_flags(0x08000000);
+    let output = command.output().await?;
     if !output.status.success() {
         return Err(crate::errors::bad_request(
             String::from_utf8_lossy(&output.stderr).trim().to_string(),
