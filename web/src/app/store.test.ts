@@ -71,14 +71,12 @@ describe("workbench store", () => {
     expect(useApp.getState().terminalIds).toEqual({ p1: "t1", p2: "t2" });
   });
 
-  it("caps the open projects at five", () => {
+  it("keeps every open project", () => {
     useApp.setState({ openProjectIds: [], activeProjectId: null });
-    for (let index = 0; index < 5; index += 1) {
+    for (let index = 0; index < 8; index += 1) {
       useApp.getState().setActiveProject(`p${index}`);
     }
-    expect(useApp.getState().openProjectIds).toHaveLength(5);
-    useApp.getState().setActiveProject("p5");
-    expect(useApp.getState().openProjectIds).toHaveLength(5);
-    expect(useApp.getState().activeProjectId).toBe("p4");
+    expect(useApp.getState().openProjectIds).toHaveLength(8);
+    expect(useApp.getState().activeProjectId).toBe("p7");
   });
 });

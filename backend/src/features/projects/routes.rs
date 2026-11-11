@@ -7,8 +7,6 @@ pub(super) struct OpenProjectsRequest {
     open_project_ids: Vec<String>,
 }
 
-const MAX_OPEN_PROJECTS: usize = 5;
-
 pub(super) async fn get_open_projects(
     State(state): State<Arc<AppState>>,
     Extension(context): Extension<AuthContext>,
@@ -20,7 +18,6 @@ pub(super) async fn get_open_projects(
     let open: Vec<String> = saved
         .into_iter()
         .filter(|id| projects.iter().any(|project| project.id == *id))
-        .take(MAX_OPEN_PROJECTS)
         .collect();
     Ok(Json(json!({ "openProjectIds": open })))
 }
@@ -37,9 +34,6 @@ pub(super) async fn save_open_projects(
         if !id.is_empty() && !open.contains(&id) && projects.iter().any(|project| project.id == id)
         {
             open.push(id);
-        }
-        if open.len() >= MAX_OPEN_PROJECTS {
-            break;
         }
     }
     let key = format!("open_projects:{}", context.user.id);

@@ -4,7 +4,7 @@ import { lazy, Suspense, useEffect, useRef, useState, type FormEvent, type React
 import { Bot, ChevronDown, ChevronRight, GitBranch, PanelLeftClose, PanelLeftOpen, X } from "@toph/icons";
 import { api, getApiBase, type Project, type SchemaTable, type WebTarget } from "../../shared/api";
 import { basename, expandGitPattern, quoteIdentifier, sanitizeBranchName } from "../../shared/lib";
-import { useApp, MAX_OPEN_PROJECTS, type Sidebar, type Tab } from "../store";
+import { useApp, type Sidebar, type Tab } from "../store";
 import { chatDisplayName, latestChatForToph, useChats, type ProjectChats, type TophChat } from "../../features/conversations/store";
 import { ensureChatSubjects } from "../../features/conversations/subjects";
 import { chatTabId } from "../../features/conversations/navigation";
@@ -656,11 +656,6 @@ export default function Workbench() {
 
   function switchProject(next: string) {
     if (next === activeProjectId) return;
-    const openIds = useApp.getState().openProjectIds;
-    if (!openIds.includes(next) && openIds.length >= MAX_OPEN_PROJECTS) {
-      useApp.getState().notify("info", `Máximo de ${MAX_OPEN_PROJECTS} projetos abertos. Feche um para abrir outro.`);
-      return;
-    }
     if (project && loadedProject.current === project.id) {
       void api.saveLayout(project.id, {
         tabs: layoutTabs,

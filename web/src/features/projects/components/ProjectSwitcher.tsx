@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Bell, FolderGit2, LoaderCircle, Search, X } from "@toph/icons";
 import { api, ApiError, type Repository } from "../../../shared/api";
-import { MAX_OPEN_PROJECTS, useApp } from "../../../app/store";
+import { useApp } from "../../../app/store";
 import ProjectTophAvatar from "./ProjectTophAvatar";
 import { Button } from "@/shared/boardui/base/buttons/button";
 import { Input } from "@/shared/boardui/base/input/input";
@@ -132,11 +132,6 @@ export default function ProjectSwitcher({ onSelect, onCloseProject, onlyClosed =
         <span>{heading || (onlyOpen ? "Abertos agora" : "Projetos")}</span>
         <span className="flex items-center gap-1.5">{visible.length}{action}</span>
       </div>
-      {!onlyOpen && openProjectIds.length >= MAX_OPEN_PROJECTS ? (
-        <p className="rounded-lg bg-background-secondary-default px-2 py-1.5 text-caption-2-regular text-text-secondary">
-          Limite de {MAX_OPEN_PROJECTS} projetos abertos. Feche um para abrir outro.
-        </p>
-      ) : null}
       <div className="flex max-h-[min(260px,32vh)] flex-col gap-0.5 overflow-y-auto">
         {visible.length === 0 ? (
           <p className="px-2 py-4 text-center text-caption-2-regular text-text-tertiary">

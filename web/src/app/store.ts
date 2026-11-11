@@ -78,7 +78,6 @@ const PROJECT_STATE_KEY = "toph_workbench_projects";
 const NOTIFICATIONS_KEY = "toph_notifications";
 const MAX_NOTIFICATIONS = 100;
 const LAYOUT_VISIBILITY_KEY = "toph_layout_visibility";
-export const MAX_OPEN_PROJECTS = 5;
 
 interface PersistedProjectState {
   activeProjectId: string | null;
@@ -93,7 +92,7 @@ function readProjectState(): PersistedProjectState {
     return {
       activeProjectId: typeof value.activeProjectId === "string" ? value.activeProjectId : null,
       openProjectIds: Array.isArray(value.openProjectIds)
-        ? [...new Set(value.openProjectIds.filter((id): id is string => typeof id === "string"))].slice(0, MAX_OPEN_PROJECTS)
+        ? [...new Set(value.openProjectIds.filter((id): id is string => typeof id === "string"))]
         : [],
     };
   } catch {
@@ -244,43 +243,29 @@ export const useApp = create<AppState>((set, get) => ({
       const openProjectIds = state.openProjectIds.filter((id) =>
         projects.some((project) => project.id === id),
       );
-      if (activeProjectId && !openProjectIds.includes(activeProjectId) && openProjectIds.length < MAX_OPEN_PROJECTS) {
+      if (activeProjectId && !openProjectIds.includes(activeProjectId)) {
         openProjectIds.push(activeProjectId);
       }
       persistProjectState(activeProjectId, openProjectIds);
       return { projects, activeProjectId, openProjectIds };
     }),
-  setActiveProject: (activeProjectId) => {
-    const state = get();
-    if (
-      activeProjectId
-      && !state.openProjectIds.includes(activeProjectId)
-      && state.openProjectIds.length >= MAX_OPEN_PROJECTS
-    ) {
-      // Do not fail silently: a click that cannot open a project must say why.
-      state.notify("info", `Máximo de ${MAX_OPEN_PROJECTS} projetos abertos. Feche um para abrir outro.`);
-      return;
-    }
+  setActiveProject: (activeProjectId) =>
     set((state) => {
       const alreadyOpen = !activeProjectId || state.openProjectIds.includes(activeProjectId);
       const openProjectIds =
-        activeProjectId && !alreadyOpen && state.openProjectIds.length < MAX_OPEN_PROJECTS
+        activeProjectId && !alreadyOpen
           ? [...state.openProjectIds, activeProjectId]
           : state.openProjectIds;
-      if (activeProjectId && !openProjectIds.includes(activeProjectId)) {
-        return state;
-      }
       persistProjectState(activeProjectId, openProjectIds);
       return { activeProjectId, openProjectIds };
-    });
-  },
+    }),
   setOpenProjectIds: (ids) =>
     set((state) => {
       // The server already validates the ids; do not filter against the local
       // project list because it may not be loaded yet on a fresh device.
-      const openProjectIds = [...new Set(ids)]
-        .filter((id): id is string => typeof id === "string" && id.trim().length > 0)
-        .slice(0, MAX_OPEN_PROJECTS);
+      const openProjectIds = [...new Set(ids)].filter(
+        (id): id is string => typeof id === "string" && id.trim().length > 0,
+      );
       const activeProjectId =
         openProjectIds.length === 0
           ? null
