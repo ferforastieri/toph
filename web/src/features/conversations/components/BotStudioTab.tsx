@@ -182,6 +182,16 @@ export default function BotStudioTab({ project, conversationId, mobile = false, 
   }
   sendNowRef.current = sendNow;
 
+  // A question blocks the run: bring it into view instead of leaving it below
+  // the fold where it looks like nothing happened.
+  useEffect(() => {
+    if (native.questions.length === 0) return;
+    follow.current = true;
+    setAtBottom(true);
+    const frame = requestAnimationFrame(() => pinToBottom());
+    return () => cancelAnimationFrame(frame);
+  }, [native.questions.length]);
+
   useEffect(() => {
     if (busy || queued.length === 0) return;
     const [next, ...rest] = queued;
