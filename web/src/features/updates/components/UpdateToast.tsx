@@ -79,7 +79,10 @@ function preferredInstaller(status: UpdateStatus): UpdateInstaller | undefined {
   const installers = status.installers;
   switch (platform()) {
     case "windows":
-      return findInstaller(installers, "windows-msi");
+      return (
+        findInstaller(installers, "windows-nsis") ??
+        findInstaller(installers, "windows-msi")
+      );
     case "linux":
       return (
         findInstaller(installers, "linux-appimage") ??

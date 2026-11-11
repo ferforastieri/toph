@@ -78,6 +78,17 @@ impl AuthManager {
         if !verify_password(&user.password_hash, password) {
             return Err(AppError::Unauthorized);
         }
+        self.create_session(user, kind).await
+    }
+
+    /// Creates a session for an already authenticated user. Pairing codes use
+    /// this path so a phone can join a local server without the admin password.
+    pub async fn session_for_user(&self, user_id: i64, kind: &str) -> AppResult<LoginResult> {
+        let user = self.store.user_by_id(user_id).await?;
+        self.create_session(user, kind).await
+    }
+
+    async fn create_session(&self, user: User, kind: &str) -> AppResult<LoginResult> {
         let raw = random_secret(32);
         let hash = token_hash(&raw);
         let session_id = random_secret(16);

@@ -9,6 +9,70 @@ pub(super) struct LoginRequest {
     kind: String,
 }
 
+#[derive(Deserialize)]
+pub(super) struct PairRequest {
+    code: String,
+    #[serde(default)]
+    kind: String,
+}
+
+/// Issues a short-lived one-time code for a phone joining this server. The
+/// caller is already authenticated, so the code inherits its user.
+pub(super) async fn create_pairing(
+    State(state): State<Arc<AppState>>,
+    Extension(context): Extension<AuthContext>,
+) -> Json<Value> {
+    let (code, expires_in) = state.pairing.issue(context.user.id);
+    Json(json!({ "code": code, "expiresIn": expires_in }))
+}
+
+pub(super) async fn pair(
+    State(state): State<Arc<AppState>>,
+    ConnectInfo(connect): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+    Json(mut input): Json<PairRequest>,
+) -> Response {
+    let key = client_key(&headers, Some(connect), &state.config.trusted_proxies);
+    if !state.login_limiter.allow(&key) {
+        let mut response = AppError::RateLimited.into_response();
+        response
+            .headers_mut()
+            .insert(header::RETRY_AFTER, HeaderValue::from_static("60"));
+        return response;
+    }
+    if input.kind.is_empty() {
+        input.kind = "web".into();
+    }
+    if input.kind != "web" && input.kind != "mobile" {
+        return AppError::BadRequest("invalid client kind".into()).into_response();
+    }
+    let code = input.code.trim();
+    let Some(user_id) = state.pairing.consume(code) else {
+        return AppError::InvalidCredentials.into_response();
+    };
+    let result = match state.auth.session_for_user(user_id, &input.kind).await {
+        Ok(value) => value,
+        Err(error) => return error.into_response(),
+    };
+    state.login_limiter.reset(&key);
+    let mut response = Json(json!({
+        "token": if input.kind == "mobile" { result.token.clone() } else { String::new() },
+        "csrfToken": result.csrf_token,
+        "expiresAt": result.session.expires_at,
+        "user": result.user,
+    }))
+    .into_response();
+    if input.kind == "web" {
+        append_auth_cookies(
+            response.headers_mut(),
+            &result.token,
+            &result.csrf_token,
+            state.auth.secure_cookies(),
+        );
+    }
+    response
+}
+
 pub(super) async fn login(
     State(state): State<Arc<AppState>>,
     ConnectInfo(connect): ConnectInfo<SocketAddr>,

@@ -92,6 +92,55 @@ const SESSION_COOKIE: &str = "toph_session";
 const CSRF_COOKIE: &str = "toph_csrf";
 const CSRF_HEADER: &str = "x-toph-csrf";
 
+/// One-time codes that let a phone join a local server without typing the
+/// generated admin password. Codes live in memory only: they expire after ten
+/// minutes, are consumed on first use and disappear when the server restarts.
+pub struct PairingCodes {
+    codes: Mutex<HashMap<String, PairingEntry>>,
+}
+
+struct PairingEntry {
+    user_id: i64,
+    expires: Instant,
+}
+
+impl Default for PairingCodes {
+    fn default() -> Self {
+        Self {
+            codes: Mutex::new(HashMap::new()),
+        }
+    }
+}
+
+impl PairingCodes {
+    const TTL: Duration = Duration::from_secs(10 * 60);
+
+    fn prune(&self, codes: &mut HashMap<String, PairingEntry>) {
+        let now = Instant::now();
+        codes.retain(|_, entry| entry.expires > now);
+    }
+
+    fn issue(&self, user_id: i64) -> (String, u64) {
+        let code = crate::crypto::random_secret(24);
+        let expires = Instant::now() + Self::TTL;
+        if let Ok(mut codes) = self.codes.lock() {
+            self.prune(&mut codes);
+            // A single local user only needs a handful of live codes.
+            if codes.len() >= 16 {
+                codes.clear();
+            }
+            codes.insert(code.clone(), PairingEntry { user_id, expires });
+        }
+        (code, Self::TTL.as_secs())
+    }
+
+    fn consume(&self, code: &str) -> Option<i64> {
+        let mut codes = self.codes.lock().ok()?;
+        self.prune(&mut codes);
+        codes.remove(code).map(|entry| entry.user_id)
+    }
+}
+
 #[derive(Clone)]
 pub struct AppState {
     pub config: Config,
@@ -112,6 +161,7 @@ pub struct AppState {
     pub update: UpdateManager,
     pub http: reqwest::Client,
     pub preview_http: reqwest::Client,
+    pub pairing: Arc<PairingCodes>,
     login_limiter: Arc<RateLimiter>,
     api_limiter: Arc<RateLimiter>,
 }
@@ -310,6 +360,7 @@ impl AppState {
             config,
             store,
             auth,
+            pairing: Arc::new(PairingCodes::default()),
             workspace,
             terminals,
             debug,
@@ -548,8 +599,11 @@ impl EmbeddedServer {
 }
 
 pub async fn start_embedded(config: Config) -> AppResult<EmbeddedServer> {
+    // The embedded server uses the configured address so desktop local mode can
+    // optionally listen on the LAN. `port 0` still picks a free ephemeral port.
+    let addr = config.addr.clone();
     let state = AppState::build(config).await?;
-    let listener = TcpListener::bind("127.0.0.1:0").await?;
+    let listener = TcpListener::bind(&addr).await?;
     let addr = listener.local_addr()?;
     let app = router(state.clone());
     let (shutdown, receiver) = oneshot::channel();
@@ -620,6 +674,7 @@ fn router(state: Arc<AppState>) -> Router {
     let protected = Router::new()
         .route("/api/auth/me", get(me))
         .route("/api/auth/logout", post(logout))
+        .route("/api/pairing", post(create_pairing))
         .route("/api/update", get(update_status).post(start_update))
         .route("/api/push/tokens", post(register_push_token))
         .route(
@@ -866,6 +921,7 @@ fn router(state: Arc<AppState>) -> Router {
         .route("/api/health", get(health))
         .route("/api/version", get(version))
         .route("/api/auth/login", post(login))
+        .route("/api/auth/pair", post(pair))
         .merge(protected)
         .fallback(static_handler)
         .layer(middleware::from_fn(security_headers))

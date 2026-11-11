@@ -3,7 +3,10 @@ fn main() {
         tauri_build::Attributes::new().app_manifest(tauri_build::AppManifest::new().commands(&[
             "validate_server",
             "open_server",
+            "open_scanned_url",
             "start_local_server",
+            "open_local_server",
+            "local_pairing",
             "is_mobile",
             "environment_status",
             "install_environment",

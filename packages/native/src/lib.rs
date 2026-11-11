@@ -17,10 +17,54 @@ struct ServerInfo {
     build_id: Option<String>,
 }
 
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct LocalServerInfo {
+    base_url: String,
+    lan_url: Option<String>,
+    port: u16,
+    password: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PairingInfo {
+    url: String,
+    expires_in: u64,
+}
+
+#[cfg(not(target_os = "android"))]
+struct LocalServer {
+    server: toph_server::server::EmbeddedServer,
+    base: Url,
+    lan: Option<Url>,
+    session: String,
+    csrf: String,
+}
+
 #[cfg(not(target_os = "android"))]
 #[derive(Default)]
 struct LocalState {
-    server: Mutex<Option<toph_server::server::EmbeddedServer>>,
+    server: Mutex<Option<LocalServer>>,
+}
+
+#[cfg(not(target_os = "android"))]
+impl LocalState {
+    fn current(&self) -> Result<(Url, Option<Url>, String, String), String> {
+        let slot = self
+            .server
+            .lock()
+            .map_err(|_| "O estado do backend local está indisponível.".to_string())?;
+        let server = slot
+            .as_ref()
+            .ok_or_else(|| "O backend local não está em execução.".to_string())?;
+        Ok((
+            server.base.clone(),
+            server.lan.clone(),
+            server.session.clone(),
+            server.csrf.clone(),
+        ))
+    }
 }
 
 fn normalize_server(raw: &str) -> Result<Url, String> {
@@ -292,6 +336,81 @@ async fn ensure_local_workspace(
     Ok(())
 }
 
+/// Best-effort IPv4 address of the machine on the local network. The UDP
+/// connect does not send anything; it only asks the routing table which
+/// interface would be used. Interface enumeration covers offline networks.
+#[cfg(not(target_os = "android"))]
+fn lan_ip() -> Option<std::net::IpAddr> {
+    use std::net::UdpSocket;
+
+    if let Ok(socket) = UdpSocket::bind("0.0.0.0:0") {
+        if socket.connect("8.8.8.8:80").is_ok() {
+            if let Ok(addr) = socket.local_addr() {
+                let ip = addr.ip();
+                if ip.is_ipv4() && !ip.is_loopback() && !ip.is_unspecified() {
+                    return Some(ip);
+                }
+            }
+        }
+    }
+
+    if_addrs::get_if_addrs()
+        .ok()?
+        .into_iter()
+        .find_map(|interface| {
+            let ip = interface.ip();
+            (ip.is_ipv4() && !ip.is_loopback() && !ip.is_unspecified()).then_some(ip)
+        })
+}
+
+#[cfg(not(target_os = "android"))]
+async fn create_pairing(base: &Url, session: &str, csrf: &str) -> Result<(String, u64), String> {
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(10))
+        .build()
+        .map_err(|err| err.to_string())?;
+    let cookie = format!("toph_session={session}; toph_csrf={csrf}");
+    let response = client
+        .post(endpoint(base, "api/pairing")?)
+        .header(reqwest::header::COOKIE, cookie)
+        .header("X-Toph-CSRF", csrf)
+        .json(&serde_json::json!({}))
+        .send()
+        .await
+        .map_err(|err| format!("Não foi possível gerar o código de pareamento: {err}"))?;
+    if !response.status().is_success() {
+        return Err("O backend local recusou o código de pareamento.".into());
+    }
+    let value: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|_| "Resposta inválida ao gerar o código de pareamento.".to_string())?;
+    let code = value
+        .get("code")
+        .and_then(|code| code.as_str())
+        .map(ToString::to_string)
+        .ok_or_else(|| "O backend local não devolveu um código de pareamento.".to_string())?;
+    let expires_in = value
+        .get("expiresIn")
+        .and_then(|expires| expires.as_u64())
+        .unwrap_or(600);
+    Ok((code, expires_in))
+}
+
+#[cfg(not(target_os = "android"))]
+fn app_url(target: &Url, pair: &str, desktop: bool) -> Result<Url, String> {
+    let mut url = endpoint(target, "app/")?;
+    {
+        let mut query = url.query_pairs_mut();
+        query.append_pair("server", target.as_str());
+        if desktop {
+            query.append_pair("desktop", "1");
+        }
+        query.append_pair("pair", pair);
+    }
+    Ok(url)
+}
+
 #[cfg(not(target_os = "android"))]
 fn random_password() -> String {
     use rand::RngCore;
@@ -312,11 +431,12 @@ async fn start_local_server(
     app: tauri::AppHandle,
     state: State<'_, LocalState>,
     workspace: Option<String>,
-) -> Result<(), String> {
+    share_network: Option<bool>,
+) -> Result<LocalServerInfo, String> {
     require_local(&window)?;
     if let Ok(mut slot) = state.server.lock() {
         if let Some(server) = slot.take() {
-            server.shutdown();
+            server.server.shutdown();
         }
     }
 
@@ -362,16 +482,23 @@ async fn start_local_server(
         workspaces.clone()
     };
 
+    let share_network = share_network.unwrap_or(false);
+    let listen = if share_network {
+        "0.0.0.0:0"
+    } else {
+        "127.0.0.1:0"
+    };
     let config = toph_server::config::Config::local(
         data_dir,
         workspace_root.clone(),
         password.clone(),
-        "127.0.0.1:0".into(),
+        listen.into(),
     );
     let server = toph_server::start_embedded(config)
         .await
         .map_err(|err| format!("Não foi possível iniciar o backend local: {err}"))?;
-    let base = Url::parse(&format!("http://{}/", server.addr)).map_err(|err| err.to_string())?;
+    let port = server.addr.port();
+    let base = Url::parse(&format!("http://127.0.0.1:{port}/")).map_err(|err| err.to_string())?;
 
     let mut healthy = false;
     for _ in 0..30 {
@@ -397,37 +524,122 @@ async fn start_local_server(
         server.shutdown();
         return Err(err);
     }
-    if let Ok(mut slot) = state.server.lock() {
-        *slot = Some(server);
-    }
 
-    let mut target = endpoint(&base, "app/")?;
-    target
-        .query_pairs_mut()
-        .append_pair("server", base.as_str())
-        .append_pair("desktop", "1");
-    if let Err(err) = navigate_main(&app, target) {
-        if let Ok(mut slot) = state.server.lock() {
-            if let Some(server) = slot.take() {
+    let lan = if share_network {
+        match lan_ip().and_then(|ip| Url::parse(&format!("http://{ip}:{port}/")).ok()) {
+            Some(url) => Some(url),
+            None => {
                 server.shutdown();
+                return Err(
+                    "Não encontrei um endereço IPv4 nesta rede. Conecte o computador ao Wi-Fi ou à rede local e tente novamente."
+                        .into(),
+                );
             }
         }
-        return Err(err);
-    }
-    if let Some(window) = app.get_webview_window("main") {
-        let fallback = format!(
-            "if (!document.cookie.includes('toph_session={session}')) {{ \
-                 document.cookie='toph_session={session}; Path=/; SameSite=Strict'; \
-                 document.cookie='toph_csrf={csrf}; Path=/; SameSite=Strict'; \
-                 location.reload(); \
-             }}"
-        );
-        std::thread::spawn(move || {
-            std::thread::sleep(Duration::from_millis(1200));
-            let _ = window.eval(&fallback);
+    } else {
+        None
+    };
+
+    if let Ok(mut slot) = state.server.lock() {
+        *slot = Some(LocalServer {
+            server,
+            base: base.clone(),
+            lan: lan.clone(),
+            session,
+            csrf,
         });
+    } else {
+        return Err("O estado do backend local está indisponível.".into());
     }
-    Ok(())
+
+    Ok(LocalServerInfo {
+        base_url: base.to_string(),
+        lan_url: lan.map(|url| url.to_string()),
+        port,
+        password,
+    })
+}
+
+/// Opens the workbench of the running local server. Each call mints a fresh
+/// one-time pairing code, so the web app authenticates through the normal
+/// `/api/auth/pair` flow instead of receiving cookies through injected scripts.
+#[cfg(not(target_os = "android"))]
+#[tauri::command]
+async fn open_local_server(
+    window: tauri::WebviewWindow,
+    app: tauri::AppHandle,
+    state: State<'_, LocalState>,
+    network: Option<bool>,
+) -> Result<(), String> {
+    require_local(&window)?;
+    let (base, lan, session, csrf) = state.current()?;
+    let network = network.unwrap_or(false);
+    let destination = if network {
+        lan.ok_or_else(|| "O acesso pela rede local não está habilitado nesta sessão.".to_string())?
+    } else {
+        base.clone()
+    };
+    let (code, _) = create_pairing(&base, &session, &csrf)
+        .await
+        .map_err(|err| {
+            eprintln!("toph: could not create a pairing code for the local workbench: {err}");
+            err
+        })?;
+    let url = app_url(&destination, &code, !network)?;
+    navigate_main(&app, url.clone())
+        .inspect_err(|err| eprintln!("toph: could not open local workbench at {url}: {err}"))
+}
+
+/// Creates a pairing URL for the phone QR code. Only available when local mode
+/// was started with LAN sharing enabled.
+#[cfg(not(target_os = "android"))]
+#[tauri::command]
+async fn local_pairing(
+    window: tauri::WebviewWindow,
+    state: State<'_, LocalState>,
+) -> Result<PairingInfo, String> {
+    require_local(&window)?;
+    let (base, lan, session, csrf) = state.current()?;
+    let lan = lan.ok_or_else(|| {
+        "Inicie o modo local com o acesso pelo celular habilitado para gerar o QR.".to_string()
+    })?;
+    let (code, expires_in) = create_pairing(&base, &session, &csrf).await?;
+    Ok(PairingInfo {
+        url: app_url(&lan, &code, false)?.to_string(),
+        expires_in,
+    })
+}
+
+/// Navigates the launcher to a Toph URL read from a QR code. The server in the
+/// QR must answer the health check before the app navigates, so a stray or
+/// malicious QR cannot silently replace the launcher with an arbitrary page.
+#[tauri::command]
+async fn open_scanned_url(
+    window: tauri::WebviewWindow,
+    app: tauri::AppHandle,
+    url: String,
+) -> Result<(), String> {
+    require_local(&window)?;
+    let parsed =
+        Url::parse(url.trim()).map_err(|_| "O QR code não contém uma URL válida.".to_string())?;
+    if parsed.scheme() != "http" && parsed.scheme() != "https" {
+        return Err("O QR code precisa apontar para um endereço http ou https.".into());
+    }
+    if parsed.host_str().is_none() {
+        return Err("O QR code não contém um servidor.".into());
+    }
+    if !parsed.path().trim_end_matches('/').ends_with("/app") {
+        return Err("O QR code não aponta para o aplicativo Toph.".into());
+    }
+    let server = parsed
+        .query_pairs()
+        .find_map(|(key, value)| (key == "server").then(|| value.to_string()))
+        .ok_or_else(|| "O QR code não contém o endereço do servidor Toph.".to_string())?;
+    let base = normalize_server(&server)?;
+    health(&base)
+        .await
+        .map_err(|err| format!("O servidor do QR code não respondeu: {err}"))?;
+    navigate_main(&app, parsed)
 }
 
 #[tauri::command]
@@ -453,6 +665,34 @@ const TOOL_COMPONENTS: &[(&str, &str, &[&str], &str)] = &[
     ("python", "Python", &["python3", "python"], "--version"),
 ];
 
+async fn tool_version(command: &str, version_arg: &str) -> Option<String> {
+    let direct = tokio::process::Command::new(command)
+        .arg(version_arg)
+        .output()
+        .await;
+    // Package-manager shims such as pnpm are `.cmd` files on Windows, which
+    // CreateProcess does not resolve on its own.
+    let output = match direct {
+        Ok(output) if output.status.success() => Some(output),
+        _ if cfg!(windows) => tokio::process::Command::new("cmd")
+            .args(["/C", command, version_arg])
+            .output()
+            .await
+            .ok()
+            .filter(|output| output.status.success()),
+        _ => None,
+    }?;
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let version = stdout
+        .lines()
+        .chain(stderr.lines())
+        .map(str::trim)
+        .find(|line| !line.is_empty())
+        .unwrap_or("");
+    Some(version.to_string())
+}
+
 #[tauri::command]
 async fn environment_status() -> Vec<ToolStatus> {
     let mut statuses = Vec::new();
@@ -460,29 +700,10 @@ async fn environment_status() -> Vec<ToolStatus> {
         let mut installed = false;
         let mut version = String::new();
         for command in *commands {
-            if let Ok(output) = tokio::process::Command::new(command)
-                .arg(version_arg)
-                .output()
-                .await
-            {
-                if output.status.success() {
-                    installed = true;
-                    version = String::from_utf8_lossy(&output.stdout)
-                        .lines()
-                        .next()
-                        .unwrap_or("")
-                        .trim()
-                        .to_string();
-                    if version.is_empty() {
-                        version = String::from_utf8_lossy(&output.stderr)
-                            .lines()
-                            .next()
-                            .unwrap_or("")
-                            .trim()
-                            .to_string();
-                    }
-                    break;
-                }
+            if let Some(found) = tool_version(command, version_arg).await {
+                installed = true;
+                version = found;
+                break;
             }
         }
         statuses.push(ToolStatus {
@@ -742,7 +963,10 @@ macro_rules! desktop_commands {
         tauri::generate_handler![
             validate_server,
             open_server,
+            open_scanned_url,
             start_local_server,
+            open_local_server,
+            local_pairing,
             is_mobile,
             environment_status,
             install_environment,
@@ -755,7 +979,13 @@ macro_rules! desktop_commands {
 #[cfg(target_os = "android")]
 macro_rules! desktop_commands {
     () => {
-        tauri::generate_handler![validate_server, open_server, is_mobile, download_update]
+        tauri::generate_handler![
+            validate_server,
+            open_server,
+            open_scanned_url,
+            is_mobile,
+            download_update
+        ]
     };
 }
 
@@ -767,6 +997,11 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .setup(|_app| Ok(()))
         .invoke_handler(desktop_commands!());
+
+    #[cfg(mobile)]
+    {
+        builder = builder.plugin(tauri_plugin_barcode_scanner::init());
+    }
 
     #[cfg(not(target_os = "android"))]
     {
@@ -783,10 +1018,120 @@ pub fn run() {
             if let Some(state) = _app_handle.try_state::<LocalState>() {
                 if let Ok(mut slot) = state.server.lock() {
                     if let Some(server) = slot.take() {
-                        server.shutdown();
+                        server.server.shutdown();
                     }
                 }
             }
         }
     });
+}
+
+#[cfg(all(test, not(target_os = "android")))]
+mod local_mode_tests {
+    use super::*;
+
+    async fn json(response: reqwest::Response) -> serde_json::Value {
+        let status = response.status();
+        let body = response.text().await.unwrap_or_default();
+        assert!(status.is_success(), "HTTP {status}: {body}");
+        serde_json::from_str(&body).unwrap_or_default()
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn desktop_local_helpers_create_workspace_and_pairing() {
+        let data = tempfile::tempdir().expect("data");
+        let workspace = tempfile::tempdir().expect("workspace");
+        let workspace_root = workspace
+            .path()
+            .canonicalize()
+            .unwrap_or_else(|_| workspace.path().to_path_buf());
+        let password = random_password();
+
+        let config = toph_server::config::Config::local(
+            data.path().to_path_buf(),
+            workspace_root.clone(),
+            password.clone(),
+            "127.0.0.1:0".into(),
+        );
+        let server = toph_server::start_embedded(config).await.expect("server");
+        let base = Url::parse(&format!("http://127.0.0.1:{}/", server.addr.port())).unwrap();
+
+        let mut healthy = false;
+        for _ in 0..30 {
+            if health(&base).await.is_ok() {
+                healthy = true;
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+        assert!(healthy, "embedded server did not become healthy");
+
+        let (session, csrf) = login_cookie_headers(&base, &password)
+            .await
+            .expect("local login");
+        ensure_local_workspace(&base, &session, &csrf, &workspace_root)
+            .await
+            .expect("workspace setup");
+
+        let (code, expires_in) = create_pairing(&base, &session, &csrf)
+            .await
+            .expect("pairing code");
+        assert!(expires_in > 0);
+        let url = app_url(&base, &code, true).expect("app url");
+        let query: std::collections::HashMap<_, _> = url.query_pairs().into_owned().collect();
+        assert_eq!(query.get("pair").map(String::as_str), Some(code.as_str()));
+        assert_eq!(query.get("desktop").map(String::as_str), Some("1"));
+
+        let client = reqwest::Client::new();
+        let paired = client
+            .post(endpoint(&base, "api/auth/pair").unwrap())
+            .json(&serde_json::json!({"code": code, "kind": "web"}))
+            .send()
+            .await
+            .expect("pair");
+        assert!(paired.status().is_success());
+        let cookies: Vec<String> = paired
+            .headers()
+            .get_all(reqwest::header::SET_COOKIE)
+            .iter()
+            .filter_map(|value| value.to_str().ok())
+            .filter_map(|value| value.split(';').next())
+            .map(ToString::to_string)
+            .collect();
+        let me = client
+            .get(endpoint(&base, "api/auth/me").unwrap())
+            .header(reqwest::header::COOKIE, cookies.join("; "))
+            .send()
+            .await
+            .expect("me");
+        let me = json(me).await;
+        assert_eq!(
+            me.pointer("/user/username")
+                .and_then(serde_json::Value::as_str),
+            Some("admin")
+        );
+
+        let projects = client
+            .get(endpoint(&base, "api/projects").unwrap())
+            .header(
+                reqwest::header::COOKIE,
+                format!("toph_session={session}; toph_csrf={csrf}"),
+            )
+            .send()
+            .await
+            .expect("projects");
+        let projects = json(projects).await;
+        assert!(
+            projects
+                .as_array()
+                .map(|items| items.iter().any(|item| {
+                    item.get("root").and_then(serde_json::Value::as_str)
+                        == Some(workspace_root.to_string_lossy().as_ref())
+                }))
+                .unwrap_or(false),
+            "workspace project was not created: {projects}"
+        );
+
+        server.shutdown();
+    }
 }

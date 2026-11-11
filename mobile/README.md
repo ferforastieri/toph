@@ -22,6 +22,12 @@ The launcher is shared with desktop in `packages/launcher/`. Both targets
 compile `packages/native/src/lib.rs`; Android excludes the embedded Rust server
 through target-specific Cargo dependencies and Rust configuration.
 
+The launcher's **Escanear QR do computador** button uses
+`tauri-plugin-barcode-scanner`. It reads the one-time pairing URL shown by
+desktop local mode, which carries the server address and a code that the web
+app exchanges for a normal session. Release APKs allow cleartext HTTP so a
+desktop on the local network can be reached without HTTPS.
+
 From the repository root:
 
 ```sh

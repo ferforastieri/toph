@@ -46,6 +46,7 @@
     "homepage": "https://github.com/ferforastieri/toph",
     "category": "DeveloperTool",
     "license": "MIT",
+    "licenseFile": "../../LICENSE",
     "windows": {
       "nsis": {
         "installerIcon": "icons/icon.ico",
@@ -53,14 +54,18 @@
         "headerImage": "installer/nsis-header.bmp",
         "uninstallerHeaderImage": "installer/nsis-uninstaller-header.bmp",
         "sidebarImage": "installer/nsis-sidebar.bmp",
-        "installMode": "currentUser",
+        "installMode": "both",
         "startMenuFolder": "Toph",
-        "languages": ["PortugueseBR", "English"],
+        "languages": ["PortugueseBR", "English", "Spanish"],
         "customLanguageFiles": {
-          "PortugueseBR": "installer/PortugueseBR.nsh"
-        }
+          "PortugueseBR": "installer/PortugueseBR.nsh",
+          "Spanish": "installer/Spanish.nsh"
+        },
+        "displayLanguageSelector": true,
+        "compression": "lzma"
       },
       "wix": {
+        "language": ["pt-BR", "en-US", "es-ES"],
         "bannerPath": "installer/wix-banner.bmp",
         "dialogImagePath": "installer/wix-dialog.bmp"
       }

@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
+import { QRCodeSVG } from "qrcode.react";
 
 interface ServerInfo {
   baseUrl: string;
@@ -16,9 +17,22 @@ interface ToolStatus {
   version: string;
 }
 
+interface LocalServerInfo {
+  baseUrl: string;
+  lanUrl?: string | null;
+  port: number;
+  password: string;
+}
+
+interface PairingInfo {
+  url: string;
+  expiresIn: number;
+}
+
 const SERVER_KEY = "toph_desktop_server";
 const LEGACY_RECENT_KEY = "toph_desktop_recent_servers";
 const LOCAL_WORKSPACE_KEY = "toph_desktop_local_workspace";
+const SHARE_NETWORK_KEY = "toph_desktop_share_network";
 
 function mobileUserAgent(): boolean {
   return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
@@ -55,6 +69,38 @@ function mobileTarget(baseUrl: string): string {
   return target.toString();
 }
 
+async function copyToClipboard(value: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(value);
+    return true;
+  } catch {
+    try {
+      const field = document.createElement("textarea");
+      field.value = value;
+      field.style.position = "fixed";
+      field.style.opacity = "0";
+      document.body.appendChild(field);
+      field.select();
+      const copied = document.execCommand("copy");
+      field.remove();
+      return copied;
+    } catch {
+      return false;
+    }
+  }
+}
+
+function scannedServerBase(raw: string): string | null {
+  try {
+    const url = new URL(raw);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+    const server = url.searchParams.get("server")?.trim();
+    return (server || url.origin).replace(/\/+$/, "");
+  } catch {
+    return null;
+  }
+}
+
 export default function App() {
   const [initialServer] = useState(readSavedServer);
   const [mobileRedirect] = useState(() => {
@@ -84,6 +130,16 @@ export default function App() {
   const [environmentBusy, setEnvironmentBusy] = useState(false);
   const [environmentLog, setEnvironmentLog] = useState("");
   const [environmentError, setEnvironmentError] = useState("");
+  const [shareNetwork, setShareNetwork] = useState(
+    () => localStorage.getItem(SHARE_NETWORK_KEY) === "1",
+  );
+  const [localServer, setLocalServer] = useState<LocalServerInfo | null>(null);
+  const [pairing, setPairing] = useState<PairingInfo | null>(null);
+  const [pairingBusy, setPairingBusy] = useState(false);
+  const [pairingError, setPairingError] = useState("");
+  const [qrOpen, setQrOpen] = useState(false);
+  const [copied, setCopied] = useState<"url" | "password" | "">("");
+  const [scanning, setScanning] = useState(false);
   const bootStarted = useRef(false);
 
   useEffect(() => {
@@ -248,13 +304,91 @@ export default function App() {
     localStorage.removeItem(LEGACY_RECENT_KEY);
     setStatus("Preparando modo local...");
     try {
-      await invoke("start_local_server", { workspace });
-      setStatus("");
+      const info = await invoke<LocalServerInfo>("start_local_server", {
+        workspace,
+        shareNetwork,
+      });
+      setLocalServer(info);
+      if (shareNetwork) {
+        setPairingError("");
+        setQrOpen(true);
+        try {
+          setPairing(await invoke<PairingInfo>("local_pairing"));
+          setStatus("");
+        } catch (err) {
+          setPairing(null);
+          setPairingError(err instanceof Error ? err.message : String(err));
+          setStatus("");
+        }
+      } else {
+        await invoke("open_local_server", { network: false });
+        setStatus("");
+      }
     } catch (err) {
       setStatus("");
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function refreshPairing() {
+    if (pairingBusy) return;
+    setPairingBusy(true);
+    setPairingError("");
+    try {
+      setPairing(await invoke<PairingInfo>("local_pairing"));
+    } catch (err) {
+      setPairingError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setPairingBusy(false);
+    }
+  }
+
+  async function openWorkbench() {
+    if (busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      await invoke("open_local_server", { network: false });
+      setPairing(null);
+      setQrOpen(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function copyValue(kind: "url" | "password", value: string) {
+    if (await copyToClipboard(value)) {
+      setCopied(kind);
+      window.setTimeout(() => setCopied(""), 1600);
+    }
+  }
+
+  async function scanQr() {
+    if (scanning) return;
+    setScanning(true);
+    setError("");
+    try {
+      const { scan, Format } = await import("@tauri-apps/plugin-barcode-scanner");
+      const result = await scan({ formats: [Format.QRCode] });
+      const content = result.content.trim();
+      const base = scannedServerBase(content);
+      if (!base) throw new Error("Este QR code não aponta para um servidor Toph.");
+      localStorage.setItem(SERVER_KEY, base);
+      localStorage.removeItem(LEGACY_RECENT_KEY);
+      try {
+        await invoke("open_scanned_url", { url: content });
+      } catch {
+        window.location.assign(content);
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (!/cancel/i.test(message)) setError(message);
+    } finally {
+      setScanning(false);
     }
   }
 
@@ -294,6 +428,21 @@ export default function App() {
             <h2>Conectar a um Toph</h2>
             <p>Informe apenas a URL do seu servidor. O Toph cuida do resto.</p>
           </div>
+          {mobile && (
+            <button
+              className="primary scan-button"
+              type="button"
+              disabled={scanning || busy}
+              onClick={() => void scanQr()}
+            >
+              {scanning ? "Abrindo a câmera..." : "Escanear QR do computador"}
+            </button>
+          )}
+          {mobile && (
+            <div className="divider compact">
+              <span>ou informe a URL</span>
+            </div>
+          )}
           <form onSubmit={connect}>
             <label className="url-field">
               <span>URL do servidor</span>
@@ -323,8 +472,31 @@ export default function App() {
                 <h2>Usar um workspace local</h2>
                 <p>Arquivos, terminal e projetos na própria máquina, sem servidor.</p>
               </div>
+              <label className="share-toggle">
+                <input
+                  type="checkbox"
+                  checked={shareNetwork}
+                  disabled={busy}
+                  onChange={(event) => {
+                    const next = event.target.checked;
+                    setShareNetwork(next);
+                    localStorage.setItem(SHARE_NETWORK_KEY, next ? "1" : "0");
+                  }}
+                />
+                <span>
+                  <strong>Acessar pelo celular nesta rede</strong>
+                  <small>
+                    Mostra um QR para o app Android. O Toph fica visível na rede Wi-Fi
+                    enquanto estiver aberto.
+                  </small>
+                </span>
+              </label>
               <button className="secondary" type="button" disabled={busy} onClick={() => void localMode()}>
-                Escolher pasta e abrir
+                {busy
+                  ? "Preparando..."
+                  : shareNetwork
+                    ? "Escolher pasta e mostrar QR"
+                    : "Escolher pasta e abrir"}
               </button>
             </div>
             <div className="local-card environment-card">
@@ -410,6 +582,107 @@ export default function App() {
                 onClick={() => void installEnvironment()}
               >
                 {environmentBusy ? "Instalando..." : "Instalar selecionadas"}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {qrOpen && localServer && (
+        <div className="environment-backdrop" role="presentation">
+          <section
+            className="environment-modal pairing-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Conectar celular"
+          >
+            <div className="environment-modal-head">
+              <div>
+                <span className="eyebrow">Pareamento</span>
+                <h2>Conecte o celular</h2>
+                <p>
+                  Abra o Toph no Android e toque em <strong>Escanear QR do computador</strong>.
+                </p>
+              </div>
+            </div>
+
+            {pairing ? (
+              <div className="pairing-grid">
+                <div className="pairing-qr">
+                  <QRCodeSVG
+                    value={pairing.url}
+                    size={212}
+                    level="M"
+                    marginSize={2}
+                    bgColor="#ffffff"
+                    fgColor="#050505"
+                    title="QR de pareamento do Toph"
+                  />
+                </div>
+                <div className="pairing-details">
+                  <span className="eyebrow">Endereço na rede local</span>
+                  <div className="pairing-copy">
+                    <code>{localServer.lanUrl ?? localServer.baseUrl}</code>
+                    <button
+                      type="button"
+                      className="secondary"
+                      onClick={() =>
+                        void copyValue("url", localServer.lanUrl ?? localServer.baseUrl)
+                      }
+                    >
+                      {copied === "url" ? "Copiado" : "Copiar"}
+                    </button>
+                  </div>
+                  <p>
+                    O código expira em {Math.max(1, Math.round(pairing.expiresIn / 60))} minutos e
+                    só pode ser usado uma vez.
+                  </p>
+                  <details>
+                    <summary>Entrar manualmente com senha</summary>
+                    <div className="pairing-copy">
+                      <code>{localServer.password}</code>
+                      <button
+                        type="button"
+                        className="secondary"
+                        onClick={() => void copyValue("password", localServer.password)}
+                      >
+                        {copied === "password" ? "Copiado" : "Copiar"}
+                      </button>
+                    </div>
+                  </details>
+                </div>
+              </div>
+            ) : (
+              <div className="error">
+                {pairingError || "Não foi possível gerar o QR code de pareamento."}
+              </div>
+            )}
+
+            {pairingError && pairing && <div className="error">{pairingError}</div>}
+            {error && <div className="error">{error}</div>}
+
+            <p className="environment-note pairing-note">
+              O computador e o celular precisam estar na mesma rede. Se o Windows pedir permissão
+              de firewall, permita o acesso em redes privadas. O acesso fica ativo enquanto o Toph
+              estiver aberto.
+            </p>
+
+            <div className="environment-actions">
+              <button
+                type="button"
+                className="secondary"
+                disabled={pairingBusy || busy}
+                onClick={() => void refreshPairing()}
+              >
+                {pairingBusy ? "Gerando..." : "Gerar novo QR"}
+              </button>
+              <button
+                type="button"
+                className="primary"
+                disabled={busy}
+                onClick={() => void openWorkbench()}
+              >
+                {busy ? "Abrindo..." : "Abrir workbench neste computador"}
               </button>
             </div>
           </section>

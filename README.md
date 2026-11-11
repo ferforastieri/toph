@@ -35,7 +35,8 @@ The installed server does not serve the landing page or documentation. The landi
 - Choose a pet at login; it lives in the avatar corner or roams the screen, and grows every few commits.
 - Get an in-app toast when a new release is available; the button updates the server and reloads connected web clients.
 - Receive in-app AI response notifications and Android push notifications through Firebase Cloud Messaging, including when the app is closed.
-- Download the next desktop installer directly from the update toast, with checksum verification. Windows uses the MSI installer.
+- Download the next desktop installer directly from the update toast, with checksum verification. Windows publishes both NSIS and MSI installers, and the toast prefers NSIS.
+- Run desktop local mode with optional LAN sharing, show a one-time pairing QR, and open the same local workspace from the Android app by scanning it.
 - Use a native-titlebar-only desktop shell with a VS Code-style header containing menus, project and branch selectors, editor status, and an agent rail.
 - Personalize the web app with light/dark themes, the Toph amber accent, sidebar width, editor and terminal typography, tab styles, and three global icon sets: Material, Phosphor Fill and Remix Fill. The icon choice applies to the entire interface and the file tree. Drag the sidebar, agent dock and terminal edges to resize them.
 
@@ -181,7 +182,7 @@ toast. Installing the downloaded APK still requires the normal Android prompt.
 
 Install the Windows or Linux package from the [latest release](https://github.com/ferforastieri/toph/releases/latest). Desktop local mode embeds the Rust Toph server and asks for a workspace folder; server mode asks only for a URL on first use and reconnects to the last server on later launches. The launcher also offers an optional development-environment installer for Git, Node.js, pnpm, Rust, Go and Python. The local backend uses the app data directory for SQLite and its generated admin password.
 
-The desktop and Android entrypoints share `packages/launcher/` and `packages/native/`; Android remains remote-only and does not compile the embedded server. Windows installers use a Toph-branded WiX MSI with custom artwork and metadata.
+The desktop and Android entrypoints share `packages/launcher/` and `packages/native/`; Android remains remote-only and does not compile the embedded server. Windows ships a Toph-branded NSIS installer (per-user or per-machine, directory and shortcut choices, Portuguese/English/Spanish, MIT license) and an equivalent WiX MSI, both with the current brand artwork.
 
 ### Docker
 
@@ -239,4 +240,4 @@ MIT.
 
 ## Desktop
 
-The client lives in `desktop/` and uses Tauri 2. The same project builds Windows and Linux installers, with a Tauri Android target for mobile. Server mode accepts any Toph server URL; local mode embeds the Rust backend in the Tauri process, asks for a workspace folder, serves the UI on loopback, and shuts the backend down when the app exits. Windows local terminals use ConPTY; Linux uses a PTY.
+The client lives in `desktop/` and uses Tauri 2. The same project builds Windows and Linux installers, with a Tauri Android target for mobile. Server mode accepts any Toph server URL; local mode embeds the Rust backend in the Tauri process, asks for a workspace folder, serves the UI on loopback (or on the LAN when phone pairing is enabled), and shuts the backend down when the app exits. Windows local terminals use ConPTY; Linux uses a PTY.

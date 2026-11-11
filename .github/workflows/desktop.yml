@@ -32,7 +32,7 @@ jobs:
           - platform: ubuntu-24.04
             bundles: appimage,deb,rpm
           - platform: windows-latest
-            bundles: msi
+            bundles: msi,nsis
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v4

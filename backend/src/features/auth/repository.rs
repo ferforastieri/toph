@@ -43,6 +43,16 @@ impl Store {
         .map_err(map_not_found)
     }
 
+    pub async fn user_by_id(&self, id: i64) -> AppResult<User> {
+        sqlx::query_as::<_, User>(
+            "SELECT id, username, password_hash, created_at FROM users WHERE id = ?",
+        )
+        .bind(id)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(map_not_found)
+    }
+
     pub async fn create_session(
         &self,
         id: &str,

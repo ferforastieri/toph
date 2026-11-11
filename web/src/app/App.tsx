@@ -42,20 +42,41 @@ function AppShell() {
     setApiBase(serverUrl);
     setAuthReady(false);
     let cancelled = false;
-    api
-      .me()
-      .then((current) => {
+
+    void (async () => {
+      // QR pairing: the desktop hands the phone a one-time code. Consuming it
+      // sets the normal HttpOnly session cookie, then the URL is cleaned up so
+      // the code never survives in history or a copied address.
+      const params = new URLSearchParams(window.location.search);
+      const pairingCode = params.get("pair");
+      if (pairingCode) {
+        try {
+          await api.pair(pairingCode);
+        } catch (error) {
+          console.error(error);
+        }
+        params.delete("pair");
+        const query = params.toString();
+        window.history.replaceState(
+          null,
+          "",
+          `${window.location.pathname}${query ? `?${query}` : ""}${window.location.hash}`,
+        );
+      }
+
+      try {
+        const current = await api.me();
         if (!cancelled) setUser(current);
-      })
-      .catch((error: unknown) => {
+      } catch (error) {
         if (!(error instanceof ApiError) || error.status !== 401) {
           console.error(error);
         }
         if (!cancelled) setUser(null);
-      })
-      .finally(() => {
+      } finally {
         if (!cancelled) setAuthReady(true);
-      });
+      }
+    })();
+
     return () => {
       cancelled = true;
     };

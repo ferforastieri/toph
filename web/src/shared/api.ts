@@ -582,6 +582,14 @@ export const api = {
     });
   },
 
+  /** Exchanges a one-time desktop pairing code for a normal web session. */
+  async pair(code: string): Promise<LoginResponse> {
+    return request<LoginResponse>("/auth/pair", {
+      method: "POST",
+      ...json({ code, kind: "web" }),
+    });
+  },
+
   async me(): Promise<User> {
     const response = await request<{ user: User }>("/auth/me");
     return response.user;
