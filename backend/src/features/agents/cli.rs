@@ -975,6 +975,7 @@ where
     let mut usage = CliUsage::default();
     let mut error: Option<String> = None;
     let mut seen_parts = std::collections::HashSet::new();
+    let mut stderr_done = false;
     loop {
         tokio::select! {
             _=cancel.cancelled()=>{
@@ -1045,6 +1046,13 @@ where
                         usage.cached += tokens["cache"]["read"].as_i64().unwrap_or(0);
                         usage.output += tokens["output"].as_i64().unwrap_or(0)
                             + tokens["reasoning"].as_i64().unwrap_or(0);
+                        // The turn is over. The CLI can still linger because a
+                        // background shell or its private server keeps running,
+                        // which left the chat "thinking" forever.
+                        if value["part"]["reason"].as_str() == Some("stop") {
+                            let _ = child.kill().await;
+                            break;
+                        }
                     }
                     "error" => {
                         let data=&value["error"]["data"];
@@ -1059,11 +1067,20 @@ where
                     _ => {}
                 }
             }
-            line=err_lines.next_line()=>{
-                if let Ok(Some(line))=line {
-                    if !line.trim().is_empty() {
-                        error=Some(line);
+            line=async {
+                if stderr_done {
+                    std::future::pending::<()>().await;
+                }
+                err_lines.next_line().await
+            }=>{
+                match line {
+                    Ok(Some(line)) => {
+                        if !line.trim().is_empty() {
+                            error=Some(line);
+                        }
                     }
+                    Ok(None) => stderr_done = true,
+                    Err(_) => stderr_done = true,
                 }
             }
         }
