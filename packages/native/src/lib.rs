@@ -3,6 +3,7 @@ use sha2::{Digest, Sha256};
 use std::fs;
 use std::io::Write;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, OnceLock};
 use std::time::Duration;
 use tauri::{Manager, RunEvent, State};
@@ -11,6 +12,10 @@ use url::Url;
 /// The launcher URL captured before the window navigates to a server. In dev
 /// this is the Vite URL; in a bundled app it is the custom protocol origin.
 static LAUNCHER_URL: OnceLock<Url> = OnceLock::new();
+
+/// Set when the connected web UI asks to go back. The launcher consumes it on
+/// boot, so the reset does not depend on the query surviving the navigation.
+static LAUNCHER_RESET: AtomicBool = AtomicBool::new(false);
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -623,8 +628,17 @@ fn show_launcher(app: tauri::AppHandle) -> Result<(), String> {
         .get()
         .cloned()
         .ok_or_else(|| "A URL do launcher não foi capturada no startup.".to_string())?;
+    if target.path().is_empty() || target.path() == "/" {
+        target.set_path("/index.html");
+    }
     target.set_query(Some("change=1"));
+    LAUNCHER_RESET.store(true, Ordering::Relaxed);
     navigate_main(&app, target)
+}
+
+#[tauri::command]
+fn take_launcher_reset() -> bool {
+    LAUNCHER_RESET.swap(false, Ordering::Relaxed)
 }
 
 /// Navigates the launcher to a Toph URL read from a QR code. The server in the
@@ -982,6 +996,7 @@ macro_rules! desktop_commands {
             open_server,
             open_scanned_url,
             show_launcher,
+            take_launcher_reset,
             start_local_server,
             open_local_server,
             local_pairing,

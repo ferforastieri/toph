@@ -154,6 +154,15 @@ export default function App() {
       const isMobile = await invoke<boolean>("is_mobile").catch(() => mobileUserAgent());
       setMobile(isMobile);
 
+      const reset = await invoke<boolean>("take_launcher_reset").catch(() => false);
+      if (reset) {
+        localStorage.removeItem(SERVER_KEY);
+        localStorage.removeItem(LEGACY_RECENT_KEY);
+        setUrl("");
+        setBooting(false);
+        return;
+      }
+
       const params = new URLSearchParams(window.location.search);
       if (params.get("change") === "1") {
         localStorage.removeItem(SERVER_KEY);
