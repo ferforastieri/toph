@@ -568,6 +568,10 @@ pub async fn run_claude(
         "--output-format".into(),
         "json".into(),
         "--dangerously-skip-permissions".into(),
+        // The headless question tool has no one to answer; Toph exposes
+        // ask_user through MCP instead.
+        "--disallowedTools".into(),
+        "AskUserQuestion".into(),
         "--append-system-prompt".into(),
         system.to_string(),
     ];

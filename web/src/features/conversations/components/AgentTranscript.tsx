@@ -139,6 +139,11 @@ function toolKind(message: AiMessage): string {
   return rawToolName(message).toLowerCase();
 }
 
+/** Harnesses name it "question", "ask_user" or "AskUserQuestion". */
+function isQuestionTool(name: string): boolean {
+  return /question/.test(name) || /(^|[^a-z])ask([^a-z]|$)/.test(name);
+}
+
 /** Shell output often contains URLs and file names that are not artifacts.
  * Only inspect tools that actually produce files or images. */
 function toolShowsImages(message: AiMessage): boolean {
@@ -155,7 +160,7 @@ export function toolLabel(message: AiMessage): string {
   if (/grep|search/.test(name)) return "Search";
   if (/glob/.test(name)) return "Glob";
   if (/list/.test(name)) return "List";
-  if (/question|ask|prompt/.test(name)) return "Question";
+  if (isQuestionTool(name)) return "Question";
   if (/task|agent/.test(name)) return "Task";
   const raw = rawToolName(message).replace(/[-_]+/g, " ");
   if (!raw) return "Tool";
@@ -178,7 +183,7 @@ export function toolSubtitle(message: AiMessage): string {
   if (/grep|search|glob/.test(name)) {
     return String(input?.pattern ?? input?.query ?? input?.glob ?? "");
   }
-  if (/question|ask/.test(name)) {
+  if (isQuestionTool(name)) {
     return String(input?.question ?? input?.prompt ?? message.title ?? "");
   }
   if (/task|agent/.test(name)) {
@@ -295,7 +300,7 @@ function ToolOutput({ message, images }: { message: AiMessage; images: ResolvedA
 
 export const ToolRow = memo(function ToolRow({ message, onPermission, onQuestion, defaultOpen = false, projectId, projectRoot }: { message: AiMessage; onPermission?: MessageProps["onPermission"]; onQuestion?: MessageProps["onQuestion"]; defaultOpen?: boolean; projectId?: string; projectRoot?: string }) {
   const [open, setOpen] = useState(defaultOpen);
-  const questions = toolKind(message) === "question" ? parseAgentQuestions(message.text) : [];
+  const questions = isQuestionTool(toolKind(message)) ? parseAgentQuestions(message.text) : [];
   const images = useMemo(
     () => toolShowsImages(message) ? agentImagesForMessages([message], projectId, projectRoot) : [],
     [message, projectId, projectRoot],

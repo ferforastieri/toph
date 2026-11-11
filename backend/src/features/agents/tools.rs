@@ -69,6 +69,46 @@ fn compact_mcp_tools(value: &Value) -> Value {
     json!({"count": tools.len(), "tools": tools})
 }
 
+/// Exposed to every CLI run so an agent can ask the user a structured question
+/// instead of ending the turn with a question that nothing can answer.
+pub fn ask_user_definition() -> Value {
+    json!({
+        "name": "ask_user",
+        "description": "Ask the user a decision you cannot infer. Send short questions with 2-4 options each; the answers return as this tool's result and the run continues. Use it instead of ending the turn with a question in prose.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "questions": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "header": {"type": "string"},
+                            "question": {"type": "string"},
+                            "multiple": {"type": "boolean"},
+                            "options": {
+                                "type": "array",
+                                "minItems": 1,
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "label": {"type": "string"},
+                                        "description": {"type": "string"}
+                                    },
+                                    "required": ["label"]
+                                }
+                            }
+                        },
+                        "required": ["question", "options"]
+                    }
+                }
+            },
+            "required": ["questions"]
+        }
+    })
+}
+
 /// Tools exposed to the external CLI through the local MCP gateway. The CLI's
 /// built-in tools are disabled; these are the only actions it can take.
 pub fn gateway_definitions(

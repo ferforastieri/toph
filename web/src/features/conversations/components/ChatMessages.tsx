@@ -161,7 +161,7 @@ function AgentMessage({ message, toph, project, grouped, mobile }: {
 }) {
   return (
     <article data-testid="chat-agent-message" className="toph-msg-in group/msg flex min-w-0 gap-3 py-1.5">
-      <div className="w-[34px] shrink-0">{grouped ? null : <BotAvatar bot={toph} size={34} />}</div>
+      <div className="w-[40px] shrink-0">{grouped ? null : <BotAvatar bot={toph} size={40} />}</div>
       <div className="min-w-0 flex-1">
         {grouped ? null : (
           <div className="mb-0.5 flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
@@ -305,7 +305,7 @@ function StepGroup({ messages, toph, showAvatar }: { messages: NativeMessage[]; 
   const working = messages.some((message) => message.status === "running");
   return (
     <div data-testid="chat-step-group" className="toph-msg-in flex min-w-0 gap-3 py-0.5">
-      <div className="flex w-[34px] shrink-0 justify-center">{showAvatar ? <BotAvatar bot={toph} size={18} /> : null}</div>
+      <div className="flex w-[40px] shrink-0 justify-center">{showAvatar ? <BotAvatar bot={toph} size={20} /> : null}</div>
       <div className="min-w-0 flex-1"><RunSteps steps={messages} working={working} /></div>
     </div>
   );
@@ -314,7 +314,7 @@ function StepGroup({ messages, toph, showAvatar }: { messages: NativeMessage[]; 
 function ActivityStatus({ toph, activity, startedAt }: { toph: ChatToph; activity: { label: string; detail?: string }; startedAt: number }) {
   return (
     <div className="toph-msg-in flex min-w-0 gap-3 py-1">
-      <div className="w-[34px] shrink-0"><BotAvatar bot={toph} size={34} /></div>
+      <div className="w-[40px] shrink-0"><BotAvatar bot={toph} size={40} /></div>
       <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 text-[12.5px] text-text-secondary">
         <strong className="text-[13px] font-semibold text-text-primary">{toph.name}</strong>
         <LoaderCircle className="size-3.5 shrink-0 animate-spin text-accent-500" />
@@ -449,7 +449,7 @@ export default function ChatMessages({
     const toph = tophs.find((item) => item.id === prompt.agentId);
     rows.push(
       <section key={`question-${prompt.id}`} className="toph-msg-in flex min-w-0 max-w-full items-start gap-2.5">
-        <div className="w-[34px] shrink-0">{toph ? <BotAvatar bot={toph} size={34} /> : null}</div>
+        <div className="w-[40px] shrink-0">{toph ? <BotAvatar bot={toph} size={40} /> : null}</div>
         <div className="flex min-w-0 flex-1 flex-col gap-1.5">
           {toph ? <strong className="text-caption-1-semibold text-text-primary">{toph.name}</strong> : null}
           <AgentQuestionCard

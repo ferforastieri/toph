@@ -60,7 +60,11 @@ export default function BotStudioTab({ project, conversationId, mobile = false, 
   const activeModelInfo = findModel(models, activeModel);
   const activeModelDisplay = activeModelInfo ?? (activeModel ? { id: activeModel, label: activeModel.split("::").pop() ?? activeModel } : undefined);
   const lastRun = native.runs.find((run) => !run.parentId);
-  const lastError = lastRun && ["failed", "interrupted"].includes(lastRun.state) ? lastRun.error : "";
+  // Stopping is not a failure: never keep "Execution cancelled" pinned below
+  // the conversation as a red banner.
+  const lastRunError = lastRun && lastRun.state === "failed" ? lastRun.error : "";
+  const lastError = /cancel|abort|interromp/i.test(lastRunError) ? "" : lastRunError;
+  const bannerError = /cancel|abort|interromp/i.test(native.error) ? "" : native.error;
   const title = chatDisplayName(stored, chat);
 
   /** Pin to the end and ignore the scroll events this move generates. */
@@ -195,8 +199,12 @@ export default function BotStudioTab({ project, conversationId, mobile = false, 
     await sendNowRef.current(value, attachments);
   }
   async function stop() {
-    try { await Promise.all(native.runs.filter(isActive).map((run) => agentApi.cancel(project.id, run.id))); }
-    catch (e) { native.setError(e instanceof Error ? e.message : "Falha ao cancelar"); }
+    try {
+      await Promise.all(native.runs.filter(isActive).map((run) => agentApi.cancel(project.id, run.id)));
+      native.setError("");
+    } catch (e) {
+      native.setError(e instanceof Error ? e.message : "Falha ao cancelar");
+    }
   }
   function older() {
     if (native.loading || !native.hasMore) return;
@@ -255,7 +263,7 @@ export default function BotStudioTab({ project, conversationId, mobile = false, 
             <ChatMessages messages={optimistic ? [...native.messages, optimistic] : native.messages} tophs={tophs} runs={native.runs} project={project} mobile={mobile} compact={compact} questions={native.questions} onAnswer={(id, answer) => { void agentApi.answer(project.id, id, answer).catch((e) => native.setError(String(e))); }} />
             {native.approvals.map((approval) => <ApprovalCard key={approval.id} agentName={tophs.find((a) => a.id === approval.agentId)?.name ?? "Toph"} name={approval.name} arguments={approval.arguments} onApprove={() => void agentApi.approve(project.id, approval.id, true).catch((e) => native.setError(String(e)))} onReject={() => void agentApi.approve(project.id, approval.id, false).catch((e) => native.setError(String(e)))} />)}
             {native.compacting && <p role="status" className="text-center text-caption-2-regular text-text-tertiary">Compactando contexto; histórico preservado…</p>}
-            {(native.error || lastError) && <p role="alert" className="rounded-xl border border-red-500/30 p-3 text-sm text-red-500">{native.error || `Última execução: ${lastError}`}</p>}
+            {(bannerError || lastError) && <p role="alert" className="rounded-xl border border-red-500/30 p-3 text-sm text-red-500">{bannerError || `Última execução: ${lastError}`}</p>}
           </div>
         </div>
         {tophs.length > 0 && !atBottom && <button type="button" onClick={() => { follow.current = true; setAtBottom(true); scroller.current?.scrollTo({ top: scroller.current.scrollHeight, behavior: "smooth" }); }} className="absolute bottom-3 left-1/2 z-10 flex size-8 -translate-x-1/2 items-center justify-center rounded-full border border-border-button-default bg-background-secondary-default text-text-secondary shadow-sidebar" aria-label="Ir para o fim da conversa"><ArrowDown size={15} /></button>}

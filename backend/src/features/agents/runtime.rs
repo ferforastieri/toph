@@ -9,6 +9,7 @@ use crate::{
     crypto::new_id,
     errors::{bad_request, AppError, AppResult},
     events::EventHub,
+    features::integrations::mcp::Server,
     store::Store,
 };
 use base64::{engine::general_purpose::STANDARD, Engine};
@@ -24,6 +25,16 @@ use tokio::sync::{broadcast, oneshot};
 use tokio_util::sync::CancellationToken;
 
 type CompletionHandler = Arc<dyn Fn(CompletionNotice) + Send + Sync>;
+
+/// Stops the per-run MCP endpoint when the run finishes, however it finishes.
+struct GatewayHandle(Option<tokio::task::JoinHandle<()>>);
+impl Drop for GatewayHandle {
+    fn drop(&mut self) {
+        if let Some(handle) = self.0.take() {
+            handle.abort();
+        }
+    }
+}
 
 /// A transcript item reported by a native harness, recorded in arrival order so
 /// text parts and tool calls appear in the chat exactly where they happened.
@@ -1199,6 +1210,7 @@ Se a mensagem depender de uma ferramenta ou MCP, prefira quem tem acesso a ele; 
                 "\n\nVocê está num grupo com {peers}. Se precisar do trabalho de outro Toph, mencione o @handle dele na resposta com um pedido claro; ele recebe a sua resposta e continua a mesma conversa. Não responda pela outra pessoa."
             ));
         }
+        text.push_str("\n\nSe precisar de uma decisão do usuário que você não consegue inferir, use a ferramenta `ask_user` (servidor MCP `toph`) com perguntas curtas e opções: a execução espera a resposta e continua. Não termine a resposta apenas com uma pergunta em texto.");
         if routed.len() > 1 {
             let peers = roster
                 .iter()
@@ -1254,6 +1266,31 @@ Se a mensagem depender de uma ferramenta ou MCP, prefira quem tem acesso a ele; 
             ) {
                 mcp_servers.push(native);
             }
+            // A per-run MCP endpoint exposes ask_user: the CLI keeps its native
+            // tools and gains one that waits for the user instead of dead-ending.
+            let mut gateway_handle = None;
+            if let Ok((url, handle)) = super::gateway::Gateway::start(
+                self.clone(),
+                ctx.clone(),
+                vec![tools::ask_user_definition()],
+                cancel.clone(),
+            )
+            .await
+            {
+                mcp_servers.push(Server {
+                    id: "toph".into(),
+                    name: "toph".into(),
+                    transport: "http".into(),
+                    url,
+                    command: Vec::new(),
+                    env: HashMap::new(),
+                    token: String::new(),
+                    timeout_seconds: 900,
+                    auto_approve: true,
+                });
+                gateway_handle = Some(handle);
+            }
+            let _gateway = GatewayHandle(gateway_handle);
             let work = cli::work_dir(&ctx.run.session_id);
             tokio::fs::create_dir_all(&work).await?;
             let streaming_parts = engine == "opencode";
@@ -1620,8 +1657,13 @@ Se a mensagem depender de uma ferramenta ou MCP, prefira quem tem acesso a ele; 
         let tool_display = json!({"id":tid,"chatId":ctx.run.chat_id,"tophId":ctx.agent.id,"sessionId":ctx.run.session_id,"runId":ctx.run.id,"role":"tool","title":name,"activity":label,"phase":"engine","content":args.to_string(),"status":"running","createdAt":now()});
         sqlx::query("INSERT INTO agent_tool_calls(id,run_id,call_id,name,arguments,state,created_at) VALUES(?,?,?,?,?,'pending',?)")
             .bind(&tid).bind(&ctx.run.id).bind(&call_id).bind(name).bind(args.to_string()).bind(now()).execute(self.inner.repo.0.pool()).await?;
-        self.event(ctx, "message", tool_display.clone());
-        let allowed = if tools::needs_permission(name) && ctx.agent.permission_mode == "ask" {
+        // A question is shown by the question card, not as a tool row.
+        if name != "ask_user" {
+            self.event(ctx, "message", tool_display.clone());
+        }
+        let allowed = if name == "ask_user" {
+            true
+        } else if tools::needs_permission(name) && ctx.agent.permission_mode == "ask" {
             self.permission(ctx, &tid, name, &args, cancel).await?
         } else {
             true
@@ -1636,7 +1678,9 @@ Se a mensagem depender de uma ferramenta ou MCP, prefira quem tem acesso a ele; 
             tokio::select! {
                 _=cancel.cancelled()=>Err(bad_request("Execution cancelled")),
                 result=async {
-                    if name == "delegate" {
+                    if name == "ask_user" {
+                        self.ask_user(ctx, &tid, &args, cancel).await
+                    } else if name == "delegate" {
                         self.delegate(ctx, &args, cancel).await
                     } else if name == "read_skill" {
                         let wanted = args["name"].as_str().unwrap_or("");
@@ -2059,6 +2103,38 @@ Se a mensagem depender de uma ferramenta ou MCP, prefira quem tem acesso a ele; 
             .take(2)
             .cloned()
             .collect()
+    }
+
+    /// Pauses the run until the user answers the questions; the answer arrives
+    /// as the tool result so the model can continue with the decision.
+    async fn ask_user(
+        &self,
+        ctx: &RunContext,
+        id: &str,
+        args: &Value,
+        cancel: &CancellationToken,
+    ) -> AppResult<Value> {
+        let questions = args["questions"].clone();
+        let (sender, receiver) = oneshot::channel();
+        self.inner
+            .approvals
+            .lock()
+            .unwrap()
+            .insert(id.into(), sender);
+        sqlx::query("UPDATE agent_tool_calls SET state='waiting' WHERE id=?")
+            .bind(id)
+            .execute(self.inner.repo.0.pool())
+            .await?;
+        self.inner.repo.state(&ctx.run.id, "waiting", "").await?;
+        self.event(ctx,"approval",json!({"id":id,"kind":"question","runId":ctx.run.id,"agentId":ctx.agent.id,"name":"ask_user","arguments":args.to_string(),"questions":questions}));
+        let result = tokio::select! {
+            _=cancel.cancelled()=>Err(bad_request("Execution cancelled")),
+            result=receiver=>result.map_err(|_| bad_request("Question cancelled")),
+        };
+        self.inner.approvals.lock().unwrap().remove(id);
+        self.inner.repo.state(&ctx.run.id, "running", "").await?;
+        self.event(ctx, "approval.resolved", json!({"id":id}));
+        result
     }
 
     async fn permission(
