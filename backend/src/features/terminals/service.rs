@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::io::{Read, Write};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -79,6 +79,24 @@ impl TerminalManager {
         command.cwd(cwd);
         command.env("TERM", "xterm-256color");
         command.env("COLORTERM", "truecolor");
+        // Bash only lists ambiguous completions on the second Tab by default.
+        // A tiny inputrc makes the first Tab show the options, which is what
+        // people expect from a terminal in an IDE.
+        let inputrc = std::env::temp_dir().join("toph-inputrc");
+        if !inputrc.exists() {
+            let user_inputrc = std::env::var_os("HOME")
+                .map(PathBuf::from)
+                .map(|home| home.join(".inputrc"))
+                .filter(|path| path.exists());
+            let include = user_inputrc
+                .map(|path| format!("$include {}\n", path.display()))
+                .unwrap_or_default();
+            let _ = std::fs::write(
+                &inputrc,
+                format!("{include}set show-all-if-ambiguous on\nset completion-ignore-case on\nset page-completions off\n"),
+            );
+        }
+        command.env("INPUTRC", inputrc.as_os_str());
         let child = pair
             .slave
             .spawn_command(command)
@@ -280,6 +298,10 @@ fn default_shell() -> String {
     #[cfg(not(windows))]
     {
         let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/bash".into());
+        // dash (and a bare /bin/sh) has no interactive completion at all.
+        if (shell.ends_with("/sh") || shell.ends_with("/dash")) && Path::new("/bin/bash").exists() {
+            return "/bin/bash".into();
+        }
         if Path::new(&shell).exists() {
             shell
         } else {

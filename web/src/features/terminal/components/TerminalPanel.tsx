@@ -550,7 +550,9 @@ function TerminalView({ session, theme, clearNonce, focusNonce, mobile, onOutput
     termRef.current = term;
     const linkDisposable = term.registerLinkProvider({
       provideLinks: (lineNumber, callback) => {
-        const line = term.buffer.active.getLine(lineNumber)?.translateToString(true) ?? "";
+        // The link provider is 1-based; the buffer API is 0-based. Passing the
+        // provider row straight through drew every link one line above itself.
+        const line = term.buffer.active.getLine(lineNumber - 1)?.translateToString(true) ?? "";
         if (!line) {
           callback(undefined);
           return;
@@ -565,7 +567,7 @@ function TerminalView({ session, theme, clearNonce, focusNonce, mobile, onOutput
             text,
             range: {
               start: { x: start + 1, y: lineNumber },
-              end: { x: end + 1, y: lineNumber },
+              end: { x: end, y: lineNumber },
             },
             decorations: { underline: true, pointerCursor: true },
             activate,
