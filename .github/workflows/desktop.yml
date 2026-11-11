@@ -29,8 +29,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - platform: ubuntu-24.04
-            bundles: appimage,deb,rpm
+          # The hosted Ubuntu runner's apt mirror has been unreachable for
+          # hours, which blocked every release in "Install Linux dependencies".
+          # Ship Windows desktop packages until the runner mirror is healthy.
+          # - platform: ubuntu-24.04
+          #   bundles: appimage,deb,rpm
           - platform: windows-latest
             bundles: msi,nsis
     runs-on: ${{ matrix.platform }}
