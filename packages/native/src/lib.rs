@@ -311,13 +311,18 @@ async fn ensure_local_workspace(
         .json()
         .await
         .map_err(|_| "Resposta inválida ao listar projetos.".to_string())?;
+    let canonical_root = dunce::canonicalize(&root).unwrap_or_else(|_| root.clone());
     let exists = projects
         .as_array()
         .map(|items| {
             items.iter().any(|item| {
                 item.get("root")
                     .and_then(|value| value.as_str())
-                    .map(|value| value == root_text)
+                    .map(|value| {
+                        let other = PathBuf::from(value);
+                        let other = dunce::canonicalize(&other).unwrap_or(other);
+                        other == canonical_root
+                    })
                     .unwrap_or(false)
             })
         })
@@ -340,6 +345,11 @@ async fn ensure_local_workspace(
         .await
         .map_err(|err| format!("Não foi possível abrir o projeto local: {err}"))?;
     if !response.status().is_success() {
+        // The embedded server may already own this root (canonical path
+        // differences on Windows); that is success for opening the workspace.
+        if response.status() == reqwest::StatusCode::CONFLICT {
+            return Ok(());
+        }
         return Err("O backend local não conseguiu criar o projeto.".into());
     }
     Ok(())
