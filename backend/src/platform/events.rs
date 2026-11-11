@@ -117,7 +117,38 @@ impl ProjectWatcher {
                     let _ = watch_tree(&mut guard, &git_dir.join("refs"), &root_for_thread);
                 }
             }
-            let mut pending: Option<(Instant, PathBuf)> = None;
+            struct PendingWatch {
+                deadline: Instant,
+                path: PathBuf,
+            }
+            // Files and git metadata are tracked separately: `git status`
+            // touches `.git/index` while a file event is pending, and a single
+            // shared slot used to replace the file event with the git one.
+            let mut pending_files: Option<PendingWatch> = None;
+            let mut pending_git: Option<PendingWatch> = None;
+            let flush = |slot: &mut Option<PendingWatch>| {
+                let Some(pending) = slot.take() else {
+                    return;
+                };
+                let relative = pending
+                    .path
+                    .strip_prefix(&root_for_thread)
+                    .unwrap_or(&pending.path)
+                    .to_string_lossy()
+                    .replace('\\', "/");
+                // Refreshing the index is part of reading git; publishing it
+                // would make `git status` trigger another `git status`.
+                if relative == ".git/index" || relative == ".git/index.lock" {
+                    return;
+                }
+                let kind = if relative == ".git" || relative.starts_with(".git/") {
+                    "git"
+                } else {
+                    "files"
+                };
+                tracing::debug!(project = %project_id_for_thread, kind, path = %relative, "project watch event");
+                hub.publish(&project_id_for_thread, kind, Some(relative));
+            };
             loop {
                 if overflow.swap(false, Ordering::Relaxed) {
                     // A directory creation may have been coalesced away.
@@ -132,27 +163,25 @@ impl ProjectWatcher {
                     }
                     hub.publish(&project_id_for_thread, "sync", None);
                 }
-                if pending
+                let now = Instant::now();
+                if pending_files
                     .as_ref()
-                    .is_some_and(|(deadline, _)| Instant::now() >= *deadline)
+                    .is_some_and(|pending| now >= pending.deadline)
                 {
-                    if let Some((_, path)) = pending.take() {
-                        let relative = path
-                            .strip_prefix(&root_for_thread)
-                            .unwrap_or(&path)
-                            .to_string_lossy()
-                            .replace('\\', "/");
-                        let kind = if relative == ".git" || relative.starts_with(".git/") {
-                            "git"
-                        } else {
-                            "files"
-                        };
-                        hub.publish(&project_id_for_thread, kind, Some(relative));
-                    }
+                    flush(&mut pending_files);
                 }
-                let timeout = pending
+                if pending_git
                     .as_ref()
-                    .map(|(deadline, _)| deadline.saturating_duration_since(Instant::now()))
+                    .is_some_and(|pending| now >= pending.deadline)
+                {
+                    flush(&mut pending_git);
+                }
+                let timeout = [pending_files.as_ref(), pending_git.as_ref()]
+                    .into_iter()
+                    .flatten()
+                    .map(|pending| pending.deadline)
+                    .min()
+                    .map(|deadline| deadline.saturating_duration_since(Instant::now()))
                     .unwrap_or(Duration::from_secs(10));
                 match receiver.recv_timeout(timeout) {
                     Ok(Ok(event)) => {
@@ -180,11 +209,28 @@ impl ProjectWatcher {
                             }
                         }
                         if let Some(path) = event.paths.last() {
-                            let deadline = pending
-                                .as_ref()
-                                .map(|(deadline, _)| *deadline)
-                                .unwrap_or_else(|| Instant::now() + Duration::from_millis(250));
-                            pending = Some((deadline, path.clone()));
+                            let relative = path
+                                .strip_prefix(&root_for_thread)
+                                .unwrap_or(path)
+                                .to_string_lossy()
+                                .replace('\\', "/");
+                            if relative != ".git/index" && relative != ".git/index.lock" {
+                                let is_git = relative == ".git" || relative.starts_with(".git/");
+                                let slot = if is_git {
+                                    &mut pending_git
+                                } else {
+                                    &mut pending_files
+                                };
+                                match slot {
+                                    Some(pending) => pending.path = path.clone(),
+                                    None => {
+                                        *slot = Some(PendingWatch {
+                                            deadline: Instant::now() + Duration::from_millis(250),
+                                            path: path.clone(),
+                                        })
+                                    }
+                                }
+                            }
                         }
                     }
                     Ok(Err(_)) => {}
@@ -270,6 +316,23 @@ fn ignored_dir(name: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn watcher_publishes_file_events() {
+        let dir = tempfile::tempdir().unwrap();
+        let hub = EventHub::new();
+        let mut receiver = hub.subscribe();
+        let registry = ProjectWatcher::new(hub);
+        registry.watch("project", dir.path(), true).unwrap();
+        tokio::time::sleep(Duration::from_millis(150)).await;
+        std::fs::write(dir.path().join("agent.txt"), "x").unwrap();
+        let event = tokio::time::timeout(Duration::from_secs(3), receiver.recv())
+            .await
+            .expect("no filesystem event")
+            .expect("event hub closed");
+        assert_eq!(event.event_type, "files");
+        assert_eq!(event.project_id, "project");
+    }
 
     #[tokio::test]
     async fn unwatch_releases_os_watcher_and_worker_sender() {
