@@ -66,9 +66,9 @@ export default function MobileTopBar({
             onClick={onProjects}
             aria-label={`Projeto ${project.name}. ${unreadCount > 0 ? `${unreadCount} notificações não lidas. ` : ""}Ver projetos abertos`}
             title={`${project.name}\n${project.root}`}
-            className="relative flex size-9 shrink-0 items-center justify-center rounded-full border border-border-button-default bg-background-secondary-default transition-[border-color,background-color,transform] duration-300 hover:border-border-button-hover hover:bg-background-primary-hover active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus-ring"
+            className="relative flex size-9 shrink-0 items-center justify-center rounded-xl border border-transparent bg-transparent transition-[background-color,border-color,transform] duration-300 hover:border-border-button-default hover:bg-background-primary-hover active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus-ring"
           >
-            <ProjectMonogram project={project} size={26} />
+            <ProjectMonogram project={project} size={30} />
             {unreadCount > 0 ? (
               <span className="absolute -end-0.5 -top-0.5 z-10 flex size-4 items-center justify-center rounded-full bg-background-primary-default text-accent-500 shadow-sm">
                 <Bell size={11} className="bell-ring origin-top" />
