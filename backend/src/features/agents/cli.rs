@@ -976,6 +976,7 @@ where
     let mut error: Option<String> = None;
     let mut seen_parts = std::collections::HashSet::new();
     let mut stderr_done = false;
+    let mut completed = false;
     loop {
         tokio::select! {
             _=cancel.cancelled()=>{
@@ -1050,6 +1051,8 @@ where
                         // background shell or its private server keeps running,
                         // which left the chat "thinking" forever.
                         if value["part"]["reason"].as_str() == Some("stop") {
+                            // We end the CLI ourselves; the signal is not a failure.
+                            completed = true;
                             let _ = child.kill().await;
                             break;
                         }
@@ -1086,7 +1089,7 @@ where
         }
     }
     let status = child.wait().await?;
-    if !status.success() {
+    if !completed && !status.success() {
         return Err(bad_request(error.unwrap_or_else(|| {
             format!("OpenCode saiu com código {}", status.code().unwrap_or(-1))
         })));
