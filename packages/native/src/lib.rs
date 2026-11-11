@@ -765,10 +765,16 @@ async fn install_environment(components: Vec<String>) -> Result<String, String> 
 }
 
 async fn run_installer(command: &str, args: &[&str]) -> Result<String, String> {
-    let output = tokio::process::Command::new(command)
-        .args(args)
-        .output()
+    let mut child = tokio::process::Command::new(command);
+    child.args(args);
+    // winget/MSI helpers otherwise open a console window for every package.
+    #[cfg(windows)]
+    {
+        child.creation_flags(0x08000000);
+    }
+    let output = tokio::time::timeout(Duration::from_secs(900), child.output())
         .await
+        .map_err(|_| format!("{command} demorou demais para terminar."))?
         .map_err(|error| format!("Não foi possível executar {command}: {error}"))?;
     let mut text = String::from_utf8_lossy(&output.stdout).to_string();
     text.push_str(&String::from_utf8_lossy(&output.stderr));
@@ -808,6 +814,7 @@ async fn install_environment_windows(selected: &[String]) -> Result<String, Stri
                 "--silent",
                 "--accept-package-agreements",
                 "--accept-source-agreements",
+                "--disable-interactivity",
             ],
         )
         .await?;

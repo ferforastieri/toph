@@ -128,6 +128,7 @@ export default function App() {
   const [tools, setTools] = useState<ToolStatus[]>([]);
   const [selectedTools, setSelectedTools] = useState<Set<string>>(new Set());
   const [environmentBusy, setEnvironmentBusy] = useState(false);
+  const [installProgress, setInstallProgress] = useState<{ current: number; total: number; label: string } | null>(null);
   const [environmentLog, setEnvironmentLog] = useState("");
   const [environmentError, setEnvironmentError] = useState("");
   const [shareNetwork, setShareNetwork] = useState(
@@ -263,20 +264,35 @@ export default function App() {
   }
 
   async function installEnvironment() {
-    if (selectedTools.size === 0) return;
+    if (environmentBusy) return;
+    const selected = [...selectedTools];
+    if (selected.length === 0) return;
     setEnvironmentBusy(true);
     setEnvironmentError("");
     setEnvironmentLog("");
+    let current = 0;
     try {
-      const log = await invoke<string>("install_environment", {
-        components: Array.from(selectedTools),
-      });
-      setEnvironmentLog(log);
-      setTools(await invoke<ToolStatus[]>("environment_status"));
+      for (const id of selected) {
+        const label = tools.find((tool) => tool.id === id)?.label ?? id;
+        setInstallProgress({ current, total: selected.length, label });
+        setEnvironmentLog((log) => `${log}Instalando ${label}...\n`);
+        const output = await invoke<string>("install_environment", { components: [id] });
+        setEnvironmentLog((log) => `${log}${output}\n`);
+        current += 1;
+        setInstallProgress({ current, total: selected.length, label });
+        setTools(await invoke<ToolStatus[]>("environment_status"));
+        setSelectedTools((value) => {
+          const next = new Set(value);
+          next.delete(id);
+          return next;
+        });
+      }
+      setEnvironmentLog((log) => `${log}\nAmbiente instalado. Reinicie o Toph para carregar o PATH atualizado.\n`);
     } catch (err) {
       setEnvironmentError(err instanceof Error ? err.message : String(err));
     } finally {
       setEnvironmentBusy(false);
+      setInstallProgress(null);
     }
   }
 
@@ -571,6 +587,14 @@ export default function App() {
             <p className="environment-note">
               No Linux, o sistema pode pedir sua senha de administrador. No Windows, o instalador usa o winget.
             </p>
+            {environmentBusy && installProgress ? (
+              <div className="environment-progress" role="status" aria-label="Progresso da instalação">
+                <div className="environment-progress-track">
+                  <span style={{ width: `${Math.round((installProgress.current / Math.max(1, installProgress.total)) * 100)}%` }} />
+                </div>
+                <small>{installProgress.label} · {installProgress.current}/{installProgress.total}</small>
+              </div>
+            ) : null}
             {environmentError && <div className="error">{environmentError}</div>}
             {environmentLog && <pre className="environment-log">{environmentLog}</pre>}
             <div className="environment-actions">
@@ -585,14 +609,20 @@ export default function App() {
               >
                 Reiniciar Toph
               </button>
-              <button
-                type="button"
-                className="primary"
-                disabled={environmentBusy || selectedTools.size === 0}
-                onClick={() => void installEnvironment()}
-              >
-                {environmentBusy ? "Instalando..." : "Instalar selecionadas"}
-              </button>
+              {tools.length > 0 && tools.every((tool) => tool.installed) ? (
+                <button type="button" className="primary" disabled={environmentBusy} onClick={() => setEnvironmentOpen(false)}>
+                  Continuar
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="primary"
+                  disabled={environmentBusy || selectedTools.size === 0}
+                  onClick={() => void installEnvironment()}
+                >
+                  {environmentBusy ? "Instalando..." : "Instalar selecionadas"}
+                </button>
+              )}
             </div>
           </section>
         </div>
