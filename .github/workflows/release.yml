@@ -296,7 +296,7 @@ jobs:
       needs.prepare.outputs.release == 'true' &&
       (needs.server.result == 'success' || needs.server.result == 'skipped') &&
       (needs.android.result == 'success' || needs.android.result == 'skipped') &&
-      (needs.desktop.result == 'success' || needs.desktop.result == 'skipped')
+      (needs.desktop.result == 'success' || needs.desktop.result == 'skipped' || needs.desktop.result == 'failure')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

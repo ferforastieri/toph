@@ -29,11 +29,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # The hosted Ubuntu runner's apt mirror has been unreachable for
-          # hours, which blocked every release in "Install Linux dependencies".
-          # Ship Windows desktop packages until the runner mirror is healthy.
-          # - platform: ubuntu-24.04
-          #   bundles: appimage,deb,rpm
+          - platform: ubuntu-24.04
+            bundles: appimage,deb,rpm
           - platform: windows-latest
             bundles: msi,nsis
     runs-on: ${{ matrix.platform }}
@@ -58,36 +55,35 @@ jobs:
 
       - name: Install Linux dependencies
         if: matrix.platform == 'ubuntu-24.04'
-        # The Azure Ubuntu mirror is regularly unreachable from hosted runners;
-        # a hanging apt must fail fast instead of stalling the whole release.
-        timeout-minutes: 20
+        # Hosted Ubuntu runners have been unable to resolve the default
+        # Ubuntu mirrors. Try independent mirrors, and never let this step
+        # stall the whole release.
+        timeout-minutes: 18
         shell: bash
         run: |
           set -euo pipefail
-          sudo sed -i -e 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' \
-            -e 's|https://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' \
-            /etc/apt/sources.list /etc/apt/sources.list.d/*.sources /etc/apt/apt-mirrors.txt 2>/dev/null || true
-          echo "apt mirror:"; cat /etc/apt/apt-mirrors.txt 2>/dev/null || true
-          apt_options=(-o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 -o Acquire::Retries=2 -o Acquire::ForceIPv4=true -o DPkg::Lock::Timeout=60)
-          for attempt in 1 2; do
-            if sudo DEBIAN_FRONTEND=noninteractive timeout 300 apt-get "${apt_options[@]}" update; then
-              break
+          mirrors=(
+            "https://mirrors.edge.kernel.org/ubuntu"
+            "https://ftp.osuosl.org/pub/ubuntu"
+            "https://mirrors.ocf.berkeley.edu/ubuntu"
+            "https://archive.ubuntu.com/ubuntu"
+          )
+          apt_options=(-o Acquire::http::Timeout=15 -o Acquire::https::Timeout=15 -o Acquire::Retries=1 -o Acquire::ForceIPv4=true -o DPkg::Lock::Timeout=60)
+          for mirror in "${mirrors[@]}"; do
+            echo "== trying apt mirror $mirror"
+            for file in /etc/apt/sources.list /etc/apt/sources.list.d/*.sources /etc/apt/apt-mirrors.txt; do
+              [ -f "$file" ] || continue
+              sudo sed -i -E "s#https?://(azure\.archive\.ubuntu\.com|archive\.ubuntu\.com|security\.ubuntu\.com|ports\.ubuntu\.com)/ubuntu#${mirror}#g" "$file"
+            done
+            if ! sudo DEBIAN_FRONTEND=noninteractive timeout 180 apt-get "${apt_options[@]}" update; then
+              continue
             fi
-            if [ "$attempt" = 2 ]; then
-              exit 1
-            fi
-            sleep 5
-          done
-          for attempt in 1 2; do
-            if sudo DEBIAN_FRONTEND=noninteractive timeout 600 apt-get "${apt_options[@]}" install -y --no-install-recommends \
+            if sudo DEBIAN_FRONTEND=noninteractive timeout 480 apt-get "${apt_options[@]}" install -y --no-install-recommends \
               libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libxdo-dev; then
               exit 0
             fi
-            if [ "$attempt" = 2 ]; then
-              exit 1
-            fi
-            sleep 5
           done
+          exit 1
 
       - name: Install JavaScript dependencies
         run: npm ci
