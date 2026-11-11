@@ -26,3 +26,8 @@ LangString webview2Downloading ${LANG_PORTUGUESEBR} "Baixando o WebView2..."
 LangString webview2InstallError ${LANG_PORTUGUESEBR} "Erro ao instalar o WebView2. Código: $1"
 LangString webview2InstallSuccess ${LANG_PORTUGUESEBR} "WebView2 instalado com sucesso."
 LangString deleteAppData ${LANG_PORTUGUESEBR} "Remover os dados do Toph"
+
+LangString MUI_TEXT_WELCOME_INFO_TITLE ${LANG_PORTUGUESEBR} "Bem-vindo ao Toph"
+LangString MUI_TEXT_WELCOME_INFO_TEXT ${LANG_PORTUGUESEBR} "Este assistente instala o Toph neste computador. Depois você escolhe entre conectar a um servidor Toph ou abrir um workspace local.$\r$\n$\r$\nClique em Avançar para continuar."
+LangString MUI_TEXT_FINISH_INFO_TITLE ${LANG_PORTUGUESEBR} "Toph instalado"
+LangString MUI_TEXT_FINISH_INFO_TEXT ${LANG_PORTUGUESEBR} "O Toph está pronto. Abra pelo atalho e conecte seu servidor ou use um workspace local."
