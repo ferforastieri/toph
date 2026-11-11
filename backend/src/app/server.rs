@@ -53,7 +53,7 @@ use axum::http::{HeaderMap, Method, Request, StatusCode, Uri};
 use axum::middleware::{self, Next};
 use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::response::{IntoResponse, Redirect, Response};
-use axum::routing::{delete, get, post};
+use axum::routing::{any, delete, get, post};
 use axum::{Json, Router};
 use base64::Engine as _;
 use ipnet::IpNet;
@@ -832,6 +832,9 @@ fn router(state: Arc<AppState>) -> Router {
         )
         .route("/api/web-targets/{target_id}", delete(delete_web_target))
         .route("/api/web-preview", get(web_preview))
+        .route("/api/web-preview/{token}", any(web_preview_root))
+        .route("/api/web-preview/{token}/", any(web_preview_root))
+        .route("/api/web-preview/{token}/{*path}", any(web_preview_asset))
         .route("/api/engines", get(engine_list))
         .route("/api/engines/{engine_id}/test", post(test_engine))
         .route("/api/engines/{engine_id}/install", post(install_engine))
@@ -1043,7 +1046,10 @@ async fn auth_middleware(
             return AppError::Unauthorized.into_response();
         }
     };
-    if from_cookie && unsafe_method(request.method()) {
+    // The preview proxy forwards the app's own requests. They belong to the
+    // previewed app, not to a Toph form, so Toph's CSRF token does not apply.
+    let preview_proxy = request.uri().path().starts_with("/api/web-preview/");
+    if from_cookie && unsafe_method(request.method()) && !preview_proxy {
         let csrf = cookie_value(request.headers(), CSRF_COOKIE).unwrap_or_default();
         let provided = request
             .headers()

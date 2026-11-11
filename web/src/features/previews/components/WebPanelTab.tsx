@@ -45,7 +45,7 @@ export default function WebPanelTab({ tab }: { tab: Tab }) {
         <div className="flex w-full items-center gap-1 min-[901px]:w-auto">
           <Button variant="ghost" size="xs" iconOnly leadingIcon={ArrowRight} aria-label="Abrir link no preview" title="Abrir link no preview" className="max-[900px]:flex-1" onClick={() => loadUrl(draftUrl)} />
           <Button variant="ghost" size="xs" iconOnly leadingIcon={RefreshCw} aria-label="Recarregar preview" title="Recarregar preview" className="max-[900px]:flex-1" onClick={() => setReloadKey((value) => value + 1)} />
-          <IconLinkButton icon={ExternalLink} size="small" aria-label="Abrir no navegador" title="Abrir no navegador" href={activeUrl} target="_blank" rel="noreferrer" className="max-[900px]:flex-1 border-transparent bg-transparent shadow-none" />
+          <IconLinkButton icon={ExternalLink} size="small" aria-label="Abrir no navegador" title="Abrir no navegador" href={webPreviewUrl(activeUrl)} target="_blank" rel="noreferrer" className="max-[900px]:flex-1 border-transparent bg-transparent shadow-none" />
         </div>
       </div>
       <iframe
@@ -53,7 +53,7 @@ export default function WebPanelTab({ tab }: { tab: Tab }) {
         className="min-h-0 w-full flex-1 border-0 bg-background"
         src={webPreviewUrl(activeUrl)}
         title={tab.title}
-        sandbox="allow-scripts allow-forms allow-popups allow-modals allow-downloads"
+        sandbox="allow-scripts allow-forms allow-popups allow-modals allow-downloads allow-same-origin"
         referrerPolicy="no-referrer"
       />
     </div>
