@@ -155,7 +155,9 @@ jobs:
 
   server:
     needs: prepare
-    if: needs.prepare.outputs.release == 'true' && needs.prepare.outputs.server == 'true'
+    # The in-app updater always installs the server binary, so every release
+    # must carry it even when only the desktop client changed.
+    if: needs.prepare.outputs.release == 'true'
     strategy:
       fail-fast: false
       matrix:
