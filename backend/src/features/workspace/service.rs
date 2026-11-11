@@ -8,10 +8,11 @@ use chrono::{DateTime, Utc};
 use tokio::process::Command;
 use walkdir::WalkDir;
 
-use crate::errors::{AppError, AppResult};
+use crate::errors::{bad_request, AppError, AppResult};
 use crate::model::{
     FileContent, FileEntry, GitBlameLine, GitBranches, GitHistoryEntry, Repository, SearchMatch,
 };
+use serde_json::{json, Value};
 
 const MAX_READ_SIZE: u64 = 5 * 1024 * 1024;
 
@@ -446,6 +447,66 @@ impl WorkspaceService {
         git_output(root, &["status", "--porcelain=v1", "-b"])
             .await
             .unwrap_or_default()
+    }
+
+    /// Repository state that porcelain status alone cannot express: an
+    /// in-progress merge/rebase, unresolved paths and the upstream distance.
+    pub async fn git_state(&self, root: &Path) -> Value {
+        let git_dir = git_output(root, &["rev-parse", "--absolute-git-dir"])
+            .await
+            .unwrap_or_default()
+            .trim()
+            .to_string();
+        let exists = |name: &str| !git_dir.is_empty() && Path::new(&git_dir).join(name).exists();
+        let merging = exists("MERGE_HEAD");
+        let rebasing = exists("rebase-merge") || exists("rebase-apply");
+        let conflicts = git_output(root, &["diff", "--name-only", "--diff-filter=U"])
+            .await
+            .unwrap_or_default()
+            .lines()
+            .map(str::trim)
+            .filter(|line| !line.is_empty())
+            .map(ToOwned::to_owned)
+            .collect::<Vec<_>>();
+        let (ahead, behind) = git_output(
+            root,
+            &["rev-list", "--left-right", "--count", "HEAD...@{upstream}"],
+        )
+        .await
+        .ok()
+        .and_then(|out| {
+            let mut parts = out.split_whitespace();
+            Some((
+                parts.next()?.parse::<i64>().ok()?,
+                parts.next()?.parse::<i64>().ok()?,
+            ))
+        })
+        .unwrap_or((0, 0));
+        json!({
+            "merging": merging,
+            "rebasing": rebasing,
+            "conflicts": conflicts,
+            "ahead": ahead,
+            "behind": behind,
+        })
+    }
+
+    pub async fn git_merge_continue(&self, root: &Path) -> AppResult<String> {
+        let state = self.git_state(root).await;
+        if state["conflicts"]
+            .as_array()
+            .map(|items| !items.is_empty())
+            .unwrap_or(false)
+        {
+            return Err(bad_request(
+                "Resolva e prepare os conflitos antes de continuar o merge.",
+            ));
+        }
+        git_output(root, &["commit", "--no-edit"]).await
+    }
+
+    pub async fn git_merge_abort(&self, root: &Path) -> AppResult<String> {
+        git_output(root, &["merge", "--abort"]).await
     }
 
     pub async fn git_branches(&self, root: &Path) -> AppResult<GitBranches> {

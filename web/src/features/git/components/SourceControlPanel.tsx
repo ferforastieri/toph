@@ -8,9 +8,10 @@ import {
   Plus,
   Bot,
   FileDiff,
+  TriangleAlert,
   Undo2,
 } from "@toph/icons";
-import { api, type Project } from "../../../shared/api";
+import { api, type GitState, type Project } from "../../../shared/api";
 import { expandGitPattern, sanitizeBranchName } from "../../../shared/lib";
 import { suggestGitChanges } from "../ai";
 import { parseGitStatus, statusLabel } from "../status";
@@ -64,6 +65,7 @@ export default function SourceControlPanel({
   const settings = useSettings();
   const confirm = useConfirm();
   const [status, setStatus] = useState("");
+  const [repoState, setRepoState] = useState<GitState | null>(null);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
@@ -74,8 +76,12 @@ export default function SourceControlPanel({
 
   const load = useCallback(async () => {
     try {
-      const next = await api.gitStatus(project.id);
+      const [next, state] = await Promise.all([
+        api.gitStatus(project.id),
+        api.gitState(project.id).catch(() => null),
+      ]);
       setStatus(next);
+      setRepoState(state);
       setError("");
       onStatusChange?.(next);
     } catch (err) {
@@ -96,8 +102,10 @@ export default function SourceControlPanel({
   }, [load]);
 
   const parsed = useMemo(() => parseGitStatus(status), [status]);
-  const staged = parsed.changes.filter((change) => change.staged);
-  const unstaged = parsed.changes.filter((change) => change.unstaged);
+  const conflicts = parsed.changes.filter((change) => change.conflicted);
+  const staged = parsed.changes.filter((change) => change.staged && !change.conflicted);
+  const unstaged = parsed.changes.filter((change) => change.unstaged && !change.conflicted);
+  const merging = Boolean(repoState?.merging);
 
   async function stage(paths: string[]) {
     if (!paths.length) return;
@@ -261,6 +269,40 @@ export default function SourceControlPanel({
     }
   }
 
+  async function continueMerge() {
+    setBusy("merge-continue");
+    try {
+      await api.gitMergeContinue(project.id);
+      setMessage("");
+      await load();
+      notify("success", "Merge concluído.");
+    } catch (err) {
+      notify("error", err instanceof Error ? err.message : "Não foi possível continuar o merge.");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function abortMerge() {
+    const ok = await confirm({
+      title: "Abortar o merge?",
+      message: "O merge em andamento será desfeito e as alterações não commitadas dele serão perdidas.",
+      confirmLabel: "Abortar merge",
+      danger: true,
+    });
+    if (!ok) return;
+    setBusy("merge-abort");
+    try {
+      await api.gitMergeAbort(project.id);
+      await load();
+      notify("success", "Merge abortado.");
+    } catch (err) {
+      notify("error", err instanceof Error ? err.message : "Não foi possível abortar o merge.");
+    } finally {
+      setBusy("");
+    }
+  }
+
   return (
     <div className="flex min-h-0 flex-col">
       {!embedded && (
@@ -275,6 +317,23 @@ export default function SourceControlPanel({
           {!branchControl ? <Button variant="ghost" size="xs" aria-label="Create branch from pattern" disabled={Boolean(busy)} onClick={() => void createBranch()}><GitBranch size={13} /></Button> : null}
         </div>
       )}
+      {merging ? (
+        <div className="mx-2 mt-1.5 rounded-md border border-status-amber-border bg-status-amber-bg px-2 py-1.5">
+          <div className="flex items-center gap-1.5">
+            <TriangleAlert size={12} className="text-status-amber-text" />
+            <span className="text-[11px] font-semibold text-text-primary">Merge em andamento</span>
+          </div>
+          <p className="mt-0.5 text-[11px] text-text-secondary">
+            {conflicts.length > 0
+              ? `${conflicts.length} conflito${conflicts.length === 1 ? "" : "s"}. Resolva e prepare os arquivos para continuar.`
+              : "Tudo resolvido. Continue para concluir o merge."}
+          </p>
+          <div className="mt-1.5 flex gap-1">
+            <Button size="small" className="flex-1 justify-center" disabled={conflicts.length > 0 || Boolean(busy)} onClick={() => void continueMerge()}>Continuar</Button>
+            <Button variant="secondary" size="small" className="flex-1 justify-center" disabled={Boolean(busy)} onClick={() => void abortMerge()}>Abortar</Button>
+          </div>
+        </div>
+      ) : null}
       {error && <div className="mx-2 mt-2 rounded-md bg-destructive/10 px-2 py-1 text-[11px] text-destructive">{error}</div>}
       {showCommit && (
         <div
@@ -298,6 +357,30 @@ export default function SourceControlPanel({
       )}
       {showChanges && (view === "changes" || changesOpen) && (
         <div className="min-h-0 flex-1 overflow-y-auto">
+          {conflicts.length > 0 && (
+            <section className="border-b pb-1">
+              <div className="flex flex-col items-stretch gap-1 px-2 py-1 min-[901px]:h-8 min-[901px]:flex-row min-[901px]:items-center min-[901px]:justify-between min-[901px]:py-0">
+                <span className="text-caption-1-semibold uppercase tracking-wide text-status-rose-text">Merge Changes</span>
+                <span className="flex w-full items-center gap-1 min-[901px]:w-auto">
+                  <span className="flex size-5 items-center justify-center rounded-full bg-status-rose-bg text-caption-2-semibold text-status-rose-text">{conflicts.length}</span>
+                </span>
+              </div>
+              {conflicts.map((change) => (
+                <div className="group relative flex h-8 items-center gap-0.5 px-1" key={`conflict:${change.path}`}>
+                  <Button variant="ghost" size="small" className="h-8 min-w-0 flex-1 justify-start gap-1.5 px-1.5 pe-9" title={change.path} onClick={() => onOpenDiff(change.path, false)}>
+                    <FileIcon name={change.path} path={change.path} size={14} />
+                    <span className="shrink-0 truncate text-body-2-medium text-text-primary">{changeName(change.path)}</span>
+                    <span className="min-w-0 flex-1 truncate text-caption-1-regular text-text-tertiary">{changeDir(change.path)}</span>
+                  </Button>
+                  <span className="absolute end-6 top-1/2 hidden -translate-y-1/2 items-center gap-0.5 bg-background-primary-default ps-1 group-hover:flex">
+                    <Button variant="ghost" size="xs" iconOnly leadingIcon={FileDiff} aria-label="Open conflict" title="Open conflict" onClick={() => onOpenDiff(change.path, false)} />
+                    <Button variant="ghost" size="xs" iconOnly leadingIcon={Check} aria-label="Mark as resolved" title="Mark as resolved" onClick={() => void stage([change.path])} />
+                  </span>
+                  <GitStatusIcon status="U" size={13} className="me-0.5" />
+                </div>
+              ))}
+            </section>
+          )}
           {staged.length > 0 && (
             <section className="border-b pb-1">
               <div className="flex flex-col items-stretch gap-1 px-2 py-1 min-[901px]:h-8 min-[901px]:flex-row min-[901px]:items-center min-[901px]:justify-between min-[901px]:py-0">

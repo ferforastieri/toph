@@ -708,6 +708,15 @@ fn router(state: Arc<AppState>) -> Router {
         .route("/api/projects/{project_id}/search", post(search))
         .route("/api/projects/{project_id}/git/history", get(git_history))
         .route("/api/projects/{project_id}/git/status", get(git_status))
+        .route("/api/projects/{project_id}/git/state", get(git_state))
+        .route(
+            "/api/projects/{project_id}/git/merge/continue",
+            post(git_merge_continue),
+        )
+        .route(
+            "/api/projects/{project_id}/git/merge/abort",
+            post(git_merge_abort),
+        )
         .route(
             "/api/projects/{project_id}/git/branches",
             get(git_branches).delete(git_delete_branches),

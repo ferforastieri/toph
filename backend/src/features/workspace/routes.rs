@@ -222,6 +222,42 @@ pub(super) async fn git_status(
     Ok(Json(json!({ "status": status })))
 }
 
+pub(super) async fn git_state(
+    State(state): State<Arc<AppState>>,
+    Path(project_id): Path<String>,
+) -> AppResult<Json<Value>> {
+    let project = state.store.project(&project_id).await?;
+    Ok(Json(
+        state.workspace.git_state(FsPath::new(&project.root)).await,
+    ))
+}
+
+pub(super) async fn git_merge_continue(
+    State(state): State<Arc<AppState>>,
+    Path(project_id): Path<String>,
+) -> AppResult<Json<Value>> {
+    let project = state.store.project(&project_id).await?;
+    let output = state
+        .workspace
+        .git_merge_continue(FsPath::new(&project.root))
+        .await?;
+    state.events.publish(&project_id, "git", None);
+    Ok(Json(json!({ "output": output })))
+}
+
+pub(super) async fn git_merge_abort(
+    State(state): State<Arc<AppState>>,
+    Path(project_id): Path<String>,
+) -> AppResult<Json<Value>> {
+    let project = state.store.project(&project_id).await?;
+    let output = state
+        .workspace
+        .git_merge_abort(FsPath::new(&project.root))
+        .await?;
+    state.events.publish(&project_id, "git", None);
+    Ok(Json(json!({ "output": output })))
+}
+
 pub(super) async fn git_branches(
     State(state): State<Arc<AppState>>,
     Path(project_id): Path<String>,

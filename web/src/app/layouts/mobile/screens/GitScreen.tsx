@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { Bot, Check, GitBranch, Minus, Plus, RefreshCw, Settings2, Trash2, Undo2 } from "@toph/icons";
-import { api, type Project } from "../../../../shared/api";
+import { Bot, Check, GitBranch, Minus, Plus, RefreshCw, Settings2, Trash2, TriangleAlert, Undo2 } from "@toph/icons";
+import { api, type GitState, type Project } from "../../../../shared/api";
+import { useProjectEvents } from "../../../../features/projects/events";
 import { useApp } from "../../../store";
 import { parseGitStatus, statusLabel, type GitChange } from "../../../../features/git/status";
 import { basename, dirname, expandGitPattern } from "../../../../shared/lib";
@@ -31,18 +32,26 @@ export default function GitScreen({ project, branch, onOpenDiff, onBranch }: Pro
   const aiConfig = useAI((state) => state.config);
   const settings = useSettings();
   const [status, setStatus] = useState("");
+  const [repoState, setRepoState] = useState<GitState | null>(null);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   const parsed = useMemo(() => parseGitStatus(status), [status]);
-  const staged = parsed.changes.filter((change) => change.staged);
-  const unstaged = parsed.changes.filter((change) => change.unstaged);
+  const conflicts = parsed.changes.filter((change) => change.conflicted);
+  const staged = parsed.changes.filter((change) => change.staged && !change.conflicted);
+  const unstaged = parsed.changes.filter((change) => change.unstaged && !change.conflicted);
+  const merging = Boolean(repoState?.merging);
 
   async function load() {
     try {
-      setStatus(await api.gitStatus(project.id));
+      const [nextStatus, nextState] = await Promise.all([
+        api.gitStatus(project.id),
+        api.gitState(project.id).catch(() => null),
+      ]);
+      setStatus(nextStatus);
+      setRepoState(nextState);
       setError("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Não foi possível ler o Git.");
@@ -55,6 +64,9 @@ export default function GitScreen({ project, branch, onOpenDiff, onBranch }: Pro
     window.addEventListener("toph:git-changed", refresh);
     return () => window.removeEventListener("toph:git-changed", refresh);
   }, [project.id]);
+  // A merge or checkout run in the terminal changes files; follow the project
+  // stream so the source control screen is never stale.
+  useProjectEvents(project.id, ["git", "files"], () => void load());
 
   async function mutate(kind: string, action: () => Promise<void>) {
     setBusy(kind);
@@ -147,6 +159,42 @@ export default function GitScreen({ project, branch, onOpenDiff, onBranch }: Pro
     });
   }
 
+  async function continueMerge() {
+    await mutate("merge-continue", async () => {
+      await api.gitMergeContinue(project.id);
+      setMessage("");
+      notify("success", "Merge concluído.");
+    });
+  }
+
+  async function abortMerge() {
+    const ok = await confirm({
+      title: "Abortar o merge?",
+      message: "O merge em andamento será desfeito e as alterações não commitadas dele serão perdidas.",
+      confirmLabel: "Abortar merge",
+      danger: true,
+    });
+    if (!ok) return;
+    await mutate("merge-abort", async () => {
+      await api.gitMergeAbort(project.id);
+      notify("success", "Merge abortado.");
+    });
+  }
+
+  function conflictRow(change: GitChange, index: number) {
+    return (
+      <div key={`conflict:${change.path}:${index}`} className="flex min-h-14 items-center gap-2 border-t border-separator-border px-3 py-2 first:border-t-0">
+        <FileIcon name={basename(change.path)} path={change.path} size={17} />
+        <button type="button" className="flex min-w-0 flex-1 flex-col items-start text-start" onClick={() => onOpenDiff(change.path, false)}>
+          <span className="w-full truncate text-body-2-medium text-text-primary">{basename(change.path)}</span>
+          <span className="w-full truncate text-caption-2-regular text-status-rose-text">{dirname(change.path) || "raiz"} · resolver conflito</span>
+        </button>
+        <GitStatusIcon status="U" size={14} />
+        <Button variant="ghost" size="xs" iconOnly leadingIcon={Plus} aria-label="Marcar como resolvido" title="Marcar como resolvido" onClick={() => void mutate("stage-conflict", () => api.gitStage(project.id, [change.path]))} />
+      </div>
+    );
+  }
+
   function changeRow(change: GitChange, mode: "staged" | "unstaged", index: number) {
     const isStaged = mode === "staged";
     return (
@@ -176,10 +224,49 @@ export default function GitScreen({ project, branch, onOpenDiff, onBranch }: Pro
               <span className="text-caption-2-regular text-text-tertiary">Branch atual</span>
               <span className="truncate text-body-2-medium text-text-primary">{branch || parsed.branch || "detached"}</span>
             </span>
+            {repoState && (repoState.ahead > 0 || repoState.behind > 0) ? (
+              <span className="shrink-0 text-caption-2-semibold tabular-nums text-text-tertiary">
+                {repoState.ahead > 0 ? `↑${repoState.ahead}` : ""}{repoState.behind > 0 ? `↓${repoState.behind}` : ""}
+              </span>
+            ) : null}
             <Badge color="neutral">{parsed.changes.length}</Badge>
           </Button>
           <Button variant="secondary" size="small" iconOnly leadingIcon={Settings2} aria-label="Configurações do Git" title="Configurações do Git" onClick={() => setSettingsOpen(true)} className="size-11 shrink-0 rounded-2xl" />
         </div>
+
+        {merging ? (
+          <section className="rounded-3xl border border-status-amber-border bg-status-amber-bg p-3">
+            <div className="flex items-start gap-2">
+              <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full bg-status-amber-text/15 text-status-amber-text"><TriangleAlert size={15} /></span>
+              <div className="min-w-0 flex-1">
+                <strong className="block text-body-2-medium text-text-primary">Merge em andamento</strong>
+                <p className="text-caption-2-regular text-text-secondary">
+                  {conflicts.length > 0
+                    ? `${conflicts.length} conflito${conflicts.length === 1 ? "" : "s"} para resolver. Abra o arquivo, resolva os marcadores e marque como resolvido.`
+                    : "Conflitos resolvidos. Continue para concluir o merge."}
+                </p>
+              </div>
+            </div>
+            <div className="mt-2 flex items-center gap-2">
+              <Button size="small" className="flex-1 justify-center" leadingIcon={Check} disabled={conflicts.length > 0 || Boolean(busy)} onClick={() => void continueMerge()}>
+                {busy === "merge-continue" ? "Concluindo..." : "Continuar merge"}
+              </Button>
+              <Button variant="secondary" size="small" className="flex-1 justify-center" disabled={Boolean(busy)} onClick={() => void abortMerge()}>
+                Abortar
+              </Button>
+            </div>
+          </section>
+        ) : null}
+
+        {conflicts.length > 0 ? (
+          <section className="overflow-hidden rounded-3xl border border-status-rose-border bg-background-primary-default shadow-xs">
+            <div className="flex items-center justify-between gap-2 border-b border-separator-border px-3 py-3">
+              <strong className="text-body-2-medium text-text-primary">Conflitos</strong>
+              <Badge color="primary">{conflicts.length}</Badge>
+            </div>
+            {conflicts.map((change, index) => conflictRow(change, index))}
+          </section>
+        ) : null}
 
         <div className="grid grid-cols-2 gap-2">
           <div className="rounded-3xl border border-border-button-white bg-background-primary-default p-3 shadow-xs">

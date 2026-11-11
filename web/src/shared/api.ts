@@ -57,6 +57,14 @@ export interface FileContent {
   size: number;
 }
 
+export interface GitState {
+  merging: boolean;
+  rebasing: boolean;
+  conflicts: string[];
+  ahead: number;
+  behind: number;
+}
+
 export interface GitBlameLine {
   line: number;
   commit: string;
@@ -733,6 +741,26 @@ export const api = {
       method: "POST",
       ...json({ name }),
     });
+  },
+
+  async gitState(projectId: string): Promise<GitState> {
+    return request<GitState>(`/projects/${encodeURIComponent(projectId)}/git/state`);
+  },
+
+  async gitMergeContinue(projectId: string): Promise<string> {
+    const response = await request<{ output: string }>(
+      `/projects/${encodeURIComponent(projectId)}/git/merge/continue`,
+      { method: "POST" },
+    );
+    return response.output;
+  },
+
+  async gitMergeAbort(projectId: string): Promise<string> {
+    const response = await request<{ output: string }>(
+      `/projects/${encodeURIComponent(projectId)}/git/merge/abort`,
+      { method: "POST" },
+    );
+    return response.output;
   },
 
   async gitStatus(projectId: string): Promise<string> {

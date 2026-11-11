@@ -4,6 +4,8 @@ export interface GitChange {
   worktree: string;
   staged: boolean;
   unstaged: boolean;
+  /** Unmerged path: git cannot stage it until the conflict is resolved. */
+  conflicted: boolean;
 }
 
 export function parseGitStatus(raw: string): { branch: string; changes: GitChange[] } {
@@ -22,12 +24,17 @@ export function parseGitStatus(raw: string): { branch: string; changes: GitChang
     if (path.includes(" -> ")) path = path.split(" -> ").pop() ?? path;
     path = path.replace(/^"|"$/g, "");
     if (!path) continue;
+    const conflicted =
+      index === "U" || worktree === "U"
+      || (index === "A" && worktree === "A")
+      || (index === "D" && worktree === "D");
     changes.push({
       path,
       index,
       worktree,
-      staged: index !== " " && index !== "?",
-      unstaged: worktree !== " " || index === "?",
+      staged: !conflicted && index !== " " && index !== "?",
+      unstaged: !conflicted && (worktree !== " " || index === "?"),
+      conflicted,
     });
   }
   return { branch, changes };
