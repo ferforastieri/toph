@@ -6,10 +6,8 @@ import Login from "../features/auth/components/Login";
 import ServerSetup from "../features/auth/components/ServerSetup";
 import UpdateToast from "../features/updates/components/UpdateToast";
 const Workbench = lazy(() => import("./components/Workbench"));
-import PetPicker from "../features/pet/components/PetPicker";
 import MobileBoot from "./layouts/mobile/MobileBoot";
 import { isMobileViewport } from "../shared/ui/useIsMobile";
-import { usePet } from "../features/pet/store";
 import BrandMark from "@toph/brand";
 
 const SERVER_KEY = "toph_server_url";
@@ -44,12 +42,7 @@ function AppShell() {
   const authReady = useApp((state) => state.authReady);
   const setUser = useApp((state) => state.setUser);
   const setAuthReady = useApp((state) => state.setAuthReady);
-  const hydratePet = usePet((state) => state.hydrate);
   const [serverUrl, setServerUrl] = useState<string | null>(initialServerUrl);
-
-  useEffect(() => {
-    hydratePet(user?.username ?? "");
-  }, [hydratePet, user?.username]);
 
   useEffect(() => {
     if (!serverUrl) {
@@ -139,7 +132,6 @@ function AppShell() {
     <>
       <Suspense fallback={<MobileBoot />}><Workbench /></Suspense>
       <UpdateToast />
-      <PetPicker />
     </>
   );
 }

@@ -4,8 +4,6 @@ import { api, getApiBase, type User } from "../../../shared/api";
 import { useApp } from "../../store";
 import { Button } from "@/shared/boardui/base/buttons/button";
 import { Modal } from "@/shared/boardui/base/modal/modal";
-import { usePet } from "../../../features/pet/store";
-import PetSprite from "../../../features/pet/components/PetSprite";
 
 interface Props {
   open: boolean;
@@ -18,7 +16,6 @@ export default function MobileAccountSheet({ open, user, onClose }: Props) {
   const notify = useApp((state) => state.notify);
   const [version, setVersion] = useState("");
   const [busy, setBusy] = useState(false);
-  const pet = usePet();
   const server = getApiBase() || window.location.origin;
 
   useEffect(() => {
@@ -43,7 +40,7 @@ export default function MobileAccountSheet({ open, user, onClose }: Props) {
     <Modal isOpen={open} onClose={onClose} title="Conta" description="Sessão deste dispositivo." placement="bottom" size="sm" swipeToClose>
       <div className="flex flex-col gap-3">
         <div className="flex items-center gap-3 rounded-2xl border border-border-button-default bg-background-secondary-default p-3">
-          <PetSprite kind={pet.kind} size={48} commits={pet.commits} />
+          <img src={`${import.meta.env.BASE_URL}tophs/toph-logo.png`} alt="" width={48} height={48} className="size-12 select-none object-contain" draggable={false} />
           <div className="min-w-0 flex-1">
             <p className="truncate text-body-medium text-text-primary">{user?.username ?? "Conta"}</p>
             <p className="truncate text-caption-1-regular text-text-secondary">{server}</p>

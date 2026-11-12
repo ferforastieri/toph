@@ -24,7 +24,7 @@ The installed server does not serve the landing page or documentation. The landi
 - Ctrl+P opens and focuses the same unified search; conversations display streamed answers, tool activity, delegated agents and Markdown.
 - Edit SQL table rows with primary-key safety.
 - Connect to PostgreSQL, MySQL/MariaDB, SQLite, SQL Server, Oracle, ClickHouse, Cassandra, MongoDB, Redis, Elasticsearch and Neo4j, inspect schemas, run queries and inspect results.
-- Run agents with Toph's native Rust harness, connecting directly to OpenAI, Anthropic, Ollama or compatible model APIs.
+- Run one Toph per project with Toph's native Rust harness, connecting directly to OpenAI, Anthropic, Ollama or compatible model APIs.
 - Configure the AI URL, API key and model in Settings → AI; API keys are encrypted at rest.
 - Manage direct model connections and encrypted API keys from Settings → AI. The **Conexões de IA** tab adds named provider connections. Native MCP supports local stdio commands and remote Streamable HTTP endpoints with optional bearer tokens. Tool execution, delegation, cancellation, history and compaction belong to Toph's backend.
 - Enable editor autocomplete with an automatic lightweight model or a specific autocomplete model in Settings → AI.
@@ -32,7 +32,6 @@ The installed server does not serve the landing page or documentation. The landi
 - Keep self-hosted and external web apps in their own tabs, including pages that block iframes, through a server-side preview proxy.
 - Switch between projects without losing the state of the current one.
 - Use the same backend from the browser, desktop app and Tauri Android client.
-- Choose a pet at login; it lives in the avatar corner or roams the screen, and grows every few commits.
 - Get an in-app toast when a new release is available; the button updates the server and reloads connected web clients.
 - Receive in-app AI response notifications and Android push notifications through Firebase Cloud Messaging, including when the app is closed.
 - Download the next desktop installer directly from the update toast, with checksum verification. Windows publishes both NSIS and MSI installers, and the toast prefers NSIS.

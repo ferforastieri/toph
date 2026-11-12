@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { Bot, Database, FileCode2, FileDiff, Globe2, X } from "@toph/icons";
 import { useApp, type Tab } from "../store";
 import { chatSessionTitle, chatTophs, useChats } from "../../features/conversations/store";
-import TophStack from "../../features/agents/components/TophStack";
+import BotAvatar from "../../features/agents/components/BotAvatar";
 import { agentApi } from "../../features/agents/api";
 import { useSettings } from "../../features/settings/store";
 import { useConfirm } from "../../shared/ui/confirm";
@@ -208,7 +208,7 @@ export default function Tabs() {
               )}
             >
               {conversationTophs.length > 0 ? (
-                <TophStack tophs={conversationTophs} size={18} ringClassName="ring-background-secondary-default" />
+                <BotAvatar bot={conversationTophs[0] ?? { name: "Toph", color: "#FFB547", avatar: "toph-logo" }} size={18} />
               ) : tab.kind === "editor" || (tab.kind === "diff" && tab.path)
                 ? <FileIcon name={tab.path ?? tab.title} path={tab.path} size={14} />
                 : <Icon size={14} className="shrink-0" />}

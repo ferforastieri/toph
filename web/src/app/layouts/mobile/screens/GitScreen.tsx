@@ -5,7 +5,6 @@ import { useProjectEvents } from "../../../../features/projects/events";
 import { useApp } from "../../../store";
 import { parseGitStatus, statusLabel, type GitChange } from "../../../../features/git/status";
 import { basename, dirname, expandGitPattern } from "../../../../shared/lib";
-import { usePet } from "../../../../features/pet/store";
 import { useAI } from "../../../../features/providers/store";
 import { useSettings } from "../../../../features/settings/store";
 import { suggestGitChanges } from "../../../../features/git/ai";
@@ -28,7 +27,6 @@ export default function GitScreen({ project, branch, onOpenDiff, onBranch }: Pro
   const notify = useApp((state) => state.notify);
   const user = useApp((state) => state.user);
   const confirm = useConfirm();
-  const feedPet = usePet((state) => state.feed);
   const aiConfig = useAI((state) => state.config);
   const settings = useSettings();
   const [status, setStatus] = useState("");
@@ -125,7 +123,6 @@ export default function GitScreen({ project, branch, onOpenDiff, onBranch }: Pro
       const finalMessage = message.trim() || await buildCommitMessage();
       await api.gitCommit(project.id, finalMessage);
       setMessage("");
-      feedPet();
       notify("success", "Alterações commitadas.");
     });
   }

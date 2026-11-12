@@ -4,7 +4,6 @@ import { useApp } from "../../../app/store";
 import { agentApi, type AgentSearchResult } from "../../agents/api";
 import { chatDisplayName, chatTophs, conversations, latestChatForToph, useChats, type ChatToph, type TophChat } from "../../conversations/store";
 import { requestOpenChat } from "../../conversations/navigation";
-import TophStack from "../../agents/components/TophStack";
 import BotAvatar from "../../agents/components/BotAvatar";
 import { Modal } from "@/shared/boardui/base/modal/modal";
 import { cx } from "@/shared/boardui/utils/cx";
@@ -260,7 +259,7 @@ export default function GlobalSearch() {
               className={cx("flex w-full min-w-0 items-center gap-2.5 rounded-xl px-2 py-2 text-start transition-colors", index === active ? "bg-background-tertiary-default" : "hover:bg-background-primary-hover")}
             >
               {item.kind === "chat" ? (
-                <TophStack tophs={item.tophs} size={28} />
+                <BotAvatar bot={item.tophs[0] ?? { name: "Toph", color: "#FFB547", avatar: "toph-logo" }} size={28} />
               ) : item.kind === "toph" ? (
                 <BotAvatar bot={item.toph} size={28} />
               ) : (

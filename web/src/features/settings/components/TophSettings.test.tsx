@@ -3,7 +3,6 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite
 import TophSettings from "./TophSettings";
 import { useApp } from "../../../app/store";
 import { defaultWorkspaceFeatures, useSettings } from "../store";
-import { usePet } from "../../pet/store";
 import { api } from "../../../shared/api";
 
 vi.mock("../../providers/components/ConnectionsHub", () => ({
@@ -17,9 +16,6 @@ vi.mock("./WorkspaceSettings", () => ({
 }));
 vi.mock("./HarnessSettings", () => ({
   default: () => <div><span data-testid="engine-settings">Motores</span><span data-testid="connections-hub">Modelos e MCP</span></div>,
-}));
-vi.mock("../../pet/components/PetSprite", () => ({
-  default: () => <span data-testid="pet-sprite">pet</span>,
 }));
 
 beforeAll(() => {
@@ -36,7 +32,6 @@ beforeEach(() => {
     workspaceFeatures: defaultWorkspaceFeatures,
     update: vi.fn(),
   });
-  usePet.setState({ kind: "toph", commits: 0, choose: vi.fn() } as never);
   vi.spyOn(api, "version").mockResolvedValue({ name: "toph", version: "0.85.0", buildId: "test-build" });
 });
 

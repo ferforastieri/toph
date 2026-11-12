@@ -3,8 +3,6 @@ import { Bot, HardDrive, Info, LogOut, Mail, PlugZap, Settings2, Sparkles } from
 import { api, getApiBase, probeServer, setApiBase, type User } from "../../../shared/api";
 import { useApp } from "../../../app/store";
 import { useSettings, type WorkspaceFeature } from "../store";
-import { PET_OPTIONS, petLevel, petLevelProgress, usePet } from "../../pet/store";
-import PetSprite from "../../pet/components/PetSprite";
 const WorkspaceSettings = lazy(() => import("./WorkspaceSettings"));
 const EmailPanel = lazy(() => import("../../integrations/components/EmailPanel"));
 const SkillsPanel = lazy(() => import("../../skills/components/SkillsPanel"));
@@ -15,13 +13,13 @@ import { Input } from "@/shared/boardui/base/input/input";
 import { Modal } from "@/shared/boardui/base/modal/modal";
 import { cx } from "@/shared/boardui/utils/cx";
 
-type Section = "general" | "companion" | "appearance" | "skills" | "harness" | "email" | "workspace" | "about";
+type Section = "general" | "appearance" | "skills" | "harness" | "email" | "workspace" | "about";
 
 interface Props {
   user: User | null;
   projectRoot?: string;
   projectId?: string;
-  /** Mount only the modal/listener, without the pet trigger button. */
+  /** Mount only the modal/listener, without the settings trigger button. */
   hideTrigger?: boolean;
 }
 
@@ -34,7 +32,6 @@ interface SectionItem {
 const sections: Array<{ label?: string; items: SectionItem[] }> = [
   { items: [
     { id: "general", label: "Geral", icon: Settings2 },
-    { id: "companion", label: "Toph pet", icon: Bot },
     { id: "appearance", label: "Layout e ferramentas", icon: Settings2 },
   ] },
   { label: "IA e ferramentas", items: [
@@ -54,7 +51,6 @@ export default function TophSettings({ user, projectRoot, projectId, hideTrigger
   const workspaceFeatures = useSettings((state) => state.workspaceFeatures);
   const projectBar = useSettings((state) => state.projectBar);
   const updateSettings = useSettings((state) => state.update);
-  const pet = usePet();
   const [open, setOpen] = useState(false);
   const [section, setSection] = useState<Section>("general");
   const [busy, setBusy] = useState(false);
@@ -62,8 +58,6 @@ export default function TophSettings({ user, projectRoot, projectId, hideTrigger
   const [serverDraft, setServerDraft] = useState(() => getApiBase() || window.location.origin);
   const [version, setVersion] = useState("");
   const [buildId, setBuildId] = useState("");
-  const level = petLevel(pet.commits);
-  const petName = PET_OPTIONS.find((option) => option.kind === pet.kind)?.name ?? "Toph pet";
   useEffect(() => {
     const handler = (event: Event) => {
       const detail = (event as CustomEvent<{ section?: Section }>).detail;
@@ -123,11 +117,11 @@ export default function TophSettings({ user, projectRoot, projectId, hideTrigger
         <button
           type="button"
           aria-label="Abrir configurações"
-          title={`${petName} · nível ${level}`}
+          title="Abrir configurações"
           onClick={() => { setSection("general"); setOpen(true); }}
           className="relative flex size-10 items-center justify-center rounded-2xl outline-none transition-colors hover:bg-background-primary-hover focus-visible:ring-2 focus-visible:ring-border-focus-ring"
         >
-          <PetSprite kind={pet.kind} size={38} commits={pet.commits} />
+          <img src={`${import.meta.env.BASE_URL}tophs/toph-logo.png`} alt="" width={34} height={34} className="size-[34px] select-none object-contain" draggable={false} />
         </button>
       )}
 
@@ -172,7 +166,7 @@ export default function TophSettings({ user, projectRoot, projectId, hideTrigger
               <div className="flex flex-col gap-5">
                 <SettingsHeading title="Geral" description="Conta e servidor usados neste dispositivo." />
                 <div className="flex items-center gap-3 rounded-2xl border border-border-button-default bg-background-secondary-default/45 p-3">
-                  <PetSprite kind={pet.kind} size={52} commits={pet.commits} />
+                  <img src={`${import.meta.env.BASE_URL}tophs/toph-logo.png`} alt="" width={48} height={48} className="size-12 select-none object-contain" draggable={false} />
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-body-medium text-text-primary">{user?.username ?? "Conta"}</p>
                     <p className="truncate text-caption-1-regular text-text-secondary">{getApiBase() || window.location.origin}</p>
@@ -184,31 +178,6 @@ export default function TophSettings({ user, projectRoot, projectId, hideTrigger
                   <Input value={serverDraft} onChange={setServerDraft} placeholder="https://seu-servidor" aria-label="URL do servidor" />
                   <Button type="submit" size="small" className="self-end" disabled={serverBusy || !serverDraft.trim()}>{serverBusy ? "Verificando..." : "Aplicar e reconectar"}</Button>
                 </form>
-              </div>
-            ) : section === "companion" ? (
-              <div className="flex flex-col gap-5">
-                <SettingsHeading title="Seu Toph pet" description="Este companheiro é independente dos Tophs agentes de IA." />
-                <div className="flex items-center gap-4 rounded-2xl border border-accent-500/25 bg-accent-500/[0.05] p-4">
-                  <span className="flex size-20 shrink-0 items-center justify-center rounded-3xl bg-background-primary-default shadow-xs"><PetSprite kind={pet.kind} size={70} commits={pet.commits} /></span>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center justify-between gap-2"><strong className="text-title-3-medium text-text-primary">{petName}</strong><span className="rounded-full bg-accent-500/15 px-2 py-0.5 text-caption-2-semibold text-accent-600">Nível {level}</span></div>
-                    <p className="mt-1 text-caption-1-regular text-text-secondary">{pet.commits} commits. A aparência evolui a cada três commits.</p>
-                    <div className="mt-3 h-2 overflow-hidden rounded-full bg-background-tertiary-default"><div className="h-full rounded-full bg-accent-500 transition-[width] duration-500" style={{ width: `${petLevelProgress(pet.commits)}%` }} /></div>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                  {PET_OPTIONS.map((option) => (
-                    <button
-                      key={option.kind}
-                      type="button"
-                      onClick={() => pet.choose(option.kind)}
-                      className={cx("flex flex-col items-center gap-2 rounded-2xl border p-3 text-center transition-[background-color,border-color,color,transform,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] active:scale-[0.98]", pet.kind === option.kind ? "border-accent-500 bg-accent-500/10" : "border-border-button-default hover:bg-background-primary-hover")}
-                    >
-                      <PetSprite kind={option.kind} size={46} commits={pet.commits} animate={false} />
-                      <span className="text-caption-1-semibold text-text-primary">{option.name}</span>
-                    </button>
-                  ))}
-                </div>
               </div>
             ) : section === "appearance" ? (
               <div className="flex flex-col gap-5">
@@ -285,7 +254,6 @@ export default function TophSettings({ user, projectRoot, projectId, hideTrigger
                   <Fact label="Versão" value={version ? `v${version}` : "—"} />
                   <Fact label="Build" value={buildId || "—"} />
                   <Fact label="Usuário" value={user?.username ?? "—"} />
-                  <Fact label="Toph pet" value={`${petName} · nível ${level}`} />
                 </div>
               </div>
             )}

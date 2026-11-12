@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { History, MessageSquarePlus, MoreHorizontal, Settings2, Trash2, Users } from "@toph/icons";
+import { History, MessageSquarePlus, MoreHorizontal, Settings2, Trash2 } from "@toph/icons";
 import type { ChatToph } from "../../conversations/store";
 import BotAvatar from "./BotAvatar";
 import { Button } from "@/shared/boardui/base/buttons/button";
@@ -15,10 +15,6 @@ interface Props {
   onRemove?: () => void;
   compact?: boolean;
   selected?: boolean;
-  /** How many group tasks this Toph participates in. */
-  groupCount?: number;
-  /** Group names, used as the badge tooltip. */
-  groupNames?: string[];
   /** Subject of the session this row opens, when there is one. */
   subject?: string;
   /** Unread answers for this Toph. */
@@ -26,7 +22,7 @@ interface Props {
 }
 
 /** Toph row used by the desktop sidebar and the mobile chat sheet. */
-export default function TophRow({ toph, onOpen, onNew, onConfig, onSessions, onRemove, compact = false, selected = false, groupCount = 0, groupNames = [], subject = "", unread = 0 }: Props) {
+export default function TophRow({ toph, onOpen, onNew, onConfig, onSessions, onRemove, compact = false, selected = false, subject = "", unread = 0 }: Props) {
   const [menuOpen, setMenuOpen] = useState(false);
   const actionVisibility = selected
     ? "opacity-100"
@@ -59,15 +55,6 @@ export default function TophRow({ toph, onOpen, onNew, onConfig, onSessions, onR
             <span className="max-w-[84px] shrink-0 truncate rounded-full bg-background-tertiary-default px-1.5 py-px text-[9px] font-medium text-text-tertiary" title={toph.role || "Toph"}>
               {toph.role || "Toph"}
             </span>
-            {groupCount > 0 ? (
-              <span
-                title={groupNames.length > 0 ? `Em grupo: ${groupNames.join(", ")}` : `Em ${groupCount} grupo${groupCount === 1 ? "" : "s"}`}
-                className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-accent-500/12 px-1.5 py-px text-[9px] font-semibold text-accent-600"
-              >
-                <Users size={9} />
-                {groupCount > 1 ? groupCount : "grupo"}
-              </span>
-            ) : null}
           </span>
           <span className="min-w-0 truncate text-caption-2-regular text-text-tertiary" title={subject || undefined}>
             {subject || "sem tarefas"}

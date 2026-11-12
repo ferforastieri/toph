@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { MessageSquarePlus } from "@toph/icons";
 import { chatDisplayName, chatSessionTitle, chatTophs, type ChatToph, type ProjectChats, type TophChat } from "../store";
-import TophStack from "../../agents/components/TophStack";
+import BotAvatar from "../../agents/components/BotAvatar";
 import { Button } from "@/shared/boardui/base/buttons/button";
 import { Modal } from "@/shared/boardui/base/modal/modal";
 import { useApp } from "../../../app/store";
@@ -52,7 +52,7 @@ export default function TophTasksSheet({ open, projectId, toph, projectChats, ch
               onClick={() => onOpen(chat.id)}
               className="flex min-w-0 items-center gap-2.5 rounded-xl px-2 py-2 text-start transition-colors hover:bg-background-primary-hover"
             >
-              <TophStack tophs={members} size={30} />
+              <BotAvatar bot={members[0] ?? { name: "Toph", color: "#FFB547", avatar: "toph-logo" }} size={30} />
               <span className="flex min-w-0 flex-1 flex-col">
                 <span className="flex min-w-0 items-center gap-1.5">
                   <span className="truncate text-caption-1-medium text-text-primary">{title}</span>

@@ -18,7 +18,6 @@ import { parseGitStatus, statusLabel } from "../status";
 import { useSettings } from "../../settings/store";
 import { useApp } from "../../../app/store";
 import { useAI } from "../../providers/store";
-import { usePet } from "../../pet/store";
 import { Button } from "@/shared/boardui/base/buttons/button";
 import { IconButton } from "@/shared/boardui/base/buttons/icon-button";
 import { Input } from "@/shared/boardui/base/input/input";
@@ -179,11 +178,9 @@ export default function SourceControlPanel({
     try {
       const finalMessage = message.trim() || await buildCommitMessage();
       await api.gitCommit(project.id, finalMessage);
-      const petEnabled = usePet.getState().enabled;
-      usePet.getState().feed();
       setMessage("");
       await load();
-      notify("success", petEnabled ? "Changes committed. Seu pet foi alimentado." : "Changes committed.");
+      notify("success", "Changes committed.");
     } catch (err) {
       notify("error", err instanceof Error ? err.message : "Could not commit changes.");
     } finally {

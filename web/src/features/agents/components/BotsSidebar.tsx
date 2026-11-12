@@ -1,19 +1,14 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { Bot, Plus, Users } from "@toph/icons";
+import { Bot, Plus } from "@toph/icons";
 import type { Project } from "../../../shared/api";
-import { chatDisplayName, chatSessionTitle, chatsForToph, latestChatForToph, useChats } from "../../conversations/store";
+import { chatSessionTitle, chatsForToph, latestChatForToph, useChats, type TophPreset } from "../../conversations/store";
 import { openChatTab } from "../../conversations/navigation";
 import { ensureChatSubjects } from "../../conversations/subjects";
-import { agentApi } from "../api";
-import TophGallery from "./TophGallery";
 import TophRow from "./TophRow";
-import CreateGroupModal from "../../conversations/components/CreateGroupModal";
 import BotConfig from "./BotConfig";
 import TophTasksSheet from "../../conversations/components/TophTasksSheet";
-import { Button } from "@/shared/boardui/base/buttons/button";
 import { Modal } from "@/shared/boardui/base/modal/modal";
 import SidebarHeader from "../../../app/components/SidebarHeader";
-import { useConfirm } from "../../../shared/ui/confirm";
 import { useApp } from "../../../app/store";
 
 interface Props {
@@ -22,18 +17,30 @@ interface Props {
   onSelectChat?: () => void;
 }
 
-/** The project's Tophs. Clicking one opens a task; group tasks are created on demand. */
+/** The project's single Toph. It opens its latest task; a new one is created on demand. */
+const FIRST_TOPH: TophPreset = {
+  name: "Toph",
+  role: "Toph",
+  description: "",
+  personality: "",
+  prompt: "",
+  color: "#FFB547",
+  avatar: "toph-logo",
+  agentMode: "build",
+  permissionMode: "yolo",
+  mcpServers: [],
+  emailAccountIds: [],
+  tools: ["generate_image"],
+  language: "auto",
+};
+
 export default function BotsSidebar({ project, headerControl, onSelectChat }: Props) {
   const chats = useChats((state) => state.byProject[project.id]);
   const ensure = useChats((state) => state.ensure);
   const createConversation = useChats((state) => state.createConversation);
-  const removeToph = useChats((state) => state.removeToph);
   const notifications = useApp((state) => state.notifications);
-  const confirm = useConfirm();
-  const [galleryOpen, setGalleryOpen] = useState(false);
-  const [groupOpen, setGroupOpen] = useState(false);
   const [configId, setConfigId] = useState<string | null>(null);
-  const [tasksTophId, setTasksTophId] = useState<string | null>(null);
+  const [tasksOpen, setTasksOpen] = useState(false);
 
   useEffect(() => {
     ensure(project.id);
@@ -46,29 +53,18 @@ export default function BotsSidebar({ project, headerControl, onSelectChat }: Pr
     void ensureChatSubjects(project.id, latest);
   }, [project.id, chats?.chats, chats?.tophs]);
 
-  const tophs = chats?.tophs ?? [];
-  const selectedIds = useMemo(() => {
-    const active = chats?.chats.find((chat) => chat.id === chats.activeChatId);
-    return new Set(active?.participantIds ?? []);
-  }, [chats?.chats, chats?.activeChatId]);
-  const configToph = tophs.find((toph) => toph.id === configId) ?? null;
-  const tasksToph = tophs.find((toph) => toph.id === tasksTophId) ?? null;
-  const tasks = tasksToph ? chatsForToph(chats, tasksToph.id) : [];
-
-  function groupsOf(tophId: string) {
-    return (chats?.chats ?? []).filter(
-      (chat) => chat.participantIds.length > 1 && chat.participantIds.includes(tophId),
-    );
-  }
-
-  function unreadForToph(tophId: string): number {
-    const chatIds = new Set((chats?.chats ?? []).filter((chat) => chat.participantIds.includes(tophId)).map((chat) => chat.id));
+  const toph = chats?.tophs[0] ?? null;
+  const configToph = toph && toph.id === configId ? toph : null;
+  const tasks = toph ? chatsForToph(chats, toph.id) : [];
+  const unread = useMemo(() => {
+    if (!toph) return 0;
+    const chatIds = new Set((chats?.chats ?? []).filter((chat) => chat.participantIds.includes(toph.id)).map((chat) => chat.id));
     return notifications.filter(
       (notification) => !notification.read
         && notification.projectId === project.id
-        && (notification.botId === tophId || (notification.chatId ? chatIds.has(notification.chatId) : false)),
+        && (notification.botId === toph.id || (notification.chatId ? chatIds.has(notification.chatId) : false)),
     ).length;
-  }
+  }, [chats?.chats, notifications, project.id, toph]);
 
   function openTask(chatId: string) {
     const current = useChats.getState().byProject[project.id];
@@ -77,61 +73,37 @@ export default function BotsSidebar({ project, headerControl, onSelectChat }: Pr
     useApp.getState().markChatNotificationsRead(chatId);
     useChats.getState().setActiveChat(project.id, chatId);
     useChats.getState().touchConversation(project.id, chatId);
-    openChatTab(project.id, chatId, chatDisplayName(current, chat, 2));
+    openChatTab(project.id, chatId, "Toph");
     onSelectChat?.();
   }
 
-  function openToph(tophId: string) {
-    const latest = latestChatForToph(chats, tophId);
+  function newTask() {
+    if (!toph) return;
+    const created = createConversation(project.id, [toph.id], { name: toph.name });
+    if (created) openTask(created.id);
+  }
+
+  function openToph() {
+    if (!toph) return;
+    const latest = latestChatForToph(chats, toph.id);
     if (latest) {
       openTask(latest.id);
       return;
     }
-    const toph = tophs.find((item) => item.id === tophId);
-    const created = createConversation(project.id, [tophId], { name: toph?.name ?? "" });
-    if (created) openTask(created.id);
+    newTask();
   }
 
-  function newTask(tophId: string) {
-    const toph = tophs.find((item) => item.id === tophId);
-    const created = createConversation(project.id, [tophId], { name: toph?.name ?? "" });
-    if (created) openTask(created.id);
-  }
-
-  function createGroup(name: string, description: string, participantIds: string[]) {
-    const created = createConversation(project.id, participantIds, { name, description });
-    setGroupOpen(false);
-    if (created) openTask(created.id);
-  }
-
-  async function deleteToph(tophId: string, name: string) {
-    const ok = await confirm({
-      title: `Apagar ${name}?`,
-      message: "A configuração e o histórico deste Toph em todas as conversas serão removidos. Essa ação não pode ser desfeita.",
-      confirmLabel: "Apagar Toph",
-      danger: true,
-    });
-    if (!ok) return;
-    await agentApi.deleteToph(project.id, tophId).catch(() => undefined);
-    removeToph(project.id, tophId);
-    setConfigId(null);
-    setTasksTophId(null);
+  function createFirst() {
+    const created = useChats.getState().createToph(project.id, FIRST_TOPH);
+    if (created) {
+      const chat = createConversation(project.id, [created.id], { name: created.name });
+      if (chat) openTask(chat.id);
+    }
   }
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-background-primary-default">
-      <SidebarHeader
-        control={headerControl}
-        icon={<Bot size={15} className="text-accent-500" />}
-        title="Tophs"
-        count={<span className="rounded-full bg-background-tertiary-default px-1.5 text-caption-2-regular text-text-tertiary">{tophs.length}</span>}
-        actions={
-          <>
-            <Button variant="ghost" size="xs" iconOnly leadingIcon={Plus} aria-label="Novo Toph" title="Novo Toph" onClick={() => setGalleryOpen(true)} />
-            <Button variant="ghost" size="xs" iconOnly leadingIcon={Users} aria-label="Novo grupo" title="Novo grupo" onClick={() => setGroupOpen(true)} />
-          </>
-        }
-      />
+      <SidebarHeader control={headerControl} icon={<Bot size={15} className="text-accent-500" />} title="Toph" />
       <div className="min-h-0 flex-1 overflow-y-auto p-2.5 pt-1">
         {!chats?.hydrated ? (
           <div className="flex items-center justify-center gap-2 py-8 text-caption-1-regular text-text-tertiary">
@@ -139,73 +111,50 @@ export default function BotsSidebar({ project, headerControl, onSelectChat }: Pr
             Carregando...
           </div>
         ) : null}
-        {chats?.hydrated && tophs.length === 0 ? (
+        {chats?.hydrated && !toph ? (
           <button
             type="button"
-            onClick={() => setGalleryOpen(true)}
+            onClick={createFirst}
             className="mt-1 flex w-full flex-col items-start gap-2 rounded-2xl border border-dashed border-border-button-default px-3 py-4 text-start transition-colors hover:bg-background-primary-hover"
           >
             <span className="flex size-9 items-center justify-center rounded-full bg-background-secondary-default text-accent-500"><Plus size={16} /></span>
-            <span className="text-caption-1-semibold text-text-primary">Crie seu primeiro Toph</span>
-            <span className="text-caption-2-regular text-text-tertiary">Escolha um perfil pronto ou comece do zero.</span>
+            <span className="text-caption-1-semibold text-text-primary">Criar o Toph</span>
+            <span className="text-caption-2-regular text-text-tertiary">Um Toph por projeto, conectado aos harnesses.</span>
           </button>
         ) : null}
-        {tophs.length > 0 ? (
+        {toph ? (
           <div className="flex flex-col gap-0.5">
-            {tophs.map((toph) => {
-              const groups = groupsOf(toph.id);
-              const latest = latestChatForToph(chats, toph.id);
-              return (
-                <TophRow
-                  key={toph.id}
-                  toph={toph}
-                  selected={selectedIds.has(toph.id)}
-                  groupCount={groups.length}
-                  groupNames={groups.map((chat) => chatDisplayName(chats, chat))}
-                  subject={latest ? chatSessionTitle(chats, latest) : ""}
-                  unread={unreadForToph(toph.id)}
-                  onOpen={() => openToph(toph.id)}
-                  onNew={() => newTask(toph.id)}
-                  onConfig={() => setConfigId(toph.id)}
-                  onSessions={() => setTasksTophId(toph.id)}
-                  onRemove={() => void deleteToph(toph.id, toph.name)}
-                />
-              );
-            })}
+            <TophRow
+              toph={toph}
+              subject={(() => {
+                const latest = latestChatForToph(chats, toph.id);
+                return latest ? chatSessionTitle(chats, latest) : "";
+              })()}
+              unread={unread}
+              onOpen={openToph}
+              onNew={newTask}
+              onConfig={() => setConfigId(toph.id)}
+              onSessions={() => setTasksOpen(true)}
+            />
           </div>
         ) : null}
       </div>
 
       {configToph ? (
-        <Modal isOpen onClose={() => setConfigId(null)} title={configToph.name} description="Identidade, prompt, modelo e ferramentas deste Toph." size="lg" bodyClassName="p-0">
+        <Modal isOpen onClose={() => setConfigId(null)} title={configToph.name} description="Identidade, prompt, modelo e ferramentas do Toph." size="lg" bodyClassName="p-0">
           <BotConfig projectId={project.id} projectRoot={project.root} bot={configToph} />
         </Modal>
       ) : null}
 
       <TophTasksSheet
-        open={Boolean(tasksToph)}
+        open={Boolean(toph) && tasksOpen}
         projectId={project.id}
-        toph={tasksToph}
+        toph={toph}
         projectChats={chats}
         chats={tasks}
-        onClose={() => setTasksTophId(null)}
-        onOpen={(chatId) => { setTasksTophId(null); openTask(chatId); }}
-        onNew={() => { if (tasksToph) { setTasksTophId(null); newTask(tasksToph.id); } }}
-      />
-
-      <CreateGroupModal open={groupOpen} tophs={tophs} onClose={() => setGroupOpen(false)} onCreate={createGroup} />
-
-      <TophGallery
-        open={galleryOpen}
-        projectId={project.id}
-        onClose={() => setGalleryOpen(false)}
-        onCreated={(tophId) => {
-          setGalleryOpen(false);
-          const createdToph = useChats.getState().byProject[project.id]?.tophs.find((item) => item.id === tophId);
-          const created = createConversation(project.id, [tophId], { name: createdToph?.name ?? "" });
-          setConfigId(tophId);
-          if (created) openTask(created.id);
-        }}
+        onClose={() => setTasksOpen(false)}
+        onOpen={(chatId) => { setTasksOpen(false); openTask(chatId); }}
+        onNew={() => { setTasksOpen(false); newTask(); }}
       />
     </div>
   );

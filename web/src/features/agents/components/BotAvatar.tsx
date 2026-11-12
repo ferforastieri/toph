@@ -13,24 +13,21 @@ interface Props {
 }
 
 const AVATAR_BASE = `${import.meta.env.BASE_URL}tophs/`;
-const AVATAR_VERSION = "?v=4";
-const CORE_AVATAR = `${AVATAR_BASE}toph-core.png${AVATAR_VERSION}`;
-const CORE_EYELESS = `${AVATAR_BASE}toph-core-eyeless.png${AVATAR_VERSION}`;
+const AVATAR_VERSION = "?v=5";
+/** The logo's Toph: the only character. */
+const AVATAR = "toph-logo";
+const CORE_AVATAR = `${AVATAR_BASE}${AVATAR}.png${AVATAR_VERSION}`;
+const CORE_EYELESS = `${AVATAR_BASE}${AVATAR}-eyeless.png${AVATAR_VERSION}`;
 
 export default function BotAvatar({ bot, size = 36, className, style, look = true }: Props) {
-  const source = `${AVATAR_BASE}${bot.avatar}.png${AVATAR_VERSION}`;
-  const eyeless = `${AVATAR_BASE}${bot.avatar}-eyeless.png${AVATAR_VERSION}`;
-  const [image, setImage] = useState(source);
+  const [image, setImage] = useState(CORE_AVATAR);
   const [eyesMissing, setEyesMissing] = useState(false);
   const lookRef = usePointerLook<HTMLSpanElement>({ disabled: !look });
-  const core = image === CORE_AVATAR;
   // Without an eye sprite the still art (with its own eyes) is the honest fallback.
   const animated = look && !eyesMissing;
-  const base = animated ? (core ? CORE_EYELESS : eyeless) : image;
-  const activeAvatar = core ? "toph-core" : bot.avatar;
+  const base = animated ? CORE_EYELESS : image;
 
-  useEffect(() => setImage(source), [source]);
-  useEffect(() => setEyesMissing(false), [source]);
+  useEffect(() => setEyesMissing(false), [image]);
 
   return (
     <span
@@ -47,14 +44,13 @@ export default function BotAvatar({ bot, size = 36, className, style, look = tru
           width={size}
           height={size}
           draggable={false}
-          onError={() => { if (!core) setImage(CORE_AVATAR); }}
           className="size-full select-none object-contain grayscale drop-shadow-[0_1px_1px_rgba(0,0,0,0.18)]"
         />
         <TophColorOverlay color={bot.color} image={base} data-avatar-color={bot.color} />
       </span>
       {animated ? (
         <TophEyes
-          avatar={activeAvatar}
+          avatar={AVATAR}
           color={bot.color}
           imageClassName="grayscale"
           onMissing={() => setEyesMissing(true)}
