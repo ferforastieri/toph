@@ -461,6 +461,35 @@ fn provider_model(model: &str, accepted: &[&str]) -> Option<String> {
         .then(|| value.to_string())
 }
 
+/// Toph's own secrets must not reach the harness or the shells it spawns.
+/// Variables for the selected MCP servers are passed explicitly and kept.
+///
+/// This is not a sandbox: the harness still runs as the same user, so a shell
+/// can read `/proc/<server>/environ` and the data directory. It removes the
+/// accidental exposure (`env` in a child, inherited tokens), not the last one.
+fn hide_server_secrets<'a, I>(command: &mut Command, keep: I)
+where
+    I: IntoIterator<Item = &'a str>,
+{
+    let keep: std::collections::HashSet<&str> = keep.into_iter().collect();
+    for (key, _) in std::env::vars_os() {
+        let key = key.to_string_lossy();
+        if !keep.contains(key.as_ref()) && server_secret(&key) {
+            command.env_remove(key.as_ref());
+        }
+    }
+}
+
+fn server_secret(key: &str) -> bool {
+    matches!(
+        key,
+        "TOPH_ADMIN_PASSWORD"
+            | "TOPH_FIREBASE_CREDENTIALS_FILE"
+            | "TOPH_FIREBASE_PROJECT_ID"
+            | "TOPH_GITHUB_TOKEN"
+    ) || key.starts_with("TOPH_MCP_")
+}
+
 /// Runs a CLI once, with the prompt on stdin, and captures both streams.
 /// The whole process group is killed when the run is cancelled.
 async fn run_capture<S: AsRef<str>>(
@@ -481,6 +510,7 @@ async fn run_capture<S: AsRef<str>>(
         .kill_on_drop(true);
     #[cfg(windows)]
     command.creation_flags(0x08000000);
+    hide_server_secrets(&mut command, envs.iter().map(|(key, _)| key.as_ref()));
     for (key, value) in envs {
         command.env(key.as_ref(), value);
     }
@@ -943,6 +973,7 @@ where
     for file in &files {
         command.arg("--file").arg(file);
     }
+    hide_server_secrets(&mut command, envs.keys().map(String::as_str));
     command
         .arg(prompt)
         .current_dir(project)
@@ -1104,4 +1135,34 @@ where
         }
     }
     Ok((text, usage))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::server_secret;
+
+    #[test]
+    fn only_toph_secrets_are_hidden_from_the_harness() {
+        for key in [
+            "TOPH_ADMIN_PASSWORD",
+            "TOPH_MCP_0_TOKEN",
+            "TOPH_MCP_1_TOPH_PROJECT_ROOT",
+            "TOPH_FIREBASE_CREDENTIALS_FILE",
+            "TOPH_FIREBASE_PROJECT_ID",
+            "TOPH_GITHUB_TOKEN",
+        ] {
+            assert!(server_secret(key), "{key} must be hidden");
+        }
+        for key in [
+            "TOPH_DATA_DIR",
+            "TOPH_WORKSPACES",
+            "TOPH_PYTHON",
+            "PATH",
+            "HOME",
+            "OPENCODE_CONFIG",
+            "GITHUB_TOKEN",
+        ] {
+            assert!(!server_secret(key), "{key} must reach the harness");
+        }
+    }
 }
