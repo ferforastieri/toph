@@ -1,4 +1,4 @@
-use super::models::{now, AgentSpec, RunContext};
+use super::models::{now, RunContext};
 use crate::{
     ai::{AiService, ImageTool},
     email::EmailService,
@@ -20,12 +20,6 @@ pub struct Tools {
     pub artifacts: PathBuf,
     pub mcp: crate::features::integrations::mcp::Service,
     pub http: reqwest::Client,
-}
-
-/// MCP `tools/list` uses a different envelope from OpenAI function calling:
-/// the name and description are top-level and the schema is `inputSchema`.
-fn mcp_definition(name: &str, description: &str, properties: Value, required: &[&str]) -> Value {
-    json!({"name":name,"description":description,"inputSchema":{"type":"object","properties":properties,"required":required,"additionalProperties":false}})
 }
 
 /// A full `tools/list` payload easily passes 50 KB per server. The model only
@@ -107,99 +101,6 @@ pub fn ask_user_definition() -> Value {
             "required": ["questions"]
         }
     })
-}
-
-/// Tools exposed to the external CLI through the local MCP gateway. The CLI's
-/// built-in tools are disabled; these are the only actions it can take.
-pub fn gateway_definitions(
-    agent: &AgentSpec,
-    managed_skills: &[super::skill_service::ManagedSkill],
-) -> Vec<Value> {
-    let string = || json!({"type":"string"});
-    let integer = || json!({"type":"integer"});
-    let mut tools = vec![
-        mcp_definition("read_file","Read a project file range. Returns its hash for safe editing. Prefer small relevant ranges.",json!({"path":string(),"offset":integer(),"limit":integer()}),&["path"]),
-        mcp_definition("list_files","List project paths matching a substring. Use an empty query or * to list all paths (max 100).",json!({"query":string()}),&["query"]),
-        mcp_definition("search","Search file contents for literal text. Returns paths and line numbers.",json!({"query":string(),"path":string()}),&["query"]),
-        mcp_definition("read_artifact","Read a bounded range of a saved tool result or attachment.",json!({"id":string(),"offset":integer(),"limit":integer()}),&["id"]),
-        mcp_definition("search_history","Find relevant earlier messages. Query uses plain words; returns source ids.",json!({"query":string()}),&["query"]),
-        mcp_definition("search_memory","Find durable project facts by a keyword.",json!({"query":string()}),&["query"]),
-        mcp_definition("fetch_url","Fetch a public HTTP(S) document. Use it to read documentation or a link the user sent.",json!({"url":string()}),&["url"]),
-    ];
-    if !managed_skills.is_empty() {
-        tools.push(mcp_definition(
-            "read_skill",
-            "Load the full recipe of one of your skills, or one of its supporting text files. Read it before a task that matches its description, and follow it.",
-            json!({"name":string(),"file":string()}),
-            &["name"],
-        ));
-    }
-    tools.push(mcp_definition(
-        "propose_skill",
-        "Propose a new skill, or a change to one of yours, when you find a way of doing something worth repeating. It only counts after the user approves it.",
-        json!({"name":string(),"description":string(),"recipe":string(),"reason":string()}),
-        &["name","description","recipe"],
-    ));
-    if agent.agent_mode != "plan" && agent.permission_mode != "deny" {
-        tools.extend([
-            mcp_definition("write_file","Create a file or replace it. For an existing file, expectedHash from read_file is required.",json!({"path":string(),"content":string(),"expectedHash":string()}),&["path","content"]),
-            mcp_definition("edit_file","Replace exactly one occurrence of oldText in a file. Fails when ambiguous or stale.",json!({"path":string(),"oldText":string(),"newText":string()}),&["path","oldText","newText"]),
-            mcp_definition("delete_file","Delete a project file.",json!({"path":string()}),&["path"]),
-            mcp_definition("shell","Run a shell command in the project. It has no default timeout; pass timeoutMs only when the command must be bounded. Output is bounded; never use watch or tail -f.",json!({"command":string(),"timeoutMs":integer()}),&["command"]),
-            mcp_definition("remember","Save an explicit durable project fact with its source message id.",json!({"content":string(),"sourceId":string()}),&["content","sourceId"]),
-        ]);
-        if agent.tools.iter().any(|s| s == "generate_image") {
-            tools.push(mcp_definition("generate_image","Generate an image with a configured image provider.",json!({"prompt":string(),"provider":string(),"model":string(),"size":string(),"filename":string()}),&["prompt"]));
-        }
-    }
-    if !agent.mcp_servers.is_empty() {
-        tools.push(mcp_definition(
-            "mcp_list",
-            "List the tools exposed by one MCP server selected for this Toph. Pass the server name exactly as shown in your MCP instructions, or its id. When only one server is selected, the name may be omitted.",
-            json!({"server":string()}),
-            &[],
-        ));
-        tools.push(mcp_definition(
-            "mcp_call",
-            "Call one tool on an MCP server selected for this Toph. Pass the server name exactly as shown in your MCP instructions, or its id.",
-            json!({"server":string(),"tool":string(),"arguments":{"type":"object"}}),
-            &["tool"],
-        ));
-    }
-    if !agent.email_account_ids.is_empty() {
-        tools.push(mcp_definition(
-            "email_list",
-            "List recent messages in an authorized email account.",
-            json!({"accountId":string(),"limit":integer()}),
-            &["accountId"],
-        ));
-        tools.push(mcp_definition(
-            "email_read",
-            "Read an email by UID.",
-            json!({"accountId":string(),"uid":string()}),
-            &["accountId", "uid"],
-        ));
-        if agent.permission_mode != "deny" {
-            tools.push(mcp_definition(
-                "email_send",
-                "Send an email from an authorized account.",
-                json!({"accountId":string(),"to":string(),"subject":string(),"text":string()}),
-                &["accountId", "to", "subject", "text"],
-            ));
-        }
-    }
-    tools
-}
-
-/// Lets one Toph ask another Toph in the same team to do a piece of work.
-/// The child answer is returned to the caller, which can then consolidate.
-pub fn delegate_definition() -> Value {
-    mcp_definition(
-        "delegate",
-        "Ask another Toph in this team to do a specific piece of work. Pass their @handle and a complete task with the context they need. Wait for their answer, then consolidate it. Do not answer on their behalf.",
-        json!({"agent": json!({"type":"string"}), "task": json!({"type":"string"})}),
-        &["agent", "task"],
-    )
 }
 
 pub fn mutating(name: &str) -> bool {

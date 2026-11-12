@@ -4,8 +4,7 @@ use toph_server::features::agents::{
     cli::opencode_model,
     engines,
     models::AgentSpec,
-    skill_service::ManagedSkill,
-    tools::{gateway_definitions, mutating, needs_permission, shell},
+    tools::{mutating, needs_permission, shell},
 };
 
 fn agent(extra: Value) -> AgentSpec {
@@ -27,31 +26,6 @@ fn agent(extra: Value) -> AgentSpec {
     serde_json::from_value(value).unwrap()
 }
 
-fn managed(name: &str) -> ManagedSkill {
-    ManagedSkill {
-        id: name.into(),
-        project_id: "project".into(),
-        name: name.into(),
-        description: "When testing".into(),
-        body: "Do the thing.".into(),
-        agents: Vec::new(),
-        state: "active".into(),
-        replaces: None,
-        proposed_by: None,
-        reason: None,
-        source: None,
-        created_at: 0,
-        updated_at: 0,
-    }
-}
-
-fn names(tools: &[Value]) -> Vec<&str> {
-    tools
-        .iter()
-        .filter_map(|tool| tool["name"].as_str())
-        .collect()
-}
-
 fn config(model: &str) -> AiConfig {
     serde_json::from_value(json!({
         "provider": "custom",
@@ -64,68 +38,6 @@ fn config(model: &str) -> AiConfig {
         "autocompleteModel": ""
     }))
     .unwrap()
-}
-
-#[test]
-fn gateway_tools_use_the_mcp_envelope() {
-    let tools = gateway_definitions(&agent(json!({})), &[]);
-    assert!(!tools.is_empty());
-    for tool in &tools {
-        assert!(tool["name"].is_string(), "missing MCP name: {tool}");
-        assert!(
-            tool["inputSchema"]["type"] == "object",
-            "missing inputSchema: {tool}"
-        );
-        assert!(tool.get("function").is_none(), "OpenAI envelope leaked");
-    }
-    assert!(names(&tools).contains(&"read_file"));
-    assert!(names(&tools).contains(&"write_file"));
-    assert!(names(&tools).contains(&"shell"));
-    assert!(names(&tools).contains(&"fetch_url"));
-    assert!(names(&tools).contains(&"generate_image"));
-}
-
-#[test]
-fn plan_mode_and_deny_remove_mutating_tools() {
-    let plan = gateway_definitions(&agent(json!({"agentMode":"plan"})), &[]);
-    assert!(!names(&plan).contains(&"write_file"));
-    assert!(!names(&plan).contains(&"shell"));
-    assert!(names(&plan).contains(&"read_file"));
-    let deny = gateway_definitions(&agent(json!({"permissionMode":"deny"})), &[]);
-    assert!(!names(&deny).contains(&"write_file"));
-    assert!(!names(&deny).contains(&"shell"));
-    assert!(names(&deny).contains(&"search"));
-}
-
-#[test]
-fn capabilities_add_their_gateway_tools_only_when_selected() {
-    let plain = gateway_definitions(&agent(json!({})), &[]);
-    assert!(!names(&plain).contains(&"read_skill"));
-    assert!(!names(&plain).contains(&"mcp_call"));
-    assert!(!names(&plain).contains(&"email_send"));
-
-    let full = gateway_definitions(
-        &agent(json!({
-            "mcpServers": ["stripe"],
-            "emailAccountIds": ["mail"]
-        })),
-        &[managed("frontend")],
-    );
-    assert!(names(&full).contains(&"read_skill"));
-    assert!(names(&full).contains(&"mcp_list"));
-    assert!(names(&full).contains(&"mcp_call"));
-    assert!(names(&full).contains(&"email_list"));
-    assert!(names(&full).contains(&"email_send"));
-
-    let read_only_mail = gateway_definitions(
-        &agent(json!({
-            "permissionMode": "deny",
-            "emailAccountIds": ["mail"]
-        })),
-        &[],
-    );
-    assert!(names(&read_only_mail).contains(&"email_read"));
-    assert!(!names(&read_only_mail).contains(&"email_send"));
 }
 
 #[test]

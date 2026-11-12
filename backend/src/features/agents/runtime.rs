@@ -1189,6 +1189,55 @@ Se a mensagem depender de uma ferramenta ou MCP, prefira quem tem acesso a ele; 
         }
     }
 
+    /// A short, factual brief for a message that several Tophs answer. It names the
+    /// order, the owner of each part and the one artifact that carries the contract,
+    /// so each agent knows what to do and what to leave to the others. It is only a
+    /// prompt: the run, the harness and the tools stay exactly as they are.
+    fn team_brief(agent: &AgentSpec, roster: &[AgentSpec], routed: &[String]) -> Option<String> {
+        let team: Vec<&AgentSpec> = routed
+            .iter()
+            .filter_map(|id| roster.iter().find(|item| &item.id == id))
+            .collect();
+        if team.len() < 2 {
+            return None;
+        }
+        // A delegated child is not part of this message's panel: the brief is
+        // for the agents answering the user, not for the one pulled in later.
+        let index = team.iter().position(|item| item.id == agent.id)?;
+        let names = team
+            .iter()
+            .enumerate()
+            .map(|(index, item)| {
+                let position = if index == 0 {
+                    "primeiro, lead".to_string()
+                } else if index + 1 == team.len() {
+                    format!("{}º, verificação", index + 1)
+                } else {
+                    format!("{}º", index + 1)
+                };
+                format!("@{} ({})", item.handle, position)
+            })
+            .collect::<Vec<_>>()
+            .join(", ");
+        let mine = if index == 0 {
+            "Você é o primeiro (lead): escreva docs/team-plan.md antes de implementar."
+        } else if index + 1 == team.len() {
+            "Você é o último: leia o plano, implemente a sua parte e depois verifique a integração."
+        } else {
+            "Você é o próximo: leia o plano e o que já existe no disco antes de implementar."
+        };
+        Some(format!(
+            "Time nesta mensagem (nesta ordem): {names}.\n\
+             Se esta mensagem pede uma entrega que envolve mais de uma parte do projeto:\n\
+             - O primeiro cria ou atualiza docs/team-plan.md antes de implementar: partes, dono de cada uma, arquivos compartilhados e o contrato entre elas (API, tipos, portas, variáveis).\n\
+             - Cada um implementa só a sua parte. Não reescreva a parte do outro; se precisar de uma mudança nela, peça ao dono.\n\
+             - Quem vier depois lê docs/team-plan.md e o que já existe no disco antes de começar.\n\
+             - O último roda o build/testes que existirem, testa a integração e reporta o que não encaixou.\n\
+             {mine}\n\
+             Se for só uma pergunta ou um ajuste pequeno, responda a sua parte e não crie arquivos."
+        ))
+    }
+
     fn identity(agent: &AgentSpec, roster: &[AgentSpec], routed: &[String]) -> String {
         let mut text = format!(
             "Você é {} (@{}), {}.\n{}\n{}\n{}",
@@ -1223,6 +1272,10 @@ Se a mensagem depender de uma ferramenta ou MCP, prefira quem tem acesso a ele; 
                     "\n\nNesta mensagem, {peers} também participam. Se uma resposta deles já estiver no seu contexto, complemente ou revise sem repetir; se ainda não estiver, faça a sua parte."
                 ));
             }
+        }
+        if let Some(brief) = Self::team_brief(agent, roster, routed) {
+            text.push_str("\n\n");
+            text.push_str(&brief);
         }
         text
     }
@@ -1680,8 +1733,6 @@ Se a mensagem depender de uma ferramenta ou MCP, prefira quem tem acesso a ele; 
                 result=async {
                     if name == "ask_user" {
                         self.ask_user(ctx, &tid, &args, cancel).await
-                    } else if name == "delegate" {
-                        self.delegate(ctx, &args, cancel).await
                     } else if name == "read_skill" {
                         let wanted = args["name"].as_str().unwrap_or("");
                         match self
@@ -2200,6 +2251,38 @@ mod tests {
             parse_route("{\"handles\":[],\"everyone\":true,\"reason\":\"pessoal\"}").unwrap();
         assert!(everyone.everyone);
         assert!(parse_route("sem json").is_none());
+    }
+
+    #[test]
+    fn team_brief_is_only_for_two_or_more_routed() {
+        let roster = vec![agent("a", "ana"), agent("b", "beto"), agent("c", "nico")];
+        assert!(Runtime::team_brief(&roster[0], &roster, &["a".into()]).is_none());
+        let brief = Runtime::team_brief(&roster[0], &roster, &["a".into(), "b".into()]).unwrap();
+        assert!(brief.contains("@ana"));
+        assert!(brief.contains("@beto"));
+        assert!(brief.contains("docs/team-plan.md"));
+        assert!(brief.contains("Você é o primeiro"));
+        let last = Runtime::team_brief(&roster[1], &roster, &["a".into(), "b".into()]).unwrap();
+        assert!(last.contains("Você é o último"));
+    }
+
+    #[test]
+    fn identity_adds_the_team_brief_only_for_the_routed_team() {
+        let roster = vec![agent("a", "ana"), agent("b", "beto")];
+        let solo = Runtime::identity(&roster[0], &roster, &["a".into()]);
+        assert!(!solo.contains("docs/team-plan.md"));
+        let team = Runtime::identity(&roster[0], &roster, &["a".into(), "b".into()]);
+        assert!(team.contains("docs/team-plan.md"));
+        assert!(team.contains("Time nesta mensagem"));
+    }
+
+    #[test]
+    fn team_brief_follows_the_routed_order() {
+        let roster = vec![agent("a", "ana"), agent("b", "beto")];
+        let brief = Runtime::team_brief(&roster[0], &roster, &["b".into(), "a".into()]).unwrap();
+        let beto = brief.find("@beto").unwrap();
+        let ana = brief.find("@ana").unwrap();
+        assert!(beto < ana);
     }
 
     #[test]
