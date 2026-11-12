@@ -82,6 +82,7 @@ use crate::features::agents::{
 };
 use crate::features::integrations::mcp::Service as McpService;
 use crate::model::{DbProfile, PetConfig, Project, Session, User, WebTarget};
+use crate::platform::instance_lock::InstanceLock;
 use crate::push::{PushMessage, PushService};
 use crate::store::{Store, WorkspaceMessageCursor};
 use crate::terminal::TerminalManager;
@@ -581,6 +582,7 @@ pub struct EmbeddedServer {
     shutdown: Option<oneshot::Sender<()>>,
     task: JoinHandle<()>,
     state: Option<Arc<AppState>>,
+    _lock: Option<InstanceLock>,
 }
 
 impl EmbeddedServer {
@@ -599,6 +601,9 @@ impl EmbeddedServer {
 }
 
 pub async fn start_embedded(config: Config) -> AppResult<EmbeddedServer> {
+    // Hold the data directory before `build` runs `recover`: a second embedded
+    // server must not mark this one's live runs as interrupted.
+    let lock = InstanceLock::acquire(&config.data_dir)?;
     // The embedded server uses the configured address so desktop local mode can
     // optionally listen on the LAN. `port 0` still picks a free ephemeral port.
     let addr = config.addr.clone();
@@ -623,10 +628,14 @@ pub async fn start_embedded(config: Config) -> AppResult<EmbeddedServer> {
         shutdown: Some(shutdown),
         task,
         state: Some(state),
+        _lock: Some(lock),
     })
 }
 
 pub async fn serve(config: Config) -> AppResult<()> {
+    // A second process on the same data directory would run `recover()` and
+    // interrupt this instance's runs. Refuse it before touching the database.
+    let _lock = InstanceLock::acquire(&config.data_dir)?;
     let addr = config.addr.clone();
     let state = AppState::build(config).await?;
     let listener = TcpListener::bind(&addr).await?;
