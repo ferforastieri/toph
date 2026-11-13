@@ -10,7 +10,8 @@ use serde::{Deserialize, Serialize};
 pub const VERSION: &str = env!("TOPH_VERSION");
 // The toast polls the status; keep GitHub calls rare. `If-None-Match`
 // violations return 304, which GitHub does not count against the rate limit.
-const CACHE_TTL: Duration = Duration::from_secs(10 * 60);
+// A release is worth seeing soon: the status asks GitHub again every two minutes.
+const CACHE_TTL: Duration = Duration::from_secs(2 * 60);
 
 #[derive(Debug, Clone)]
 pub struct UpdateManager {

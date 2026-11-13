@@ -230,15 +230,8 @@ export default function UpdateToast() {
   const visible = status?.supported && status.available && dismissed.current !== status.latestVersion;
   const updating = phase === "updating";
   const failed = phase === "error";
-  // The Tophs toast stays for a moment, as every toast there does.
-  useEffect(() => {
-    if (!visible || !status || updating || failed) return;
-    const timer = window.setTimeout(() => {
-      dismissed.current = status.latestVersion;
-      setStatus(null);
-    }, 6000);
-    return () => window.clearTimeout(timer);
-  }, [visible, status, updating, failed]);
+  // An update is a call to action: the toast stays until it is closed or the
+  // update starts, unlike the short-lived notices.
   if (!visible && !updating && !failed) return null;
   return (
     <div className="ac-toasts" aria-live="polite">
