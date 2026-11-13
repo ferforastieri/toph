@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useApp } from "../../../app/store";
 import { useIsMobile } from "../../../shared/ui/useIsMobile";
-import { Notification, NotificationViewport } from "@/shared/boardui/base/notification/notification";
+import { Notification, NotificationViewport } from "@/shared/toph-ui/base/notification/notification";
 
 export default function Toasts() {
   const toasts = useApp((state) => state.toasts);

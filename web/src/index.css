@@ -1,9 +1,10 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @plugin "@tailwindcss/typography";
-@import "./shared/boardui/styles/theme.css";
-@import "./shared/boardui/styles/typography.css";
-@import "./shared/boardui/styles/components.css";
+@import "./shared/toph-ui/styles/theme.css";
+@import "./shared/toph-ui/styles/typography.css";
+@import "./shared/toph-ui/styles/components.css";
+@import "@toph/ui/styles.css";
 
 @custom-variant dark (&:where(.dark, .dark *));
 
@@ -44,7 +45,7 @@
   --primary-foreground: var(--text-on-accent);
   --secondary: var(--color-background-secondary-default);
   --secondary-foreground: var(--color-text-primary);
-  --muted: var(--color-background-secondary-default);
+  --muted-surface: var(--color-background-secondary-default);
   --muted-foreground: var(--color-text-secondary);
   --accent: var(--color-background-primary-hover);
   --accent-foreground: var(--color-text-primary);
@@ -120,8 +121,8 @@
 }
 
 @theme inline {
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+  --font-sans: "Onest", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "Martian Mono", ui-monospace, Menlo, monospace;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -132,7 +133,7 @@
   --color-primary-foreground: var(--primary-foreground);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
-  --color-muted: var(--muted);
+  --color-muted: var(--muted-surface);
   --color-muted-foreground: var(--muted-foreground);
   --color-text-on-accent: var(--text-on-accent);
   --color-accent: var(--accent);
@@ -244,507 +245,6 @@
   --color-button-ghost-disabled-foreground: var(--color-text-tertiary);
 }
 
-@keyframes pet-bob {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-2px); }
-}
-
-@keyframes pet-blink {
-  0%, 92%, 100% { transform: scaleY(1); }
-  95% { transform: scaleY(0.1); }
-}
-
-@keyframes pet-free-roam {
-  0%, 100% { transform: translate(0, 0); }
-  50% { transform: translate(-26vw, -4px); }
-}
-
-@keyframes pet-notification {
-  0%, 100% { transform: translateY(0) rotate(0deg); }
-  20% { transform: translateY(-3px) rotate(-5deg); }
-  40% { transform: translateY(0) rotate(5deg); }
-  60% { transform: translateY(-2px) rotate(-3deg); }
-  80% { transform: translateY(0) rotate(2deg); }
-}
-
-@keyframes toph-bell-ring {
-  0%, 100% { transform: rotate(0deg); }
-  15% { transform: rotate(14deg); }
-  30% { transform: rotate(-12deg); }
-  45% { transform: rotate(8deg); }
-  60% { transform: rotate(-5deg); }
-  75% { transform: rotate(2deg); }
-}
-
-.bell-ring {
-  animation: toph-bell-ring 1.6s ease-in-out infinite;
-  transform-origin: top center;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .bell-ring {
-    animation: none;
-  }
-}
-
-.pet-bob {
-  animation: pet-bob 2.6s ease-in-out infinite;
-}
-
-.pet-eye {
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: pet-blink 5.2s ease-in-out infinite;
-}
-
-.pet-free {
-  animation: pet-free-roam 26s ease-in-out infinite;
-}
-
-.pet-notification {
-  animation: pet-notification 1.2s ease-in-out infinite;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .pet-bob,
-  .pet-eye,
-  .pet-free,
-  .pet-notification {
-    animation: none;
-  }
-}
-
-@media (max-width: 900px) {
-  /* Keep toasts above the mobile navigation but below dialogs, so modal
-     actions remain reachable while a notification is on screen. */
-  [aria-label="Notifications"] {
-    bottom: calc(4rem + var(--safe-bottom) + 0.5rem) !important;
-    z-index: 30 !important;
-  }
-}
-
-/* xterm renders its own scrollbar DOM instead of native scrollbars. Keep it
-   consistent with the app-wide custom scrollbar. */
-.xterm .xterm-scrollable-element > .scrollbar.vertical {
-  width: 8px !important;
-}
-
-.xterm .xterm-scrollable-element > .scrollbar.horizontal {
-  height: 8px !important;
-}
-
-.xterm .xterm-scrollable-element > .scrollbar > .slider {
-  border-radius: 999px !important;
-  background: var(--color-accent-500) !important;
-}
-
-.xterm .xterm-scrollable-element > .scrollbar.vertical > .slider {
-  width: 8px !important;
-}
-
-.xterm .xterm-scrollable-element > .scrollbar.horizontal > .slider {
-  height: 8px !important;
-}
-
-.xterm .xterm-viewport {
-  scrollbar-width: thin;
-  scrollbar-color: var(--color-accent-500) transparent;
-}
-
-.xterm .xterm-viewport::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-.xterm .xterm-viewport::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.xterm .xterm-viewport::-webkit-scrollbar-thumb {
-  border: 2px solid transparent;
-  border-radius: 999px;
-  background: var(--color-accent-500);
-  background-clip: padding-box;
-}
-
-.xterm .xterm-viewport::-webkit-scrollbar-thumb:hover {
-  background: var(--color-accent-400);
-  background-clip: padding-box;
-}
-
-/* Monaco also draws its own scrollbar. Use the same thin, themed thumb. */
-.monaco-scrollable-element > .scrollbar.vertical {
-  width: 8px !important;
-}
-
-.monaco-scrollable-element > .scrollbar.horizontal {
-  height: 8px !important;
-}
-
-.monaco-scrollable-element > .scrollbar > .slider {
-  border-radius: 999px !important;
-  background: var(--color-accent-500) !important;
-}
-
-.monaco-scrollable-element > .scrollbar > .slider:hover,
-.monaco-scrollable-element > .scrollbar > .slider.active {
-  background: var(--color-accent-400) !important;
-}
-
-/* Hide the native xterm viewport scrollbar and show the terminal's own
-   themed scrollbar consistently. */
-.xterm .xterm-viewport {
-  scrollbar-width: none;
-}
-
-.xterm .xterm-viewport::-webkit-scrollbar {
-  width: 0;
-  height: 0;
-}
-
-.xterm .xterm-scrollable-element > .scrollbar {
-  opacity: 1 !important;
-}
-
-.xterm .xterm-scrollable-element > .scrollbar > .slider {
-  border-radius: 999px !important;
-  background: var(--color-accent-500) !important;
-}
-
-.xterm .xterm-scrollable-element > .scrollbar > .slider:hover,
-.xterm .xterm-scrollable-element > .scrollbar > .slider.active {
-  border-radius: 999px !important;
-  background: var(--color-accent-400) !important;
-}
-
-/* Same opening motion as the global BoardUI accordion: height/content
-   easing at 300ms, content fading in, dropping 4px and sharpening from blur. */
-@keyframes toph-dropdown-reveal {
-  from {
-    opacity: 0;
-    transform: translateY(-4px);
-    filter: blur(4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-    filter: blur(0);
-  }
-}
-
-.dropdown-reveal {
-  animation: toph-dropdown-reveal 300ms cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-
-@keyframes toph-mobile-drawer-in {
-  from {
-    opacity: 0;
-    transform: translateX(-12px);
-    filter: blur(4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-    filter: blur(0);
-  }
-}
-
-.mobile-drawer-in {
-  animation: toph-mobile-drawer-in 300ms cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-
-@keyframes toph-mobile-backdrop-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-.mobile-backdrop-in {
-  animation: toph-mobile-backdrop-in 220ms ease-out both;
-}
-
-.mobile-backdrop-in:active,
-.toph-modal-backdrop:active {
-  transform: none;
-}
-
-@keyframes toph-activity-spin {
-  to { transform: rotate(360deg); }
-}
-
-@keyframes toph-activity-ellipsis {
-  0%, 100% { opacity: 0.25; transform: translateY(0); }
-  50% { opacity: 1; transform: translateY(-1px); }
-}
-
-.toph-activity-ring {
-  position: absolute;
-  inset: -5px;
-  border-radius: 9999px;
-  background: conic-gradient(from 0deg, transparent 0deg 60deg, var(--color-accent-400) 120deg 250deg, transparent 310deg 360deg);
-  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 2px));
-  mask: radial-gradient(farthest-side, transparent calc(100% - 2.5px), #000 calc(100% - 2px));
-  filter: drop-shadow(0 0 4px color-mix(in srgb, var(--color-accent-500) 35%, transparent));
-  animation: toph-activity-spin 2.6s linear infinite;
-  pointer-events: none;
-}
-
-.toph-activity-avatar {
-  animation: none;
-}
-
-.toph-steps-shimmer {
-  color: transparent;
-  background-image: linear-gradient(90deg, var(--color-text-tertiary), var(--color-text-primary), var(--color-text-tertiary));
-  background-size: 200% 100%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  animation: toph-steps-shimmer 1.6s linear infinite;
-}
-
-@keyframes toph-steps-shimmer {
-  to { background-position: -200% 0; }
-}
-
-.toph-activity-status {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 1px;
-  color: var(--color-accent-500);
-  font-weight: 500;
-}
-
-.toph-activity-ellipsis {
-  display: inline-flex;
-}
-
-.toph-activity-ellipsis i {
-  font-style: normal;
-  animation: toph-activity-ellipsis 1.1s ease-in-out infinite;
-}
-
-.toph-activity-ellipsis i:nth-child(2) { animation-delay: 140ms; }
-.toph-activity-ellipsis i:nth-child(3) { animation-delay: 280ms; }
-
-.toph-activity-thinking .toph-activity-ring {
-  animation-duration: 2.6s;
-}
-
-.toph-activity-working .toph-activity-ring {
-  animation-duration: 1.2s;
-}
-
-.toph-activity-responding .toph-activity-ring {
-  animation-duration: 1.6s;
-}
-
-.composer-trigger > svg:last-child {
-  transition:
-    rotate 300ms cubic-bezier(0.22, 1, 0.36, 1),
-    transform 300ms cubic-bezier(0.22, 1, 0.36, 1),
-    opacity 300ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.composer-trigger[aria-expanded="true"] > svg:last-child {
-  rotate: 180deg;
-}
-
-@keyframes toph-progress-sweep {
-  0% { left: -35%; }
-  100% { left: 105%; }
-}
-
-.progress-indeterminate {
-  animation: toph-progress-sweep 1.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
-}
-
-@keyframes toph-hover-glow-in {
-  from {
-    color: var(--color-text-primary);
-    text-shadow: 0 0 0 transparent;
-  }
-  to {
-    color: var(--color-accent-400);
-    text-shadow: 0 0 8px color-mix(in srgb, var(--color-accent-500) 42%, transparent);
-  }
-}
-
-@keyframes toph-icon-glow-in {
-  from { filter: drop-shadow(0 0 0 transparent); }
-  to { filter: drop-shadow(0 0 5px color-mix(in srgb, var(--color-accent-500) 45%, transparent)); }
-}
-
-/* Amber hover highlight: animated into place, but steady while hovered.
-   The transition uses the same soft 300ms curve as the global accordion
-   chevron so every action shares one motion language. */
-:where(button, a, [role="button"], [role="tab"], [role="treeitem"], [role="option"], [role="menuitem"]) {
-  transition:
-    color 300ms cubic-bezier(0.22, 1, 0.36, 1),
-    background-color 300ms cubic-bezier(0.22, 1, 0.36, 1),
-    border-color 300ms cubic-bezier(0.22, 1, 0.36, 1),
-    box-shadow 300ms cubic-bezier(0.22, 1, 0.36, 1),
-    opacity 300ms cubic-bezier(0.22, 1, 0.36, 1),
-    transform 300ms cubic-bezier(0.22, 1, 0.36, 1),
-    text-shadow 300ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-:where(button, [role="button"], [role="tab"], [role="treeitem"], [role="option"], [role="menuitem"]):active:not(:disabled):not([aria-disabled="true"]) {
-  transform: scale(0.98);
-}
-
-:where(button, a, [role="button"], [role="tab"], [role="treeitem"], [role="option"], [role="menuitem"]):hover {
-  animation: toph-hover-glow-in 800ms ease-out both;
-  color: var(--color-accent-400);
-  text-shadow: 0 0 8px color-mix(in srgb, var(--color-accent-500) 42%, transparent);
-}
-
-:where(button, a, [role="button"], [role="tab"], [role="treeitem"], [role="option"], [role="menuitem"]) svg {
-  transition:
-    transform 300ms cubic-bezier(0.22, 1, 0.36, 1),
-    opacity 300ms cubic-bezier(0.22, 1, 0.36, 1),
-    filter 220ms ease;
-}
-
-:where(button, [role="button"], [role="tab"], [role="treeitem"], [role="option"], [role="menuitem"]):active:not(:disabled):not([aria-disabled="true"]) svg {
-  transform: scale(0.92);
-}
-
-:where(button, a, [role="button"], [role="tab"], [role="treeitem"], [role="option"], [role="menuitem"]):hover svg {
-  animation: toph-icon-glow-in 800ms ease-out both;
-  filter: drop-shadow(0 0 5px color-mix(in srgb, var(--color-accent-500) 45%, transparent));
-}
-
-/* Header selectors inherit the same amber hover treatment as the rest of the
-   app, including their explicit text/icon colors. */
-.header-accordion-trigger:hover .header-accordion-label,
-.header-accordion-trigger:hover .header-accordion-label span {
-  animation: toph-hover-glow-in 800ms ease-out both;
-  color: var(--color-accent-400);
-  text-shadow: 0 0 8px color-mix(in srgb, var(--color-accent-500) 42%, transparent);
-}
-
-.header-accordion-trigger:hover .header-accordion-label svg {
-  animation: toph-icon-glow-in 800ms ease-out both;
-  filter: drop-shadow(0 0 5px color-mix(in srgb, var(--color-accent-500) 45%, transparent));
-}
-
-/* Inputs and search fields share the same amber hover treatment as buttons. */
-[data-input-shell]:not([data-disabled]):hover input {
-  animation: toph-hover-glow-in 800ms ease-out both;
-  color: var(--color-accent-400);
-  text-shadow: 0 0 8px color-mix(in srgb, var(--color-accent-500) 42%, transparent);
-}
-
-[data-input-shell]:not([data-disabled]):hover input::placeholder {
-  animation: toph-hover-glow-in 800ms ease-out both;
-  color: var(--color-accent-400);
-  text-shadow: 0 0 8px color-mix(in srgb, var(--color-accent-500) 42%, transparent);
-}
-
-[data-input-shell]:not([data-disabled]):hover svg {
-  animation: toph-icon-glow-in 800ms ease-out both;
-  color: var(--color-accent-400);
-  filter: drop-shadow(0 0 5px color-mix(in srgb, var(--color-accent-500) 45%, transparent));
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .progress-indeterminate {
-    animation: none;
-    left: 33%;
-  }
-
-  .dropdown-reveal,
-  .mobile-drawer-in,
-  .mobile-backdrop-in,
-  .toph-activity-ring,
-  .toph-activity-ellipsis i {
-    animation: none;
-  }
-
-  .composer-trigger > svg:last-child {
-    transition: none;
-  }
-
-  [data-input-shell]:hover input,
-  [data-input-shell]:hover input::placeholder,
-  [data-input-shell]:hover svg {
-    animation: none;
-  }
-
-  :where(button, a, [role="button"], [role="tab"], [role="treeitem"], [role="option"], [role="menuitem"]):hover,
-  :where(button, a, [role="button"], [role="tab"], [role="treeitem"], [role="option"], [role="menuitem"]):hover svg {
-    animation: none;
-  }
-
-  :where(button, a, [role="button"], [role="tab"], [role="treeitem"], [role="option"], [role="menuitem"]),
-  :where(button, a, [role="button"], [role="tab"], [role="treeitem"], [role="option"], [role="menuitem"]) svg {
-    transition: none;
-  }
-
-  :where(button, [role="button"], [role="tab"], [role="treeitem"], [role="option"], [role="menuitem"]):active:not(:disabled):not([aria-disabled="true"]),
-  :where(button, [role="button"], [role="tab"], [role="treeitem"], [role="option"], [role="menuitem"]):active:not(:disabled):not([aria-disabled="true"]) svg {
-    transform: none;
-  }
-}
-
-/* Debugger gutter */
-.toph-breakpoint {
-  position: relative;
-}
-.toph-breakpoint::before {
-  content: "";
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 9px;
-  height: 9px;
-  transform: translate(-50%, -50%);
-  border-radius: 9999px;
-  background: #ef4444;
-  box-shadow: 0 0 0 2px color-mix(in srgb, #ef4444 22%, transparent);
-}
-.toph-breakpoint-logpoint::before {
-  background: #f59e0b;
-  box-shadow: 0 0 0 2px color-mix(in srgb, #f59e0b 22%, transparent);
-}
-.toph-breakpoint-conditional::before {
-  background: #3b82f6;
-  box-shadow: 0 0 0 2px color-mix(in srgb, #3b82f6 22%, transparent);
-}
-.toph-breakpoint-disabled::before {
-  background: #94a3b8;
-  box-shadow: none;
-  opacity: 0.65;
-}
-.toph-debug-active-line {
-  background: color-mix(in srgb, #f59e0b 16%, transparent);
-}
-.toph-debug-active-glyph::before {
-  content: "";
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 0;
-  height: 0;
-  transform: translate(-35%, -50%);
-  border-top: 5px solid transparent;
-  border-bottom: 5px solid transparent;
-  border-left: 8px solid #f59e0b;
-}
-
-
-/* agent-style tool rows: keep the global amber hover glow out of the
-   transcript so tools read as quiet metadata, not CTAs. */
-.toph-tool-row:hover {
-  animation: none !important;
-  color: var(--color-text-secondary) !important;
-  text-shadow: none !important;
-}
-.toph-tool-row:hover svg {
-  animation: none !important;
-  filter: none !important;
-}
-
-/* Smooth view changes: chat switches and panels fade in instead of flashing. */
 @keyframes toph-view-in {
   from { opacity: 0; transform: translateY(4px); }
   to { opacity: 1; transform: translateY(0); }
@@ -768,4 +268,100 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .toph-view-in, .toph-panel-in, .toph-msg-in { animation: none; }
+}
+
+/* Toph now draws with the Tophs design system (packages/tokens and
+   packages/ui): the app's utility tokens follow its palette, so the shell,
+   cards and controls share one set of colors in both themes. */
+:root,
+.dark {
+  --color-background-full: var(--bg);
+  --color-background-inner-default: var(--sunken);
+  --color-background-primary-default: var(--raised);
+  --color-background-primary-hover: var(--side-hover);
+  --color-background-primary-active: var(--side-chosen);
+  --color-background-primary-disabled: var(--sunken);
+  --color-background-secondary-default: var(--sunken);
+  --color-background-secondary-hover: var(--side-hover);
+  --color-background-tertiary-default: var(--plate-soft);
+  --color-background-tertiary-hover: var(--plate);
+  --color-background-quaternary-default: var(--plate);
+  --color-background-quaternary-hover: var(--plate);
+  --color-border-button-default: var(--line2);
+  --color-border-button-hover: var(--line-strong);
+  --color-border-button-active: var(--line-strong);
+  --color-border-button-white: var(--line);
+  --color-border-button-group: var(--line2);
+  --color-border-sidebar-profile-hover: var(--line2);
+  --color-border-table: var(--line);
+  --color-border-component-detail-container: var(--line);
+  --color-border-ai-profile-card: var(--line);
+  --color-separator-border: var(--line);
+  --color-separator-border-strong: var(--line2);
+  --color-text-primary: var(--ink);
+  --color-text-secondary: var(--muted);
+  --color-text-tertiary: var(--faint);
+  --color-text-disabled: var(--faint);
+  --color-text-placeholder: var(--faint);
+  --color-foreground-icon-primary: var(--ink2);
+  --color-foreground-icon-secondary: var(--muted);
+  --color-foreground-icon-tertiary: var(--faint);
+  --color-foreground-icon-quaternary: var(--faint);
+  --color-accent-400: var(--agent2);
+  --color-accent-500: var(--agent);
+  --color-accent-600: var(--agent);
+  --color-border-focus-ring: var(--focus-color);
+  --text-on-accent: var(--on-agent);
+  --color-kbd-background: var(--plate);
+  --color-kbd-foreground: var(--ink2);
+  --color-avatar-neutral-background: var(--plate);
+  --color-segmented-control-background: var(--sunken);
+  --color-segmented-control-selected-background: var(--raised);
+  --color-notification-center-background: var(--raised);
+}
+
+
+/* Toph's dense toolbars keep their 24px icon buttons with the Tophs skin. */
+.ac-btn--xs {
+  height: 24px;
+  padding: 0 8px;
+  font-size: 12px;
+  border-radius: var(--radius-sm);
+}
+.ac-btn--xs.ac-btn--icon {
+  width: 24px;
+  padding: 0;
+}
+.ac-btn--xs .ac-icon {
+  width: 14px;
+  height: 14px;
+}
+
+/* Chips and badges in the Tophs palette. */
+.ac-chip--accent {
+  background: var(--agent);
+  color: var(--on-agent);
+}
+.ac-chip--muted {
+  background: var(--plate);
+  color: var(--muted);
+}
+.ac-chip--orange { background: color-mix(in srgb, var(--warn) 16%, transparent); color: var(--warn); }
+.ac-chip--lime { background: color-mix(in srgb, var(--ok) 14%, transparent); color: var(--ok); }
+.ac-chip--rose { background: color-mix(in srgb, var(--danger) 14%, transparent); color: var(--danger); }
+.ac-chip--yellow { background: var(--warn-soft); color: var(--warn); }
+.ac-chip--cyan { background: color-mix(in srgb, var(--info) 14%, transparent); color: var(--info); }
+.ac-chip--blue { background: var(--agent-soft); color: var(--agent); }
+.ac-chip--purple { background: color-mix(in srgb, #8b5cf6 16%, transparent); color: #7c3aed; }
+
+.ac-switch[data-disabled="true"] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.ac-switch[data-disabled="true"]:not([data-state="checked"]) {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--line-strong);
+}
+.ac-switch[data-disabled="true"]:not([data-state="checked"]) .ac-switch__thumb {
+  background: var(--line-strong);
 }

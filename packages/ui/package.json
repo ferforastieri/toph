@@ -1,9 +1,57 @@
 {
   "name": "@toph/ui",
-  "private": true,
   "version": "0.1.0",
+  "private": true,
   "type": "module",
   "exports": {
+    ".": "./src/index.ts",
+    "./styles.css": "./src/styles/index.css",
+    "./agent/engine": {
+      "types": "./src/agent/engine.d.ts",
+      "default": "./src/agent/engine.js"
+    },
+    "./agent/look": "./src/components/AgentLook.ts",
+    "./agent/stickers": "./src/agent/stickers.ts",
+    "./brain/portrait": {
+      "types": "./src/brain/portrait.d.ts",
+      "default": "./src/brain/portrait.js"
+    },
+    "./computer/portrait": {
+      "types": "./src/computer/portrait.d.ts",
+      "default": "./src/computer/portrait.js"
+    },
+    "./brand/marks": "./src/brand/marks.ts",
+    "./presence/badge": "./src/presence/badge.ts",
+    "./sfx": "./src/sfx/synth.ts",
+    "./sky/engine": "./src/sky/engine.ts",
+    "./sky/math": "./src/sky/math.ts",
+    "./sky/horizon": "./src/sky/horizon.ts",
+    "./sky/chart": "./src/sky/chart.ts",
+    "./sky/avatar": "./src/sky/avatar.ts",
+    "./sky/workspace": "./src/sky/workspace.ts",
+    "./channel-refs": "./src/channel-refs.ts",
+    "./diff": "./src/diff.ts",
+    "./format": "./src/format.ts",
+    "./markdown": "./src/markdown.ts",
+    "./media-grid": "./src/media-grid.ts",
+    "./names": "./src/names.ts",
+    "./plan-state": "./src/plan-state.ts",
+    "./recurrence": "./src/recurrence.ts",
+    "./search": "./src/search.ts",
+    "./timezones": "./src/timezones.ts",
+    "./brand/flags": "./src/brand/flags.ts",
+    "./blocks/expr": "./src/blocks/expr.ts",
+    "./blocks/spec": "./src/blocks/spec.ts",
+    "./widgets/spec": "./src/widgets/spec.ts",
     "./styles/base.css": "./styles/base.css"
+  },
+  "peerDependencies": {
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  },
+  "dependencies": {
+    "@toph/tokens": "*",
+    "radix-ui": "^1.8.1",
+    "uqr": "0.1.3"
   }
 }

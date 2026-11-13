@@ -3,9 +3,9 @@ import { ArrowRight, ExternalLink, RefreshCw } from "@toph/icons";
 import { webPreviewUrl } from "../../../shared/api";
 import { normalizeHttpUrl } from "../../../shared/lib";
 import type { Tab } from "../../../app/store";
-import { Button } from "@/shared/boardui/base/buttons/button";
-import { IconLinkButton } from "@/shared/boardui/base/buttons/icon-button";
-import { Input } from "@/shared/boardui/base/input/input";
+import { Button } from "@/shared/toph-ui/base/buttons/button";
+import { IconLinkButton } from "@/shared/toph-ui/base/buttons/icon-button";
+import { Input } from "@/shared/toph-ui/base/input/input";
 
 export default function WebPanelTab({ tab }: { tab: Tab }) {
   const [reloadKey, setReloadKey] = useState(0);

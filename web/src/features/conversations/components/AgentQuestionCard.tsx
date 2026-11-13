@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react";
 import { Check, MessageCircleQuestion, Send } from "@toph/icons";
-import { Button } from "@/shared/boardui/base/buttons/button";
-import { Input } from "@/shared/boardui/base/input/input";
-import { cx } from "@/shared/boardui/utils/cx";
+import { Button } from "@/shared/toph-ui/base/buttons/button";
+import { Input } from "@/shared/toph-ui/base/input/input";
+import { cx } from "@/shared/toph-ui/utils/cx";
 
 export interface AgentQuestionOption {
   label: string;

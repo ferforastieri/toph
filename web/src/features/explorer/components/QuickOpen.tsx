@@ -4,8 +4,8 @@ import LoadingState from "../../../shared/ui/LoadingState";
 import { api, type Project, type SearchMatch } from "../../../shared/api";
 import { basename, dirname } from "../../../shared/lib";
 import FileIcon from "./FileIcon";
-import { SearchField } from "@/shared/boardui/base/search-field/search-field";
-import { cx } from "@/shared/boardui/utils/cx";
+import { SearchField } from "@/shared/toph-ui/base/search-field/search-field";
+import { cx } from "@/shared/toph-ui/utils/cx";
 import { useDebouncedValue } from "../../../shared/ui/useDebouncedValue";
 
 interface Props {

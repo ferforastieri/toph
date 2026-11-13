@@ -1,4 +1,6 @@
 import React from "react";
+import "@fontsource-variable/onest";
+import "@fontsource-variable/martian-mono";
 import "@fontsource/inter/400.css";
 import "@fontsource/inter/500.css";
 import "@fontsource/inter/600.css";

@@ -9,17 +9,17 @@ import type { BotAvatar as BotAvatarShape } from "../avatars";
 import { BOT_AVATAR_LABELS, BOT_AVATARS } from "../avatars";
 import { findModel, modelDisplay, modelTitle, useAI } from "../../providers/store";
 import BotAvatar from "./BotAvatar";
-import { Accordion, AccordionItem } from "@/shared/boardui/base/accordion/accordion";
-import { Button } from "@/shared/boardui/base/buttons/button";
-import { Checkbox } from "@/shared/boardui/base/checkbox/checkbox";
-import { Input } from "@/shared/boardui/base/input/input";
-import { Textarea } from "@/shared/boardui/base/textarea/textarea";
-import { Switch } from "@/shared/boardui/base/switch/switch";
-import { Select, SelectItem } from "@/shared/boardui/base/select/select";
+import { Accordion, AccordionItem } from "@/shared/toph-ui/base/accordion/accordion";
+import { Button } from "@/shared/toph-ui/base/buttons/button";
+import { Checkbox } from "@/shared/toph-ui/base/checkbox/checkbox";
+import { Input } from "@/shared/toph-ui/base/input/input";
+import { Textarea } from "@/shared/toph-ui/base/textarea/textarea";
+import { Switch } from "@/shared/toph-ui/base/switch/switch";
+import { Select, SelectItem } from "@/shared/toph-ui/base/select/select";
 import ModelPicker from "../../providers/components/ModelPicker";
 import ColorPicker from "../../../shared/ui/ColorPicker";
 import { useConfirm } from "../../../shared/ui/confirm";
-import { cx } from "@/shared/boardui/utils/cx";
+import { cx } from "@/shared/toph-ui/utils/cx";
 
 interface Props {
   projectId: string;

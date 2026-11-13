@@ -3,7 +3,7 @@ import { Bell, MessageSquare, X } from "@toph/icons";
 import type { Project } from "../../../../shared/api";
 import ProjectMonogram from "../../../../features/projects/components/ProjectMonogram";
 import BrandMark from "@toph/brand";
-import { cx } from "@/shared/boardui/utils/cx";
+import { cx } from "@/shared/toph-ui/utils/cx";
 
 interface Props {
   title: string;

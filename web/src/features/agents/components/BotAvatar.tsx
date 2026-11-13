@@ -1,6 +1,6 @@
 import { useState, type CSSProperties } from "react";
 import type { ChatToph } from "../../conversations/store";
-import { cx } from "@/shared/boardui/utils/cx";
+import { cx } from "@/shared/toph-ui/utils/cx";
 import { usePointerLook } from "../../../shared/ui/usePointerLook";
 import TophEyes, { TophColorOverlay } from "./TophEyes";
 

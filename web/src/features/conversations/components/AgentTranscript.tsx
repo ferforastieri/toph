@@ -6,8 +6,8 @@ import { Check, ChevronDown, CircleAlert, Copy, Image, LoaderCircle, X } from "@
 import { api, getApiBase } from "../../../shared/api";
 import type { AiMessage } from "../../../app/store";
 import { extractAgentDiffs, extractAgentImages, parsedToolRecord, type AgentDiffArtifact, type AgentImageArtifact } from "../artifacts";
-import { Button } from "@/shared/boardui/base/buttons/button";
-import { Chip } from "@/shared/boardui/base/badges/chip";
+import { Button } from "@/shared/toph-ui/base/buttons/button";
+import { Chip } from "@/shared/toph-ui/base/badges/chip";
 import AgentQuestionCard, { parseAgentQuestions } from "./AgentQuestionCard";
 
 interface Props {

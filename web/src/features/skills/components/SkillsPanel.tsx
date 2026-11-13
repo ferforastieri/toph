@@ -3,11 +3,11 @@ import { BookOpen, Check, ChevronDown, ChevronRight, History, LoaderCircle, Penc
 import { useApp } from "../../../app/store";
 import { useChats } from "../../conversations/store";
 import { useConfirm } from "../../../shared/ui/confirm";
-import { Button } from "@/shared/boardui/base/buttons/button";
-import { Input } from "@/shared/boardui/base/input/input";
-import { Modal } from "@/shared/boardui/base/modal/modal";
-import { Textarea } from "@/shared/boardui/base/textarea/textarea";
-import { cx } from "@/shared/boardui/utils/cx";
+import { Button } from "@/shared/toph-ui/base/buttons/button";
+import { Input } from "@/shared/toph-ui/base/input/input";
+import { Modal } from "@/shared/toph-ui/base/modal/modal";
+import { Textarea } from "@/shared/toph-ui/base/textarea/textarea";
+import { cx } from "@/shared/toph-ui/utils/cx";
 import { skillApi, type LocalSkill, type SkillDraft, type SkillRecord, type SkillVersion, type SuggestedSkill } from "../api";
 
 const RECOMMENDED = 10_000;

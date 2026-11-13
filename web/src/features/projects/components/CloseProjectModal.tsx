@@ -1,8 +1,8 @@
 import { AlertTriangle, Bot, TerminalSquare } from "@toph/icons";
 import type { Project } from "../../../shared/api";
-import { Avatar } from "@/shared/boardui/base/avatar/avatar";
-import { Button } from "@/shared/boardui/base/buttons/button";
-import { Modal } from "@/shared/boardui/base/modal/modal";
+import { Avatar } from "@/shared/toph-ui/base/avatar/avatar";
+import { Button } from "@/shared/toph-ui/base/buttons/button";
+import { Modal } from "@/shared/toph-ui/base/modal/modal";
 
 interface Props {
   open: boolean;

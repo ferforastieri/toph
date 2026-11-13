@@ -1,5 +1,5 @@
 import { Bell } from "@toph/icons";
-import { cx } from "@/shared/boardui/utils/cx";
+import { cx } from "@/shared/toph-ui/utils/cx";
 
 /**
  * A muted bell with a compact unread-count pill. The count sits beside the

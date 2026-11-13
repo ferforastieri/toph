@@ -1,5 +1,6 @@
-import { LoaderCircle, MessageSquare } from "@toph/icons";
-import { cx } from "@/shared/boardui/utils/cx";
+import { MessageSquare } from "@toph/icons";
+import { PixelSpinner } from "@toph/ui";
+import { cx } from "@/shared/toph-ui/utils/cx";
 import { sessionWhen, sessionMessages } from "../sessions";
 
 interface Props {
@@ -41,7 +42,7 @@ export default function SessionRow({
         )}
         aria-hidden
       >
-        {running ? <LoaderCircle className="size-3.5 animate-spin" /> : <MessageSquare className="size-3.5" />}
+        {running ? <PixelSpinner size={14} /> : <MessageSquare className="size-3.5" />}
       </span>
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
         <span className="flex min-w-0 items-center gap-1.5">

@@ -1,5 +1,5 @@
 import { AlertTriangle, Check, X } from "@toph/icons";
-import { Button } from "@/shared/boardui/base/buttons/button";
+import { Button } from "@/shared/toph-ui/base/buttons/button";
 
 interface Props {
   agentName: string;

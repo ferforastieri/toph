@@ -1,8 +1,8 @@
 import { useState, type ReactNode } from "react";
-import { Dropdown, DropdownPopover, DropdownTrigger } from "@/shared/boardui/base/dropdown/dropdown";
-import { Modal } from "@/shared/boardui/base/modal/modal";
+import { Dropdown, DropdownPopover, DropdownTrigger } from "@/shared/toph-ui/base/dropdown/dropdown";
+import { Modal } from "@/shared/toph-ui/base/modal/modal";
 import { useIsMobile } from "../../../shared/ui/useIsMobile";
-import { cx } from "@/shared/boardui/utils/cx";
+import { cx } from "@/shared/toph-ui/utils/cx";
 
 export const COMPOSER_TRIGGER_CLASS =
   "composer-trigger flex h-7 min-w-0 items-center gap-1.5 rounded-md px-1.5 text-body-2-medium text-text-secondary outline-none transition-[background-color,color,transform,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] hover:bg-background-secondary-hover active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-border-focus-ring";

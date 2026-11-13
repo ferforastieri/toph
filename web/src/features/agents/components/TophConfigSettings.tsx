@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { Bot, Plus } from "@toph/icons";
 import { useChats } from "../../conversations/store";
-import { Button } from "@/shared/boardui/base/buttons/button";
+import { Button } from "@/shared/toph-ui/base/buttons/button";
 import { ensureToph } from "../default-toph";
 import BotConfig from "./BotConfig";
 

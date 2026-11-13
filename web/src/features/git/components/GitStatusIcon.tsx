@@ -1,5 +1,5 @@
 import { AlertTriangle, ArrowRight, CircleCheck, FilePlus2, Files, Pencil, Trash2, Type } from "@toph/icons";
-import { cx } from "@/shared/boardui/utils/cx";
+import { cx } from "@/shared/toph-ui/utils/cx";
 
 const statusMap = {
   A: { icon: FilePlus2, className: "text-emerald-500", label: "Adicionado" },

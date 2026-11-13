@@ -1,5 +1,5 @@
 import { Bot, Boxes, Files, GitBranch, MoreHorizontal } from "@toph/icons";
-import { cx } from "@/shared/boardui/utils/cx";
+import { cx } from "@/shared/toph-ui/utils/cx";
 import type { ComponentType } from "react";
 import type { MobileScreen } from "./mobile-nav";
 

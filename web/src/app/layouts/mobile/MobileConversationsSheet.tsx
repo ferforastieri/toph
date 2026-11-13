@@ -7,8 +7,8 @@ import { ensureChatSubjects } from "../../../features/conversations/subjects";
 import { ensureToph } from "../../../features/agents/default-toph";
 import { useActiveSessionIds } from "../../../features/agents/useActiveSessionIds";
 import SessionRow from "../../../features/conversations/components/SessionRow";
-import { Button } from "@/shared/boardui/base/buttons/button";
-import { Modal } from "@/shared/boardui/base/modal/modal";
+import { Button } from "@/shared/toph-ui/base/buttons/button";
+import { Modal } from "@/shared/toph-ui/base/modal/modal";
 import { useApp } from "../../store";
 
 interface Props {

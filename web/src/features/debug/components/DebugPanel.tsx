@@ -25,13 +25,13 @@ import { api, getApiBase, type DebugBreakpoint, type DebugSessionInfo, type File
 import { useAI } from "../../providers/store";
 import { useDebug } from "../store";
 import { useApp } from "../../../app/store";
-import { Button } from "@/shared/boardui/base/buttons/button";
-import { Input } from "@/shared/boardui/base/input/input";
-import { Select, SelectItem } from "@/shared/boardui/base/select/select";
-import { Textarea, TextareaBase } from "@/shared/boardui/base/textarea/textarea";
-import { Modal } from "@/shared/boardui/base/modal/modal";
-import { Badge } from "@/shared/boardui/base/badges/badge";
-import { cx } from "@/shared/boardui/utils/cx";
+import { Button } from "@/shared/toph-ui/base/buttons/button";
+import { Input } from "@/shared/toph-ui/base/input/input";
+import { Select, SelectItem } from "@/shared/toph-ui/base/select/select";
+import { Textarea, TextareaBase } from "@/shared/toph-ui/base/textarea/textarea";
+import { Modal } from "@/shared/toph-ui/base/modal/modal";
+import { Badge } from "@/shared/toph-ui/base/badges/badge";
+import { cx } from "@/shared/toph-ui/utils/cx";
 import CodeEditor from "../../editor/components/CodeEditor";
 import { languageFor } from "../../../shared/lib";
 

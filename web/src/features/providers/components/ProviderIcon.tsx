@@ -1,5 +1,5 @@
 import { RiSparkling2Fill } from "@remixicon/react";
-import { cx } from "@/shared/boardui/utils/cx";
+import { cx } from "@/shared/toph-ui/utils/cx";
 import { PROVIDER_LOGOS, type ProviderLogo } from "../logos";
 
 interface Props {

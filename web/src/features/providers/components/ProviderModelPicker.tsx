@@ -3,8 +3,8 @@ import { Check, ChevronDown } from "@toph/icons";
 import type { AIModel } from "../../../shared/api";
 import { modelDisplay, modelGroup, modelTitle, providerLabel } from "../store";
 import ProviderIcon from "./ProviderIcon";
-import { Dropdown, DropdownPopover, DropdownTrigger } from "@/shared/boardui/base/dropdown/dropdown";
-import { cx } from "@/shared/boardui/utils/cx";
+import { Dropdown, DropdownPopover, DropdownTrigger } from "@/shared/toph-ui/base/dropdown/dropdown";
+import { cx } from "@/shared/toph-ui/utils/cx";
 
 interface Props {
   models: AIModel[];

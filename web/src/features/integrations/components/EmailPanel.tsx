@@ -3,10 +3,10 @@ import { ArrowLeft, Mail, Plus, RefreshCw, Send, Trash2 } from "@toph/icons";
 import { api, type EmailAccount, type EmailAccountInput, type EmailMessage, type EmailMessageSummary } from "../../../shared/api";
 import { useApp } from "../../../app/store";
 import { useConfirm } from "../../../shared/ui/confirm";
-import { Button } from "@/shared/boardui/base/buttons/button";
-import { Input } from "@/shared/boardui/base/input/input";
-import { Select, SelectItem } from "@/shared/boardui/base/select/select";
-import { Textarea } from "@/shared/boardui/base/textarea/textarea";
+import { Button } from "@/shared/toph-ui/base/buttons/button";
+import { Input } from "@/shared/toph-ui/base/input/input";
+import { Select, SelectItem } from "@/shared/toph-ui/base/select/select";
+import { Textarea } from "@/shared/toph-ui/base/textarea/textarea";
 import LoadingState from "../../../shared/ui/LoadingState";
 
 const EMPTY_ACCOUNT: EmailAccountInput = {

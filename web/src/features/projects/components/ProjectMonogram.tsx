@@ -1,5 +1,5 @@
 import type { Project } from "../../../shared/api";
-import { cx } from "@/shared/boardui/utils/cx";
+import { cx } from "@/shared/toph-ui/utils/cx";
 
 interface Props {
   project: Project;

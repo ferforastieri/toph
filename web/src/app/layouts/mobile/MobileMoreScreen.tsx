@@ -25,7 +25,7 @@ import type { Project, User } from "../../../shared/api";
 import { useChats } from "../../../features/conversations/store";
 import { useSettings } from "../../../features/settings/store";
 import ProjectTophAvatar from "../../../features/projects/components/ProjectTophAvatar";
-import { cx } from "@/shared/boardui/utils/cx";
+import { cx } from "@/shared/toph-ui/utils/cx";
 import type { MobileScreen } from "./mobile-nav";
 
 type SettingsSection = "general" | "appearance" | "toph" | "skills" | "harness" | "email" | "workspace" | "about";

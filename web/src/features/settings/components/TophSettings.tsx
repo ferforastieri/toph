@@ -8,11 +8,11 @@ const EmailPanel = lazy(() => import("../../integrations/components/EmailPanel")
 const SkillsPanel = lazy(() => import("../../skills/components/SkillsPanel"));
 const HarnessSettings = lazy(() => import("./HarnessSettings"));
 const TophConfigSettings = lazy(() => import("../../agents/components/TophConfigSettings"));
-import { Button } from "@/shared/boardui/base/buttons/button";
-import { Checkbox } from "@/shared/boardui/base/checkbox/checkbox";
-import { Input } from "@/shared/boardui/base/input/input";
-import { Modal } from "@/shared/boardui/base/modal/modal";
-import { cx } from "@/shared/boardui/utils/cx";
+import { Button } from "@/shared/toph-ui/base/buttons/button";
+import { Checkbox } from "@/shared/toph-ui/base/checkbox/checkbox";
+import { Input } from "@/shared/toph-ui/base/input/input";
+import { Modal } from "@/shared/toph-ui/base/modal/modal";
+import { cx } from "@/shared/toph-ui/utils/cx";
 
 type Section = "general" | "appearance" | "toph" | "skills" | "harness" | "email" | "workspace" | "about";
 

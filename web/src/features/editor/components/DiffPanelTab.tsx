@@ -7,8 +7,8 @@ import { useSettings } from "../../settings/store";
 import { CODE_FONT_FAMILY, codeLineHeight, monacoThemeName, registerEditorThemes } from "../themes";
 import { registerEditorTextMate } from "../textmate";
 import FileIcon from "../../explorer/components/FileIcon";
-import { Breadcrumb, BreadcrumbItem } from "@/shared/boardui/base/breadcrumb/breadcrumb";
-import { Badge } from "@/shared/boardui/base/badges/badge";
+import { Breadcrumb, BreadcrumbItem } from "@/shared/toph-ui/base/breadcrumb/breadcrumb";
+import { Badge } from "@/shared/toph-ui/base/badges/badge";
 import { useApp, type Tab } from "../../../app/store";
 import LoadingState from "../../../shared/ui/LoadingState";
 
