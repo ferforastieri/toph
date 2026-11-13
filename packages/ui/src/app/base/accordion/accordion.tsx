@@ -164,8 +164,10 @@ export function AccordionItem({
         </AriaButton>
         {actions ? <div className="flex shrink-0 items-center gap-1">{actions}</div> : null}
       </AriaHeading>
+      {/* No fixed height: the panel grows with what it holds (a file tree loads
+          after it opens), and react-aria still hides it when it collapses. */}
       <AriaDisclosurePanel
-        className={cx("h-(--disclosure-panel-height) overflow-clip transition-[height] duration-300 motion-reduce:transition-none", EASE, panelClassName)}
+        className={cx("overflow-clip", panelClassName)}
       >
         <div
           className={cx(

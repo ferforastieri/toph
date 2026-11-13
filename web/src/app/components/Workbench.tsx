@@ -42,9 +42,9 @@ import { ensureSingleToph, ensureToph } from "../../features/agents/default-toph
 import { cx } from "@toph/ui/app/utils/cx";
 import { suggestGitChanges } from "../../features/git/ai";
 import { parseGitStatus } from "../../features/git/status";
+import TophSettings from "../../features/settings/components/TophSettings";
 
 const MobileApp = lazy(() => import("../layouts/mobile/MobileApp"));
-const TophSettings = lazy(() => import("../../features/settings/components/TophSettings"));
 const ExplorerPanel = lazy(() => import("../../features/explorer/components/ExplorerPanel"));
 const DatabasesPanel = lazy(() => import("../../features/databases/components/DatabasesPanel"));
 const WebSidebar = lazy(() => import("../../features/previews/components/WebSidebar"));
@@ -1140,9 +1140,9 @@ export default function Workbench() {
 
   const primarySidebar = (
     <Suspense fallback={null}>
-      <div className="relative z-40 flex min-h-0 shrink-0 overflow-visible rounded-3xl border border-border-button-white bg-background-primary-default shadow-sidebar">
+      <div className="relative z-40 flex min-h-0 shrink-0 overflow-visible rounded-3xl border border-border-button-white bg-background-secondary-default shadow-sidebar">
         {effectiveSidebarVisible ? (
-          <aside className={cx("relative flex min-h-0 shrink-0 flex-col overflow-hidden rounded-[22px] bg-background-primary-default", botsView ? "w-[clamp(220px,22vw,var(--sidebar-width))]" : "w-[var(--sidebar-width)]")}>
+          <aside className={cx("relative flex min-h-0 shrink-0 flex-col overflow-hidden rounded-[22px] bg-background-secondary-default", botsView ? "w-[clamp(220px,22vw,var(--sidebar-width))]" : "w-[var(--sidebar-width)]")}>
             {sidebarContent}
           </aside>
         ) : null}
@@ -1156,7 +1156,7 @@ export default function Workbench() {
   if (mobile) return <Suspense fallback={null}><MobileApp /></Suspense>;
 
   return (
-    <div className="relative flex h-dvh flex-col overflow-hidden bg-background-full">
+    <div className="relative flex h-dvh flex-col overflow-hidden bg-[var(--side)]">
       {projectBar === "header" ? (
         <TopBar
           onOpenProject={switchProject}
@@ -1167,7 +1167,7 @@ export default function Workbench() {
           project={project}
           onOpenFile={openFile}
           quickOpenToken={quickOpenToken}
-          tophControl={<Suspense fallback={null}><TophSettings user={user} projectRoot={project.root} projectId={project.id} /></Suspense>}
+          tophControl={<TophSettings user={user} projectRoot={project.root} projectId={project.id} hideTrigger />}
         />
       ) : null}
       {projectBar === "left" ? (
@@ -1183,7 +1183,7 @@ export default function Workbench() {
             onGoHome={() => setSidebar("bots")}
             onQuickOpen={() => setQuickOpenToken((current) => current + 1)}
             onOpenAuxiliary={openAuxiliary}
-            tophControl={<Suspense fallback={null}><TophSettings user={user} projectRoot={project.root} projectId={project.id} /></Suspense>}
+            tophControl={<TophSettings user={user} projectRoot={project.root} projectId={project.id} hideTrigger />}
           />
         ) : null}
         {primarySidebar}

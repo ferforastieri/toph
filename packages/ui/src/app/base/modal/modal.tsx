@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { RiCloseLine } from "@remixicon/react";
 import { IconButton } from "../buttons/icon-button";
@@ -137,7 +137,12 @@ export function Modal({
         aria-modal="true"
         aria-label={label ?? (typeof title === "string" ? title : undefined)}
         tabIndex={-1}
-        style={swipeToClose && dragY > 0 ? { transform: `translateY(${dragY}px)`, transition: dragging.current ? "none" : undefined } : undefined}
+        style={{
+          // The kit's .ac-dialog__head/.ac-dialog__body read this; the modal
+          // does not carry .ac-dialog itself (it has its own frame).
+          "--dialog-pad": "20px",
+          ...(swipeToClose && dragY > 0 ? { transform: `translateY(${dragY}px)`, transition: dragging.current ? "none" : undefined } : {}),
+        } as CSSProperties}
         onTouchStart={onSheetTouchStart}
         onTouchMove={onSheetTouchMove}
         onTouchEnd={onSheetTouchEnd}
