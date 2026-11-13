@@ -4,9 +4,9 @@ import { api } from "../../../shared/api";
 import { basename } from "../../../shared/lib";
 import { useApp } from "../../../app/store";
 import { useConfirm } from "../../../shared/ui/confirm";
-import { Button } from "@/shared/boardui/base/buttons/button";
-import { Input } from "@/shared/boardui/base/input/input";
-import { Chip } from "@/shared/boardui/base/badges/chip";
+import { Button } from "@toph/ui/app";
+import { Input } from "@toph/ui/app";
+import { Chip } from "@toph/ui/app";
 
 export default function WorkspaceSettings() {
   const projects = useApp((state) => state.projects);

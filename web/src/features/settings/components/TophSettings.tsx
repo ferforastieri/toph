@@ -7,11 +7,11 @@ const WorkspaceSettings = lazy(() => import("./WorkspaceSettings"));
 const EmailPanel = lazy(() => import("../../integrations/components/EmailPanel"));
 const SkillsPanel = lazy(() => import("../../skills/components/SkillsPanel"));
 const HarnessSettings = lazy(() => import("./HarnessSettings"));
-import { Button } from "@/shared/boardui/base/buttons/button";
-import { Checkbox } from "@/shared/boardui/base/checkbox/checkbox";
-import { Input } from "@/shared/boardui/base/input/input";
-import { Modal } from "@/shared/boardui/base/modal/modal";
-import { cx } from "@/shared/boardui/utils/cx";
+import { Button } from "@toph/ui/app";
+import { Checkbox } from "@toph/ui/app";
+import { Input } from "@toph/ui/app";
+import { Modal } from "@toph/ui/app";
+import { cx } from "@toph/ui/app/utils/cx";
 
 type Section = "general" | "appearance" | "skills" | "harness" | "email" | "workspace" | "about";
 

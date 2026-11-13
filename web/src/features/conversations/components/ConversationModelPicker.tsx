@@ -8,7 +8,7 @@ import BotAvatar from "../../agents/components/BotAvatar";
 import type { ChatToph } from "../store";
 import { useChats } from "../store";
 import ComposerMenu from "./ComposerMenu";
-import { cx } from "@/shared/boardui/utils/cx";
+import { cx } from "@toph/ui";
 
 interface Props {
   projectId: string;

@@ -2,8 +2,8 @@ import { useEffect, useState } from "react";
 import { LogOut } from "@toph/icons";
 import { api, getApiBase, type User } from "../../../shared/api";
 import { useApp } from "../../store";
-import { Button } from "@/shared/boardui/base/buttons/button";
-import { Modal } from "@/shared/boardui/base/modal/modal";
+import { Button } from "@toph/ui/app";
+import { Modal } from "@toph/ui/app";
 
 interface Props {
   open: boolean;

@@ -8,9 +8,9 @@ import ProjectSwitcher from "../../features/projects/components/ProjectSwitcher"
 import ProjectMonogram from "../../features/projects/components/ProjectMonogram";
 import { useProjectQuestion, useProjectRunning } from "../../features/agents/activity";
 import QuickOpen from "../../features/explorer/components/QuickOpen";
-import { Button } from "@/shared/boardui/base/buttons/button";
-import { Modal } from "@/shared/boardui/base/modal/modal";
-import { cx } from "@/shared/boardui/utils/cx";
+import { Button } from "@toph/ui/app";
+import { Modal } from "@toph/ui/app";
+import { cx } from "@toph/ui";
 
 const activityItems: Array<{ id: Sidebar; feature: WorkspaceFeature; label: string; icon: typeof Files }> = [
   { id: "files", feature: "files", label: "Explorer", icon: Files },

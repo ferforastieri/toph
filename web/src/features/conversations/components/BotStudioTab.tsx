@@ -15,8 +15,8 @@ import ApprovalCard from "./ApprovalCard";
 import ConversationSettings from "./ConversationSettings";
 import BotAvatar from "../../agents/components/BotAvatar";
 import { unlockBotSound } from "../sound";
-import { Button } from "@/shared/boardui/base/buttons/button";
-import { cx } from "@/shared/boardui/utils/cx";
+import { Button } from "@toph/ui/app";
+import { cx } from "@toph/ui";
 
 interface Props {
   project: Project;

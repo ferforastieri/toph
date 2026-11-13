@@ -8,8 +8,8 @@ import { TranscriptMessage, toolLabel } from "./AgentTranscript";
 import { stepDuration, toolError, toolStep } from "../steps";
 import AgentQuestionCard from "./AgentQuestionCard";
 import BotAvatar from "../../agents/components/BotAvatar";
-import { Button } from "@/shared/boardui/base/buttons/button";
-import { cx } from "@/shared/boardui/utils/cx";
+import { Button } from "@toph/ui/app";
+import { cx } from "@toph/ui";
 
 /** The harnesses report a whole text part at the end of each step, so the
  * reveal is paced here: each new chunk types in instead of popping at once. */

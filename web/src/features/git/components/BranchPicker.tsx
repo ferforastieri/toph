@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { CircleAlert, GitBranch, Plus, Trash2 } from "@toph/icons";
-import { Accordion, AccordionItem } from "@/shared/boardui/base/accordion/accordion";
-import { RadioDot } from "@/shared/boardui/base/radio/radio";
-import { SearchField } from "@/shared/boardui/base/search-field/search-field";
-import { Button } from "@/shared/boardui/base/buttons/button";
-import { cx } from "@/shared/boardui/utils/cx";
+import { Accordion, AccordionItem } from "@toph/ui/app";
+import { RadioDot } from "@toph/ui/app";
+import { SearchField } from "@toph/ui/app";
+import { Button } from "@toph/ui/app";
+import { cx } from "@toph/ui";
 import LoadingState from "../../../shared/ui/LoadingState";
 
 interface Props {

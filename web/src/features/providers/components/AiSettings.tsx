@@ -3,15 +3,15 @@ import { Check, CircleAlert, PlugZap, Save, Bot, Image, Trash2 } from "@toph/ico
 import { api, type AIConfigInput, type ImageProviderInput } from "../../../shared/api";
 import { useAI } from "../store";
 import { useApp } from "../../../app/store";
-import { Button } from "@/shared/boardui/base/buttons/button";
-import { ProgressBar } from "@/shared/boardui/base/progress/progress";
-import { Input } from "@/shared/boardui/base/input/input";
-import { Textarea } from "@/shared/boardui/base/textarea/textarea";
-import { Switch } from "@/shared/boardui/base/switch/switch";
-import { Checkbox } from "@/shared/boardui/base/checkbox/checkbox";
-import { Select, SelectItem } from "@/shared/boardui/base/select/select";
+import { Button } from "@toph/ui/app";
+import { ProgressBar } from "@toph/ui/app";
+import { Input } from "@toph/ui/app";
+import { Textarea } from "@toph/ui/app";
+import { Switch } from "@toph/ui/app";
+import { Checkbox } from "@toph/ui/app";
+import { Select, SelectItem } from "@toph/ui/app";
 import ProviderModelPicker from "./ProviderModelPicker";
-import { Chip } from "@/shared/boardui/base/badges/chip";
+import { Chip } from "@toph/ui/app";
 
 const providers = [
   { id: "openai", label: "OpenAI (Responses)", base: "https://api.openai.com", provider: "openai" },

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { CancellationToken, IPosition, editor, languages } from "monaco-editor";
 import { useSettings } from "../../settings/store";
-import { Modal } from "@/shared/boardui/base/modal/modal";
+import { Modal } from "@toph/ui/app";
 import { CODE_FONT_FAMILY, codeLineHeight, monacoThemeName, registerEditorThemes } from "../themes";
 import { relativeTime } from "../../../shared/lib";
 import { useAI } from "../../providers/store";

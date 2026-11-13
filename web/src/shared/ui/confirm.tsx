@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useRef, useState, type ReactNode } from "react";
 import { AlertTriangle } from "@toph/icons";
-import { Button } from "@/shared/boardui/base/buttons/button";
-import { Modal } from "@/shared/boardui/base/modal/modal";
+import { Button } from "@toph/ui/app";
+import { Modal } from "@toph/ui/app";
 
 interface ConfirmOptions {
   title: string;

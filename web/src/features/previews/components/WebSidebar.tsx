@@ -3,9 +3,9 @@ import { ExternalLink, Globe2, Plus, Trash2 } from "@toph/icons";
 import { api, type WebTarget } from "../../../shared/api";
 import { useApp } from "../../../app/store";
 import { useConfirm } from "../../../shared/ui/confirm";
-import { Button } from "@/shared/boardui/base/buttons/button";
-import { IconLinkButton } from "@/shared/boardui/base/buttons/icon-button";
-import { Input } from "@/shared/boardui/base/input/input";
+import { Button } from "@toph/ui/app";
+import { IconLinkButton } from "@toph/ui/app";
+import { Input } from "@toph/ui/app";
 import { normalizeHttpUrl } from "../../../shared/lib";
 import SidebarHeader from "../../../app/components/SidebarHeader";
 

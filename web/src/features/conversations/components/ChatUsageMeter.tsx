@@ -4,7 +4,7 @@ import { engineApi, type UsageLimits, type UsageWindow } from "../../agents/api"
 import ComposerMenu from "./ComposerMenu";
 import ProviderIcon from "../../providers/components/ProviderIcon";
 import { modelGroup } from "../../providers/store";
-import { cx } from "@/shared/boardui/utils/cx";
+import { cx } from "@toph/ui";
 
 interface ModelInfo {
   id: string;

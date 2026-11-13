@@ -4,9 +4,9 @@ import { api } from "../../../shared/api";
 import { useApp } from "../../store";
 import { useConfirm } from "../../../shared/ui/confirm";
 import BranchPicker from "../../../features/git/components/BranchPicker";
-import { Button } from "@/shared/boardui/base/buttons/button";
-import { Input } from "@/shared/boardui/base/input/input";
-import { Modal } from "@/shared/boardui/base/modal/modal";
+import { Button } from "@toph/ui/app";
+import { Input } from "@toph/ui/app";
+import { Modal } from "@toph/ui/app";
 
 interface Props {
   open: boolean;

@@ -1,5 +1,5 @@
-import { ProgressBar } from "@/shared/boardui/base/progress/progress";
-import { cx } from "@/shared/boardui/utils/cx";
+import { Spinner } from "@toph/ui";
+import { cx } from "@toph/ui";
 
 interface Props {
   label: string;
@@ -7,10 +7,13 @@ interface Props {
   size?: "sm" | "md" | "lg";
 }
 
+const SPINNER: Record<NonNullable<Props["size"]>, number> = { sm: 14, md: 16, lg: 24 };
+
 export default function LoadingState({ label, className, size = "sm" }: Props) {
   return (
-    <div className={cx("w-full px-2 py-4", className)}>
-      <ProgressBar isIndeterminate size={size} label={label} aria-label={label} />
+    <div className={cx("flex w-full items-center gap-2 px-2 py-4 text-caption-1-regular text-text-secondary", className)} role="status">
+      <Spinner size={SPINNER[size]} />
+      <span>{label}</span>
     </div>
   );
 }

@@ -4,7 +4,7 @@ import type { Project } from "../../../../shared/api";
 import ProjectMonogram from "../../../../features/projects/components/ProjectMonogram";
 import { useProjectQuestion, useProjectRunning } from "../../../../features/agents/activity";
 import BrandMark from "@toph/brand";
-import { cx } from "@/shared/boardui/utils/cx";
+import { cx } from "@toph/ui";
 
 interface Props {
   title: string;

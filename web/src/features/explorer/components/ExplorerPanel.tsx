@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ArrowLeft, ChevronDown, FilePlus2, FolderOpen, FolderPlus, RefreshCw, Settings2 } from "@toph/icons";
-import { Button } from "@/shared/boardui/base/buttons/button";
+import { Button } from "@toph/ui/app";
 import { createPortal } from "react-dom";
-import { Modal } from "@/shared/boardui/base/modal/modal";
+import { Modal } from "@toph/ui/app";
 import type { FileEntry, GitHistoryEntry, Project, SearchMatch } from "../../../shared/api";
 import { api } from "../../../shared/api";
 import { changeStatusByPath } from "../../git/status";
@@ -15,8 +15,8 @@ import { basename, dirname } from "../../../shared/lib";
 import LoadingState from "../../../shared/ui/LoadingState";
 import { useConfirm } from "../../../shared/ui/confirm";
 import SidebarHeader from "../../../app/components/SidebarHeader";
-import { ProgressBar } from "@/shared/boardui/base/progress/progress";
-import { Accordion, AccordionItem } from "@/shared/boardui/base/accordion/accordion";
+import { ProgressBar } from "@toph/ui/app";
+import { Accordion, AccordionItem } from "@toph/ui/app";
 
 interface Props {
   project: Project;

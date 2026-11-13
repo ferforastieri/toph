@@ -46,7 +46,7 @@ describe("AgentComposer actions", () => {
     );
 
     const send = screen.getByRole("button", { name: "Enviar" });
-    expect(send).toHaveClass("bg-button-primary");
+    expect(send).toHaveClass("ac-btn--primary");
     expect(screen.queryByRole("button", { name: "Gravar áudio" })).not.toBeInTheDocument();
   });
 

@@ -1,5 +1,5 @@
 import { useEffect, useRef, type ReactNode } from "react";
-import { cx } from "@/shared/boardui/utils/cx";
+import { cx } from "@toph/ui";
 
 interface Props {
   open: boolean;

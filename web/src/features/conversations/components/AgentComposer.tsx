@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ArrowUp, FilePlus2, ImagePlus, LoaderCircle, Mic, Square, X } from "@toph/icons";
-import { Button } from "@/shared/boardui/base/buttons/button";
-import { IconButton } from "@/shared/boardui/base/buttons/icon-button";
-import { Textarea } from "@/shared/boardui/base/textarea/textarea";
-import { ComposerLoader } from "@/shared/boardui/application/composer-loader/composer-loader";
+import { Button } from "@toph/ui/app";
+import { IconButton } from "@toph/ui/app";
+import { Textarea } from "@toph/ui/app";
+import { ComposerLoader } from "@toph/ui/app";
 import { useAudioRecorder, type AgentAttachment } from "../../../shared/ui/useAudioRecorder";
 import type { ChatToph } from "../store";
 import BotAvatar from "../../agents/components/BotAvatar";

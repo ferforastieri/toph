@@ -3,8 +3,8 @@ import { Check, ChevronDown } from "@toph/icons";
 import type { AIModel } from "../../../shared/api";
 import { modelGroup, providerLabel } from "../store";
 import ProviderIcon from "./ProviderIcon";
-import { cx } from "@/shared/boardui/utils/cx";
-import { Slider } from "@/shared/boardui/base/slider/slider";
+import { cx } from "@toph/ui/app/utils/cx";
+import { Slider } from "@toph/ui/app";
 
 const EFFORT_LABEL: Record<string, string> = {
   minimal: "Mínimo",

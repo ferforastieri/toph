@@ -24,14 +24,14 @@ import { api, type PortInfo, type Project } from "../../../shared/api";
 import { useSettings } from "../../settings/store";
 import { useApp } from "../../../app/store";
 import { CODE_FONT_FAMILY } from "../../editor/themes";
-import { Button } from "@/shared/boardui/base/buttons/button";
-import { Textarea } from "@/shared/boardui/base/textarea/textarea";
-import { Badge } from "@/shared/boardui/base/badges/badge";
-import { Dropdown, DropdownDivider, DropdownGroup, DropdownItem, DropdownPopover, DropdownTrigger } from "@/shared/boardui/base/dropdown/dropdown";
-import { PillTab, PillTabList } from "@/shared/boardui/base/tabs/pill-tab";
+import { Button } from "@toph/ui/app";
+import { Textarea } from "@toph/ui/app";
+import { Badge } from "@toph/ui/app";
+import { Dropdown, DropdownDivider, DropdownGroup, DropdownItem, DropdownPopover, DropdownTrigger } from "@toph/ui/app";
+import { PillTab, PillTabList } from "@toph/ui/app";
 import { Group, Panel, Separator } from "react-resizable-panels";
 import ResizeHandle from "../../../shared/ui/resize";
-import { cx } from "@/shared/boardui/utils/cx";
+import { cx } from "@toph/ui";
 import LoadingState from "../../../shared/ui/LoadingState";
 
 interface Props {

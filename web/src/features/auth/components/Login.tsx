@@ -2,9 +2,9 @@ import { useState, type FormEvent } from "react";
 import { api, ApiError } from "../../../shared/api";
 import { useApp } from "../../../app/store";
 import BrandMark from "@toph/brand";
-import { Button } from "@/shared/boardui/base/buttons/button";
-import { Input } from "@/shared/boardui/base/input/input";
-import { Chip } from "@/shared/boardui/base/badges/chip";
+import { Button } from "@toph/ui/app";
+import { Input } from "@toph/ui/app";
+import { Chip } from "@toph/ui/app";
 
 interface Props {
   onChangeServer?: () => void;

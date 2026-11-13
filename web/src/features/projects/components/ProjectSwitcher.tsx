@@ -3,8 +3,8 @@ import { Bell, FolderGit2, LoaderCircle, Search, X } from "@toph/icons";
 import { api, ApiError, type Repository } from "../../../shared/api";
 import { useApp } from "../../../app/store";
 import ProjectTophAvatar from "./ProjectTophAvatar";
-import { Button } from "@/shared/boardui/base/buttons/button";
-import { Input } from "@/shared/boardui/base/input/input";
+import { Button } from "@toph/ui/app";
+import { Input } from "@toph/ui/app";
 import NotificationBadge from "../../notifications/components/NotificationBadge";
 
 interface Props {

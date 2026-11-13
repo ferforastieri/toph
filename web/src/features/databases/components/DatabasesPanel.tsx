@@ -3,12 +3,12 @@ import { ChevronDown, ChevronRight, Database, Folder, Play, Plus, Table2, Trash2
 import { api, type DBProfile, type Project, type SchemaTable } from "../../../shared/api";
 import { useApp } from "../../../app/store";
 import { useConfirm } from "../../../shared/ui/confirm";
-import { Button } from "@/shared/boardui/base/buttons/button";
-import { Input } from "@/shared/boardui/base/input/input";
-import { Checkbox } from "@/shared/boardui/base/checkbox/checkbox";
-import { Badge } from "@/shared/boardui/base/badges/badge";
-import { Select, SelectItem } from "@/shared/boardui/base/select/select";
-import { Chip } from "@/shared/boardui/base/badges/chip";
+import { Button } from "@toph/ui/app";
+import { Input } from "@toph/ui/app";
+import { Checkbox } from "@toph/ui/app";
+import { Badge } from "@toph/ui/app";
+import { Select, SelectItem } from "@toph/ui/app";
+import { Chip } from "@toph/ui/app";
 import { useProjectEvents } from "../../projects/events";
 import LoadingState from "../../../shared/ui/LoadingState";
 import SidebarHeader from "../../../app/components/SidebarHeader";

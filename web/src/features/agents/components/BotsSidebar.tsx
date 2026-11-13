@@ -5,7 +5,7 @@ import { useChats } from "../../conversations/store";
 import { openChatTab } from "../../conversations/navigation";
 import { projectSessions } from "../../conversations/sessions";
 import { ensureChatSubjects } from "../../conversations/subjects";
-import { Button } from "@/shared/boardui/base/buttons/button";
+import { Button } from "@toph/ui/app";
 import SidebarHeader from "../../../app/components/SidebarHeader";
 import { useApp } from "../../../app/store";
 import { ensureToph } from "../default-toph";
