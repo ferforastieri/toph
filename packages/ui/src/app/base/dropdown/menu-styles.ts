@@ -7,6 +7,6 @@ export const MENU_ITEMS_CONTAINER = "flex w-full flex-col gap-0.5 outline-none";
 
 export const MENU_ITEM = "ac-menu__item";
 
-export const MENU_ITEM_ACTIVE = "bg-[var(--surface-sunken)]";
+export const MENU_ITEM_ACTIVE = "bg-background-secondary-default";
 
 export const MENU_ITEM_INTERACTIVE = "";

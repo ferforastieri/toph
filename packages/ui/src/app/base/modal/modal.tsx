@@ -144,7 +144,7 @@ export function Modal({
         onTouchCancel={onSheetTouchEnd}
         className={cx(
           "relative flex w-full flex-col overflow-clip font-sans outline-none",
-          "border border-[var(--line)] bg-[var(--raised)] text-[var(--ink)] shadow-[var(--overlay)]",
+          "border border-border-button-white bg-background-primary-default text-text-primary shadow-sidebar",
           "transform-gpu transition-[opacity,transform,filter] duration-200 ease-[cubic-bezier(0.32,0.72,0,1)]",
           visible ? "scale-100 opacity-100 blur-0" : "scale-[0.97] opacity-0 blur-[3px]",
           placement === "bottom"
@@ -184,7 +184,7 @@ export function Modal({
         ) : null}
         <div className={cx("ac-dialog__body min-h-0 flex-1", bodyClassName)}>{children}</div>
         {footer ? (
-          <footer className="ac-dialog__foot flex shrink-0 items-center justify-end gap-2 p-[var(--dialog-pad)] pt-1">
+          <footer className="ac-dialog__foot flex shrink-0 items-center justify-end gap-2 px-5 pb-5 pt-1">
             {footer}
           </footer>
         ) : null}
