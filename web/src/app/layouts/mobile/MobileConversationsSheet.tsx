@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from "react";
-import { MessageSquare, MessageSquarePlus } from "@toph/icons";
+import { MessageSquarePlus } from "@toph/icons";
 import type { Project } from "../../../shared/api";
 import { useChats } from "../../../features/conversations/store";
 import { projectSessions } from "../../../features/conversations/sessions";
@@ -53,15 +53,6 @@ export default function MobileConversationsSheet({ open, project, onClose, onSel
     if (created) select(created.id);
   }
 
-  function openSession() {
-    const latest = sessions[0]?.chat;
-    if (latest) {
-      select(latest.id);
-      return;
-    }
-    newTask();
-  }
-
   return (
     <Modal
       isOpen={open}
@@ -74,9 +65,6 @@ export default function MobileConversationsSheet({ open, project, onClose, onSel
       swipeToClose
     >
       <div className="flex gap-2 px-1 pb-2">
-        <Button variant="secondary" size="small" leadingIcon={MessageSquare} className="flex-1 justify-center" disabled={!chats?.hydrated} onClick={openSession}>
-          Abrir sessão
-        </Button>
         <Button size="small" leadingIcon={MessageSquarePlus} className="flex-1 justify-center" disabled={!chats?.hydrated} onClick={newTask}>
           Nova tarefa
         </Button>

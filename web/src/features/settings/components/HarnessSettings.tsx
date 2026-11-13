@@ -213,7 +213,7 @@ export default function HarnessSettings({ projectRoot }: Props) {
       <section className="flex flex-col gap-3">
         <div>
           <h4 className="text-body-medium text-text-primary">Modelos e ferramentas</h4>
-          <p className="mt-0.5 text-caption-1-regular text-text-secondary">Conecte os provedores de modelo e os servidores MCP que os Tophs podem usar.</p>
+          <p className="mt-0.5 text-caption-1-regular text-text-secondary">Conecte os provedores de modelo e os servidores MCP que o Toph pode usar.</p>
         </div>
         <ConnectionsHub projectRoot={projectRoot} />
       </section>

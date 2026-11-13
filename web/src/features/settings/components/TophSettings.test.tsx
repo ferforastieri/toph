@@ -17,9 +17,6 @@ vi.mock("./WorkspaceSettings", () => ({
 vi.mock("./HarnessSettings", () => ({
   default: () => <div><span data-testid="engine-settings">Motores</span><span data-testid="connections-hub">Modelos e MCP</span></div>,
 }));
-vi.mock("../../agents/components/TophConfigSettings", () => ({
-  default: () => <div data-testid="toph-config">Identidade do Toph</div>,
-}));
 
 beforeAll(() => {
   Object.defineProperty(window, "matchMedia", {
@@ -56,14 +53,8 @@ describe("TophSettings", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Email" }));
     expect(await screen.findByTestId("email-panel")).toBeInTheDocument();
-  });
 
-  it("keeps the Toph's identity in Settings", async () => {
-    render(<TophSettings user={{ id: 1, username: "admin", createdAt: "" }} />);
-
-    fireEvent.click(screen.getByRole("button", { name: "Abrir configurações" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Toph" }));
-
-    expect(await screen.findByTestId("toph-config")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Toph" })).not.toBeInTheDocument();
+    expect(screen.queryByTestId("toph-config")).not.toBeInTheDocument();
   });
 });

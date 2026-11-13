@@ -13,6 +13,10 @@ export interface AgentQuestionPrompt {
   id: string; runId: string; agentId: string; name: string; arguments: string;
   questions: AgentQuestion[];
 }
+/** A pending ask_user call, enough to flag the project and open its chat. */
+export interface PendingQuestion {
+  id: string; chatId: string; runId: string; agentId: string;
+}
 export interface NativeMessage extends ChatMessage { seq?: number; runId?: string; model?: string; agentMode?: "build" | "plan"; activity?: string; phase?: string }
 export interface AgentSnapshot { messages: NativeMessage[]; drafts: NativeMessage[]; runs: AgentRun[]; approvals: Approval[]; questions: AgentQuestionPrompt[]; hasMore: boolean; cursor: number | null }
 export interface AgentSearchResult { id: string; sessionId: string; chatId: string; agentId: string; role: "user" | "assistant"; text: string; createdAt: number }
@@ -78,6 +82,7 @@ const post = (body: unknown): RequestInit => ({ method: "POST", body: JSON.strin
 export const agentApi = {
   start: (project: string, input: { requestId: string; chatId: string; chatDescription?: string; agentId: string; text: string; agents: Array<ChatToph & { chatId: string }>; attachments?: AgentAttachment[] }) => request<AgentRun>(`${root(project)}/runs`, { ...post(input), signal: AbortSignal.timeout(120_000) }),
   activeRuns: (project: string) => request<AgentRun[]>(`${root(project)}/runs`),
+  pendingQuestions: (project: string) => request<PendingQuestion[]>(`${root(project)}/questions`),
   cancel: (project: string, run: string) => request(`${root(project)}/runs/${encodeURIComponent(run)}/cancel`, post({})),
   cancelAgent: (project: string, agentId: string) => request(`${root(project)}/cancel`, post({ agentId })),
   deleteChat: (project: string, chatId: string) => request(`${root(project)}/chats/${encodeURIComponent(chatId)}`, { method: "DELETE" }),

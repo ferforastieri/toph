@@ -243,7 +243,7 @@ export default function EmailPanel() {
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-        <p className="text-body-2-regular text-text-secondary">Conecte caixas IMAP/SMTP para que seus Tophs possam ler, responder, enviar e limpar emails.</p>
+        <p className="text-body-2-regular text-text-secondary">Conecte caixas IMAP/SMTP para que seu Toph possa ler, responder, enviar e limpar emails.</p>
         <Button size="small" leadingIcon={Plus} onClick={() => setAdding((value) => !value)} className="w-full justify-center sm:w-auto">{adding ? "Cancelar" : "Adicionar"}</Button>
       </div>
       {error ? <p className="rounded-xl bg-status-rose-background p-3 text-caption-1-regular text-status-rose-text">{error}</p> : null}
@@ -290,7 +290,7 @@ export default function EmailPanel() {
         <div className="flex flex-col items-center gap-2 rounded-2xl border border-border-button-white p-6 text-center">
           <Mail className="size-6 text-accent-500" />
           <strong className="text-body-medium text-text-primary">Nenhuma conta conectada</strong>
-          <p className="max-w-sm text-caption-1-regular text-text-secondary">Adicione uma conta IMAP/SMTP para liberar email para os Tophs.</p>
+          <p className="max-w-sm text-caption-1-regular text-text-secondary">Adicione uma conta IMAP/SMTP para liberar email para o Toph.</p>
         </div>
       ) : null}
       {accounts.map((account) => (

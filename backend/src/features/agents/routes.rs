@@ -41,6 +41,19 @@ pub(super) async fn agent_active_runs(
         state.agents.active_runs(auth.user.id, &project).await?
     )))
 }
+pub(super) async fn agent_pending_questions(
+    State(state): State<Arc<AppState>>,
+    Path(project): Path<String>,
+    Extension(auth): Extension<AuthContext>,
+) -> AppResult<Json<Value>> {
+    state.store.project(&project).await?;
+    Ok(Json(json!(
+        state
+            .agents
+            .pending_questions(auth.user.id, &project)
+            .await?
+    )))
+}
 pub(super) async fn cancel_agent(
     State(state): State<Arc<AppState>>,
     Path((project, run)): Path<(String, String)>,

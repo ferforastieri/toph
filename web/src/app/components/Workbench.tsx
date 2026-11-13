@@ -35,8 +35,10 @@ import { Modal } from "@/shared/boardui/base/modal/modal";
 import ResizeHandle from "../../shared/ui/resize";
 import { isMobileViewport, useIsMobile } from "../../shared/ui/useIsMobile";
 import { useConfirm } from "../../shared/ui/confirm";
+import { agentApi } from "../../features/agents/api";
+import { useAgentActivityBridge } from "../../features/agents/activity";
 import { useTophDrafts } from "../../features/agents/drafts";
-import { ensureToph } from "../../features/agents/default-toph";
+import { ensureSingleToph, ensureToph } from "../../features/agents/default-toph";
 import { cx } from "@/shared/boardui/utils/cx";
 import { suggestGitChanges } from "../../features/git/ai";
 import { parseGitStatus } from "../../features/git/status";
@@ -602,6 +604,8 @@ export default function Workbench() {
         const storedChats = layout.chats as ProjectChats | null | undefined;
         const migratingTophs = !storedChats || storedChats.version !== 5;
         loadChats(activeProjectId, storedChats);
+        const { removedIds } = ensureSingleToph(activeProjectId);
+        for (const id of removedIds) void agentApi.deleteToph(activeProjectId, id).catch(() => undefined);
         if (currentTopOnly || forceTophsOnLoad.current || migratingTophs) {
           forceTophsOnLoad.current = false;
           setSidebar("bots");
@@ -653,6 +657,7 @@ export default function Workbench() {
   useWorkspacePersistence(activeProjectId, loadedProject.current === activeProjectId, {
     tabs: layoutTabs, activeTabId, sidebar, terminalOpen,
   }, projectEpoch);
+  useAgentActivityBridge(openProjectIds);
 
   function switchProject(next: string) {
     if (next === activeProjectId) return;
@@ -1183,17 +1188,6 @@ export default function Workbench() {
         ) : null}
         {primarySidebar}
         {primaryResize}
-        {projectBar === "left" && projectRailCollapsed ? (
-          <div className="flex w-8 shrink-0 flex-col items-center pt-1">
-            <IconButton
-              icon={PanelLeftOpen}
-              size="small"
-              aria-label="Mostrar barra de projetos"
-              title="Mostrar barra de projetos"
-              onClick={() => setProjectRailCollapsed(false)}
-            />
-          </div>
-        ) : null}
 
         <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-1 overflow-hidden">
           <main className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-3xl border border-border-button-white bg-background-primary-default shadow-sidebar">

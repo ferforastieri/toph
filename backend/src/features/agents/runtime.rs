@@ -913,6 +913,12 @@ Se a mensagem depender de uma ferramenta ou MCP, prefira quem tem acesso a ele; 
         Ok(json!(self.inner.repo.active_runs(user, project).await?))
     }
 
+    pub async fn pending_questions(&self, user: i64, project: &str) -> AppResult<Value> {
+        Ok(json!(
+            self.inner.repo.pending_questions(user, project).await?
+        ))
+    }
+
     pub async fn cancel_project(
         &self,
         user: Option<i64>,
@@ -1254,6 +1260,19 @@ Se a mensagem depender de uma ferramenta ou MCP, prefira quem tem acesso a ele; 
             let system = Self::identity(&ctx.agent, &ctx.roster, &ctx.routed);
             let prompt = ctx.request.clone();
             let opencode_session = format!("ses_{}", ctx.run.session_id);
+            // One Toph per project and no per-Toph account picker anymore: an
+            // empty selection means every account configured in Settings → Email.
+            let email_accounts: Vec<String> = if ctx.agent.email_account_ids.is_empty() {
+                self.inner
+                    .tools
+                    .email
+                    .list()
+                    .await
+                    .map(|accounts| accounts.into_iter().map(|account| account.id).collect())
+                    .unwrap_or_default()
+            } else {
+                ctx.agent.email_account_ids.clone()
+            };
             let mut mcp_servers = self
                 .inner
                 .tools
@@ -1265,7 +1284,7 @@ Se a mensagem depender de uma ferramenta ou MCP, prefira quem tem acesso a ele; 
                 &ctx.project_id,
                 &ctx.root,
                 &ctx.agent.tools,
-                &ctx.agent.email_account_ids,
+                &email_accounts,
             ) {
                 mcp_servers.push(native);
             }

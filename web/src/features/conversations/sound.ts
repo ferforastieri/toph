@@ -56,3 +56,42 @@ export function playBotResponseSound(): void {
   }
   beep(audio);
 }
+
+function questionBeep(audio: AudioContext): void {
+  const start = audio.currentTime + 0.01;
+  const gain = audio.createGain();
+  gain.gain.setValueAtTime(0.0001, start);
+  gain.gain.exponentialRampToValueAtTime(0.09, start + 0.015);
+  gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.46);
+  gain.connect(audio.destination);
+
+  // Descending pair: clearly different from the rising completion chime.
+  const first = audio.createOscillator();
+  first.type = "triangle";
+  first.frequency.setValueAtTime(988, start);
+  first.frequency.exponentialRampToValueAtTime(740, start + 0.18);
+  first.connect(gain);
+  first.start(start);
+  first.stop(start + 0.22);
+
+  const second = audio.createOscillator();
+  second.type = "triangle";
+  second.frequency.setValueAtTime(740, start + 0.2);
+  second.frequency.exponentialRampToValueAtTime(587, start + 0.38);
+  second.connect(gain);
+  second.start(start + 0.2);
+  second.stop(start + 0.46);
+}
+
+/** Attention signal used when the Toph is waiting for an answer. */
+export function playQuestionSound(): void {
+  const audio = getContext();
+  if (!audio) return;
+  if (audio.state === "suspended") {
+    void audio.resume().then(() => {
+      if (audio.state === "running") questionBeep(audio);
+    }).catch(() => undefined);
+    return;
+  }
+  questionBeep(audio);
+}

@@ -1,11 +1,12 @@
 import { useMemo, useState, type ReactNode } from "react";
-import { Bell, Bot, Bug, Database, Files, GitBranch, Globe2, Moon, Plus, Search, Sun, TerminalSquare, X } from "@toph/icons";
+import { Bell, Bot, Bug, Database, Files, GitBranch, Globe2, MessageCircleQuestion, Moon, Plus, Search, Sun, TerminalSquare, X } from "@toph/icons";
 import BrandMark from "@toph/brand";
 import { useApp, type Sidebar } from "../store";
 import { featureEnabled, useSettings, type WorkspaceFeature } from "../../features/settings/store";
 import type { Project } from "../../shared/api";
 import ProjectSwitcher from "../../features/projects/components/ProjectSwitcher";
 import ProjectMonogram from "../../features/projects/components/ProjectMonogram";
+import { useProjectQuestion, useProjectRunning } from "../../features/agents/activity";
 import QuickOpen from "../../features/explorer/components/QuickOpen";
 import { Button } from "@/shared/boardui/base/buttons/button";
 import { Modal } from "@/shared/boardui/base/modal/modal";
@@ -141,6 +142,40 @@ function ProjectNotificationBell({ projectId, projectName, count, size = 13 }: {
   );
 }
 
+/** A pending ask_user takes the bell's place and opens its conversation. */
+function ProjectAlert({ projectId, projectName, unread, size = 13 }: { projectId: string; projectName: string; unread: number; size?: number }) {
+  const question = useProjectQuestion(projectId);
+  if (question) {
+    return (
+      <button
+        type="button"
+        onClick={(event) => {
+          event.stopPropagation();
+          window.dispatchEvent(new CustomEvent("toph:open-chat", { detail: { projectId, chatId: question.chatId } }));
+        }}
+        className="flex items-center justify-center rounded-full bg-accent-500 p-0.5 text-background-primary-default shadow-sm transition-transform hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus-ring"
+        aria-label={`Pergunta pendente em ${projectName} — abrir conversa`}
+        title="Pergunta pendente — clique para responder"
+      >
+        <MessageCircleQuestion size={size} />
+      </button>
+    );
+  }
+  return <ProjectNotificationBell projectId={projectId} projectName={projectName} count={unread} size={size} />;
+}
+
+/** Pulsing dot over a project icon while any of its agents is running. */
+function ProjectRunningDot({ projectId, className }: { projectId: string; className?: string }) {
+  const running = useProjectRunning(projectId);
+  if (!running) return null;
+  return (
+    <span className={cx("pointer-events-none absolute flex size-2.5", className)} title="Agente rodando" aria-label="Agente rodando">
+      <span className="absolute inline-flex size-full animate-ping rounded-full bg-status-lime-text opacity-50" />
+      <span className="relative inline-flex size-2.5 rounded-full border border-background-primary-default bg-status-lime-text" />
+    </span>
+  );
+}
+
 function ProjectPicker({ open, onClose, onSelect }: { open: boolean; onClose: () => void; onSelect: (projectId: string) => void }) {
   return (
     <Modal
@@ -231,11 +266,9 @@ export default function TopBar({ onOpenProject, onCloseProject, onGoHome, projec
                     : "border-transparent text-text-secondary hover:bg-background-primary-hover hover:text-text-primary",
                 )}
               >
-                {unread > 0 ? (
-                  <span className="absolute -start-0.5 -top-2 z-10">
-                    <ProjectNotificationBell projectId={project.id} projectName={project.name} count={unread} size={12} />
-                  </span>
-                ) : null}
+                <span className="absolute -start-0.5 -top-2 z-10">
+                  <ProjectAlert projectId={project.id} projectName={project.name} unread={unread} size={12} />
+                </span>
                 <button
                   type="button"
                   onClick={() => openProject(project.id)}
@@ -243,7 +276,10 @@ export default function TopBar({ onOpenProject, onCloseProject, onGoHome, projec
                   title={`${project.name}\n${project.root}`}
                   aria-current={active ? "page" : undefined}
                 >
-                  <ProjectMonogram project={project} size={20} />
+                  <span className="relative inline-flex shrink-0">
+                    <ProjectMonogram project={project} size={20} />
+                    <ProjectRunningDot projectId={project.id} className="-end-1 -bottom-1" />
+                  </span>
                   <span className="max-w-[160px] truncate">{project.name}</span>
                 </button>
                 <button
@@ -337,11 +373,9 @@ export function ProjectRail({ onOpenProject, onCloseProject, onGoHome, onQuickOp
                 onFocus={() => setHoveredProject(project.id)}
                 onBlur={() => setHoveredProject((current) => (current === project.id ? null : current))}
               >
-                {unread > 0 ? (
-                  <span className="absolute -end-1 -top-1 z-10">
-                    <ProjectNotificationBell projectId={project.id} projectName={project.name} count={unread} size={12} />
-                  </span>
-                ) : null}
+                <span className="absolute -end-1 -top-1 z-10">
+                  <ProjectAlert projectId={project.id} projectName={project.name} unread={unread} size={12} />
+                </span>
                 <button
                   type="button"
                   onClick={() => openProject(project.id)}
@@ -354,7 +388,10 @@ export function ProjectRail({ onOpenProject, onCloseProject, onGoHome, onQuickOp
                   aria-label={`Abrir ${project.name}`}
                   aria-current={active ? "page" : undefined}
                 >
-                  <ProjectMonogram project={project} size={30} />
+                  <span className="relative inline-flex shrink-0">
+                    <ProjectMonogram project={project} size={30} />
+                    <ProjectRunningDot projectId={project.id} className="-bottom-1 -end-1" />
+                  </span>
                 </button>
                 {hoveredProject === project.id ? (
                   <span className="pointer-events-none absolute start-full top-1/2 z-50 ms-1 -translate-y-1/2 rounded-xl border border-border-button-default bg-background-primary-default px-2.5 py-1.5 shadow-dropdown">

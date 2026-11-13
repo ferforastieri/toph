@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Bot, Database, FileCode2, FileDiff, Globe2, X } from "@toph/icons";
+import { Bot, Database, FileCode2, FileDiff, Globe2, LoaderCircle, X } from "@toph/icons";
 import { useApp, type Tab } from "../store";
 import { chatSessionTitle, chatTophs, useChats } from "../../features/conversations/store";
 import BotAvatar from "../../features/agents/components/BotAvatar";
 import { agentApi } from "../../features/agents/api";
+import { useChatRunning } from "../../features/agents/activity";
 import { useSettings } from "../../features/settings/store";
 import { useConfirm } from "../../shared/ui/confirm";
 import { IconButton } from "@/shared/boardui/base/buttons/icon-button";
@@ -29,6 +30,17 @@ function MenuItem({ label, disabled, onSelect }: { label: string; disabled?: boo
     >
       {label}
     </button>
+  );
+}
+
+/** Spinner shown on the tab whose chat has a run in flight. */
+function TabRunning({ projectId, chatId }: { projectId: string; chatId: string }) {
+  const running = useChatRunning(projectId, chatId);
+  if (!running) return null;
+  return (
+    <span className="shrink-0 text-accent-500" role="status" aria-label="Rodando" title="Rodando">
+      <LoaderCircle size={12} className="animate-spin" />
+    </span>
   );
 }
 
@@ -213,6 +225,7 @@ export default function Tabs() {
                 ? <FileIcon name={tab.path ?? tab.title} path={tab.path} size={14} />
                 : <Icon size={14} className="shrink-0" />}
               <span className="min-w-0 flex-1 truncate">{label}</span>
+              {tab.kind === "ai" && tab.chatId ? <TabRunning projectId={tab.projectId} chatId={tab.chatId} /> : null}
               {tab.kind === "ai" && tab.chatId && unreadChats.has(tab.chatId) ? (
                 <span className="size-1.5 shrink-0 rounded-full bg-status-amber-text" title="Resposta nova" aria-label="Resposta nova" />
               ) : null}

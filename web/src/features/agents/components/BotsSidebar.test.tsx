@@ -2,7 +2,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Project } from "../../../shared/api";
 import { useApp, type AppNotification } from "../../../app/store";
-import { agentApi } from "../api";
+import { useAgentActivity } from "../activity";
 import { useChats } from "../../conversations/store";
 import { DEFAULT_TOPH } from "../default-toph";
 import BotsSidebar from "./BotsSidebar";
@@ -44,9 +44,14 @@ beforeEach(() => {
     chatId: newer.id,
   };
   useApp.setState({ notifications: [notification] });
-  vi.spyOn(agentApi, "activeRuns").mockResolvedValue([
-    { id: "run-1", sessionId: "session-1", chatId: older.id, agentId: toph.id, state: "running", error: "", createdAt: Date.now() },
-  ]);
+  useAgentActivity.setState({
+    byProject: {
+      [project.id]: {
+        running: [older.id],
+        questions: [],
+      },
+    },
+  });
 });
 
 afterEach(() => {
@@ -55,11 +60,11 @@ afterEach(() => {
 });
 
 describe("BotsSidebar", () => {
-  it("lists every session, keeps the two actions in the header and no Toph config", async () => {
+  it("lists every session and keeps only the new-task action in the header", async () => {
     render(<BotsSidebar project={project} />);
 
-    expect(screen.getByRole("button", { name: "Abrir sessão" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Nova tarefa" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Abrir sessão" })).not.toBeInTheDocument();
     expect(screen.getByRole("list", { name: "Sessões" })).toBeInTheDocument();
     expect(screen.getByText("Ajustar o build")).toBeInTheDocument();
     expect(screen.getByText("Revisar login")).toBeInTheDocument();

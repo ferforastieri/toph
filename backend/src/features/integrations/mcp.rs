@@ -69,8 +69,12 @@ fn fold(value: &str) -> String {
 }
 
 fn is_selected(ids: &[String], server: &Server) -> bool {
-    ids.iter()
-        .any(|value| value == &server.id || fold(value) == fold(&server.name))
+    // There is one Toph per project now and no per-Toph MCP selection UI:
+    // every configured server is available unless a client sends an explicit list.
+    ids.is_empty()
+        || ids
+            .iter()
+            .any(|value| value == &server.id || fold(value) == fold(&server.name))
 }
 
 /// Picks one server from the Toph's allowed servers. Accepts the id, the exact
@@ -592,5 +596,11 @@ mod tests {
         assert!(is_selected(&["jira-id".into()], &jira));
         assert!(is_selected(&["Jira (Atlassian)".into()], &jira));
         assert!(!is_selected(&["stripe-id".into()], &jira));
+    }
+
+    #[test]
+    fn empty_selection_means_every_configured_server() {
+        let jira = server("jira-id", "Jira (Atlassian)");
+        assert!(is_selected(&[], &jira));
     }
 }

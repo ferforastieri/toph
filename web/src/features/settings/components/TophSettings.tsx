@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useState, type ComponentType, type FormEvent, type ReactNode } from "react";
-import { Bot, HardDrive, Info, LogOut, Mail, PlugZap, Settings2, Sparkles } from "@toph/icons";
+import { HardDrive, Info, LogOut, Mail, PlugZap, Settings2, Sparkles } from "@toph/icons";
 import { api, getApiBase, probeServer, setApiBase, type User } from "../../../shared/api";
 import { useApp } from "../../../app/store";
 import { useSettings, type WorkspaceFeature } from "../store";
@@ -7,14 +7,13 @@ const WorkspaceSettings = lazy(() => import("./WorkspaceSettings"));
 const EmailPanel = lazy(() => import("../../integrations/components/EmailPanel"));
 const SkillsPanel = lazy(() => import("../../skills/components/SkillsPanel"));
 const HarnessSettings = lazy(() => import("./HarnessSettings"));
-const TophConfigSettings = lazy(() => import("../../agents/components/TophConfigSettings"));
 import { Button } from "@/shared/boardui/base/buttons/button";
 import { Checkbox } from "@/shared/boardui/base/checkbox/checkbox";
 import { Input } from "@/shared/boardui/base/input/input";
 import { Modal } from "@/shared/boardui/base/modal/modal";
 import { cx } from "@/shared/boardui/utils/cx";
 
-type Section = "general" | "appearance" | "toph" | "skills" | "harness" | "email" | "workspace" | "about";
+type Section = "general" | "appearance" | "skills" | "harness" | "email" | "workspace" | "about";
 
 interface Props {
   user: User | null;
@@ -36,7 +35,6 @@ const sections: Array<{ label?: string; items: SectionItem[] }> = [
     { id: "appearance", label: "Layout e ferramentas", icon: Settings2 },
   ] },
   { label: "IA e ferramentas", items: [
-    { id: "toph", label: "Toph", icon: Bot },
     { id: "skills", label: "Skills", icon: Sparkles },
     { id: "harness", label: "Harness", icon: PlugZap },
     { id: "email", label: "Email", icon: Mail },
@@ -241,14 +239,12 @@ export default function TophSettings({ user, projectRoot, projectId, hideTrigger
                   <FeatureToggle label="Toph" checked disabled onChange={() => undefined} />
                 </SettingsGroup>
               </div>
-            ) : section === "toph" ? (
-              <><SettingsHeading title="Toph" description="Identidade, prompt, modelo e ferramentas do Toph deste projeto." /><div className="mt-5"><TophConfigSettings projectId={projectId} projectRoot={projectRoot} /></div></>
             ) : section === "skills" ? (
               <SkillsPanel projectId={projectId} />
             ) : section === "harness" ? (
               <HarnessSettings projectRoot={projectRoot} />
             ) : section === "email" ? (
-              <><SettingsHeading title="Email" description="Contas disponíveis para os Tophs agentes." /><div className="mt-5"><EmailPanel /></div></>
+              <><SettingsHeading title="Email" description="Contas disponíveis para o Toph." /><div className="mt-5"><EmailPanel /></div></>
             ) : section === "workspace" ? (
               <><SettingsHeading title="Workspace" description="Pastas acessíveis pelo Toph." /><div className="mt-5"><WorkspaceSettings /></div></>
             ) : (

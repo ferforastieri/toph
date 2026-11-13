@@ -1,5 +1,5 @@
 import { useEffect, useMemo, type ReactNode } from "react";
-import { Bot, MessageSquare, MessageSquarePlus, Plus } from "@toph/icons";
+import { Bot, MessageSquarePlus } from "@toph/icons";
 import type { Project } from "../../../shared/api";
 import { useChats } from "../../conversations/store";
 import { openChatTab } from "../../conversations/navigation";
@@ -58,15 +58,6 @@ export default function BotsSidebar({ project, headerControl, onSelectChat }: Pr
     if (created) openTask(created.id);
   }
 
-  function openSession() {
-    const latest = sessions[0]?.chat;
-    if (latest) {
-      openTask(latest.id);
-      return;
-    }
-    newTask();
-  }
-
   return (
     <div className="flex h-full min-h-0 flex-col bg-background-primary-default">
       <SidebarHeader
@@ -84,28 +75,16 @@ export default function BotsSidebar({ project, headerControl, onSelectChat }: Pr
           ) : undefined
         }
         actions={
-          <>
-            <Button
-              variant="ghost"
-              size="xs"
-              iconOnly
-              leadingIcon={MessageSquare}
-              aria-label="Abrir sessão"
-              title="Abrir a sessão mais recente"
-              disabled={!chats?.hydrated}
-              onClick={openSession}
-            />
-            <Button
-              variant="ghost"
-              size="xs"
-              iconOnly
-              leadingIcon={MessageSquarePlus}
-              aria-label="Nova tarefa"
-              title="Começar nova tarefa"
-              disabled={!chats?.hydrated}
-              onClick={newTask}
-            />
-          </>
+          <Button
+            variant="ghost"
+            size="xs"
+            iconOnly
+            leadingIcon={MessageSquarePlus}
+            aria-label="Nova tarefa"
+            title="Começar nova tarefa"
+            disabled={!chats?.hydrated}
+            onClick={newTask}
+          />
         }
       />
       <div className="min-h-0 flex-1 overflow-y-auto p-2.5 pt-1">
@@ -114,17 +93,6 @@ export default function BotsSidebar({ project, headerControl, onSelectChat }: Pr
             <span className="size-3 animate-spin rounded-full border-2 border-text-tertiary/30 border-t-text-tertiary" />
             Carregando...
           </div>
-        ) : null}
-        {chats?.hydrated && !toph ? (
-          <button
-            type="button"
-            onClick={newTask}
-            className="mt-1 flex w-full flex-col items-start gap-2 rounded-2xl border border-dashed border-border-button-default px-3 py-4 text-start transition-colors hover:bg-background-primary-hover"
-          >
-            <span className="flex size-9 items-center justify-center rounded-full bg-background-secondary-default text-accent-500"><Plus size={16} /></span>
-            <span className="text-caption-1-semibold text-text-primary">Criar o Toph</span>
-            <span className="text-caption-2-regular text-text-tertiary">Um Toph por projeto, conectado aos harnesses.</span>
-          </button>
         ) : null}
         {chats?.hydrated && toph && sessions.length === 0 ? (
           <button

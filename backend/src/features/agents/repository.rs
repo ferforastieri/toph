@@ -311,6 +311,22 @@ impl Repository {
         Ok(sqlx::query_as("SELECT id,session_id,parent_id,chat_id,agent_id,state,error,created_at,finished_at FROM agent_runs WHERE user_id=? AND project_id=? AND state IN ('queued','running','waiting') ORDER BY created_at DESC")
             .bind(user).bind(project).fetch_all(self.0.pool()).await?)
     }
+    /// ask_user calls that are still waiting, across every chat of the project.
+    pub async fn pending_questions(&self, user: i64, project: &str) -> AppResult<Vec<Value>> {
+        let rows = sqlx::query("SELECT t.id,r.chat_id,r.id AS run_id,r.agent_id FROM agent_tool_calls t JOIN agent_runs r ON r.id=t.run_id WHERE r.user_id=? AND r.project_id=? AND r.state IN ('queued','running','waiting') AND t.state='waiting' AND t.name='ask_user' ORDER BY t.created_at")
+            .bind(user).bind(project).fetch_all(self.0.pool()).await?;
+        Ok(rows
+            .into_iter()
+            .map(|r| {
+                json!({
+                    "id": r.get::<String,_>("id"),
+                    "chatId": r.get::<String,_>("chat_id"),
+                    "runId": r.get::<String,_>("run_id"),
+                    "agentId": r.get::<String,_>("agent_id"),
+                })
+            })
+            .collect())
+    }
     pub async fn create_run(
         &self,
         user: i64,

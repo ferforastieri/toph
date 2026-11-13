@@ -1,11 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { Check, ChevronDown } from "@toph/icons";
 import type { AIModel } from "../../../shared/api";
-import { modelDisplay, modelGroup, modelTitle, providerLabel } from "../store";
+import { modelGroup, providerLabel } from "../store";
 import ProviderIcon from "./ProviderIcon";
 import { cx } from "@/shared/boardui/utils/cx";
 import { Slider } from "@/shared/boardui/base/slider/slider";
-import ComposerMenu from "../../conversations/components/ComposerMenu";
 
 const EFFORT_LABEL: Record<string, string> = {
   minimal: "Mínimo",
@@ -159,56 +158,5 @@ export function ModelOptions({ models, model, onModelChange, effort, efforts, on
         );
       })}
     </>
-  );
-}
-
-interface Props {
-  models: AIModel[];
-  model: string;
-  onModelChange: (value: string) => void;
-  effort: string;
-  efforts: string[];
-  onEffortChange?: (value: string) => void;
-  fullWidth?: boolean;
-}
-
-export default function ModelPicker({ models, model, onModelChange, effort, efforts, onEffortChange, fullWidth = false }: Props) {
-  const [open, setOpen] = useState(false);
-  const uniqueModels = useMemo(() => [...new Map(models.map((item) => [item.id, item])).values()], [models]);
-  const selected = uniqueModels.find((item) => item.id === model);
-  const selectedInfo = selected ?? (model ? { id: model, label: model.split("/").pop() ?? model } : undefined);
-  const selectedProvider = selected ? modelGroup(selected) : modelGroup({ id: model, label: model.split("/").pop() ?? model });
-  const variants = selected?.variants?.length ? selected.variants : efforts;
-
-  return (
-    <ComposerMenu
-      label="Modelo e esforço"
-      isOpen={open}
-      onOpenChange={setOpen}
-      trigger={
-        <>
-          <ProviderIcon provider={selectedProvider} className="size-3.5 text-text-tertiary" />
-          <span className="truncate" title={modelTitle(selectedInfo)}>{modelDisplay(selectedInfo)}</span>
-          {variants.length > 0 ? <span className="shrink-0 text-caption-2-regular text-text-tertiary">· {effortLabel(effort)}</span> : null}
-          <ChevronDown size={12} className="size-3 shrink-0 text-text-tertiary" />
-        </>
-      }
-      triggerClassName={fullWidth ? "w-full max-w-none justify-start border border-border-button-default bg-background-primary-default" : "min-w-0 max-w-[340px] sm:min-w-[220px]"}
-      popoverClassName="w-[300px] max-w-[calc(100vw-24px)] p-0"
-      contentClassName="max-h-[min(56vh,420px)] overflow-y-auto p-1.5"
-    >
-      {() => (
-        <ModelOptions
-          models={models}
-          model={model}
-          onModelChange={onModelChange}
-          effort={effort}
-          efforts={efforts}
-          onEffortChange={onEffortChange}
-          inlineEffort={fullWidth}
-          onPicked={() => setOpen(false)}
-        />
-      )}
-    </ComposerMenu>
   );
 }
