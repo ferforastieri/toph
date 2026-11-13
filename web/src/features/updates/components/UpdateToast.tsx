@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api, ApiError, type UpdateInstaller, type UpdateStatus } from "../../../shared/api";
-import { Notification, NotificationViewport } from "@toph/ui/app";
+import { Icon } from "@toph/ui";
 import { ProgressBar } from "@toph/ui/app";
 import { isMobileViewport } from "../../../shared/ui/useIsMobile";
 
@@ -152,7 +152,6 @@ export default function UpdateToast() {
     };
   }, []);
 
-  const mobile = isMobile();
 
   async function update() {
     if (!status || phase === "updating") return;
@@ -229,31 +228,53 @@ export default function UpdateToast() {
   }
 
   const visible = status?.supported && status.available && dismissed.current !== status.latestVersion;
-  if (!visible && phase !== "updating" && phase !== "error") return null;
   const updating = phase === "updating";
   const failed = phase === "error";
+  // The Tophs toast stays for a moment, as every toast there does.
+  useEffect(() => {
+    if (!visible || !status || updating || failed) return;
+    const timer = window.setTimeout(() => {
+      dismissed.current = status.latestVersion;
+      setStatus(null);
+    }, 6000);
+    return () => window.clearTimeout(timer);
+  }, [visible, status, updating, failed]);
+  if (!visible && !updating && !failed) return null;
   return (
-    <NotificationViewport
-      position="bottom-center"
-      className="w-[min(300px,calc(100vw-var(--safe-left)-var(--safe-right)-24px))]"
-      style={mobile ? { bottom: "calc(0.75rem + var(--safe-bottom))" } : undefined}
-    >
-      <Notification
-        compact
-        title={updating ? "Atualizando Toph" : failed ? "Falha na atualização" : `Toph v${status?.latestVersion ?? ""} disponível`}
-        description={updating
-          ? <ProgressBar size="sm" isIndeterminate aria-label="Atualizando Toph" />
-          : failed && error
-            ? error
-            : undefined}
-        status={failed ? "error" : "information"}
-        autoDismissDuration={updating || failed ? undefined : 5000}
-        dismissible={!updating}
-        onDismiss={() => { if (status) dismissed.current = status.latestVersion; setPhase("idle"); setStatus(null); }}
+    <div className="ac-toasts" aria-live="polite">
+      <div
+        className={`ac-toast ac-toast--${failed ? "error" : updating ? "info" : "success"} cursor-pointer`}
+        role={failed ? "alert" : "status"}
         onClick={() => { if (!updating) void update(); }}
         aria-label={failed ? `Falha na atualização: ${error}` : "Clique para atualizar o Toph"}
-        className="cursor-pointer border-border-button-default bg-background-secondary-default shadow-dropdown"
-      />
-    </NotificationViewport>
+      >
+        <Icon name={failed ? "alert" : "download"} />
+        <span className="ac-toast__text">
+          <b className="ac-toast__title">
+            {updating ? "Atualizando Toph" : failed ? "Falha na atualização" : `Toph v${status?.latestVersion ?? ""} disponível`}
+          </b>
+          {updating ? (
+            <ProgressBar size="sm" isIndeterminate aria-label="Atualizando Toph" />
+          ) : failed && error ? (
+            <small className="ac-toast__detail">{error}</small>
+          ) : null}
+        </span>
+        {!updating ? (
+          <button
+            type="button"
+            className="ac-btn ac-btn--ghost ac-btn--sm ac-btn--icon ac-toast__close"
+            aria-label="Fechar"
+            onClick={(event) => {
+              event.stopPropagation();
+              if (status) dismissed.current = status.latestVersion;
+              setPhase("idle");
+              setStatus(null);
+            }}
+          >
+            <Icon name="close" size={16} />
+          </button>
+        ) : null}
+      </div>
+    </div>
   );
 }
