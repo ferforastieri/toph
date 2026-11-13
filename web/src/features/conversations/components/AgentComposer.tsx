@@ -178,7 +178,7 @@ export function AgentComposer({ value, onChange, onSend, onStop, busy, placehold
       <ComposerLoader active={busy} radius={20} surface={false}>
         <form
           onSubmit={(event) => { event.preventDefault(); event.stopPropagation(); submit(); }}
-          className="relative flex flex-col gap-0 overflow-hidden rounded-[20px] border border-border-button-default bg-background-primary-default shadow-sm transition-[border-color,box-shadow] duration-200 focus-within:border-border-button-hover focus-within:ring-4 focus-within:ring-accent-500/10"
+          className="ac-composer relative overflow-hidden"
           onKeyDownCapture={(event) => {
             if (event.target !== areaRef.current) return;
             if (mention && mentionItems.length > 0) {

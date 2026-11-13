@@ -81,3 +81,10 @@ html.theme-lamp-off body::after {
     transition: none;
   }
 }
+
+
+/* The composer's box keeps the room the app gave the words (the kit's own is tighter). */
+.ac-composer > * textarea,
+.ac-composer textarea {
+  padding: 13px 16px 4px;
+}
