@@ -990,9 +990,9 @@ export const api = {
   },
 
   async aiModels(): Promise<{ models: AIModel[] }> {
-    return request<{ models: AIModel[] }>("/ai/models");
+    // The installed harness is the source: its models and effort variants.
+    return request<{ models: AIModel[] }>("/ai/harness/models");
   },
-
 
 
   async saveAIConfig(input: AIConfigInput): Promise<AIConfig> {

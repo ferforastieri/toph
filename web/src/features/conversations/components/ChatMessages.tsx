@@ -144,10 +144,10 @@ function StreamedTranscript({ message, project, mobile }: { message: NativeMessa
 
 function UserMessage({ message }: { message: NativeMessage }) {
   return (
-    <article data-testid="chat-user-message" className="toph-msg-in flex min-w-0 justify-end py-1.5">
-      <p className="max-w-[min(78%,620px)] rounded-[18px] rounded-br-[6px] bg-background-tertiary-default px-3.5 py-2 text-[14px] leading-[1.65] whitespace-pre-wrap break-words text-text-primary">
-        {message.content}
-      </p>
+    <article data-testid="chat-user-message" className="ac-msg ac-msg--own ac-msg--enter">
+      <div className="ac-msg__body">
+        <div className="ac-msg__text whitespace-pre-wrap break-words">{message.content}</div>
+      </div>
     </article>
   );
 }
@@ -166,20 +166,24 @@ function AgentMessage({ message, toph, project, grouped, mobile }: {
     window.setTimeout(() => setCopied(false), 1500);
   }
   return (
-    <article data-testid="chat-agent-message" className="toph-msg-in group/msg flex min-w-0 gap-3 py-1.5">
-      <div className="w-[40px] shrink-0">{grouped ? null : <BotAvatar bot={toph} size={40} />}</div>
-      <div className="min-w-0 flex-1">
+    <article data-testid="chat-agent-message" className={cx("ac-msg ac-msg--enter group/msg", grouped && "ac-msg--grouped")}>
+      {grouped ? (
+        <div className="ac-msg__gutter" aria-hidden="true" />
+      ) : (
+        <div className="ac-msg__avatar"><BotAvatar bot={toph} size={40} /></div>
+      )}
+      <div className="ac-msg__body">
         {grouped ? null : (
-          <div className="mb-0.5 flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
-            <strong className="truncate text-[13.5px] font-semibold text-text-primary">{toph.name}</strong>
-            <span className="text-[11px] text-text-tertiary">{timeLabel(message.createdAt)}</span>
+          <div className="ac-msg__head">
+            <strong className="ac-msg__author truncate">{toph.name}</strong>
+            <span className="ac-msg__time">{timeLabel(message.createdAt)}</span>
             <Button
               variant="ghost"
               size="xs"
               iconOnly
+              className="ac-msg__aside size-5 text-text-tertiary opacity-0 transition-opacity group-hover/msg:opacity-100 focus-visible:opacity-100"
               aria-label={copied ? "Copiado" : "Copiar resposta"}
               title={copied ? "Copiado" : "Copiar resposta"}
-              className="size-5 text-text-tertiary opacity-0 transition-opacity group-hover/msg:opacity-100 focus-visible:opacity-100"
               onClick={copy}
             >
               <span className="relative inline-flex size-3.5 items-center justify-center" aria-hidden="true">
@@ -189,7 +193,7 @@ function AgentMessage({ message, toph, project, grouped, mobile }: {
             </Button>
           </div>
         )}
-        <div className="md min-w-0 [&_p:first-child]:mt-0 [&_pre:first-child]:mt-0 [&_ul:first-child]:mt-0 [&_ol:first-child]:mt-0 [&_p:last-child]:mb-0 [&_pre:last-child]:mb-0 [&_ul:last-child]:mb-0 [&_ol:last-child]:mb-0">
+        <div className="ac-msg__text md min-w-0">
           <StreamedTranscript message={message} project={project} mobile={mobile} />
         </div>
       </div>

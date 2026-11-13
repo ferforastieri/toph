@@ -199,6 +199,46 @@ async fn opencode_models(path: &Path) -> Option<(usize, Vec<String>)> {
     Some((models.len(), models.into_iter().take(12).collect()))
 }
 
+/// Every model the OpenCode CLI offers (`opencode models`), the only source the
+/// app lists from: the CLI is installed and logged in; no provider key passes here.
+pub async fn models() -> Value {
+    let Ok(engine) = engine("opencode") else {
+        return json!({ "models": [] });
+    };
+    let Some(path) = find_binary(engine.binary) else {
+        return json!({ "models": [] });
+    };
+    let Ok(Ok(output)) = tokio::time::timeout(
+        Duration::from_secs(30),
+        Command::new(&path).arg("models").output(),
+    )
+    .await
+    else {
+        return json!({ "models": [] });
+    };
+    if !output.status.success() {
+        return json!({ "models": [] });
+    }
+    let text = String::from_utf8_lossy(&output.stdout);
+    let models = text
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty() && line.contains('/'))
+        .map(|line| {
+            let mut parts = line.splitn(2, '/');
+            let provider = parts.next().unwrap_or("opencode");
+            let model = parts.next().unwrap_or(line);
+            json!({
+                "id": line,
+                "label": model,
+                "provider": provider,
+                "variants": [],
+            })
+        })
+        .collect::<Vec<_>>();
+    json!({ "models": models })
+}
+
 pub async fn test(id: &str) -> AppResult<Value> {
     let engine = engine(id)?;
     let Some(path) = find_binary(engine.binary) else {

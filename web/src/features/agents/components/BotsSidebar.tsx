@@ -1,4 +1,4 @@
-import { useEffect, useMemo, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Bot, MessageSquarePlus } from "@toph/icons";
 import type { Project } from "../../../shared/api";
 import { useChats } from "../../conversations/store";
@@ -11,7 +11,7 @@ import { useApp } from "../../../app/store";
 import { ensureToph } from "../default-toph";
 import { useActiveSessionIds } from "../useActiveSessionIds";
 import SessionRow from "../../conversations/components/SessionRow";
-import { agentApi } from "../api";
+import { agentApi, type HarnessSession } from "../api";
 import { useConfirm } from "../../../shared/ui/confirm";
 
 interface Props {
@@ -56,10 +56,48 @@ export default function BotsSidebar({ project, headerControl, onSelectChat }: Pr
 
   const toph = chats?.tophs[0] ?? null;
   const activeSessions = useActiveSessionIds(project.id);
-  const sessions = useMemo(
+  // The live harness sessions: the list shows what the installed CLI knows, not chats of our own.
+  const [harness, setHarness] = useState<HarnessSession[] | null>(null);
+  const sessionCount = chats?.chats.length ?? 0;
+  useEffect(() => {
+    let cancelled = false;
+    void agentApi
+      .harnessSessions(project.id)
+      .then((items) => {
+        if (!cancelled) setHarness(items);
+      })
+      .catch(() => {
+        if (!cancelled) setHarness(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [project.id, sessionCount, activeSessions]);
+  const allSessions = useMemo(
     () => projectSessions(chats, notifications, project.id, activeSessions),
     [activeSessions, chats, notifications, project.id],
   );
+  // Only the chats the harness actually opened: a new task appears once its first message runs.
+  const sessions = useMemo(() => {
+    if (!harness) return allSessions;
+    const byChat = new Map(allSessions.map((session) => [session.chat.id, session]));
+    const rows = harness.flatMap((item) => {
+      const base = byChat.get(item.chatId);
+      if (!base) return [];
+      return [{
+        ...base,
+        title: item.title || base.title,
+        activityAt: item.updatedAt || base.activityAt,
+      }];
+    });
+    // A task being born (no run yet) still shows while it is the one open.
+    const active = chats?.activeChatId;
+    if (active && !rows.some((row) => row.chat.id === active)) {
+      const base = allSessions.find((session) => session.chat.id === active);
+      if (base) rows.unshift(base);
+    }
+    return rows;
+  }, [allSessions, harness, chats?.activeChatId]);
 
   function openTask(chatId: string) {
     const current = useChats.getState().byProject[project.id];

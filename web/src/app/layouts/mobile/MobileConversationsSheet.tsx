@@ -1,8 +1,9 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { MessageSquarePlus } from "@toph/icons";
 import type { Project } from "../../../shared/api";
 import { useChats } from "../../../features/conversations/store";
 import { projectSessions } from "../../../features/conversations/sessions";
+import { agentApi, type HarnessSession } from "../../../features/agents/api";
 import { ensureChatSubjects } from "../../../features/conversations/subjects";
 import { ensureToph } from "../../../features/agents/default-toph";
 import { useActiveSessionIds } from "../../../features/agents/useActiveSessionIds";
@@ -25,10 +26,47 @@ export default function MobileConversationsSheet({ open, project, onClose, onSel
   const createConversation = useChats((state) => state.createConversation);
   const notifications = useApp((state) => state.notifications);
   const activeSessions = useActiveSessionIds(project.id);
-  const sessions = useMemo(
+  const allSessions = useMemo(
     () => projectSessions(chats, notifications, project.id, activeSessions),
     [activeSessions, chats, notifications, project.id],
   );
+  // The same rule as the desktop list: what the harness has opened.
+  const [harness, setHarness] = useState<HarnessSession[] | null>(null);
+  const sessionCount = chats?.chats.length ?? 0;
+  useEffect(() => {
+    let cancelled = false;
+    void agentApi
+      .harnessSessions(project.id)
+      .then((items) => {
+        if (!cancelled) setHarness(items);
+      })
+      .catch(() => {
+        if (!cancelled) setHarness(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [project.id, sessionCount, activeSessions]);
+  const sessions = useMemo(() => {
+    if (!harness) return allSessions;
+    const byChat = new Map(allSessions.map((session) => [session.chat.id, session]));
+    const rows = harness.flatMap((item) => {
+      const base = byChat.get(item.chatId);
+      if (!base) return [];
+      return [{
+        ...base,
+        title: item.title || base.title,
+        activityAt: item.updatedAt || base.activityAt,
+      }];
+    });
+    // A task being born (no run yet) still shows while it is the one open.
+    const active = chats?.activeChatId;
+    if (active && !rows.some((row) => row.chat.id === active)) {
+      const base = allSessions.find((session) => session.chat.id === active);
+      if (base) rows.unshift(base);
+    }
+    return rows;
+  }, [allSessions, harness, chats?.activeChatId]);
 
   useEffect(() => {
     ensure(project.id);

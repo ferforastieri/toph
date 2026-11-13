@@ -799,6 +799,7 @@ fn router(state: Arc<AppState>) -> Router {
         )
         .route("/api/ai/config", get(get_ai_config).put(save_ai_config))
         .route("/api/ai/models", get(ai_models))
+        .route("/api/ai/harness/models", get(harness_models))
         .route("/api/ai/test", post(test_ai))
         .route("/api/ai/chat", post(chat_ai))
         .route("/api/ai/complete", post(complete_ai))
@@ -909,6 +910,10 @@ fn router(state: Arc<AppState>) -> Router {
         .route(
             "/api/projects/{project_id}/agent/sessions",
             get(agent_sessions).post(switch_agent_session),
+        )
+        .route(
+            "/api/projects/{project_id}/agent/harness/sessions",
+            get(harness_sessions),
         )
         .route(
             "/api/projects/{project_id}/agent/chats/{chat_id}",

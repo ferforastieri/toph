@@ -308,6 +308,13 @@ impl Repository {
             .bind(user).bind(project).bind(&agent.chat_id).bind(&agent.id).fetch_one(self.0.pool()).await.map_err(Into::into)
     }
 
+    /// Every live harness session of the project, newest first: the app's
+    /// session list reads this, not a list of its own conversations.
+    pub async fn harness_sessions(&self, user: i64, project: &str) -> AppResult<Vec<Session>> {
+        Ok(sqlx::query_as("SELECT id,chat_id,agent_id,title,archived,created_at,updated_at FROM agent_sessions WHERE user_id=? AND project_id=? AND archived=0 ORDER BY updated_at DESC LIMIT 200")
+            .bind(user).bind(project).fetch_all(self.0.pool()).await?)
+    }
+
     pub async fn sessions(
         &self,
         user: i64,

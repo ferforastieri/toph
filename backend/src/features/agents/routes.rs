@@ -21,6 +21,16 @@ pub(super) async fn engine_limits(Path(id): Path<String>) -> AppResult<Json<Valu
     Ok(Json(crate::features::agents::engines::limits(&id).await?))
 }
 
+/// The models the installed harness itself lists, not the app's provider keys.
+pub(super) async fn harness_models() -> Json<Value> {
+    if let Some(models) = crate::features::agents::harness::models().await {
+        if !models.is_empty() {
+            return Json(json!({ "models": models }));
+        }
+    }
+    Json(crate::features::agents::engines::models().await)
+}
+
 pub(super) async fn start_agent(
     State(state): State<Arc<AppState>>,
     Path(project): Path<String>,
@@ -123,6 +133,56 @@ pub(super) struct SessionQuery {
     agent_id: String,
     chat_id: String,
 }
+pub(super) async fn harness_sessions(
+    State(state): State<Arc<AppState>>,
+    Path(project): Path<String>,
+    Extension(auth): Extension<AuthContext>,
+) -> AppResult<Json<Value>> {
+    let stored = state.store.project(&project).await?;
+    let sessions = state
+        .agents
+        .repository()
+        .harness_sessions(auth.user.id, &project)
+        .await?;
+    // The harness owns the titles and the last move of each session; its list
+    // is read once and joined by session id.
+    let titles = crate::features::agents::harness::session_titles()
+        .await
+        .unwrap_or_default();
+    let by_id: std::collections::HashMap<&str, &Value> = titles
+        .iter()
+        .filter_map(|item| item.get("id").and_then(Value::as_str).map(|id| (id, item)))
+        .collect();
+    let directory = stored.root.clone();
+    let rows = sessions
+        .into_iter()
+        .map(|session| {
+            let engine = by_id.get(session.id.as_str());
+            let title = engine
+                .and_then(|item| item.get("title"))
+                .and_then(Value::as_str)
+                .filter(|title| !title.trim().is_empty())
+                .unwrap_or(&session.title);
+            let updated = engine
+                .and_then(|item| item.get("updatedAt"))
+                .and_then(Value::as_i64)
+                .filter(|value| *value > 0)
+                .unwrap_or(session.updated_at);
+            json!({
+                "id": session.id,
+                "chatId": session.chat_id,
+                "agentId": session.agent_id,
+                "title": title,
+                "archived": session.archived,
+                "createdAt": session.created_at,
+                "updatedAt": updated,
+                "directory": directory,
+            })
+        })
+        .collect::<Vec<_>>();
+    Ok(Json(json!(rows)))
+}
+
 pub(super) async fn agent_sessions(
     State(state): State<Arc<AppState>>,
     Path(project): Path<String>,

@@ -20,6 +20,8 @@ export interface PendingQuestion {
 export interface NativeMessage extends ChatMessage { seq?: number; runId?: string; model?: string; agentMode?: "build" | "plan"; activity?: string; phase?: string }
 export interface AgentSnapshot { messages: NativeMessage[]; drafts: NativeMessage[]; runs: AgentRun[]; approvals: Approval[]; questions: AgentQuestionPrompt[]; hasMore: boolean; cursor: number | null }
 export interface AgentSearchResult { id: string; sessionId: string; chatId: string; agentId: string; role: "user" | "assistant"; text: string; createdAt: number }
+/** A live session of the installed harness (its own id), which the session list reads. */
+export interface HarnessSession { id: string; chatId: string; agentId: string; title: string; archived: boolean; createdAt: number; updatedAt: number }
 export interface TophUsage { agentId: string; inputTokens: number; outputTokens: number; cachedTokens: number; calls: number }
 export interface AgentUsage { inputTokens: number; outputTokens: number; cachedTokens: number; calls: number; byAgent?: TophUsage[] }
 export interface Connection { id: string; label: string; provider: string; baseUrl: string; model: string; hasKey: boolean }
@@ -90,6 +92,7 @@ export const agentApi = {
   searchMessages: (project: string, query: string) => request<AgentSearchResult[]>(`${root(project)}/search?q=${encodeURIComponent(query)}`),
   events: (project: string) => `${getApiBase()}/api${root(project)}/events`,
   switchSession: (project: string, agentId: string, sessionId: string | null, chatId: string) => request(`${root(project)}/sessions`, post({ agentId, sessionId, chatId })),
+  harnessSessions: (project: string) => request<HarnessSession[]>(`${root(project)}/harness/sessions`),
   deleteToph: (project: string, agentId: string) => request(`${root(project)}/tophs/${encodeURIComponent(agentId)}`, { method: "DELETE" }),
   approve: (project: string, call: string, approved: boolean) => request(`${root(project)}/approvals/${encodeURIComponent(call)}`, post({ approved })),
   answer: (project: string, call: string, answer: string) => request(`${root(project)}/approvals/${encodeURIComponent(call)}`, post({ answers: answer })),
