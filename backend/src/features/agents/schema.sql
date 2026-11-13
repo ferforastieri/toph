@@ -19,6 +19,13 @@ CREATE TABLE IF NOT EXISTS agent_runs (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS agent_run_active ON agent_runs(session_id) WHERE state IN ('queued','running','waiting');
 CREATE INDEX IF NOT EXISTS agent_runs_chat ON agent_runs(user_id,project_id,chat_id,created_at DESC);
+-- How many times an interrupted run was automatically resumed. Kept across
+-- restarts so a crash loop cannot relaunch the same turn forever.
+CREATE TABLE IF NOT EXISTS agent_run_recoveries (
+ run_id TEXT PRIMARY KEY REFERENCES agent_runs(id) ON DELETE CASCADE,
+ attempts INTEGER NOT NULL DEFAULT 0,
+ updated_at INTEGER NOT NULL
+);
 CREATE TABLE IF NOT EXISTS agent_messages (
  seq INTEGER PRIMARY KEY AUTOINCREMENT, id TEXT NOT NULL UNIQUE,
  session_id TEXT NOT NULL REFERENCES agent_sessions(id), run_id TEXT REFERENCES agent_runs(id),

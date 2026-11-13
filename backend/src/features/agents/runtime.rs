@@ -1,7 +1,7 @@
 use super::{
     activity, cli, event,
     models::*,
-    repository::Repository,
+    repository::{RecoveredRun, Repository},
     tools::{self, Tools},
 };
 use crate::{
@@ -18,13 +18,20 @@ use serde_json::{json, Value};
 use sqlx::Row;
 use std::{
     collections::HashMap,
-    sync::{Arc, Mutex, RwLock},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, Mutex, RwLock,
+    },
     time::{Duration, Instant},
 };
 use tokio::sync::{broadcast, oneshot};
 use tokio_util::sync::CancellationToken;
 
 type CompletionHandler = Arc<dyn Fn(CompletionNotice) + Send + Sync>;
+
+/// A turn stopped by a server restart is retried at most this many times, so a
+/// crash loop cannot relaunch the same side-effecting work forever.
+const MAX_AUTO_RESUMES: i64 = 5;
 
 /// Stops the per-run MCP endpoint when the run finishes, however it finishes.
 struct GatewayHandle(Option<tokio::task::JoinHandle<()>>);
@@ -78,6 +85,11 @@ struct Inner {
     drafts: Mutex<HashMap<String, Value>>,
     sessions: Mutex<super::session_manager::Sessions>,
     on_complete: RwLock<Option<CompletionHandler>>,
+    /// Active turns captured before `recover` marks them interrupted.
+    recovered: Mutex<Vec<RecoveredRun>>,
+    /// A graceful shutdown cancels tokens too, but those runs must stay active
+    /// in the database so the next process can resume them.
+    stopping: AtomicBool,
 }
 
 #[derive(Clone)]
@@ -194,7 +206,7 @@ impl Runtime {
     pub async fn new(store: Store, tools: Tools, workspace_events: EventHub) -> AppResult<Self> {
         let skills = super::skill_service::Service::new(store.clone());
         let repo = Repository(store);
-        repo.recover().await?;
+        let recovered = repo.recover().await?;
         repo.backfill_events().await?;
         let (events, _) = broadcast::channel(256);
         let runtime = Self {
@@ -210,6 +222,8 @@ impl Runtime {
                 drafts: Mutex::new(HashMap::new()),
                 sessions: Mutex::new(super::session_manager::Sessions::default()),
                 on_complete: RwLock::new(None),
+                recovered: Mutex::new(recovered),
+                stopping: AtomicBool::new(false),
             }),
         };
         // Profiles written before managed skills had a per-agent list of
@@ -296,7 +310,127 @@ impl Runtime {
         *self.inner.on_complete.write().unwrap() = Some(Arc::new(handler));
     }
 
+    /// Relaunches the turns captured before `recover` marked them interrupted.
+    /// Called once the completion handler is installed so the resumed answer
+    /// still reaches the user.
+    pub async fn resume_interrupted(&self) {
+        let pending = {
+            let mut recovered = self.inner.recovered.lock().unwrap();
+            std::mem::take(&mut *recovered)
+        };
+        for item in pending {
+            if item.attempts >= MAX_AUTO_RESUMES {
+                let _ = self
+                    .inner
+                    .repo
+                    .state(
+                        &item.run.id,
+                        "interrupted",
+                        "Server stopped during execution; automatic resume limit reached",
+                    )
+                    .await;
+                continue;
+            }
+            if item.prompt.trim().is_empty() {
+                continue;
+            }
+            let runtime = self.clone();
+            let run_id = item.run.id.clone();
+            tokio::spawn(async move {
+                if let Err(error) = runtime.resume_run(item).await {
+                    tracing::warn!(%error, "resume interrupted run");
+                    let _ = runtime
+                        .inner
+                        .repo
+                        .state(&run_id, "failed", &error.to_string())
+                        .await;
+                    let _ = runtime.inner.repo.clear_recovery(&run_id).await;
+                }
+            });
+        }
+    }
+
+    async fn resume_run(&self, item: RecoveredRun) -> AppResult<()> {
+        let agent: AgentSpec = serde_json::from_str(&item.config)
+            .map_err(|error| bad_request(format!("Invalid stored agent config: {error}")))?;
+        let project = self.inner.repo.0.project(&item.project_id).await?;
+        let root = self
+            .inner
+            .tools
+            .workspace
+            .validate_root(std::path::Path::new(&project.root))?;
+        let config = self.inner.ai.resolve(&agent.model).await?;
+        let skills = self
+            .inner
+            .skills
+            .for_agent(&item.project_id, &agent.id)
+            .await?;
+        let prompt = format!(
+            "O servidor foi reiniciado durante esta execução. Verifique o estado atual do projeto e continue a tarefa de onde parou. Não repita ações já concluídas.\n\nA mensagem original do usuário foi:\n{}\n\nSe o histórico da sessão já contém essa mensagem, não a trate como um novo pedido; apenas continue o trabalho.",
+            item.prompt.trim()
+        );
+        let run = Run {
+            state: "queued".into(),
+            error: String::new(),
+            finished_at: None,
+            ..item.run
+        };
+        let ctx = RunContext {
+            run,
+            user_id: item.user_id,
+            project_id: item.project_id,
+            root,
+            agent: agent.clone(),
+            roster: vec![agent.clone()],
+            skills,
+            chat_description: String::new(),
+            depth: 0,
+            secondary: false,
+            routed: vec![agent.id.clone()],
+            silent: false,
+            routing_reason: "retomada após reinício".into(),
+            request: prompt,
+        };
+        self.inner.repo.record_recovery(&ctx.run.id).await?;
+        self.inner.repo.requeue(&ctx.run.id, "").await?;
+        tracing::info!(run = %ctx.run.id, project = %ctx.project_id, "resuming interrupted run");
+        let token = CancellationToken::new();
+        self.inner
+            .runs
+            .lock()
+            .unwrap()
+            .insert(ctx.run.id.clone(), token.clone());
+        let _ = self.inner.repo.repair(&ctx).await;
+        let id = new_id();
+        let text = "Execução retomada automaticamente após o reinício do servidor.";
+        let display = json!({
+            "id": id,
+            "chatId": ctx.run.chat_id,
+            "tophId": ctx.agent.id,
+            "sessionId": ctx.run.session_id,
+            "runId": ctx.run.id,
+            "role": "system",
+            "content": text,
+            "status": "complete",
+            "createdAt": now(),
+        });
+        let _ = self
+            .inner
+            .repo
+            .message(
+                &ctx,
+                &id,
+                json!({"role": "system", "content": text}),
+                display,
+            )
+            .await;
+        let result = self.execute_cli(&ctx, &config, &token, &[]).await;
+        self.finish(&ctx, result, token.is_cancelled()).await;
+        Ok(())
+    }
+
     pub fn shutdown(&self) {
+        self.inner.stopping.store(true, Ordering::SeqCst);
         for token in self.inner.runs.lock().unwrap().values() {
             token.cancel();
         }
@@ -1066,6 +1200,12 @@ Se a mensagem depender de uma ferramenta ou MCP, prefira quem tem acesso a ele; 
     }
 
     async fn finish(&self, ctx: &RunContext, result: AppResult<String>, cancelled: bool) {
+        // A graceful shutdown cancels every token. Leave those runs active in
+        // the database so the next process can resume them instead of storing
+        // a user-visible cancellation.
+        if cancelled && self.inner.stopping.load(Ordering::SeqCst) {
+            return;
+        }
         let (state, error, answer) = match result {
             Ok(text) => ("completed", String::new(), text),
             Err(error) => (
@@ -1077,6 +1217,7 @@ Se a mensagem depender de uma ferramenta ou MCP, prefira quem tem acesso a ele; 
         if let Err(error) = self.inner.repo.state(&ctx.run.id, state, &error).await {
             tracing::error!(%error, "persist agent completion");
         }
+        let _ = self.inner.repo.clear_recovery(&ctx.run.id).await;
         if state != "completed" {
             let _=sqlx::query("UPDATE agent_runs SET state='interrupted',error='Parent execution ended',finished_at=? WHERE parent_id=? AND state IN ('queued','running','waiting')").bind(now()).bind(&ctx.run.id).execute(self.inner.repo.0.pool()).await;
         }

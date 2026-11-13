@@ -611,6 +611,9 @@ pub async fn start_embedded(config: Config) -> AppResult<EmbeddedServer> {
     let listener = TcpListener::bind(&addr).await?;
     let addr = listener.local_addr()?;
     let app = router(state.clone());
+    // Only relaunch in-flight turns once the port is ours; a failed bind must
+    // not consume a recovery attempt.
+    state.agents.resume_interrupted().await;
     let (shutdown, receiver) = oneshot::channel();
     let task = tokio::spawn(async move {
         let server = axum::serve(
@@ -640,6 +643,9 @@ pub async fn serve(config: Config) -> AppResult<()> {
     let state = AppState::build(config).await?;
     let listener = TcpListener::bind(&addr).await?;
     tracing::info!(%addr, data = %state.config.data_dir.display(), "toph listening");
+    // Relaunch turns that a previous process left in flight before accepting
+    // new requests.
+    state.agents.resume_interrupted().await;
     let server = axum::serve(
         listener,
         router(state.clone()).into_make_service_with_connect_info::<SocketAddr>(),

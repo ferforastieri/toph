@@ -7,6 +7,18 @@ use crate::{
 use serde_json::{json, Value};
 use sqlx::Row;
 
+#[derive(Clone, Debug)]
+pub struct RecoveredRun {
+    pub run: Run,
+    pub user_id: i64,
+    pub project_id: String,
+    pub config: String,
+    /// The visible user message that started the turn, used to rebuild a
+    /// continuation prompt when the harness has no live session anymore.
+    pub prompt: String,
+    pub attempts: i64,
+}
+
 #[derive(Clone)]
 pub struct Repository(pub Store);
 
@@ -201,11 +213,66 @@ impl Repository {
         tx.commit().await?;
         Ok(())
     }
-    pub async fn recover(&self) -> AppResult<()> {
+    pub async fn recover(&self) -> AppResult<Vec<RecoveredRun>> {
+        let rows = sqlx::query(
+            "SELECT r.id,r.session_id,r.parent_id,r.chat_id,r.agent_id,r.state,r.error,r.created_at,r.finished_at,r.user_id,r.project_id,r.config,COALESCE((SELECT m.content_text FROM agent_messages m WHERE m.run_id=r.id AND m.role='user' ORDER BY m.seq LIMIT 1),'') AS prompt,COALESCE((SELECT attempts FROM agent_run_recoveries WHERE run_id=r.id),0) AS attempts FROM agent_runs r WHERE r.state IN ('queued','running','waiting') AND r.parent_id IS NULL ORDER BY r.created_at",
+        )
+        .fetch_all(self.0.pool())
+        .await?;
+        let recovered = rows
+            .into_iter()
+            .map(|row| RecoveredRun {
+                run: Run {
+                    id: row.get("id"),
+                    session_id: row.get("session_id"),
+                    parent_id: row.get("parent_id"),
+                    chat_id: row.get("chat_id"),
+                    agent_id: row.get("agent_id"),
+                    state: row.get("state"),
+                    error: row.get("error"),
+                    created_at: row.get("created_at"),
+                    finished_at: row.get("finished_at"),
+                },
+                user_id: row.get("user_id"),
+                project_id: row.get("project_id"),
+                config: row.get("config"),
+                prompt: row.get("prompt"),
+                attempts: row.get("attempts"),
+            })
+            .collect();
         sqlx::query("UPDATE agent_runs SET state='interrupted',error='Server stopped during execution; inspect tool effects before retrying',finished_at=? WHERE state IN ('queued','running','waiting')")
             .bind(now()).execute(self.0.pool()).await?;
         sqlx::query("UPDATE agent_tool_calls SET state='interrupted' WHERE state IN ('running','waiting','pending')").execute(self.0.pool()).await?;
         sqlx::query("UPDATE agent_model_calls SET finish='interrupted' WHERE finish='pending'")
+            .execute(self.0.pool())
+            .await?;
+        Ok(recovered)
+    }
+
+    /// Counts one automatic resume for a run, persisting across restarts.
+    pub async fn record_recovery(&self, run_id: &str) -> AppResult<()> {
+        sqlx::query("INSERT INTO agent_run_recoveries(run_id,attempts,updated_at) VALUES(?,1,?) ON CONFLICT(run_id) DO UPDATE SET attempts=attempts+1,updated_at=excluded.updated_at")
+            .bind(run_id)
+            .bind(now())
+            .execute(self.0.pool())
+            .await?;
+        Ok(())
+    }
+
+    /// Forgets the recovery counter once a run really ends.
+    pub async fn clear_recovery(&self, run_id: &str) -> AppResult<()> {
+        sqlx::query("DELETE FROM agent_run_recoveries WHERE run_id=?")
+            .bind(run_id)
+            .execute(self.0.pool())
+            .await?;
+        Ok(())
+    }
+
+    /// Puts an interrupted run back in flight without touching its transcript.
+    pub async fn requeue(&self, run_id: &str, error: &str) -> AppResult<()> {
+        sqlx::query("UPDATE agent_runs SET state='queued',error=?,finished_at=NULL WHERE id=?")
+            .bind(error)
+            .bind(run_id)
             .execute(self.0.pool())
             .await?;
         Ok(())
