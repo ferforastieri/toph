@@ -1,22 +1,23 @@
 "use client";
 
-import type { HTMLAttributes } from "react";
+import { type HTMLAttributes, useEffect, useRef, useState } from "react";
 import type { Expression } from "../agent/engine.js";
 import { cx } from "../cx";
-import { Icon } from "../icons/Icon";
 import { initialsOf } from "../names";
 import { recipeOfUrl } from "../person/engine.js";
 import { canDrawPortraits, PersonPortrait } from "../person/PersonPortrait";
 import { type AgentAppearance, appearanceStyle } from "./AgentLook";
+import { tophCharacterOf } from "./toph";
 import { type BadgePresence, PresenceBadge } from "./PresenceBadge";
 
 export type AvatarKind = "person" | "agent";
 
 /**
- * What the agent is doing: `thinking` and `writing` add the working halo,
- * `waiting` waits on a person, `sleeping` marks a paused agent. The mark
- * itself stays the same; the state is read from the tile's ring and the
- * words next to it.
+ * The agent symbol's state: `idle` blinks now and then, `thinking` looks
+ * around (with a halo), `writing` has dash eyes (with a halo), `waiting`
+ * looks up at you (waiting on a person's decision, no halo). The halo shows
+ * only without the tile (`xs`, `xl`): in a tile the moving face says it. `sleeping` has closed eyes and a pixel zz
+ * (paused until its plan or budget is back, no halo).
  */
 export type AgentState = "idle" | "thinking" | "writing" | "waiting" | "sleeping";
 
@@ -48,30 +49,57 @@ export interface AvatarProps extends HTMLAttributes<HTMLSpanElement> {
   /** Agents only: plays the face started by `playAgentReaction(reactionKey, …)` (a message id). */
   reactionKey?: string;
   /**
-   * The tile: a rounded square with a hairline. On by default; off for the
-   * 18px receipts (`xs`) and the 112px hero (`xl`).
+   * The tile: a rounded square with a hairline, the
+   * agent standing in its own pixel sky. On by default; off for the 18px
+   * receipts (`xs`) and the 112px hero (`xl`), where the agent stands on the
+   * page's own sky.
    */
   framed?: boolean;
 }
 
 /**
- * The agent's mark: a flat tile in its colour with the agent glyph. No
- * character art and no assets to ship: the same component for every agent,
- * told apart by `appearance.color`.
+ * The agent itself: one of the Toph characters, a still PNG in `/tophs/` whose eyes follow the pointer
+ * (the `-eyes` layer moves a couple of pixels towards it), as the drawn agents used to.
  */
-function AgentMark() {
+function AgentBody({ appearance, name }: { appearance: AgentAppearance | undefined; name: string; state: AgentState; expression: Expression | undefined; reactionKey?: string; framed: boolean }) {
+  const id = tophCharacterOf(name, appearance?.color);
+  const face = useRef<HTMLSpanElement>(null);
+  const [look, setLook] = useState({ x: 0, y: 0 });
+  useEffect(() => {
+    const move = (event: PointerEvent) => {
+      const box = face.current?.getBoundingClientRect();
+      if (!box || box.width === 0) return;
+      const dx = (event.clientX - (box.left + box.width / 2)) / (box.width / 2);
+      const dy = (event.clientY - (box.top + box.height / 2)) / (box.height / 2);
+      setLook({ x: Math.max(-1, Math.min(1, dx)), y: Math.max(-1, Math.min(1, dy)) });
+    };
+    window.addEventListener("pointermove", move, { passive: true });
+    return () => window.removeEventListener("pointermove", move);
+  }, []);
   return (
-    <span className="ac-avatar__agentmark" aria-hidden="true">
-      <Icon name="agent" size={20} />
+    <span ref={face} className="ac-toph">
+      <img className="ac-avatar__toph" src={`/tophs/${id}-eyeless.png`} alt="" draggable={false} width={64} height={64} />
+      <img
+        className="ac-toph__eyes"
+        src={`/tophs/${id}-eyes.png`}
+        alt=""
+        draggable={false}
+        width={64}
+        height={64}
+        style={{ transform: `translate(${look.x * 2.4}px, ${look.y * 2.4}px)` }}
+      />
     </span>
   );
 }
 
 /**
  * One tile for everyone: a rounded square (radius 30% of the side) with a
- * hairline and a faint top highlight. People show their photo, their drawn
- * portrait or initials; agents show their glyph on a tile tinted by
- * `appearance.color`, with an optional presence badge on the corner.
+ * hairline and a faint top highlight. People show their photo, their pixel
+ * portrait or initials in it, with an optional presence badge on the corner. Agents are the living
+ * symbol from the agent engine standing in their own pixel sky: the dithered
+ * body with the cut corner, white eyes and a pixel accessory, turning its
+ * head, blinking and now and then making a face (see `state` and
+ * `expression`). Unframed (`xs`, `xl`), the agent stands on its own.
  */
 export function Avatar({
   kind = "person",
@@ -120,7 +148,14 @@ export function Avatar({
       {...rest}
     >
       {agent ? (
-        <AgentMark />
+        <AgentBody
+          appearance={appearance}
+          state={mood}
+          expression={expression}
+          name={name}
+          reactionKey={reactionKey}
+          framed={tile}
+        />
       ) : portrait ? (
         <PersonPortrait recipe={portrait} />
       ) : imageUrl ? (

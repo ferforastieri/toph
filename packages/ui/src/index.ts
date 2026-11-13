@@ -1,5 +1,5 @@
 /**
- * faang-ui — the Faang design system in React.
+ * @toph/ui — the Toph design system in React.
  * Visuals come from `styles.css` (tokens + `ac-*` classes, ported from
  * docs/design); keyboard, focus and screen-reader mechanics from Radix
  * primitives. Components take every user-facing string as a prop: the app
@@ -257,9 +257,6 @@ export {
 } from "./components/PixelMarks";
 export { glowOptions, PixelSky, SkyGlow } from "./components/PixelSky";
 export {
-  ORBIT_RING,
-  ORBIT_STEP_MS,
-  orbitShades,
   PixelSpinner,
   type PixelSpinnerProps,
   type PixelSpinnerSize,
@@ -549,7 +546,7 @@ export { Announcement, type AnnouncementTone } from "./components/Announcement";
 export { Breadcrumb, type Crumb } from "./components/Breadcrumb";
 export { ButtonGroup } from "./components/ButtonGroup";
 export { AreaChart, BarChart, type ChartDatum } from "./components/Charts";
-export { CheckboxCard, SwitchCard } from "./components/Checkbox";
+export { SwitchCard } from "./components/Checkbox";
 export { CloseButton } from "./components/CloseButton";
 export { ComposerLoader } from "./components/ComposerLoader";
 export { DataGrid, type GridColumn, type GridRow } from "./components/DataGrid";

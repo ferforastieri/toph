@@ -1,5 +1,5 @@
 /**
- * faang-ui tokens: the design system's values for platforms without CSS
+ * @tophs/tokens: the design system's values for platforms without CSS
  * (the phone app). `docs/design/design-system/tokens.css` is the source of
  * truth; a test keeps these equal to it. Names are the CSS custom properties
  * in camelCase (`--line2` → `line2`, `--raised-2` → `raised2`).
@@ -67,10 +67,10 @@ export const light: ThemeColors = {
   muted: "#5c5c58",
   faint: "#6f6f6a",
   focusColor: "#82827d",
-  agent: "#ef0c0c",
-  agent2: "#fd5747",
-  agentSoft: "#fef3f1",
-  onAgent: "#ffffff",
+  agent: "#ffb547",
+  agent2: "#ffc45c",
+  agentSoft: "#fff8eb",
+  onAgent: "#1c1204",
   ok: "#1f7a45",
   warn: "#9a5b00",
   warnSoft: "#fbeed5",
@@ -84,8 +84,8 @@ export const light: ThemeColors = {
   surfaceRaised: "#ffffff",
   surfaceSunken: "#f3f3f0",
   inkMuted: "#5c5c58",
-  action: "#151514",
-  onAction: "#fbfbfa",
+  action: "#ffb547",
+  onAction: "#1c1204",
   attention: "#9a5b00",
   onAttention: "#ffffff",
   attentionSoft: "#fbeed5",
@@ -109,10 +109,10 @@ export const dark: ThemeColors = {
   muted: "#a3a39e",
   faint: "#8f8f89",
   focusColor: "#71716c",
-  agent: "#fd5747",
-  agent2: "#ffa091",
-  agentSoft: "#2a0b08",
-  onAgent: "#2a0503",
+  agent: "#ffb547",
+  agent2: "#ffd08a",
+  agentSoft: "#3a2a0b",
+  onAgent: "#1c1204",
   ok: "#5fc48a",
   warn: "#e0a84a",
   warnSoft: "#33260e",
@@ -126,8 +126,8 @@ export const dark: ThemeColors = {
   surfaceRaised: "#1c1c1b",
   surfaceSunken: "#0a0a09",
   inkMuted: "#a3a39e",
-  action: "#efefec",
-  onAction: "#0f0f0e",
+  action: "#ffb547",
+  onAction: "#1c1204",
   attention: "#e0a84a",
   onAttention: "#2a1c00",
   attentionSoft: "#33260e",
