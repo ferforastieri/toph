@@ -1,27 +1,22 @@
-# faang-ui
+# @toph/ui
 
-A design system for agent interfaces: conversation, tools, approvals, tokens
-and pixel portraits — React with plain CSS, no Tailwind, no style runtime.
-
-```bash
-npm i faang-ui
-```
+The Toph design system: conversation, tools, approvals, tokens and pixel
+portraits — React with plain CSS, no Tailwind, no style runtime.
 
 ```tsx
-// next.config.ts — the package ships TypeScript source
-transpilePackages: ["faang-ui"]
+// once
+import "@toph/ui/styles.css";
 
-// app/layout.tsx — once
-import "faang-ui/styles.css";
+// the app-facing controls
+import { Button, Input, Table } from "@toph/ui/app";
 
-// anywhere
-import { Button } from "faang-ui/components/Button";
+// the kit itself
+import { Avatar, Sidebar } from "@toph/ui";
 ```
 
 - Two themes through `data-theme="light|dark"` on `<html>`.
 - Semantic tokens for every color, radius and spacing (`src/styles/tokens.css`).
 - Interactive controls built on Radix (focus, keyboard, screen readers).
-- One export per file: `faang-ui/components/*`, `faang-ui/agent/*`,
-  `faang-ui/sky/*`, `faang-ui/tokens/*`, `faang-ui/icons/*`.
+- `@toph/ui/app` keeps the Toph screens' shapes over the shared kit.
 
 MIT.

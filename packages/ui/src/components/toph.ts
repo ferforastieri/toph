@@ -1,0 +1,62 @@
+/** The 51 Toph characters that stand for agents, by file name in `/tophs/`. */
+export const TOPH_CHARACTERS = [
+  "toph-01",
+  "toph-02",
+  "toph-03",
+  "toph-04",
+  "toph-05",
+  "toph-06",
+  "toph-07",
+  "toph-08",
+  "toph-09",
+  "toph-10",
+  "toph-11",
+  "toph-12",
+  "toph-13",
+  "toph-14",
+  "toph-15",
+  "toph-16",
+  "toph-17",
+  "toph-18",
+  "toph-19",
+  "toph-20",
+  "toph-21",
+  "toph-22",
+  "toph-23",
+  "toph-24",
+  "toph-25",
+  "toph-26",
+  "toph-27",
+  "toph-28",
+  "toph-29",
+  "toph-30",
+  "toph-bloom",
+  "toph-comet",
+  "toph-core",
+  "toph-cube",
+  "toph-echo",
+  "toph-forge",
+  "toph-grove",
+  "toph-kite",
+  "toph-luna",
+  "toph-mochi",
+  "toph-nimbus",
+  "toph-nova",
+  "toph-orbit",
+  "toph-peak",
+  "toph-pebble",
+  "toph-portal",
+  "toph-prism",
+  "toph-pulse",
+  "toph-spark",
+  "toph-tide",
+  "toph-logo",
+] as const;
+
+/** One Toph per agent, steady: the name (and the look's color) pick it, so a new look may change the face. */
+export function tophCharacterOf(name: string, color?: string): string {
+  let h = 0;
+  const key = `${name}:${color ?? ""}`;
+  for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) | 0;
+  return TOPH_CHARACTERS[Math.abs(h) % TOPH_CHARACTERS.length] as string;
+}

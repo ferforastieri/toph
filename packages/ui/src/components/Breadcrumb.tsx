@@ -1,3 +1,5 @@
+"use client";
+
 import type { ReactNode } from "react";
 import { cx } from "../cx";
 import { Icon } from "../icons/Icon";
