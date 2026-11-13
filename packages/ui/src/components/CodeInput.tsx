@@ -1,3 +1,5 @@
+"use client";
+
 import { type ClipboardEvent, type KeyboardEvent, useRef } from "react";
 import { cx } from "../cx";
 

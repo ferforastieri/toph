@@ -1,3 +1,5 @@
+"use client";
+
 import { type ReactNode, useId, useState } from "react";
 import { cx } from "../cx";
 import { Spinner } from "./Skeleton";

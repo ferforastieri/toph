@@ -1,3 +1,5 @@
+"use client";
+
 import { RadioGroup as RRadioGroup } from "radix-ui";
 import { Fragment, type ReactNode } from "react";
 import { cx } from "../cx";

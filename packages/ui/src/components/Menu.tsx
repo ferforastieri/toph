@@ -1,3 +1,5 @@
+"use client";
+
 import { DropdownMenu } from "radix-ui";
 import { type ReactNode, useEffect, useState } from "react";
 import { cx } from "../cx";

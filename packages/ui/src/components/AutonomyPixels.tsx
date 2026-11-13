@@ -1,3 +1,5 @@
+"use client";
+
 import { bodyTones, drawAgent, idlePose, mixHex, type Pose } from "../agent/engine.js";
 import { cx } from "../cx";
 import type { AgentColor, AgentEyes } from "./AgentLook";

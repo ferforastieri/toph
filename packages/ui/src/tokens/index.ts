@@ -1,5 +1,5 @@
 /**
- * @tophs/tokens: the design system's values for platforms without CSS
+ * faang-ui tokens: the design system's values for platforms without CSS
  * (the phone app). `docs/design/design-system/tokens.css` is the source of
  * truth; a test keeps these equal to it. Names are the CSS custom properties
  * in camelCase (`--line2` → `line2`, `--raised-2` → `raised2`).
@@ -67,9 +67,9 @@ export const light: ThemeColors = {
   muted: "#5c5c58",
   faint: "#6f6f6a",
   focusColor: "#82827d",
-  agent: "#0063d1",
-  agent2: "#3d8bff",
-  agentSoft: "#e3eefd",
+  agent: "#ef0c0c",
+  agent2: "#fd5747",
+  agentSoft: "#fef3f1",
   onAgent: "#ffffff",
   ok: "#1f7a45",
   warn: "#9a5b00",
@@ -109,10 +109,10 @@ export const dark: ThemeColors = {
   muted: "#a3a39e",
   faint: "#8f8f89",
   focusColor: "#71716c",
-  agent: "#5aa8ff",
-  agent2: "#8cc3ff",
-  agentSoft: "#11253f",
-  onAgent: "#00203f",
+  agent: "#fd5747",
+  agent2: "#ffa091",
+  agentSoft: "#2a0b08",
+  onAgent: "#2a0503",
   ok: "#5fc48a",
   warn: "#e0a84a",
   warnSoft: "#33260e",

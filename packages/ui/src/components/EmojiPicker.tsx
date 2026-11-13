@@ -1,3 +1,5 @@
+"use client";
+
 import { Popover as RPopover, Tabs as RTabs } from "radix-ui";
 import { type KeyboardEvent, type ReactNode, useEffect, useId, useMemo, useRef, useState } from "react";
 import { cx } from "../cx";

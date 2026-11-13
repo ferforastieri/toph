@@ -1,3 +1,5 @@
+"use client";
+
 import { type KeyboardEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import type { StickerMood } from "../agent/stickers";
 import { cx } from "../cx";

@@ -1,3 +1,5 @@
+"use client";
+
 import { type CSSProperties, useEffect, useState } from "react";
 import { cx } from "../cx";
 

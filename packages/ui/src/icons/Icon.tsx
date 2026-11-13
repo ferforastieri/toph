@@ -1,3 +1,5 @@
+"use client";
+
 import { type CSSProperties, createElement, type SVGProps } from "react";
 import { PixelSpinner } from "../components/PixelSpinner";
 import { cx } from "../cx";

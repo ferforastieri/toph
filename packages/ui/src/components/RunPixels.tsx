@@ -1,3 +1,5 @@
+"use client";
+
 import { useEffect, useRef } from "react";
 import { AGENT_GRADIENTS, bodyTones, gradientOf, mixHex, spriteGrid } from "../agent/engine.js";
 import { cx } from "../cx";

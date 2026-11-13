@@ -1,3 +1,5 @@
+"use client";
+
 import { type CSSProperties, type ReactNode, useEffect, useState } from "react";
 import { cx } from "../cx";
 import { PixelSpinner } from "./PixelSpinner";

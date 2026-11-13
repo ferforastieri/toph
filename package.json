@@ -9,8 +9,7 @@
     "mobile",
     "packages/brand",
     "packages/ui",
-    "packages/icons",
-    "packages/tokens"
+    "packages/icons"
   ],
   "scripts": {
     "dev:web": "npm run dev --workspace @toph/web",

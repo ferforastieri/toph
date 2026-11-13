@@ -1,3 +1,5 @@
+"use client";
+
 import { type RefObject, useEffect, useState } from "react";
 import { Button } from "./Button";
 

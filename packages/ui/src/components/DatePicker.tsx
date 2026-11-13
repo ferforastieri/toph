@@ -1,3 +1,5 @@
+"use client";
+
 import { appLocale, localeInfo } from "../i18n/locale";
 import { Popover as RPopover } from "radix-ui";
 import { type KeyboardEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";

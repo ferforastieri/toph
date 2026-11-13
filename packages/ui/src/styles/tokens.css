@@ -22,9 +22,9 @@
   --ink2: #2a2a28;
   --muted: #5c5c58;
   --faint: #6f6f6a;
-  --agent: #0063d1;
-  --agent2: #3d8bff;
-  --agent-soft: #e3eefd;
+  --agent: #ef0c0c;
+  --agent2: #fd5747;
+  --agent-soft: #fef3f1;
   --on-agent: #ffffff;
   --ok: #1f7a45;
   --warn: #9a5b00;
@@ -62,10 +62,10 @@
   --ink2: #d6d6d2;
   --muted: #a3a39e;
   --faint: #8f8f89;
-  --agent: #5aa8ff;
-  --agent2: #8cc3ff;
-  --agent-soft: #11253f;
-  --on-agent: #00203f;
+  --agent: #fd5747;
+  --agent2: #ffa091;
+  --agent-soft: #2a0b08;
+  --on-agent: #2a0503;
   --ok: #5fc48a;
   --warn: #e0a84a;
   --warn-soft: #33260e;

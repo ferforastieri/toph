@@ -1,3 +1,5 @@
+"use client";
+
 import { useEffect, useRef, useState } from "react";
 import { bodyTones, drawAgent, idlePose, mixHex } from "../agent/engine.js";
 import { cx } from "../cx";

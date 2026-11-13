@@ -1,4 +1,4 @@
-import { AGENT_ACCESSORIES, AGENT_COLORS, AGENT_EYES, type AgentAppearance, type AgentColor } from "@toph/tokens/look";
+import { AGENT_ACCESSORIES, AGENT_COLORS, AGENT_EYES, type AgentAppearance, type AgentColor } from "../tokens/look";
 import type { CSSProperties } from "react";
 import { gradientOf } from "../agent/engine.js";
 
@@ -11,7 +11,7 @@ export {
   type AgentColor,
   type AgentEyes,
   normalizeAppearance,
-} from "@toph/tokens/look";
+} from "../tokens/look";
 
 /** A random look ("Aleatório"), different from `current` when possible. */
 export function randomAppearance(current: AgentAppearance = {}, rand: () => number = Math.random): AgentAppearance {

@@ -1,3 +1,5 @@
+"use client";
+
 import { Dialog as RDialog } from "radix-ui";
 import { type ReactNode, useEffect, useId, useMemo, useRef, useState } from "react";
 import { cx } from "../cx";

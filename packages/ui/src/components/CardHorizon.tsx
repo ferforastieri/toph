@@ -1,3 +1,5 @@
+"use client";
+
 import { type RefObject, useEffect, useRef } from "react";
 import { HORIZON_CELL as CELL, horizonCrest, horizonHeight, horizonTones, HORIZON_WAVE as WAVE } from "../sky/horizon";
 import { bayerAt } from "../sky/math";

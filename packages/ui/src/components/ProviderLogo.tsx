@@ -1,3 +1,5 @@
+"use client";
+
 import { type CSSProperties, useId } from "react";
 import { markOf, PROVIDER_MARKS } from "../brand/marks";
 import { cx } from "../cx";

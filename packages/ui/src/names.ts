@@ -1,1 +1,1 @@
-export * from "@toph/tokens/names";
+export * from "./tokens/names";

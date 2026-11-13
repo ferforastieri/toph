@@ -1,3 +1,5 @@
+"use client";
+
 import { type KeyboardEvent, type PointerEvent, type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { cx } from "../cx";
 import { Icon } from "../icons/Icon";

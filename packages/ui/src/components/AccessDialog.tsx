@@ -1,3 +1,5 @@
+"use client";
+
 import type { ReactNode } from "react";
 import { Button } from "./Button";
 import { Dialog, DialogBody, DialogFooter } from "./Dialog";

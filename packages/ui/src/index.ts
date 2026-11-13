@@ -1,5 +1,5 @@
 /**
- * @tophs/ui — the agentes design system in React.
+ * faang-ui — the Faang design system in React.
  * Visuals come from `styles.css` (tokens + `ac-*` classes, ported from
  * docs/design); keyboard, focus and screen-reader mechanics from Radix
  * primitives. Components take every user-facing string as a prop: the app
@@ -257,6 +257,9 @@ export {
 } from "./components/PixelMarks";
 export { glowOptions, PixelSky, SkyGlow } from "./components/PixelSky";
 export {
+  ORBIT_RING,
+  ORBIT_STEP_MS,
+  orbitShades,
   PixelSpinner,
   type PixelSpinnerProps,
   type PixelSpinnerSize,
@@ -539,3 +542,31 @@ export {
   type WidgetOrganize,
 } from "./widgets/WidgetCard";
 export { WidgetGlyph } from "./widgets/WidgetGlyph";
+
+/* 2026-11: the components the old catalogue listed, rebuilt in this kit. */
+export { AgentThinking } from "./components/AgentThinking";
+export { Announcement, type AnnouncementTone } from "./components/Announcement";
+export { Breadcrumb, type Crumb } from "./components/Breadcrumb";
+export { ButtonGroup } from "./components/ButtonGroup";
+export { AreaChart, BarChart, type ChartDatum } from "./components/Charts";
+export { CheckboxCard, SwitchCard } from "./components/Checkbox";
+export { CloseButton } from "./components/CloseButton";
+export { ComposerLoader } from "./components/ComposerLoader";
+export { DataGrid, type GridColumn, type GridRow } from "./components/DataGrid";
+export { DataTable } from "./components/DataTable";
+export { Divider } from "./components/Divider";
+export { FileUpload, type UploadFile } from "./components/FileUpload";
+export { Notification, type NotificationTone } from "./components/Notification";
+export {
+  NotificationCenter,
+  type ActivityGroup,
+  type ActivityItem,
+} from "./components/NotificationCenter";
+export { Pagination } from "./components/Pagination";
+export { SettingsDialog, type SettingsDialogRow, type SettingsDialogSection } from "./components/SettingsDialog";
+export { Sidebar, type NavItem, type NavSection } from "./components/Sidebar";
+export { Slider } from "./components/Slider";
+export { SocialButton, type SocialProvider } from "./components/SocialButton";
+export { StatCard, type StatTone } from "./components/StatCard";
+export { Table, type TableColumn } from "./components/Table";
+export { TreeView, type TreeItem } from "./components/TreeView";

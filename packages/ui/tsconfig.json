@@ -1,8 +1,18 @@
 {
-  "extends": "../../web/tsconfig.json",
   "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["dom", "dom.iterable", "esnext"],
     "jsx": "react-jsx",
-    "noEmit": true
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "allowJs": true,
+    "esModuleInterop": true,
+    "isolatedModules": true,
+    "resolveJsonModule": true,
+    "types": ["react", "react-dom"]
   },
   "include": ["src"]
 }

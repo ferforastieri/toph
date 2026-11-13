@@ -1,6 +1,6 @@
 /**
  * The `#channel` reference rules shared by the server (`parseChannelNames`), the apps' renderer
- * (`@tophs/client/lib/channel-refs`) and both composers, so what one suggests the others recognise.
+ * (the Faang client's channel refs) and both composers, so what one suggests the others recognise.
  */
 
 /**

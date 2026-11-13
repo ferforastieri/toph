@@ -1,10 +1,12 @@
+"use client";
+
 import { type CSSProperties, useId } from "react";
 import { bodyPath, eyeShapes } from "../agent/engine.js";
 import { cx } from "../cx";
 import { ditherUrl } from "../sky/dither";
 
 /** The domain in the expanded logo: a brand name, never translated. */
-const TLD = ".chat";
+const TLD = ".ui";
 
 /** The mark is the agent from the engine: body at (2, 2), side 28, and its eyes. */
 const BODY = bodyPath(2, 2, 28);
@@ -51,7 +53,7 @@ export function LogoMark({ size, className, label }: { size?: number; className?
 }
 
 export interface LogoProps {
-  /** `main` (app) or `expanded` (+ ".chat" in dot matrix, where the domain matters). */
+  /** `main` (app) or `expanded` (+ ".ui" in dot matrix, where the product matters). */
   variant?: "main" | "expanded";
   /** One-color version. */
   mono?: boolean;
@@ -61,7 +63,7 @@ export interface LogoProps {
   style?: CSSProperties;
 }
 
-/** "agentes" logo: mark + wordmark in Funnel Display light (".chat" in Doto). Accessible name "agentes" (or "Tophs" expanded). */
+/** "Faang" logo: mark + wordmark (".ui" in Doto). Accessible name "Faang" (or "Faang UI" expanded). */
 export function Logo({ variant = "main", mono, size = 24, className, style }: LogoProps) {
   const expanded = variant === "expanded";
   return (
@@ -69,16 +71,16 @@ export function Logo({ variant = "main", mono, size = 24, className, style }: Lo
       className={cx("ac-logo", mono && "ac-logo--mono", className)}
       style={{ fontSize: size, ...style }}
       role="img"
-      aria-label={expanded ? "Tophs" : "agentes"}
+      aria-label={expanded ? "Faang UI" : "Faang"}
     >
       <LogoMark />
       {expanded ? (
         <span className="ac-logo__word" aria-hidden="true">
-          <span>agentes</span>
+          <span>Faang</span>
           <span className="ac-logo__chat">{TLD}</span>
         </span>
       ) : (
-        <span aria-hidden="true">agentes</span>
+        <span aria-hidden="true">Faang</span>
       )}
     </span>
   );

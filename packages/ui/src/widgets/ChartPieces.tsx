@@ -1,3 +1,5 @@
+"use client";
+
 /**
  * The React pieces of the chat's charts (a clean stroke over a fine dither in the agent's tones),
  * shared by the chat's chart card (`apps/web/src/components/ChartBlock.tsx`) and the widgets (ADR 0135). The cells

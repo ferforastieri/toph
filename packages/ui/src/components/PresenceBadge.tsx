@@ -1,3 +1,5 @@
+"use client";
+
 import { useMemo } from "react";
 import { cx } from "../cx";
 import { type BadgePresence, type BadgeTone, badgeCells } from "../presence/badge";

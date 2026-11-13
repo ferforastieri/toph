@@ -1,3 +1,5 @@
+"use client";
+
 import { useEffect, useRef } from "react";
 import { useDarkTheme } from "../hooks/useDarkTheme";
 import { Icon } from "../icons/Icon";

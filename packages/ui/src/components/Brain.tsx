@@ -1,3 +1,5 @@
+"use client";
+
 import { useLayoutEffect, useRef } from "react";
 import { addLiveBrain, drawLiveBrain, type LiveBrain } from "../brain/live";
 import { BRAIN_GRID, type BrainPortraitKind, type BrainPortraitState } from "../brain/portrait.js";

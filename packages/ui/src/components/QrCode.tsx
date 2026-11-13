@@ -1,3 +1,5 @@
+"use client";
+
 import { encode } from "uqr";
 
 /** A QR code: dark modules on white whatever the theme, which phone cameras read best. */

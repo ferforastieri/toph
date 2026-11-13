@@ -1,3 +1,5 @@
+"use client";
+
 import { useEffect, useRef } from "react";
 import { cx } from "../cx";
 import { drawSprite, redrawSkies, type SkyOptions, startSky } from "../sky/engine";

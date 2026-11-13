@@ -1,3 +1,5 @@
+"use client";
+
 import { type ReactNode, useRef } from "react";
 import { cx } from "../cx";
 import { useScrollSides } from "../hooks/useScrollSides";

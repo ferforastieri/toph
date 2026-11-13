@@ -1,3 +1,5 @@
+"use client";
+
 import { type CSSProperties, type KeyboardEvent, type PointerEvent, useState } from "react";
 import { gradientOf, hexToHsv, hsvToHex, isHexColor, pickerStart } from "../agent/engine.js";
 

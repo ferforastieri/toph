@@ -1,3 +1,5 @@
+"use client";
+
 import { Slot } from "radix-ui";
 import { type HTMLAttributes, type ReactNode, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";

@@ -1,3 +1,5 @@
+"use client";
+
 import { useLayoutEffect, useRef } from "react";
 import { cx } from "../cx";
 import { cropFor, type PersonRecipe, renderPerson } from "./engine.js";

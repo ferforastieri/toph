@@ -1,3 +1,5 @@
+"use client";
+
 import { type CSSProperties, type HTMLAttributes, type ReactNode, useState } from "react";
 import { cx } from "../cx";
 import { Icon, type IconName } from "../icons/Icon";

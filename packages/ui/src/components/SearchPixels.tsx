@@ -1,3 +1,5 @@
+"use client";
+
 import {
   ACCESSORY_PALETTE,
   bodyTones,
@@ -77,7 +79,7 @@ export function AgentSearching({ className }: { className?: string }) {
     };
     // Behind the glass, the body at half its cells (each one twice as big), a touch lighter.
     for (const [x, y] of PANES)
-      cell(x, y, mixHex(tones[toneAt((gx + x) >> 1, (gy + y) >> 1, 8)] ?? "#8cc3ff", "#ffffff", 0.18));
+      cell(x, y, mixHex(tones[toneAt((gx + x) >> 1, (gy + y) >> 1, 8)] ?? "#fd5747", "#ffffff", 0.18));
     if (right) {
       ctx.save();
       ctx.beginPath();

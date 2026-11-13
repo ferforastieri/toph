@@ -1,3 +1,5 @@
+"use client";
+
 import type { CSSProperties, HTMLAttributes } from "react";
 import { mentionTone } from "../agent/engine.js";
 import { cx } from "../cx";

@@ -1,3 +1,5 @@
+"use client";
+
 import { Select as RSelect } from "radix-ui";
 import { type ReactNode, useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";

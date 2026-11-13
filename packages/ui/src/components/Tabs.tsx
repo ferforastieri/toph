@@ -1,3 +1,5 @@
+"use client";
+
 import { Tabs as RTabs } from "radix-ui";
 import { type CSSProperties, type ReactNode, useLayoutEffect, useRef, useState } from "react";
 

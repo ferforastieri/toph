@@ -1,3 +1,5 @@
+"use client";
+
 import { cx } from "../cx";
 import { Icon } from "../icons/Icon";
 

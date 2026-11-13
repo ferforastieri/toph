@@ -1,1 +1,1 @@
-export * from "@toph/tokens/channel-refs";
+export * from "./tokens/channel-refs";

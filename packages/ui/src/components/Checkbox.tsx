@@ -1,3 +1,5 @@
+"use client";
+
 import { Checkbox as RCheckbox, RadioGroup as RRadioGroup, Switch as RSwitch } from "radix-ui";
 import type { MouseEvent, ReactNode } from "react";
 import { cx } from "../cx";
@@ -172,5 +174,88 @@ export function Switch({
     >
       <RSwitch.Thumb className="ac-switch__thumb" />
     </RSwitch.Root>
+  );
+}
+
+/** A checkbox on a card: the whole tile toggles, with a title and a description. */
+export function CheckboxCard({
+  value,
+  id,
+  checked,
+  onCheckedChange,
+  title,
+  description,
+  disabled,
+  aside,
+  detail,
+}: {
+  value?: string;
+  id: string;
+  checked: boolean;
+  onCheckedChange: (checked: boolean) => void;
+  title: ReactNode;
+  description?: ReactNode;
+  disabled?: boolean;
+  aside?: ReactNode;
+  detail?: ReactNode;
+}) {
+  return (
+    <label
+      htmlFor={id}
+      className="ac-option"
+      data-state={checked ? "checked" : "unchecked"}
+      data-disabled={disabled ? "" : undefined}
+    >
+      <Checkbox id={id} checked={checked} onCheckedChange={onCheckedChange} disabled={disabled} />
+      <span className="ac-option__text">
+        <span className="ac-option__head">
+          <span className="ac-option__title">{title}</span>
+          {aside && <span className="ac-option__aside">{aside}</span>}
+        </span>
+        {description && <span className="ac-option__desc">{description}</span>}
+        {detail && <span className="ac-option__desc">{detail}</span>}
+      </span>
+      {value ? <input type="hidden" name={id} value={value} /> : null}
+    </label>
+  );
+}
+
+/** A switch on a card: the tile says what turns on, the switch does it. */
+export function SwitchCard({
+  id,
+  checked,
+  onCheckedChange,
+  title,
+  description,
+  disabled,
+  aside,
+  detail,
+}: {
+  id: string;
+  checked: boolean;
+  onCheckedChange: (checked: boolean) => void;
+  title: ReactNode;
+  description?: ReactNode;
+  disabled?: boolean;
+  aside?: ReactNode;
+  detail?: ReactNode;
+}) {
+  return (
+    <label
+      htmlFor={id}
+      className="ac-option"
+      data-state={checked ? "checked" : "unchecked"}
+      data-disabled={disabled ? "" : undefined}
+    >
+      <Switch id={id} checked={checked} onCheckedChange={onCheckedChange} disabled={disabled} />
+      <span className="ac-option__text">
+        <span className="ac-option__head">
+          <span className="ac-option__title">{title}</span>
+          {aside && <span className="ac-option__aside">{aside}</span>}
+        </span>
+        {description && <span className="ac-option__desc">{description}</span>}
+        {detail && <span className="ac-option__desc">{detail}</span>}
+      </span>
+    </label>
   );
 }

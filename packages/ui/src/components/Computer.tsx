@@ -1,3 +1,5 @@
+"use client";
+
 import { type CSSProperties, useLayoutEffect, useRef } from "react";
 import { addLiveComputer, drawLiveComputer, type LiveComputer } from "../computer/live";
 import {

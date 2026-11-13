@@ -1,3 +1,5 @@
+"use client";
+
 /** Where to go in a phone's own Settings, when no button can open it: each screen's name, the last one ringed. */
 export function SettingsPath({ segments, label }: { segments: string[]; label: string }) {
   return (

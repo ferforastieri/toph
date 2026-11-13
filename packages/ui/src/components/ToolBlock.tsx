@@ -1,3 +1,5 @@
+"use client";
+
 import { type ReactNode, useEffect, useId, useRef, useState } from "react";
 import { cx } from "../cx";
 import type { AgentColor } from "./AgentLook";
