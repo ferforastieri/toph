@@ -69,11 +69,14 @@ jobs:
             "https://archive.ubuntu.com/ubuntu"
           )
           apt_options=(-o Acquire::http::Timeout=15 -o Acquire::https::Timeout=15 -o Acquire::Retries=1 -o Acquire::ForceIPv4=true -o DPkg::Lock::Timeout=60)
+          # Every mirror we may have written into the sources, so the next
+          # attempt really switches instead of rewriting the one already set.
+          ubuntu_hosts='(azure\.archive\.ubuntu\.com|archive\.ubuntu\.com|security\.ubuntu\.com|ports\.ubuntu\.com|mirrors\.edge\.kernel\.org|ftp\.osuosl\.org|mirrors\.ocf\.berkeley\.edu)'
           for mirror in "${mirrors[@]}"; do
             echo "== trying apt mirror $mirror"
             for file in /etc/apt/sources.list /etc/apt/sources.list.d/*.sources /etc/apt/apt-mirrors.txt; do
               [ -f "$file" ] || continue
-              sudo sed -i -E "s#https?://(azure\.archive\.ubuntu\.com|archive\.ubuntu\.com|security\.ubuntu\.com|ports\.ubuntu\.com)/ubuntu#${mirror}#g" "$file"
+              sudo sed -i -E "s#https?://${ubuntu_hosts}(/pub)?/ubuntu#${mirror}#g" "$file"
             done
             if ! sudo DEBIAN_FRONTEND=noninteractive timeout 180 apt-get "${apt_options[@]}" update; then
               continue
