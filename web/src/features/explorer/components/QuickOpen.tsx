@@ -4,7 +4,7 @@ import LoadingState from "../../../shared/ui/LoadingState";
 import { api, type Project, type SearchMatch } from "../../../shared/api";
 import { basename, dirname } from "../../../shared/lib";
 import FileIcon from "./FileIcon";
-import { SearchField } from "@toph/ui/app";
+import { Icon, SearchField } from "@toph/ui";
 import { cx } from "@toph/ui";
 import { useDebouncedValue } from "../../../shared/ui/useDebouncedValue";
 
@@ -181,14 +181,14 @@ export default function QuickOpen({ project, focusToken, onOpenFile, floating = 
         <div className="overflow-hidden rounded-3xl border border-border-button-default bg-background-primary-default shadow-sidebar">
           <div className="border-b border-separator-border p-3">
             <SearchField
-              inputRef={inputRef}
+              ref={inputRef}
               value={query}
-              onChange={setQuery}
+              onChange={(event) => setQuery(event.target.value)}
               placeholder="Buscar por nome ou conteúdo..."
               aria-label="Busca rápida"
-              shape="rounded"
-              isLoading={busy}
-              fieldClassName="h-10 rounded-xl bg-background-secondary-default"
+              onClear={() => setQuery("")}
+              clearLabel="Limpar busca"
+              shortcut={busy ? <Icon name="spinner" size={14} /> : undefined}
             />
           </div>
           <div className="max-h-[min(420px,60vh)] overflow-y-auto p-2">
@@ -202,26 +202,15 @@ export default function QuickOpen({ project, focusToken, onOpenFile, floating = 
       ) : (
         <div onFocusCapture={() => setOpen(true)} onClick={() => setOpen(true)}>
           <SearchField
-            inputRef={inputRef}
+            ref={inputRef}
             value={query}
-            onChange={setQuery}
+            onChange={(event) => setQuery(event.target.value)}
             placeholder="Buscar por nome ou conteúdo..."
             aria-label="Busca rápida"
-            shape="rounded"
-            size="small"
-            isLoading={busy}
-            fieldClassName={showChevron ? "h-[26px]" : "h-8"}
-            endAddon={
-              showChevron ? (
-                <ChevronDown
-                  aria-hidden
-                  className={cx(
-                    "size-4 shrink-0 text-foreground-icon-tertiary transition-[rotate,color] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
-                    open && "rotate-180",
-                  )}
-                />
-              ) : null
-            }
+            size="sm"
+            onClear={() => setQuery("")}
+            clearLabel="Limpar busca"
+            shortcut={busy ? <Icon name="spinner" size={14} /> : showChevron ? <ChevronDown aria-hidden className={cx("size-4 text-foreground-icon-tertiary transition-[rotate] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]", open && "rotate-180")} /> : undefined}
           />
           {open && (
             <div className="dropdown-reveal absolute inset-x-0 top-full z-[300] mt-1 max-h-80 overflow-y-auto rounded-2xl border border-border-button-default bg-background-primary-default p-1.5 shadow-dropdown">

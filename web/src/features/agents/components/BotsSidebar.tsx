@@ -2,7 +2,7 @@ import { useEffect, useMemo, type ReactNode } from "react";
 import { Bot, MessageSquarePlus } from "@toph/icons";
 import type { Project } from "../../../shared/api";
 import { useChats } from "../../conversations/store";
-import { openChatTab } from "../../conversations/navigation";
+import { chatTabId, openChatTab } from "../../conversations/navigation";
 import { projectSessions } from "../../conversations/sessions";
 import { ensureChatSubjects } from "../../conversations/subjects";
 import { Button } from "@toph/ui/app";
@@ -11,6 +11,8 @@ import { useApp } from "../../../app/store";
 import { ensureToph } from "../default-toph";
 import { useActiveSessionIds } from "../useActiveSessionIds";
 import SessionRow from "../../conversations/components/SessionRow";
+import { agentApi } from "../api";
+import { useConfirm } from "../../../shared/ui/confirm";
 
 interface Props {
   project: Project;
@@ -24,6 +26,25 @@ export default function BotsSidebar({ project, headerControl, onSelectChat }: Pr
   const ensure = useChats((state) => state.ensure);
   const createConversation = useChats((state) => state.createConversation);
   const notifications = useApp((state) => state.notifications);
+  const notify = useApp((state) => state.notify);
+  const confirm = useConfirm();
+
+  async function removeConversation(chatId: string, title: string) {
+    const ok = await confirm({
+      title: "Apagar conversa?",
+      message: `“${title}” sai deste projeto. O harness decide se a sessão também é apagada.`,
+      confirmLabel: "Apagar conversa",
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      await agentApi.deleteChat(project.id, chatId);
+      useChats.getState().deleteConversation(project.id, chatId);
+      useApp.getState().closeTab(chatTabId(project.id, chatId));
+    } catch {
+      notify("error", "O harness não deixou apagar esta conversa.");
+    }
+  }
 
   useEffect(() => {
     ensure(project.id);
@@ -117,6 +138,7 @@ export default function BotsSidebar({ project, headerControl, onSelectChat }: Pr
                   unread={session.unread}
                   selected={session.chat.id === chats?.activeChatId}
                   onOpen={() => openTask(session.chat.id)}
+                  onDelete={() => void removeConversation(session.chat.id, session.title)}
                 />
               </li>
             ))}

@@ -37,13 +37,23 @@ function ThemeToggle() {
   const theme = useSettings((state) => state.theme);
   const setTheme = useSettings((state) => state.setTheme);
   const light = theme === "light";
+  function toggle() {
+    const root = document.documentElement;
+    const next = light ? "dark" : "light";
+    root.classList.remove("theme-lamp-on", "theme-lamp-off");
+    // Restart the same animation when the toggle is pressed twice quickly.
+    void root.offsetWidth;
+    root.classList.add(next === "light" ? "theme-lamp-on" : "theme-lamp-off");
+    window.setTimeout(() => root.classList.remove("theme-lamp-on", "theme-lamp-off"), 760);
+    setTheme(next);
+  }
   return (
     <button
       type="button"
       aria-label={light ? "Ativar modo escuro" : "Ativar modo claro"}
       aria-pressed={light}
       title={light ? "Modo escuro" : "Modo claro"}
-      onClick={() => setTheme(light ? "dark" : "light")}
+      onClick={toggle}
       className="relative flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-full text-foreground-icon-secondary transition-colors hover:bg-background-primary-hover hover:text-foreground-icon-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus-ring"
     >
       <Sun className={cx("absolute size-[18px] transition-all duration-300", light ? "rotate-0 scale-100 opacity-100" : "-rotate-90 scale-50 opacity-0")} />

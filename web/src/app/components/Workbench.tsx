@@ -1176,15 +1176,17 @@ export default function Workbench() {
         </div>
       ) : null}
       <div className="relative flex min-h-0 flex-1 gap-0 p-1">
-        {projectBar === "left" && !projectRailCollapsed ? (
-          <ProjectRail
-            onOpenProject={switchProject}
-            onCloseProject={requestCloseProject}
-            onGoHome={() => setSidebar("bots")}
-            onQuickOpen={() => setQuickOpenToken((current) => current + 1)}
-            onOpenAuxiliary={openAuxiliary}
-            tophControl={<TophSettings user={user} projectRoot={project.root} projectId={project.id} hideTrigger />}
-          />
+        {projectBar === "left" ? (
+          <div className={cx("project-rail-shell", projectRailCollapsed && "is-collapsed")} aria-hidden={projectRailCollapsed || undefined}>
+            <ProjectRail
+              onOpenProject={switchProject}
+              onCloseProject={requestCloseProject}
+              onGoHome={() => setSidebar("bots")}
+              onQuickOpen={() => setQuickOpenToken((current) => current + 1)}
+              onOpenAuxiliary={openAuxiliary}
+              tophControl={<TophSettings user={user} projectRoot={project.root} projectId={project.id} hideTrigger />}
+            />
+          </div>
         ) : null}
         {primarySidebar}
         {primaryResize}

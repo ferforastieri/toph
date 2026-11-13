@@ -1,39 +1,36 @@
-import { useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
+import { Icon } from "@toph/ui";
 import { useApp } from "../../../app/store";
-import { useIsMobile } from "../../../shared/ui/useIsMobile";
-import { Notification, NotificationViewport } from "@toph/ui/app";
 
+/**
+ * The Tophs toast: the kit's own `.ac-toast` card (surface, hairline, overlay
+ * shadow and the tone's glow), with its icon, one line of words and the close
+ * on the first line. Bottom-right, as in Tophs.
+ */
 export default function Toasts() {
   const toasts = useApp((state) => state.toasts);
   const dismiss = useApp((state) => state.dismissToast);
-  const mobile = useIsMobile();
-  const seen = useRef(new Set<number>());
-
-  useEffect(() => {
-    for (const item of toasts) {
-      if (seen.current.has(item.id)) continue;
-      seen.current.add(item.id);
-      window.dispatchEvent(new CustomEvent("toph:output", { detail: { text: `[app] ${item.message}` } }));
-    }
-  }, [toasts]);
-
-  return (
-    <NotificationViewport
-      position="bottom-center"
-      className="w-[min(300px,calc(100vw-var(--safe-left)-var(--safe-right)-24px))]"
-      style={mobile ? { bottom: "calc(0.75rem + var(--safe-bottom))" } : undefined}
-    >
-      {toasts.map((item) => (
-        <Notification
-          key={item.id}
-          title={item.message}
-          status={item.kind === "error" ? "error" : item.kind === "success" ? "success" : "information"}
-          autoDismissDuration={5000}
-          compact
-          onDismiss={() => dismiss(item.id)}
-          className="border-border-button-default bg-background-secondary-default shadow-dropdown"
-        />
-      ))}
-    </NotificationViewport>
+  if (typeof document === "undefined") return null;
+  return createPortal(
+    <div className="ac-toasts" aria-live="polite">
+      {toasts.map((item) => {
+        const tone = item.kind === "error" ? "error" : item.kind === "success" ? "success" : "info";
+        return (
+          <div key={item.id} className={`ac-toast ac-toast--${tone}`} role={tone === "error" ? "alert" : "status"}>
+            <Icon name={tone === "error" ? "alert" : "check"} />
+            <span className="ac-toast__text">{item.message}</span>
+            <button
+              type="button"
+              className="ac-btn ac-btn--ghost ac-btn--sm ac-btn--icon ac-toast__close"
+              aria-label="Fechar"
+              onClick={() => dismiss(item.id)}
+            >
+              <Icon name="close" size={16} />
+            </button>
+          </div>
+        );
+      })}
+    </div>,
+    document.body,
   );
 }

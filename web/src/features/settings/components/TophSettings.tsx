@@ -17,11 +17,10 @@ import { api, getApiBase, probeServer, setApiBase, type User } from "../../../sh
 import { useApp } from "../../../app/store";
 import { useSettings, type WorkspaceFeature } from "../store";
 const WorkspaceSettings = lazy(() => import("./WorkspaceSettings"));
-const EmailPanel = lazy(() => import("../../integrations/components/EmailPanel"));
 const SkillsPanel = lazy(() => import("../../skills/components/SkillsPanel"));
 const HarnessSettings = lazy(() => import("./HarnessSettings"));
 
-type Section = "general" | "appearance" | "skills" | "harness" | "email" | "workspace";
+type Section = "general" | "appearance" | "skills" | "harness" | "workspace";
 
 interface Props {
   user: User | null;
@@ -43,7 +42,6 @@ const sections: SectionItem[] = [
   { id: "appearance", label: "Layout e ferramentas", icon: "preference" },
   { id: "skills", label: "Skills", icon: "routines" },
   { id: "harness", label: "Harness", icon: "plug" },
-  { id: "email", label: "Email", icon: "mail" },
   { id: "workspace", label: "Workspace", icon: "drive" },
 ];
 
@@ -52,7 +50,6 @@ const copy: Record<Section, { title: string; meta: string }> = {
   appearance: { title: "Layout e ferramentas", meta: "Escolha diretamente o que aparece e é inicializado no workspace." },
   skills: { title: "Skills", meta: "Receitas que o Toph lê sob demanda." },
   harness: { title: "Harness", meta: "CLIs, modelos e MCPs deste workspace." },
-  email: { title: "Email", meta: "Contas disponíveis para o Toph." },
   workspace: { title: "Workspace", meta: "Pastas acessíveis pelo Toph." },
 };
 
@@ -267,8 +264,6 @@ export default function TophSettings({ user, projectRoot, projectId, hideTrigger
                 <Card padded><SkillsPanel projectId={projectId} /></Card>
               ) : section === "harness" ? (
                 <Card padded><HarnessSettings projectRoot={projectRoot} /></Card>
-              ) : section === "email" ? (
-                <Card padded><EmailPanel /></Card>
               ) : (
                 <Card padded><WorkspaceSettings /></Card>
               )}

@@ -8,9 +8,6 @@ import { api } from "../../../shared/api";
 vi.mock("../../providers/components/ConnectionsHub", () => ({
   default: () => <div data-testid="connections-hub">Conexões de modelos e MCP</div>,
 }));
-vi.mock("../../integrations/components/EmailPanel", () => ({
-  default: () => <div data-testid="email-panel">Contas de email</div>,
-}));
 vi.mock("./WorkspaceSettings", () => ({
   default: () => <div data-testid="workspace-settings">Workspace</div>,
 }));
@@ -50,9 +47,6 @@ describe("TophSettings", () => {
     fireEvent.click(screen.getByRole("button", { name: "Harness" }));
     expect(await screen.findByTestId("engine-settings")).toBeInTheDocument();
     expect(await screen.findByTestId("connections-hub")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "Email" }));
-    expect(await screen.findByTestId("email-panel")).toBeInTheDocument();
 
     expect(screen.queryByRole("button", { name: "Toph" })).not.toBeInTheDocument();
     expect(screen.queryByTestId("toph-config")).not.toBeInTheDocument();

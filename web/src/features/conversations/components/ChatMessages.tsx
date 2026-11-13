@@ -159,6 +159,12 @@ function AgentMessage({ message, toph, project, grouped, mobile }: {
   grouped: boolean;
   mobile: boolean;
 }) {
+  const [copied, setCopied] = useState(false);
+  function copy() {
+    void navigator.clipboard?.writeText(message.content).catch(() => undefined);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1500);
+  }
   return (
     <article data-testid="chat-agent-message" className="toph-msg-in group/msg flex min-w-0 gap-3 py-1.5">
       <div className="w-[40px] shrink-0">{grouped ? null : <BotAvatar bot={toph} size={40} />}</div>
@@ -171,12 +177,16 @@ function AgentMessage({ message, toph, project, grouped, mobile }: {
               variant="ghost"
               size="xs"
               iconOnly
-              leadingIcon={Copy}
-              aria-label="Copiar resposta"
-              title="Copiar resposta"
+              aria-label={copied ? "Copiado" : "Copiar resposta"}
+              title={copied ? "Copiado" : "Copiar resposta"}
               className="size-5 text-text-tertiary opacity-0 transition-opacity group-hover/msg:opacity-100 focus-visible:opacity-100"
-              onClick={() => void navigator.clipboard?.writeText(message.content).catch(() => undefined)}
-            />
+              onClick={copy}
+            >
+              <span className="relative inline-flex size-3.5 items-center justify-center" aria-hidden="true">
+                <Copy className={cx("absolute transition-all duration-200", copied ? "scale-50 opacity-0" : "scale-100 opacity-100")} size={12} />
+                <Check className={cx("absolute transition-all duration-200", copied ? "scale-100 opacity-100" : "scale-50 opacity-0")} size={12} />
+              </span>
+            </Button>
           </div>
         )}
         <div className="md min-w-0 [&_p:first-child]:mt-0 [&_pre:first-child]:mt-0 [&_ul:first-child]:mt-0 [&_ol:first-child]:mt-0 [&_p:last-child]:mb-0 [&_pre:last-child]:mb-0 [&_ul:last-child]:mb-0 [&_ol:last-child]:mb-0">

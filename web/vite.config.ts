@@ -28,6 +28,12 @@ function localAssets() {
       mkdirSync(monacoTarget, { recursive: true });
       cpSync(monaco, resolve(monacoTarget, "vs"), { recursive: true });
 
+      const icons = resolve(packageDir("material-icon-theme"), "icons");
+      const iconsTarget = resolve(here, "public/material-icons");
+      rmSync(iconsTarget, { recursive: true, force: true });
+      mkdirSync(iconsTarget, { recursive: true });
+      cpSync(icons, resolve(iconsTarget), { recursive: true });
+
       copyFileSync(
         resolve(packageDir("vscode-oniguruma"), "release/onig.wasm"),
         resolve(here, "public/onig.wasm"),

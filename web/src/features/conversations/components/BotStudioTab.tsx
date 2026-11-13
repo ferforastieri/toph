@@ -12,7 +12,6 @@ import ChatMessages from "./ChatMessages";
 import ChatUsageMeter from "./ChatUsageMeter";
 import ConversationModelPicker from "./ConversationModelPicker";
 import ApprovalCard from "./ApprovalCard";
-import ConversationSettings from "./ConversationSettings";
 import BotAvatar from "../../agents/components/BotAvatar";
 import { unlockBotSound } from "../sound";
 import { Button } from "@toph/ui/app";
@@ -36,7 +35,6 @@ export default function BotStudioTab({ project, conversationId, mobile = false, 
   const modelError = useAI((s) => s.error);
   const native = useAgentChat(project.id, chat?.id);
   const [sending, setSending] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [atBottom, setAtBottom] = useState(true);
   const [queued, setQueued] = useState<Array<{ text: string; attachments: AgentAttachment[] }>>([]);
   const draftKey = `${project.id}:${chat?.id ?? ""}:native`;
@@ -169,7 +167,20 @@ export default function BotStudioTab({ project, conversationId, mobile = false, 
       seq: 9_000_000_000,
     });
     try {
-      await agentApi.start(project.id, { requestId, chatId: chat.id, chatDescription: chat.description, agentId: "router", text: value, agents: tophs.map((toph) => ({ ...toph, chatId: chat.id })), attachments });
+      const settings = chat.tophSettings ?? {};
+      await agentApi.start(project.id, {
+        requestId,
+        chatId: chat.id,
+        agentId: "router",
+        text: value,
+        agents: tophs.map((toph) => ({
+          ...toph,
+          model: settings[toph.id]?.model ?? toph.model,
+          effort: settings[toph.id]?.effort ?? toph.effort,
+          chatId: chat.id,
+        })),
+        attachments,
+      });
       pendingRequest.current = null; clearDraft(draftKey); await native.refresh();
     } catch (e) {
       native.setError(
@@ -295,10 +306,9 @@ export default function BotStudioTab({ project, conversationId, mobile = false, 
         <AgentComposer value={text} onChange={(value) => setDraft(draftKey, value)} onSend={(value, files) => void send(value, files)} onStop={() => void stop()} busy={busy}
           placeholder={tophs.length === 1 ? `Mensagem para ${tophs[0].name}` : "Mensagem para o grupo"}
           history={native.messages.filter((m) => m.role === "user").map((m) => m.content)}
-          leadingControls={<ConversationModelPicker projectId={project.id} tophs={tophs} onOpenSettings={() => setSettingsOpen(true)} />}
+          leadingControls={<ConversationModelPicker projectId={project.id} chat={chat!} tophs={tophs} />}
           modeControls={<ChatUsageMeter chatName={title} model={activeModelDisplay} />} members={tophs} />
       </div>}
     </section>
-    <ConversationSettings open={settingsOpen} project={project} chat={chat} projectChats={stored} onClose={() => setSettingsOpen(false)} />
   </div>;
 }

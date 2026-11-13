@@ -4,3 +4,4 @@
    the new rules, imported after it so they win. */
 @import "./styles/app.css";
 @import "./styles/tophs-settings.css";
+@import "./styles/tophs-effects.css";

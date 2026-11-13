@@ -700,3 +700,30 @@ html:not([data-pointer]) .toph-settings-trigger:focus-visible {
 .settings__body .ac-seg {
   align-self: flex-start;
 }
+
+
+/* The settings dialog with the Tophs page's breathing room (the print had it cramped). */
+.settings--dialog {
+  --row-py: 12px;
+}
+.settings--dialog .settings__nav {
+  gap: 24px;
+  padding-block: 24px;
+}
+.settings--dialog .settings__head {
+  gap: 10px;
+}
+.settings--dialog .settings__body {
+  gap: 24px;
+  padding: 24px var(--dialog-pad) 28px;
+}
+.settings--dialog .ac-card {
+  --card-pad: 24px;
+  gap: 20px;
+}
+.settings--dialog .settings-rows {
+  margin: calc(-1 * var(--card-pad));
+}
+.settings--dialog .settings-row {
+  min-height: 56px;
+}

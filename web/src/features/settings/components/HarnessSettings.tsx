@@ -3,7 +3,6 @@ import { Check, Copy, Download, ExternalLink, LoaderCircle, RefreshCw } from "@t
 import { engineApi, type EngineInfo, type EngineTest } from "../../agents/api";
 import { useApp } from "../../../app/store";
 import HarnessIcon from "../../agents/components/HarnessIcon";
-import ConnectionsHub from "../../providers/components/ConnectionsHub";
 import { Button } from "@toph/ui/app";
 import { cx } from "@toph/ui";
 
@@ -13,8 +12,8 @@ interface Props {
   projectRoot?: string;
 }
 
-/** One place for the agent harnesses, model providers and MCP servers. */
-export default function HarnessSettings({ projectRoot }: Props) {
+/** One place for the agent harnesses: install, log in and test the CLI. */
+export default function HarnessSettings(_props: Props) {
   const notify = useApp((state) => state.notify);
   const [engines, setEngines] = useState<EngineInfo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -208,14 +207,6 @@ export default function HarnessSettings({ projectRoot }: Props) {
             );
           })}
         </div>
-      </section>
-
-      <section className="flex flex-col gap-3">
-        <div>
-          <h4 className="text-body-medium text-text-primary">Modelos e ferramentas</h4>
-          <p className="mt-0.5 text-caption-1-regular text-text-secondary">Conecte os provedores de modelo e os servidores MCP que o Toph pode usar.</p>
-        </div>
-        <ConnectionsHub projectRoot={projectRoot} />
       </section>
     </div>
   );

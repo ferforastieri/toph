@@ -43,6 +43,8 @@ export interface TophChat {
   description: string;
   /** One id is an individual task; two or more make a group. */
   participantIds: string[];
+  /** Model and effort chosen in this conversation, by Toph id: the same Toph can differ per task. */
+  tophSettings?: Record<string, { model?: string; effort?: string }>;
   createdAt: number;
   updatedAt: number;
 }
@@ -242,6 +244,7 @@ function sanitizeProject(input: ProjectChats | null | undefined): ProjectChats {
       subject: typeof item.subject === "string" ? item.subject.trim() : "",
       description: item.description ?? "",
       participantIds,
+      tophSettings: normalizeTophSettings(item.tophSettings),
       createdAt: Number.isFinite(item.createdAt) ? Number(item.createdAt) : now,
       updatedAt: Number.isFinite(item.updatedAt) ? Number(item.updatedAt) : now,
     }];
@@ -275,6 +278,20 @@ function sanitizeProject(input: ProjectChats | null | undefined): ProjectChats {
 
   const activeChatId = chats.some((chat) => chat.id === raw.activeChatId) ? raw.activeChatId! : chats[0]?.id ?? null;
   return { version: 5, chats, tophs, messages: mappedMessages, activeChatId, hydrated: true };
+}
+
+function normalizeTophSettings(raw: unknown): Record<string, { model?: string; effort?: string }> {
+  if (!raw || typeof raw !== "object") return {};
+  const next: Record<string, { model?: string; effort?: string }> = {};
+  for (const [id, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (!value || typeof value !== "object") continue;
+    const item = value as { model?: unknown; effort?: unknown };
+    next[id] = {
+      ...(typeof item.model === "string" && item.model ? { model: item.model } : {}),
+      ...(typeof item.effort === "string" ? { effort: item.effort } : {}),
+    };
+  }
+  return next;
 }
 
 function emptyProject(hydrated = false): ProjectChats {
@@ -312,6 +329,8 @@ interface ChatStore {
   /** Creates a task with one Toph (individual) or several (group). */
   createConversation: (projectId: string, participantIds: string[], options?: { name?: string; description?: string }) => TophChat | null;
   updateChat: (projectId: string, chatId: string, patch: Partial<Pick<TophChat, "name" | "subject" | "description">>) => void;
+  /** The model/effort of one Toph in this conversation only. */
+  updateChatToph: (projectId: string, chatId: string, tophId: string, patch: { model?: string; effort?: string }) => void;
   deleteConversation: (projectId: string, chatId: string) => void;
   setActiveChat: (projectId: string, chatId: string | null) => void;
   createToph: (projectId: string, preset: TophPreset) => ChatToph | null;
@@ -380,6 +399,7 @@ export const useChats = create<ChatStore>((set, get) => ({
       subject: "",
       description: options.description?.trim() ?? "",
       participantIds: unique,
+      tophSettings: {},
       createdAt: now,
       updatedAt: now,
     };
@@ -412,6 +432,29 @@ export const useChats = create<ChatStore>((set, get) => ({
                   }
                 : chat,
             ),
+          },
+        },
+      };
+    }),
+
+  updateChatToph: (projectId, chatId, tophId, patch) =>
+    set((state) => {
+      const project = state.byProject[projectId];
+      if (!project) return state;
+      return {
+        byProject: {
+          ...state.byProject,
+          [projectId]: {
+            ...project,
+            chats: project.chats.map((chat) => {
+              if (chat.id !== chatId) return chat;
+              const current = chat.tophSettings?.[tophId] ?? {};
+              return {
+                ...chat,
+                tophSettings: { ...(chat.tophSettings ?? {}), [tophId]: { ...current, ...patch } },
+                updatedAt: Date.now(),
+              };
+            }),
           },
         },
       };

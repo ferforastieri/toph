@@ -9,7 +9,6 @@ import {
   GitBranch,
   Globe2,
   Info,
-  Mail,
   MessageSquare,
   Moon,
   PlugZap,
@@ -28,7 +27,7 @@ import ProjectTophAvatar from "../../../features/projects/components/ProjectToph
 import { cx } from "@toph/ui";
 import type { MobileScreen } from "./mobile-nav";
 
-type SettingsSection = "general" | "appearance" | "skills" | "harness" | "email" | "workspace";
+type SettingsSection = "general" | "appearance" | "skills" | "harness" | "workspace";
 
 interface Props {
   project: Project;
@@ -129,8 +128,7 @@ export default function MobileMoreScreen({
   const tophActions: Action[] = [
     { id: "sessions", label: "Sessões", description: "Tarefas do Toph", icon: MessageSquare, onSelect: onTophs },
     { id: "skills", label: "Skills", description: "Receitas do Toph", icon: Sparkles, onSelect: () => openSettings("skills") },
-    { id: "harness", label: "Harness e MCP", description: "CLIs, modelos e MCPs", icon: PlugZap, onSelect: () => openSettings("harness") },
-    { id: "email", label: "Email", description: "Contas do Toph", icon: Mail, onSelect: () => openSettings("email") },
+    { id: "harness", label: "Harness e MCP", description: "CLIs do agente", icon: PlugZap, onSelect: () => openSettings("harness") },
   ];
 
   const projectActions: Action[] = [

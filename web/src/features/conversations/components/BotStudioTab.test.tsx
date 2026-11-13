@@ -52,7 +52,7 @@ describe("Toph chat controls", () => {
   it.each([false, true])("keeps the model, the plan limit and the send controls in the composer (mobile=%s)", (mobile) => {
     render(<BotStudioTab project={project} conversationId={chatId} mobile={mobile} />);
     expect(screen.getByRole("button", { name: "Consumo do plano" })).toBeVisible();
-    expect(screen.getByRole("button", { name: "Modelo e esforço" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Modelo" })).toBeVisible();
     expect(screen.queryByRole("button", { name: "Modo do agente" })).not.toBeInTheDocument();
     expect(screen.queryByText("Harness Toph · execução no servidor")).not.toBeInTheDocument();
     expect(screen.queryByText(/Sua mensagem entra na fila/)).not.toBeInTheDocument();
@@ -61,6 +61,7 @@ describe("Toph chat controls", () => {
   it("sends each Toph's own settings", async () => {
     const start = vi.spyOn(agentApi, "start").mockResolvedValue({ id: "run", sessionId: "session", agentId: firstId, chatId, state: "queued", error: "", createdAt: 1 });
     useChats.getState().updateToph(project.id, firstId, { agentMode: "plan" });
+    useChats.getState().updateChatToph(project.id, chatId, firstId, { model: "openai::gpt", effort: "high" });
     render(<BotStudioTab project={project} conversationId={chatId} />);
     const members = useChats.getState().byProject[project.id].tophs;
     expect(members.find((a) => a.id === firstId)?.agentMode).toBe("plan");
@@ -70,8 +71,8 @@ describe("Toph chat controls", () => {
     await waitFor(() => expect(start).toHaveBeenCalledOnce());
     const input = start.mock.calls[0][1];
     expect(input.agentId).toBe("router");
-    expect(input.chatDescription).toBe("Preservar os contratos da tarefa");
-    expect(input.agents.find((a) => a.id === firstId)).toMatchObject({ agentMode: "plan", model: "go::deepseek" });
+    expect(input.chatDescription).toBeUndefined();
+    expect(input.agents.find((a) => a.id === firstId)).toMatchObject({ agentMode: "plan", model: "openai::gpt", effort: "high" });
     expect(input.agents.find((a) => a.id === memberId)).toMatchObject({ agentMode: "build", model: "openai::review" });
   });
 
@@ -96,25 +97,6 @@ describe("Toph chat controls", () => {
     expect(screen.queryByText("Equipe", { exact: true })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Configurar Beto" })).not.toBeInTheDocument();
     expect(screen.getByRole("textbox", { name: "Mensagem para o agente" })).toBeVisible();
-  });
-
-  it("opens the task participants from the model menu", async () => {
-    render(<BotStudioTab project={project} conversationId={chatId} />);
-    fireEvent.click(screen.getByRole("button", { name: "Modelo e esforço" }));
-    fireEvent.click(await screen.findByText("Participantes e contexto"));
-    const dialog = await screen.findByRole("dialog", { name: "Conversa" });
-    expect(within(dialog).getByText("Fernando")).toBeVisible();
-    expect(within(dialog).getByText("Beto")).toBeVisible();
-  });
-
-  it("asks which Toph changes the model in a group conversation", async () => {
-    render(<BotStudioTab project={project} conversationId={chatId} />);
-    const trigger = screen.getByRole("button", { name: "Modelo e esforço" });
-    expect(within(trigger).getByText(/DeepSeek/)).toBeVisible();
-    fireEvent.click(trigger);
-    expect(await screen.findByText("Mudar o modelo de qual Toph?")).toBeVisible();
-    fireEvent.click(screen.getByRole("button", { name: /Beto/ }));
-    await waitFor(() => expect(within(trigger).getByText(/Review/)).toBeVisible());
   });
 
   it("shows how much of the plan limit is left", async () => {
