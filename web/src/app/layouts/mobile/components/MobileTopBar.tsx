@@ -1,5 +1,5 @@
 import type { ComponentType } from "react";
-import { Bell, Users, X } from "@toph/icons";
+import { Bell, MessageSquare, X } from "@toph/icons";
 import type { Project } from "../../../../shared/api";
 import ProjectMonogram from "../../../../features/projects/components/ProjectMonogram";
 import BrandMark from "@toph/brand";
@@ -53,12 +53,12 @@ export default function MobileTopBar({
             <button
               type="button"
               onClick={onTophs}
-              aria-label="Abrir Tophs"
-              title="Tophs"
+              aria-label="Abrir sessões"
+              title="Sessões"
               className="flex h-9 items-center gap-1.5 rounded-full border border-border-button-default bg-background-primary-default px-2.5 text-caption-2-semibold text-text-secondary shadow-xs transition-[background-color,color,border-color,transform] duration-300 hover:border-border-button-hover hover:text-text-primary active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus-ring"
             >
-              <Users className="size-3.5" />
-              <span className="hidden min-[380px]:inline">Tophs</span>
+              <MessageSquare className="size-3.5" />
+              <span className="hidden min-[380px]:inline">Sessões</span>
             </button>
           ) : null}
           <button

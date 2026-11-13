@@ -69,15 +69,7 @@ export function quoteIdentifier(driver: string, schema: string, table: string): 
   }
 }
 
-export function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
 
-export function cx(...values: Array<string | false | null | undefined>): string {
-  return values.filter(Boolean).join(" ");
-}
 
 export function relativeTime(value: string): string {
   const timestamp = Date.parse(value);
@@ -128,22 +120,7 @@ export function sanitizeBranchName(value: string): string {
   return cleaned || "feature/update";
 }
 
-export function colorWithAlpha(color: string, alpha: number): string {
-  const value = color.trim();
-  if (!/^#[0-9a-f]{6}$/i.test(value)) return value;
-  const channel = Math.max(0, Math.min(255, Math.round(alpha * 255))).toString(16).padStart(2, "0");
-  return `${value}${channel}`;
-}
 
-export function readableTextOn(color: string): string {
-  const value = color.trim().replace(/^#/, "");
-  if (!/^[0-9a-f]{6}$/i.test(value)) return "#111111";
-  const red = parseInt(value.slice(0, 2), 16);
-  const green = parseInt(value.slice(2, 4), 16);
-  const blue = parseInt(value.slice(4, 6), 16);
-  const luminance = (0.2126 * red + 0.7152 * green + 0.0722 * blue) / 255;
-  return luminance > 0.58 ? "#111111" : "#ffffff";
-}
 
 /**
  * Completes a bare host with the right scheme: local addresses stay on http,

@@ -1,15 +1,16 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { Bot, Plus } from "@toph/icons";
+import { useEffect, useMemo, type ReactNode } from "react";
+import { Bot, MessageSquare, MessageSquarePlus, Plus } from "@toph/icons";
 import type { Project } from "../../../shared/api";
-import { chatSessionTitle, chatsForToph, latestChatForToph, useChats, type TophPreset } from "../../conversations/store";
+import { useChats } from "../../conversations/store";
 import { openChatTab } from "../../conversations/navigation";
+import { projectSessions } from "../../conversations/sessions";
 import { ensureChatSubjects } from "../../conversations/subjects";
-import TophRow from "./TophRow";
-import BotConfig from "./BotConfig";
-import TophTasksSheet from "../../conversations/components/TophTasksSheet";
-import { Modal } from "@/shared/boardui/base/modal/modal";
+import { Button } from "@/shared/boardui/base/buttons/button";
 import SidebarHeader from "../../../app/components/SidebarHeader";
 import { useApp } from "../../../app/store";
+import { ensureToph } from "../default-toph";
+import { useActiveSessionIds } from "../useActiveSessionIds";
+import SessionRow from "../../conversations/components/SessionRow";
 
 interface Props {
   project: Project;
@@ -17,54 +18,27 @@ interface Props {
   onSelectChat?: () => void;
 }
 
-/** The project's single Toph. It opens its latest task; a new one is created on demand. */
-const FIRST_TOPH: TophPreset = {
-  name: "Toph",
-  role: "Toph",
-  description: "",
-  personality: "",
-  prompt: "",
-  color: "#FFB547",
-  avatar: "toph-logo",
-  agentMode: "build",
-  permissionMode: "yolo",
-  mcpServers: [],
-  emailAccountIds: [],
-  tools: ["generate_image"],
-  language: "auto",
-};
-
+/** The project's one Toph: every task is a session here, the newest first. */
 export default function BotsSidebar({ project, headerControl, onSelectChat }: Props) {
   const chats = useChats((state) => state.byProject[project.id]);
   const ensure = useChats((state) => state.ensure);
   const createConversation = useChats((state) => state.createConversation);
   const notifications = useApp((state) => state.notifications);
-  const [configId, setConfigId] = useState<string | null>(null);
-  const [tasksOpen, setTasksOpen] = useState(false);
 
   useEffect(() => {
     ensure(project.id);
   }, [ensure, project.id]);
 
   useEffect(() => {
-    const latest = (chats?.tophs ?? [])
-      .map((toph) => latestChatForToph(chats, toph.id))
-      .filter((chat): chat is NonNullable<typeof chat> => Boolean(chat));
-    void ensureChatSubjects(project.id, latest);
-  }, [project.id, chats?.chats, chats?.tophs]);
+    if (chats?.hydrated) void ensureChatSubjects(project.id, chats.chats);
+  }, [chats?.hydrated, chats?.chats, project.id]);
 
   const toph = chats?.tophs[0] ?? null;
-  const configToph = toph && toph.id === configId ? toph : null;
-  const tasks = toph ? chatsForToph(chats, toph.id) : [];
-  const unread = useMemo(() => {
-    if (!toph) return 0;
-    const chatIds = new Set((chats?.chats ?? []).filter((chat) => chat.participantIds.includes(toph.id)).map((chat) => chat.id));
-    return notifications.filter(
-      (notification) => !notification.read
-        && notification.projectId === project.id
-        && (notification.botId === toph.id || (notification.chatId ? chatIds.has(notification.chatId) : false)),
-    ).length;
-  }, [chats?.chats, notifications, project.id, toph]);
+  const activeSessions = useActiveSessionIds(project.id);
+  const sessions = useMemo(
+    () => projectSessions(chats, notifications, project.id, activeSessions),
+    [activeSessions, chats, notifications, project.id],
+  );
 
   function openTask(chatId: string) {
     const current = useChats.getState().byProject[project.id];
@@ -78,14 +52,14 @@ export default function BotsSidebar({ project, headerControl, onSelectChat }: Pr
   }
 
   function newTask() {
-    if (!toph) return;
-    const created = createConversation(project.id, [toph.id], { name: toph.name });
+    const active = ensureToph(project.id);
+    if (!active) return;
+    const created = createConversation(project.id, [active.id], { name: active.name });
     if (created) openTask(created.id);
   }
 
-  function openToph() {
-    if (!toph) return;
-    const latest = latestChatForToph(chats, toph.id);
+  function openSession() {
+    const latest = sessions[0]?.chat;
     if (latest) {
       openTask(latest.id);
       return;
@@ -93,17 +67,47 @@ export default function BotsSidebar({ project, headerControl, onSelectChat }: Pr
     newTask();
   }
 
-  function createFirst() {
-    const created = useChats.getState().createToph(project.id, FIRST_TOPH);
-    if (created) {
-      const chat = createConversation(project.id, [created.id], { name: created.name });
-      if (chat) openTask(chat.id);
-    }
-  }
-
   return (
     <div className="flex h-full min-h-0 flex-col bg-background-primary-default">
-      <SidebarHeader control={headerControl} icon={<Bot size={15} className="text-accent-500" />} title="Toph" />
+      <SidebarHeader
+        control={headerControl}
+        icon={<Bot size={15} className="text-accent-500" />}
+        title="Toph"
+        count={
+          sessions.length > 0 ? (
+            <span
+              className="rounded-full bg-background-tertiary-default px-1.5 text-caption-2-regular text-text-tertiary"
+              title={sessions.length === 1 ? "1 sessão" : `${sessions.length} sessões`}
+            >
+              {sessions.length}
+            </span>
+          ) : undefined
+        }
+        actions={
+          <>
+            <Button
+              variant="ghost"
+              size="xs"
+              iconOnly
+              leadingIcon={MessageSquare}
+              aria-label="Abrir sessão"
+              title="Abrir a sessão mais recente"
+              disabled={!chats?.hydrated}
+              onClick={openSession}
+            />
+            <Button
+              variant="ghost"
+              size="xs"
+              iconOnly
+              leadingIcon={MessageSquarePlus}
+              aria-label="Nova tarefa"
+              title="Começar nova tarefa"
+              disabled={!chats?.hydrated}
+              onClick={newTask}
+            />
+          </>
+        }
+      />
       <div className="min-h-0 flex-1 overflow-y-auto p-2.5 pt-1">
         {!chats?.hydrated ? (
           <div className="flex items-center justify-center gap-2 py-8 text-caption-1-regular text-text-tertiary">
@@ -114,7 +118,7 @@ export default function BotsSidebar({ project, headerControl, onSelectChat }: Pr
         {chats?.hydrated && !toph ? (
           <button
             type="button"
-            onClick={createFirst}
+            onClick={newTask}
             className="mt-1 flex w-full flex-col items-start gap-2 rounded-2xl border border-dashed border-border-button-default px-3 py-4 text-start transition-colors hover:bg-background-primary-hover"
           >
             <span className="flex size-9 items-center justify-center rounded-full bg-background-secondary-default text-accent-500"><Plus size={16} /></span>
@@ -122,40 +126,35 @@ export default function BotsSidebar({ project, headerControl, onSelectChat }: Pr
             <span className="text-caption-2-regular text-text-tertiary">Um Toph por projeto, conectado aos harnesses.</span>
           </button>
         ) : null}
-        {toph ? (
-          <div className="flex flex-col gap-0.5">
-            <TophRow
-              toph={toph}
-              subject={(() => {
-                const latest = latestChatForToph(chats, toph.id);
-                return latest ? chatSessionTitle(chats, latest) : "";
-              })()}
-              unread={unread}
-              onOpen={openToph}
-              onNew={newTask}
-              onConfig={() => setConfigId(toph.id)}
-              onSessions={() => setTasksOpen(true)}
-            />
-          </div>
+        {chats?.hydrated && toph && sessions.length === 0 ? (
+          <button
+            type="button"
+            onClick={newTask}
+            className="mt-1 flex w-full flex-col items-start gap-2 rounded-2xl border border-dashed border-border-button-default px-3 py-4 text-start transition-colors hover:bg-background-primary-hover"
+          >
+            <span className="flex size-9 items-center justify-center rounded-full bg-background-secondary-default text-accent-500"><MessageSquarePlus size={16} /></span>
+            <span className="text-caption-1-semibold text-text-primary">Começar a primeira tarefa</span>
+            <span className="text-caption-2-regular text-text-tertiary">O Toph abre uma sessão nova para você.</span>
+          </button>
+        ) : null}
+        {sessions.length > 0 ? (
+          <ul className="flex flex-col gap-0.5" aria-label="Sessões">
+            {sessions.map((session) => (
+              <li key={session.chat.id}>
+                <SessionRow
+                  title={session.title}
+                  activityAt={session.activityAt}
+                  messageCount={session.messageCount}
+                  running={session.running}
+                  unread={session.unread}
+                  selected={session.chat.id === chats?.activeChatId}
+                  onOpen={() => openTask(session.chat.id)}
+                />
+              </li>
+            ))}
+          </ul>
         ) : null}
       </div>
-
-      {configToph ? (
-        <Modal isOpen onClose={() => setConfigId(null)} title={configToph.name} description="Identidade, prompt, modelo e ferramentas do Toph." size="lg" bodyClassName="p-0">
-          <BotConfig projectId={project.id} projectRoot={project.root} bot={configToph} />
-        </Modal>
-      ) : null}
-
-      <TophTasksSheet
-        open={Boolean(toph) && tasksOpen}
-        projectId={project.id}
-        toph={toph}
-        projectChats={chats}
-        chats={tasks}
-        onClose={() => setTasksOpen(false)}
-        onOpen={(chatId) => { setTasksOpen(false); openTask(chatId); }}
-        onNew={() => { setTasksOpen(false); newTask(); }}
-      />
     </div>
   );
 }

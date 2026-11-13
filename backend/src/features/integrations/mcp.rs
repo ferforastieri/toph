@@ -305,16 +305,6 @@ impl Service {
             pool.clear();
         }
     }
-    /// Ids among `ids` that are configured to skip per-call approval.
-    pub async fn auto_approved(&self, ids: &[String]) -> AppResult<Vec<String>> {
-        Ok(self
-            .servers()
-            .await?
-            .into_iter()
-            .filter(|s| s.auto_approve && ids.iter().any(|id| *id == s.id))
-            .map(|s| s.id)
-            .collect())
-    }
     pub async fn test(&self, id: &str) -> AppResult<Value> {
         let result = self
             .call(&std::env::temp_dir(), id, "tools/list", json!({}))

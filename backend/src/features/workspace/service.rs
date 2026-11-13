@@ -54,14 +54,6 @@ impl WorkspaceService {
             .unwrap_or_default()
     }
 
-    pub fn set_roots(&self, roots: Vec<PathBuf>) -> AppResult<()> {
-        let resolved = resolve_roots(&roots)?;
-        if let Ok(mut current) = self.roots.write() {
-            *current = resolved;
-        }
-        Ok(())
-    }
-
     pub fn add_root(&self, root: &Path) -> AppResult<PathBuf> {
         let resolved = resolve_root(root)?;
         let mut roots = self
@@ -267,18 +259,6 @@ impl WorkspaceService {
             .persist(&path)
             .map_err(|error| AppError::Io(error.error))?;
         Ok(content.len() as i64)
-    }
-
-    pub fn read_bytes(&self, root: &Path, relative: &str) -> AppResult<Vec<u8>> {
-        let path = resolve_existing(root, relative)?;
-        let metadata = fs::metadata(&path)?;
-        if metadata.is_dir() {
-            return Err(AppError::BadRequest("path is a directory".into()));
-        }
-        if metadata.len() > MAX_READ_SIZE * 4 {
-            return Err(AppError::TooLarge);
-        }
-        Ok(fs::read(path)?)
     }
 
     /// Resolves a file for streaming downloads without loading it into memory.

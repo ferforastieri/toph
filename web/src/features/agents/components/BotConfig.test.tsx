@@ -1,7 +1,8 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import BotConfig from "./BotConfig";
-import { TOPH_PRESETS, useChats } from "../../conversations/store";
+import { DEFAULT_TOPH } from "../default-toph";
+import { useChats } from "../../conversations/store";
 import { useAI } from "../../providers/store";
 import { agentApi } from "../api";
 import { skillApi } from "../../skills/api";
@@ -27,7 +28,7 @@ beforeEach(() => {
   useChats.setState({ byProject: {}, messageWrites: {} });
   useChats.getState().load(projectId);
   tophId = useChats.getState().createToph(projectId, {
-    ...TOPH_PRESETS[0],
+    ...DEFAULT_TOPH,
     name: "Toph",
     model: "openai::gpt",
     tools: [],

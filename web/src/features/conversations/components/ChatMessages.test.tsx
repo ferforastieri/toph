@@ -24,7 +24,7 @@ const toph: ChatToph = {
   tools: [],
   language: "auto",
   color: "#8FB5F5",
-  avatar: "toph-forge",
+  avatar: "toph-logo",
   notifications: true,
   createdAt: 1,
 };

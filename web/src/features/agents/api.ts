@@ -77,6 +77,7 @@ const root = (project: string) => `/projects/${encodeURIComponent(project)}/agen
 const post = (body: unknown): RequestInit => ({ method: "POST", body: JSON.stringify(body) });
 export const agentApi = {
   start: (project: string, input: { requestId: string; chatId: string; chatDescription?: string; agentId: string; text: string; agents: Array<ChatToph & { chatId: string }>; attachments?: AgentAttachment[] }) => request<AgentRun>(`${root(project)}/runs`, { ...post(input), signal: AbortSignal.timeout(120_000) }),
+  activeRuns: (project: string) => request<AgentRun[]>(`${root(project)}/runs`),
   cancel: (project: string, run: string) => request(`${root(project)}/runs/${encodeURIComponent(run)}/cancel`, post({})),
   cancelAgent: (project: string, agentId: string) => request(`${root(project)}/cancel`, post({ agentId })),
   deleteChat: (project: string, chatId: string) => request(`${root(project)}/chats/${encodeURIComponent(chatId)}`, { method: "DELETE" }),
@@ -84,7 +85,6 @@ export const agentApi = {
   searchMessages: (project: string, query: string) => request<AgentSearchResult[]>(`${root(project)}/search?q=${encodeURIComponent(query)}`),
   events: (project: string) => `${getApiBase()}/api${root(project)}/events`,
   switchSession: (project: string, agentId: string, sessionId: string | null, chatId: string) => request(`${root(project)}/sessions`, post({ agentId, sessionId, chatId })),
-  deleteChatToph: (project: string, chatId: string, agentId: string) => request(`${root(project)}/chats/${encodeURIComponent(chatId)}/tophs/${encodeURIComponent(agentId)}`, { method: "DELETE" }),
   deleteToph: (project: string, agentId: string) => request(`${root(project)}/tophs/${encodeURIComponent(agentId)}`, { method: "DELETE" }),
   approve: (project: string, call: string, approved: boolean) => request(`${root(project)}/approvals/${encodeURIComponent(call)}`, post({ approved })),
   answer: (project: string, call: string, answer: string) => request(`${root(project)}/approvals/${encodeURIComponent(call)}`, post({ answers: answer })),

@@ -92,10 +92,6 @@ pub fn label(id: &str) -> String {
         .unwrap_or_else(|_| id.to_string())
 }
 
-pub fn is_supported(id: &str) -> bool {
-    engine(id).map(|engine| engine.supported).unwrap_or(false)
-}
-
 fn engine(id: &str) -> AppResult<&'static Engine> {
     ENGINES
         .iter()

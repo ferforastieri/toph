@@ -35,53 +35,6 @@ impl Repository {
         )
     }
 
-    pub async fn events(
-        &self,
-        session: &str,
-        after_seq: i64,
-        limit: i64,
-    ) -> AppResult<Vec<event::StoredEvent>> {
-        let rows = sqlx::query("SELECT seq,id,session_id,run_id,kind,payload,created_at FROM agent_events WHERE session_id=? AND seq>? ORDER BY seq LIMIT ?")
-            .bind(session)
-            .bind(after_seq)
-            .bind(limit)
-            .fetch_all(self.0.pool())
-            .await?;
-        rows.into_iter()
-            .map(|row| {
-                Ok(event::StoredEvent {
-                    seq: row.get("seq"),
-                    id: row.get("id"),
-                    session_id: row.get("session_id"),
-                    run_id: row.get("run_id"),
-                    kind: row.get("kind"),
-                    payload: serde_json::from_str(row.get::<String, _>("payload").as_str())?,
-                    created_at: row.get("created_at"),
-                })
-            })
-            .collect()
-    }
-
-    pub async fn run_events(&self, run: &str) -> AppResult<Vec<event::StoredEvent>> {
-        let rows = sqlx::query("SELECT seq,id,session_id,run_id,kind,payload,created_at FROM agent_events WHERE run_id=? ORDER BY seq")
-            .bind(run)
-            .fetch_all(self.0.pool())
-            .await?;
-        rows.into_iter()
-            .map(|row| {
-                Ok(event::StoredEvent {
-                    seq: row.get("seq"),
-                    id: row.get("id"),
-                    session_id: row.get("session_id"),
-                    run_id: row.get("run_id"),
-                    kind: row.get("kind"),
-                    payload: serde_json::from_str(row.get::<String, _>("payload").as_str())?,
-                    created_at: row.get("created_at"),
-                })
-            })
-            .collect()
-    }
-
     /// The persisted user message of the current run, including multimodal
     /// parts. The research phase must see exactly what the user sent.
     pub async fn user_task(&self, run: &str) -> AppResult<Option<(String, Value)>> {
@@ -353,6 +306,11 @@ impl Repository {
         sqlx::query_as("SELECT id,session_id,parent_id,chat_id,agent_id,state,error,created_at,finished_at FROM agent_runs WHERE user_id=? AND project_id=? AND id=?")
             .bind(user).bind(project).bind(id).fetch_optional(self.0.pool()).await?.ok_or(AppError::NotFound)
     }
+    /// The runs still in flight in a project, the newest first.
+    pub async fn active_runs(&self, user: i64, project: &str) -> AppResult<Vec<Run>> {
+        Ok(sqlx::query_as("SELECT id,session_id,parent_id,chat_id,agent_id,state,error,created_at,finished_at FROM agent_runs WHERE user_id=? AND project_id=? AND state IN ('queued','running','waiting') ORDER BY created_at DESC")
+            .bind(user).bind(project).fetch_all(self.0.pool()).await?)
+    }
     pub async fn create_run(
         &self,
         user: i64,
@@ -523,18 +481,6 @@ impl Repository {
         sqlx::query("INSERT INTO agent_session_state(session_id,ledger,updated_at) VALUES(?,?,?) ON CONFLICT(session_id) DO UPDATE SET ledger=excluded.ledger,updated_at=excluded.updated_at")
             .bind(session)
             .bind(ledger)
-            .bind(now())
-            .execute(self.0.pool())
-            .await?;
-        Ok(())
-    }
-    pub async fn save_checkpoint(&self, session: &str, seq: i64, summary: &str) -> AppResult<()> {
-        sqlx::query("INSERT INTO agent_checkpoints VALUES(?,?,?,?,?,?)")
-            .bind(new_id())
-            .bind(session)
-            .bind(seq)
-            .bind(summary)
-            .bind(estimate(&json!(summary)) as i64)
             .bind(now())
             .execute(self.0.pool())
             .await?;

@@ -4,13 +4,6 @@
   "version": "0.1.0",
   "type": "module",
   "exports": {
-    ".": "./src/index.ts",
     "./styles/base.css": "./styles/base.css"
-  },
-  "peerDependencies": {
-    "react": "^19.3.1"
-  },
-  "dependencies": {
-    "@toph/icons": "*"
   }
 }

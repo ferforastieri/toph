@@ -10,8 +10,6 @@ describe("workbench store", () => {
     useApp.setState({
       tabs: [],
       activeTabId: null,
-      aiMessages: {},
-      aiStreaming: {},
       terminalIds: {},
       toasts: [],
     });
@@ -34,35 +32,6 @@ describe("workbench store", () => {
     useApp.getState().closeTab("b");
     expect(useApp.getState().tabs.map((item) => item.id)).toEqual(["a", "c"]);
     expect(useApp.getState().activeTabId).toBe("c");
-  });
-
-  it("appends streaming AI text to the right message", () => {
-    useApp.getState().addAiMessage("ai:1", {
-      id: "assistant-1",
-      role: "assistant",
-      text: "",
-      createdAt: 1,
-    });
-    useApp.getState().appendAiText("ai:1", "assistant-1", "hello");
-    useApp.getState().appendAiText("ai:1", "assistant-1", " world");
-    expect(useApp.getState().aiMessages["ai:1"][0].text).toBe("hello world");
-  });
-
-  it("updates a permission message after a decision", () => {
-    useApp.getState().addAiMessage("ai:1", {
-      id: "permission-1",
-      role: "tool",
-      text: "Permission requested",
-      createdAt: 1,
-      permissionId: "req-1",
-    });
-    useApp.getState().updateAiMessage("ai:1", "permission-1", {
-      permissionId: undefined,
-      text: "Permission allowed.",
-    });
-    const message = useApp.getState().aiMessages["ai:1"][0];
-    expect(message.permissionId).toBeUndefined();
-    expect(message.text).toBe("Permission allowed.");
   });
 
   it("stores terminal ids per project", () => {

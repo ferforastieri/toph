@@ -1,9 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
-  activeChat,
   chatSessionTitle,
   chatDisplayName,
-  chatsForToph,
   chatTophs,
   latestChatForToph,
   useChats,
@@ -19,7 +17,7 @@ const preset = (name: string, role: string): TophPreset => ({
   personality: "",
   prompt: "",
   color: "#FFB547",
-  avatar: "toph-core",
+  avatar: "toph-logo",
 });
 
 const legacyToph = (id: string, chatId: string, name: string): ChatToph & { chatId: string } => ({
@@ -41,7 +39,7 @@ const legacyToph = (id: string, chatId: string, name: string): ChatToph & { chat
   tools: [],
   language: "auto",
   color: "#FFB547",
-  avatar: "toph-core",
+  avatar: "toph-logo",
   notifications: true,
   createdAt: 1,
 });
@@ -56,7 +54,7 @@ describe("useChats v5", () => {
     expect(project.version).toBe(5);
     expect(project.chats).toHaveLength(0);
     expect(project.tophs).toHaveLength(0);
-    expect(activeChat(project)).toBeNull();
+    expect(project.activeChatId).toBeNull();
   });
 
   it("migrates v4 teams into conversations with project Tophs", () => {
@@ -113,7 +111,7 @@ describe("useChats v5", () => {
 
     const project = useChats.getState().byProject.p;
     expect(project.tophs).toHaveLength(2);
-    expect(chatsForToph(project, leo.id).map((chat) => chat.id)).toEqual([group.id, individual.id]);
+    expect(project.chats.filter((chat) => chat.participantIds.includes(leo.id)).sort((a, b) => b.updatedAt - a.updatedAt).map((chat) => chat.id)).toEqual([group.id, individual.id]);
     expect(latestChatForToph(project, leo.id)?.id).toBe(group.id);
     expect(chatTophs(project, group.id).map((toph) => toph.name)).toEqual(["Leo", "Nico"]);
     expect(chatDisplayName(project, group)).toBe("Leo + Nico");

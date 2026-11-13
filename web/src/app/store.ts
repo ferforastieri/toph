@@ -3,8 +3,8 @@ import type { Project, User } from "../shared/api";
 import { isDesktopClient } from "../features/settings/store";
 import { api } from "../shared/api";
 
-export type TabKind = "editor" | "db" | "ai" | "web" | "diff";
-export type Sidebar = "files" | "scm" | "db" | "ai" | "web" | "bots" | "debug" | "settings";
+type TabKind = "editor" | "db" | "ai" | "web" | "diff";
+export type Sidebar = "files" | "scm" | "db" | "web" | "bots" | "debug" | "settings";
 
 /** Screen shown by the compact mobile shell. */
 export type MobileScreen = "bots" | "files" | "scm" | "db" | "web" | "debug" | "workspace" | "more";
@@ -48,7 +48,7 @@ export interface AiMessage {
   durationMs?: number;
 }
 
-export interface Toast {
+interface Toast {
   id: number;
   kind: "info" | "success" | "error";
   message: string;
@@ -108,24 +108,21 @@ function persistProjectState(activeProjectId: string | null, openProjectIds: str
   }
 }
 
-function readLayoutVisibility(): { terminalOpen: boolean; aiPanelOpen: boolean } {
+function readTerminalOpen(): boolean {
   try {
-    if (isDesktopClient()) return { terminalOpen: false, aiPanelOpen: false };
+    if (isDesktopClient()) return false;
     const raw = localStorage.getItem(LAYOUT_VISIBILITY_KEY);
-    if (!raw) return { terminalOpen: true, aiPanelOpen: false };
-    const value = JSON.parse(raw) as Partial<{ terminalOpen: boolean; aiPanelOpen: boolean }>;
-    return {
-      terminalOpen: value.terminalOpen !== false,
-      aiPanelOpen: value.aiPanelOpen === true,
-    };
+    if (!raw) return true;
+    const value = JSON.parse(raw) as Partial<{ terminalOpen: boolean }>;
+    return value.terminalOpen !== false;
   } catch {
-    return { terminalOpen: !isDesktopClient(), aiPanelOpen: false };
+    return !isDesktopClient();
   }
 }
 
-function persistLayoutVisibility(terminalOpen: boolean, aiPanelOpen: boolean): void {
+function persistTerminalOpen(terminalOpen: boolean): void {
   try {
-    localStorage.setItem(LAYOUT_VISIBILITY_KEY, JSON.stringify({ terminalOpen, aiPanelOpen }));
+    localStorage.setItem(LAYOUT_VISIBILITY_KEY, JSON.stringify({ terminalOpen }));
   } catch {
     // Layout visibility is best effort.
   }
@@ -156,7 +153,7 @@ function persistNotifications(items: AppNotification[]): void {
 }
 
 const initialProjectState = readProjectState();
-const initialLayoutVisibility = readLayoutVisibility();
+const initialTerminalOpen = readTerminalOpen();
 
 interface AppState {
   user: User | null;
@@ -169,11 +166,7 @@ interface AppState {
   sidebar: Sidebar;
   mobileScreen: MobileScreen;
   terminalOpen: boolean;
-  aiPanelOpen: boolean;
-  aiDockTab: Tab | null;
   terminalIds: Record<string, string>;
-  aiMessages: Record<string, AiMessage[]>;
-  aiStreaming: Record<string, boolean>;
   toasts: Toast[];
   notifications: AppNotification[];
   setUser: (user: User | null) => void;
@@ -191,16 +184,8 @@ interface AppState {
   setSidebar: (sidebar: Sidebar) => void;
   setMobileScreen: (screen: MobileScreen) => void;
   setTerminalOpen: (open: boolean) => void;
-  setAiPanelOpen: (open: boolean) => void;
-  toggleAiPanel: () => void;
-  setAiDockTab: (tab: Tab | null) => void;
   toggleTerminal: () => void;
   setTerminalId: (projectId: string, terminalId: string) => void;
-  addAiMessage: (tabId: string, message: AiMessage) => void;
-  setAiMessages: (tabId: string, messages: AiMessage[]) => void;
-  appendAiText: (tabId: string, messageId: string, delta: string) => void;
-  updateAiMessage: (tabId: string, messageId: string, patch: Partial<AiMessage>) => void;
-  setAiStreaming: (tabId: string, streaming: boolean) => void;
   notify: (kind: Toast["kind"], message: string) => void;
   dismissToast: (id: number) => void;
   addNotification: (notification: NewNotification) => boolean;
@@ -223,12 +208,8 @@ export const useApp = create<AppState>((set, get) => ({
   activeTabId: null,
   sidebar: isDesktopClient() ? "bots" : "files",
   mobileScreen: "bots",
-  terminalOpen: initialLayoutVisibility.terminalOpen,
-  aiPanelOpen: initialLayoutVisibility.aiPanelOpen,
-  aiDockTab: null,
+  terminalOpen: initialTerminalOpen,
   terminalIds: {},
-  aiMessages: {},
-  aiStreaming: {},
   toasts: [],
   notifications: readNotifications(),
 
@@ -289,28 +270,10 @@ export const useApp = create<AppState>((set, get) => ({
       if (!tabs.some((tab) => tab.id === activeTabId)) {
         activeTabId = tabs[tabs.length - 1]?.id ?? null;
       }
-      const aiDockTab = state.aiDockTab?.projectId === id ? null : state.aiDockTab;
       const terminalIds = { ...state.terminalIds };
       delete terminalIds[id];
-      const closedTabIds = new Set(state.tabs.filter((tab) => tab.projectId === id).map((tab) => tab.id));
-      const aiMessages = Object.fromEntries(
-        Object.entries(state.aiMessages).filter(([tabId]) => !closedTabIds.has(tabId)),
-      );
-      const aiStreaming = Object.fromEntries(
-        Object.entries(state.aiStreaming).filter(([tabId]) => !closedTabIds.has(tabId)),
-      );
       persistProjectState(activeProjectId, openProjectIds);
-      return {
-        openProjectIds,
-        activeProjectId,
-        terminalIds,
-        aiMessages,
-        aiStreaming,
-        tabs,
-        activeTabId,
-        aiDockTab,
-        aiPanelOpen: aiDockTab ? state.aiPanelOpen : false,
-      };
+      return { openProjectIds, activeProjectId, terminalIds, tabs, activeTabId };
     }),
   openTab: (tab) =>
     set((state) => {
@@ -335,8 +298,6 @@ export const useApp = create<AppState>((set, get) => ({
   updateTab: (id, patch) =>
     set((state) => ({
       tabs: state.tabs.map((tab) => (tab.id === id ? { ...tab, ...patch } : tab)),
-      aiDockTab:
-        state.aiDockTab?.id === id ? { ...state.aiDockTab, ...patch } : state.aiDockTab,
     })),
   setTabs: (tabs, activeTabId) =>
     set({
@@ -349,61 +310,16 @@ export const useApp = create<AppState>((set, get) => ({
   setSidebar: (sidebar) => set({ sidebar }),
   setMobileScreen: (mobileScreen) => set({ mobileScreen }),
   setTerminalOpen: (terminalOpen) => {
-    persistLayoutVisibility(terminalOpen, get().aiPanelOpen);
+    persistTerminalOpen(terminalOpen);
     set({ terminalOpen });
   },
-  setAiPanelOpen: (aiPanelOpen) => {
-    persistLayoutVisibility(get().terminalOpen, aiPanelOpen);
-    set({ aiPanelOpen });
-  },
-  toggleAiPanel: () => {
-    const aiPanelOpen = !get().aiPanelOpen;
-    persistLayoutVisibility(get().terminalOpen, aiPanelOpen);
-    set({ aiPanelOpen });
-  },
-  setAiDockTab: (aiDockTab) => set({ aiDockTab }),
   toggleTerminal: () => {
     const terminalOpen = !get().terminalOpen;
-    persistLayoutVisibility(terminalOpen, get().aiPanelOpen);
+    persistTerminalOpen(terminalOpen);
     set({ terminalOpen });
   },
   setTerminalId: (projectId, terminalId) =>
     set((state) => ({ terminalIds: { ...state.terminalIds, [projectId]: terminalId } })),
-  addAiMessage: (tabId, message) =>
-    set((state) => ({
-      aiMessages: {
-        ...state.aiMessages,
-        [tabId]: [...(state.aiMessages[tabId] ?? []), message],
-      },
-    })),
-  setAiMessages: (tabId, messages) =>
-    set((state) => ({
-      aiMessages: { ...state.aiMessages, [tabId]: messages },
-    })),
-  appendAiText: (tabId, messageId, delta) =>
-    set((state) => ({
-      aiMessages: {
-        ...state.aiMessages,
-        [tabId]: (state.aiMessages[tabId] ?? []).map((message) =>
-          message.id === messageId
-            ? { ...message, text: message.text + delta }
-            : message,
-        ),
-      },
-    })),
-  updateAiMessage: (tabId, messageId, patch) =>
-    set((state) => ({
-      aiMessages: {
-        ...state.aiMessages,
-        [tabId]: (state.aiMessages[tabId] ?? []).map((message) =>
-          message.id === messageId ? { ...message, ...patch } : message,
-        ),
-      },
-    })),
-  setAiStreaming: (tabId, streaming) =>
-    set((state) => ({
-      aiStreaming: { ...state.aiStreaming, [tabId]: streaming },
-    })),
   notify: (kind, message) => {
     const id = Date.now() + Math.floor(Math.random() * 1000);
     set((state) => ({ toasts: [...state.toasts, { id, kind, message }] }));

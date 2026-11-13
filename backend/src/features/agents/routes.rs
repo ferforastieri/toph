@@ -31,6 +31,16 @@ pub(super) async fn start_agent(
         state.agents.start(auth.user.id, &project, input).await?
     )))
 }
+pub(super) async fn agent_active_runs(
+    State(state): State<Arc<AppState>>,
+    Path(project): Path<String>,
+    Extension(auth): Extension<AuthContext>,
+) -> AppResult<Json<Value>> {
+    state.store.project(&project).await?;
+    Ok(Json(json!(
+        state.agents.active_runs(auth.user.id, &project).await?
+    )))
+}
 pub(super) async fn cancel_agent(
     State(state): State<Arc<AppState>>,
     Path((project, run)): Path<(String, String)>,
@@ -152,19 +162,6 @@ pub(super) async fn delete_chat(
         .await?;
     Ok(Json(json!({"ok":true})))
 }
-pub(super) async fn delete_chat_toph(
-    State(state): State<Arc<AppState>>,
-    Path((project, chat, toph)): Path<(String, String, String)>,
-    Extension(auth): Extension<AuthContext>,
-) -> AppResult<Json<Value>> {
-    state.store.project(&project).await?;
-    state
-        .agents
-        .delete_chat_toph(auth.user.id, &project, &chat, &toph)
-        .await?;
-    Ok(Json(json!({"ok":true})))
-}
-
 pub(super) async fn delete_toph(
     State(state): State<Arc<AppState>>,
     Path((project, toph)): Path<(String, String)>,

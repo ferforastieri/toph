@@ -57,28 +57,6 @@ pub struct WebTarget {
     pub created_at: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
-#[serde(rename_all = "camelCase")]
-pub struct PetConfig {
-    pub chosen: bool,
-    pub enabled: bool,
-    pub kind: String,
-    pub mode: String,
-    pub commits: i64,
-}
-
-impl Default for PetConfig {
-    fn default() -> Self {
-        Self {
-            chosen: false,
-            enabled: false,
-            kind: "toph-core".into(),
-            mode: "corner".into(),
-            commits: 0,
-        }
-    }
-}
-
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FileEntry {

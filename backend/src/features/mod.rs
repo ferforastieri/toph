@@ -5,7 +5,6 @@ pub mod database_connections;
 pub mod debug;
 pub mod integrations;
 pub mod notifications;
-pub mod pet;
 pub mod previews;
 pub mod projects;
 pub mod providers;

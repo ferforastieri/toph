@@ -1,10 +1,10 @@
 import { create } from "zustand";
 import { BOT_AVATARS, type BotAvatar, type BotLanguage } from "../agents/avatars";
 
-export const DEFAULT_TOPH_COLOR = "#FFB547";
+const DEFAULT_TOPH_COLOR = "#FFB547";
 
-export type TophAgentMode = "build" | "plan";
-export type TophPermissionMode = "yolo" | "ask" | "deny";
+type TophAgentMode = "build" | "plan";
+type TophPermissionMode = "yolo" | "ask" | "deny";
 
 export interface ChatToph {
   /** A Toph belongs to the project, not to a conversation. */
@@ -75,7 +75,7 @@ export interface ProjectChats {
   hydrated?: boolean;
 }
 
-export type ProjectChatsSnapshot = Omit<ProjectChats, "messages" | "hydrated">;
+type ProjectChatsSnapshot = Omit<ProjectChats, "messages" | "hydrated">;
 
 export interface TophPreset {
   name: string;
@@ -96,89 +96,6 @@ export interface TophPreset {
   language?: BotLanguage;
 }
 
-function preset(
-  name: string,
-  role: string,
-  description: string,
-  personality: string,
-  color: string,
-  avatar: BotAvatar,
-  extra: Partial<TophPreset> = {},
-): TophPreset {
-  return {
-    name,
-    role,
-    description,
-    personality,
-    prompt: `Você é ${name}, ${role}. ${description} ${personality}`,
-    color,
-    avatar,
-    agentMode: "build",
-    permissionMode: "yolo",
-    mcpServers: [],
-      emailAccountIds: [],
-    tools: ["generate_image"],
-    language: "auto",
-    engine: "opencode",
-    ...extra,
-  };
-}
-
-/** Pre-made Tophs. They carry their own role prompt and default tool policy. */
-export const TOPH_PRESETS: TophPreset[] = [
-  preset("Toph", "Assistente", "Seu agente pessoal para conversar, programar e executar tarefas.", "Direto, curioso e focado em resolver o problema.", "#B9DE7A", "toph-core"),
-  preset("Leo", "Dev", "Implementa, refatora e resolve bugs no código.", "Pragmático, direto e cuidadoso com regressões.", "#8FB5F5", "toph-forge"),
-  preset("Nico", "Revisor", "Revisa código, aponta riscos e exige testes.", "Cético, detalhista e construtivo.", "#C7A3FF", "toph-prism", { agentMode: "plan", permissionMode: "ask" }),
-  preset("Nova", "Produto", "Transforma pedidos vagos em escopo e critérios de aceite.", "Curiosa, objetiva e implacável com ambiguidade.", "#FF9EC4", "toph-nova", { agentMode: "plan", permissionMode: "ask" }),
-  preset("Bia", "Dados", "Investiga dados, métricas e consultas.", "Analítica, paciente e orientada a evidências.", "#84E0C2", "toph-tide"),
-  preset("Pia", "Design", "Cuida de interface, consistência visual e experiência.", "Sensível ao detalhe e direta no feedback.", "#D8B4FE", "toph-kite"),
-  preset("Lia", "QA", "Cria casos de teste e caça regressões.", "Desconfiada por princípio e obcecada por reprodução.", "#FDA4AF", "toph-comet", { permissionMode: "ask" }),
-  preset("Theo", "Infra", "Cuida de containers, deploy, logs e observabilidade.", "Metódico, direto e avesso a mudanças sem rollback.", "#93C5FD", "toph-pulse"),
-  preset("Caio", "Segurança", "Revisa permissões, segredos e superfícies de ataque.", "Cauteloso, preciso e sem alarmismo.", "#FCD34D", "toph-portal", { agentMode: "plan", permissionMode: "ask" }),
-  preset("Vera", "Documentação", "Mantém README, guias e decisões técnicas.", "Clara, paciente e alérgica a texto vago.", "#A8DDE8", "toph-pebble"),
-  preset("Dante", "Backend", "APIs, banco de dados e integrações.", "Sistemático, curioso e focado em contratos.", "#F08C72", "toph-cube"),
-  preset("Iris", "Frontend", "Implementa interfaces acessíveis e responsivas.", "Detalhista, visual e atenta a estados de erro.", "#8CD3B4", "toph-bloom"),
-  preset("Otto", "Automação", "Scripts, rotinas e integrações entre ferramentas.", "Prático, resiliente e inimigo de trabalho manual.", "#F7B267", "toph-forge"),
-  preset("Rafa", "Suporte", "Responde tickets e transforma bugs em issues claras.", "Empática, organizada e rápida no diagnóstico.", "#FFD166", "toph-nimbus"),
-  preset("Maya", "Pesquisa", "Explora código, documentação e referências externas.", "Investigativa e cética com respostas fáceis.", "#6EE7B7", "toph-grove"),
-  preset("Nina", "Arquitetura", "Desenha limites, dependências e decisões estruturais.", "Sistêmica, questionadora e econômica nas escolhas.", "#FFB547", "toph-prism", { agentMode: "plan", permissionMode: "ask" }),
-  preset("Ravi", "Mobile", "Cuida de Android, iOS e experiência em movimento.", "Pragmático, atento a performance e gestos.", "#F28BA8", "toph-echo"),
-  preset("Luna", "Conteúdo", "Escreve, revisa e adapta textos para cada canal.", "Criativa, direta e atenta ao tom da marca.", "#B8E986", "toph-luna"),
-  preset("Zoe", "Growth", "Testa hipóteses, funis e experimentos.", "Orientada a métrica, rápida e transparente.", "#9BB7FF", "toph-spark"),
-  preset("Atlas", "Organização", "Organiza prioridades, distribui tarefas e cobra o fechamento.", "Estratégico, calmo e obcecado por clareza.", "#7FD4E8", "toph-peak"),
-  preset("Toph", "Assistente", "Seu agente pessoal para conversar, programar e executar tarefas.", "Direto, curioso e focado em resolver o problema.", "#FFB547", "toph-logo"),
-  preset("Tulipa", "Designer", "Cuida de interface, consistência visual e experiência.", "Sensível ao detalhe e direta no feedback.", "#FF7AB6", "toph-01"),
-  preset("Cogumelo", "Dev", "Implementa, refatora e resolve bugs no código.", "Pragmático e cuidadoso com regressões.", "#7CE7B0", "toph-02"),
-  preset("Borboleta", "Produto", "Transforma pedidos vagos em escopo e critérios de aceite.", "Curiosa e implacável com ambiguidade.", "#C7A3FF", "toph-03"),
-  preset("Coração", "Suporte", "Responde usuários e transforma problemas em ações claras.", "Empático, organizado e rápido no diagnóstico.", "#FDA4AF", "toph-04"),
-  preset("Raio", "Performance", "Otimiza tempo de resposta, memória e renderização.", "Obcecado por medição e ganho real.", "#FFD166", "toph-05"),
-  preset("Cacto", "Infra", "Cuida de containers, deploy, logs e observabilidade.", "Metódico e avesso a mudanças sem rollback.", "#8CD3B4", "toph-06"),
-  preset("Concha", "Pesquisa", "Explora código, documentação e referências externas.", "Investigativa e cética com respostas fáceis.", "#84E0C2", "toph-07"),
-  preset("Bolota", "Dados", "Investiga dados, métricas e consultas.", "Analítica e orientada a evidências.", "#B9DE7A", "toph-08"),
-  preset("Folha", "Conteúdo", "Mantém README, guias e decisões técnicas.", "Clara e alérgica a texto vago.", "#A8DDE8", "toph-09"),
-  preset("Chama", "Marketing", "Cuida de posicionamento, campanhas e copy.", "Criativa e focada em conversão.", "#F08C72", "toph-10"),
-  preset("Floco", "Segurança", "Revisa permissões, segredos e superfícies de ataque.", "Cauteloso e preciso, sem alarmismo.", "#93C5FD", "toph-11"),
-  preset("Coringa", "QA", "Cria casos de teste e caça regressões.", "Desconfiado por princípio.", "#C4B5FD", "toph-12"),
-  preset("Hexágono", "Arquitetura", "Define estruturas, contratos e limites entre módulos.", "Sistêmico e focado em simplicidade.", "#8FB5F5", "toph-13"),
-  preset("Laço", "Revisor", "Revisa código, aponta riscos e exige testes.", "Cético, detalhista e construtivo.", "#FF9EC4", "toph-14"),
-  preset("Ampulheta", "Automação", "Scripts, rotinas e integrações entre ferramentas.", "Prático e inimigo de trabalho manual.", "#F7B267", "toph-15"),
-  preset("Avião", "DevOps", "Pipelines, releases e automação de entrega.", "Confiável e orientado a rollback.", "#67E8F9", "toph-16"),
-  preset("Barco", "Mobile", "Implementa telas e fluxos para iOS e Android.", "Detalhista com gestos e desempenho.", "#6EE7B7", "toph-17"),
-  preset("Sino", "Notificações", "Cuida de eventos, alertas e canais.", "Conciso e atento a ruído.", "#FFB547", "toph-18"),
-  preset("Ferradura", "Integrações", "Conecta APIs, webhooks e serviços externos.", "Paciente com contratos e falhas.", "#D8B4FE", "toph-19"),
-  preset("Coroa", "Gestão", "Organiza prioridades, escopo e entregas.", "Clara e orientada a resultado.", "#FCD34D", "toph-20"),
-  preset("Pretzel", "Financeiro", "Cuida de custos, cobrança e indicadores.", "Rigoroso com números.", "#FFB547", "toph-21"),
-  preset("Hélice", "Machine Learning", "Modelos, prompts e pipelines de IA.", "Experimental e rigoroso com avaliação.", "#C7A3FF", "toph-22"),
-  preset("Arraia", "Cloud", "Infraestrutura, custos e escalabilidade.", "Cauteloso com limites e cotas.", "#8CD3B4", "toph-23"),
-  preset("Abóbora", "Growth", "Experimentos, funis e retenção.", "Curioso e orientado a métrica.", "#F7B267", "toph-24"),
-  preset("Broto", "Onboarding", "Primeira experiência e ativação de usuários.", "Acolhedor e direto.", "#7CE7B0", "toph-25"),
-  preset("Cristais", "Banco de Dados", "Esquemas, índices, consultas e migrações.", "Cuidadoso com dados e performance.", "#93C5FD", "toph-26"),
-  preset("Bumerangue", "Refatoração", "Simplifica código legado sem quebrar contratos.", "Pragmático e incremental.", "#F08C72", "toph-27"),
-  preset("Bolha", "Customer Success", "Acompanha clientes, feedback e retenção.", "Empático e organizado.", "#8FB5F5", "toph-28"),
-  preset("Estrela", "Especialista", "Ajuda no que for necessário, com foco em resolver.", "Direto e adaptável.", "#FF9EC4", "toph-29"),
-  preset("Cometa", "Especialista", "Ajuda no que for necessário, com foco em resolver.", "Direto e adaptável.", "#FDA4AF", "toph-30"),
-];
-
 function newId(prefix: string): string {
   const value = typeof crypto !== "undefined" && "randomUUID" in crypto
     ? crypto.randomUUID()
@@ -186,7 +103,7 @@ function newId(prefix: string): string {
   return `${prefix}-${value}`;
 }
 
-export function slugifyToph(value: string): string {
+function slugifyToph(value: string): string {
   return value
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
@@ -194,16 +111,6 @@ export function slugifyToph(value: string): string {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 24);
-}
-
-function generatedAvatarFor(name: string): BotAvatar {
-  if (slugifyToph(name) === "toph") return "toph-core";
-  let hash = 2166136261;
-  for (const character of name) {
-    hash ^= character.codePointAt(0) ?? 0;
-    hash = Math.imul(hash, 16777619);
-  }
-  return BOT_AVATARS[Math.abs(hash) % BOT_AVATARS.length] ?? "toph-core";
 }
 
 function uniqueName(desired: string, used: Set<string>): string {
@@ -248,7 +155,7 @@ function normalizeToph(toph: Partial<ChatToph>): ChatToph {
     tools: Array.isArray(toph.tools) ? toph.tools.filter((item): item is string => typeof item === "string") : ["generate_image"],
     language: toph.language === "pt" || toph.language === "en" || toph.language === "es" ? toph.language : "auto",
     color: toph.color || DEFAULT_TOPH_COLOR,
-    avatar: toph.avatar && BOT_AVATARS.includes(toph.avatar) ? toph.avatar : generatedAvatarFor(name),
+    avatar: toph.avatar && BOT_AVATARS.includes(toph.avatar) ? toph.avatar : "toph-logo",
     notifications: toph.notifications !== false,
     createdAt: Number.isFinite(toph.createdAt) ? Number(toph.createdAt) : Date.now(),
   };
@@ -282,7 +189,7 @@ function cappedMessage(message: ChatMessage): ChatMessage {
 }
 
 /** A project starts empty: Tophs are created first, tasks open around them. */
-export function freshProject(hydrated = false): ProjectChats {
+function freshProject(hydrated = false): ProjectChats {
   return { version: 5, chats: [], tophs: [], messages: [], activeChatId: null, hydrated };
 }
 
@@ -557,7 +464,7 @@ export const useChats = create<ChatStore>((set, get) => ({
       tools: [...(preset.tools ?? ["generate_image"])],
       language: preset.language ?? "auto",
       color: preset.color || DEFAULT_TOPH_COLOR,
-      avatar: BOT_AVATARS.includes(preset.avatar) ? preset.avatar : generatedAvatarFor(name),
+      avatar: BOT_AVATARS.includes(preset.avatar) ? preset.avatar : "toph-logo",
       notifications: true,
       createdAt: Date.now(),
     };
@@ -817,7 +724,7 @@ export function conversations(project: ProjectChats | undefined): TophChat[] {
   return project?.chats ?? [];
 }
 
-export function chatsForToph(project: ProjectChats | undefined, tophId: string | null | undefined): TophChat[] {
+function chatsForToph(project: ProjectChats | undefined, tophId: string | null | undefined): TophChat[] {
   if (!project || !tophId) return [];
   return project.chats
     .filter((chat) => chat.participantIds.includes(tophId))
@@ -841,7 +748,7 @@ export function chatDisplayName(project: ProjectChats | undefined, chat: TophCha
   return names.join(" + ");
 }
 
-export function messagesForChat(project: ProjectChats | undefined, chatId: string | null | undefined): ChatMessage[] {
+function messagesForChat(project: ProjectChats | undefined, chatId: string | null | undefined): ChatMessage[] {
   if (!project || !chatId) return [];
   return project.messages.filter((message) => message.chatId === chatId);
 }
@@ -880,9 +787,4 @@ export function chatSessionTitle(project: ProjectChats | undefined, chat: TophCh
   const description = sessionSubject(chat.description);
   if (description) return description;
   return fallback;
-}
-
-export function activeChat(project: ProjectChats | undefined): TophChat | null {
-  if (!project?.activeChatId) return null;
-  return project.chats.find((chat) => chat.id === project.activeChatId) ?? null;
 }

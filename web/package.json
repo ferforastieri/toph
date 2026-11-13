@@ -17,7 +17,6 @@
     "@remixicon/react": "^4.9.0",
     "@shikijs/langs": "^4.5.0",
     "@tailwindcss/vite": "^4.3.3",
-    "@tanstack/react-table": "^8.21.3",
     "@toph/brand": "*",
     "@toph/icons": "*",
     "@xterm/addon-fit": "^0.11.0",

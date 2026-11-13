@@ -36,6 +36,7 @@ import ResizeHandle from "../../shared/ui/resize";
 import { isMobileViewport, useIsMobile } from "../../shared/ui/useIsMobile";
 import { useConfirm } from "../../shared/ui/confirm";
 import { useTophDrafts } from "../../features/agents/drafts";
+import { ensureToph } from "../../features/agents/default-toph";
 import { cx } from "@/shared/boardui/utils/cx";
 import { suggestGitChanges } from "../../features/git/ai";
 import { parseGitStatus } from "../../features/git/status";
@@ -101,7 +102,6 @@ function restoredSidebar(value: unknown): Sidebar {
     case "search":
     case "settings":
       return "files";
-    case "ai":
     default:
       return "bots";
   }
@@ -897,6 +897,14 @@ export default function Workbench() {
     useChats.getState().touchConversation(projectId, chatId);
   }
 
+  function newConversation() {
+    if (!project) return;
+    const toph = ensureToph(project.id);
+    if (!toph) return;
+    const chat = useChats.getState().createConversation(project.id, [toph.id], { name: toph.name });
+    if (chat) openConversation(project.id, chat.id, toph.name);
+  }
+
   function openTophConversation(projectId: string, tophId: string, chatId?: string) {
     const chats = useChats.getState().byProject[projectId];
     if (!chats?.hydrated) {
@@ -1198,14 +1206,14 @@ export default function Workbench() {
                   {!activeTab && project && (
                     <div className="flex h-full w-full flex-col items-center justify-center gap-4 p-8 text-center">
                       <BrandMark size="large" />
-                      <h2 className="text-title-2-medium text-text-primary">{botsView ? "Escolha um Toph" : project.name}</h2>
+                      <h2 className="text-title-2-medium text-text-primary">{botsView ? "Nenhuma sessão aberta" : project.name}</h2>
                       <p className="max-w-lg text-body-regular text-text-secondary">
-                        {botsView ? "Abra uma tarefa individual ou uma conversa em grupo na barra ao lado." : project.root}
+                        {botsView ? "Abra uma sessão na barra ao lado ou comece uma nova tarefa." : project.root}
                       </p>
                        <div className="flex flex-wrap items-center justify-center gap-2">
                          {featureIsEnabled("files") && <Button variant="secondary" size="small" onClick={() => selectSidebar("files")}>Explorer</Button>}
                          {featureIsEnabled("databases") && <Button variant="secondary" size="small" onClick={() => selectSidebar("db")}>Database</Button>}
-                         <Button variant="secondary" size="small" onClick={() => setSidebar("bots")}>Tophs</Button>
+                         <Button variant="secondary" size="small" onClick={newConversation}>Nova tarefa</Button>
                        </div>
                     </div>
                   )}

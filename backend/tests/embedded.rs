@@ -45,24 +45,6 @@ async fn embedded_server_serves_authenticated_api() {
         .unwrap();
     let csrf = login["csrfToken"].as_str().unwrap().to_string();
 
-    let pet: Value = client
-        .put(format!("{base}/api/pet"))
-        .header("X-Toph-CSRF", &csrf)
-        .json(&serde_json::json!({
-            "chosen": true,
-            "enabled": true,
-            "kind": "toph-prism",
-            "mode": "corner",
-            "commits": 4,
-        }))
-        .send()
-        .await
-        .unwrap()
-        .json()
-        .await
-        .unwrap();
-    assert_eq!(pet["kind"], "toph-prism");
-
     let projects: Vec<Value> = client
         .get(format!("{base}/api/projects"))
         .send()

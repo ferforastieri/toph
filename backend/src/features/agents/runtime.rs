@@ -908,6 +908,11 @@ Se a mensagem depender de uma ferramenta ou MCP, prefira quem tem acesso a ele; 
         Ok(())
     }
 
+    /// The runs still queued, running or waiting in a project.
+    pub async fn active_runs(&self, user: i64, project: &str) -> AppResult<Value> {
+        Ok(json!(self.inner.repo.active_runs(user, project).await?))
+    }
+
     pub async fn cancel_project(
         &self,
         user: Option<i64>,
@@ -972,61 +977,6 @@ Se a mensagem depender de uma ferramenta ou MCP, prefira quem tem acesso a ele; 
                 .bind(chat)
                 .execute(&mut *tx)
                 .await?;
-        }
-        tx.commit().await?;
-        self.inner
-            .sessions
-            .lock()
-            .unwrap()
-            .drop_where(|key| session_ids.iter().any(|id| id == key));
-        for id in &session_ids {
-            let _ = tokio::fs::remove_dir_all(super::cli::work_dir(id)).await;
-        }
-        Ok(())
-    }
-
-    /// Removes one Toph from one task: its runs, messages and harness sessions
-    /// in that conversation. The Toph itself and its other tasks are untouched.
-    pub async fn delete_chat_toph(
-        &self,
-        user: i64,
-        project: &str,
-        chat: &str,
-        agent: &str,
-    ) -> AppResult<()> {
-        let session_ids: Vec<String> = sqlx::query_scalar(
-            "SELECT id FROM agent_sessions WHERE user_id=? AND project_id=? AND chat_id=? AND agent_id=?",
-        )
-        .bind(user).bind(project).bind(chat).bind(agent)
-        .fetch_all(self.inner.repo.0.pool()).await?;
-        let active: Vec<String> = sqlx::query_scalar(
-            "SELECT id FROM agent_runs WHERE user_id=? AND project_id=? AND chat_id=? AND agent_id=? AND state IN ('queued','running','waiting')",
-        )
-        .bind(user).bind(project).bind(chat).bind(agent)
-        .fetch_all(self.inner.repo.0.pool()).await?;
-        {
-            let runs = self.inner.runs.lock().unwrap();
-            for id in &active {
-                if let Some(token) = runs.get(id) {
-                    token.cancel();
-                }
-            }
-        }
-        let mut tx = self.inner.repo.0.pool().begin().await?;
-        for statement in [
-            "DELETE FROM agent_tool_calls WHERE run_id IN (SELECT id FROM agent_runs WHERE user_id=? AND project_id=? AND chat_id=? AND agent_id=?)",
-            "DELETE FROM agent_model_calls WHERE run_id IN (SELECT id FROM agent_runs WHERE user_id=? AND project_id=? AND chat_id=? AND agent_id=?)",
-            "DELETE FROM agent_artifacts WHERE run_id IN (SELECT id FROM agent_runs WHERE user_id=? AND project_id=? AND chat_id=? AND agent_id=?)",
-            "DELETE FROM agent_events WHERE session_id IN (SELECT id FROM agent_sessions WHERE user_id=? AND project_id=? AND chat_id=? AND agent_id=?)",
-            "DELETE FROM agent_messages WHERE session_id IN (SELECT id FROM agent_sessions WHERE user_id=? AND project_id=? AND chat_id=? AND agent_id=?)",
-            "DELETE FROM agent_checkpoints WHERE session_id IN (SELECT id FROM agent_sessions WHERE user_id=? AND project_id=? AND chat_id=? AND agent_id=?)",
-            "DELETE FROM agent_session_state WHERE session_id IN (SELECT id FROM agent_sessions WHERE user_id=? AND project_id=? AND chat_id=? AND agent_id=?)",
-            "DELETE FROM agent_runs WHERE user_id=? AND project_id=? AND chat_id=? AND agent_id=?",
-            "DELETE FROM agent_sessions WHERE user_id=? AND project_id=? AND chat_id=? AND agent_id=?",
-        ] {
-            sqlx::query(statement)
-                .bind(user).bind(project).bind(chat).bind(agent)
-                .execute(&mut *tx).await?;
         }
         tx.commit().await?;
         self.inner

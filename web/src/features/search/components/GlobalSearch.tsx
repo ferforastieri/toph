@@ -8,15 +8,15 @@ import BotAvatar from "../../agents/components/BotAvatar";
 import { Modal } from "@/shared/boardui/base/modal/modal";
 import { cx } from "@/shared/boardui/utils/cx";
 
-type SettingsSection = "general" | "companion" | "appearance" | "skills" | "harness" | "email" | "workspace" | "about";
+type SettingsSection = "general" | "appearance" | "toph" | "skills" | "harness" | "email" | "workspace" | "about";
 
 const SETTINGS: Array<{ id: SettingsSection; title: string; subtitle: string }> = [
   { id: "general", title: "Geral", subtitle: "Conta e servidor" },
-  { id: "companion", title: "Toph pet", subtitle: "Companheiro e nível" },
+  { id: "toph", title: "Toph", subtitle: "Identidade, prompt e modelo" },
   { id: "appearance", title: "Layout e ferramentas", subtitle: "Aparência do workspace" },
-  { id: "skills", title: "Skills", subtitle: "Receitas dos Tophs" },
+  { id: "skills", title: "Skills", subtitle: "Receitas do Toph" },
   { id: "harness", title: "Harness", subtitle: "CLIs, modelos e MCPs" },
-  { id: "email", title: "Email", subtitle: "Contas de email dos Tophs" },
+  { id: "email", title: "Email", subtitle: "Contas de email do Toph" },
   { id: "workspace", title: "Workspace", subtitle: "Pastas acessíveis" },
   { id: "about", title: "Sobre", subtitle: "Versão e build" },
 ];

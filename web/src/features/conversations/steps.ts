@@ -1,6 +1,6 @@
 import type { NativeMessage } from "../agents/api";
 
-export interface ToolStepView {
+interface ToolStepView {
   label: string;
   detail?: string;
   note?: string;

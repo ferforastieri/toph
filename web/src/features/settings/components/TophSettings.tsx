@@ -7,13 +7,14 @@ const WorkspaceSettings = lazy(() => import("./WorkspaceSettings"));
 const EmailPanel = lazy(() => import("../../integrations/components/EmailPanel"));
 const SkillsPanel = lazy(() => import("../../skills/components/SkillsPanel"));
 const HarnessSettings = lazy(() => import("./HarnessSettings"));
+const TophConfigSettings = lazy(() => import("../../agents/components/TophConfigSettings"));
 import { Button } from "@/shared/boardui/base/buttons/button";
 import { Checkbox } from "@/shared/boardui/base/checkbox/checkbox";
 import { Input } from "@/shared/boardui/base/input/input";
 import { Modal } from "@/shared/boardui/base/modal/modal";
 import { cx } from "@/shared/boardui/utils/cx";
 
-type Section = "general" | "appearance" | "skills" | "harness" | "email" | "workspace" | "about";
+type Section = "general" | "appearance" | "toph" | "skills" | "harness" | "email" | "workspace" | "about";
 
 interface Props {
   user: User | null;
@@ -35,6 +36,7 @@ const sections: Array<{ label?: string; items: SectionItem[] }> = [
     { id: "appearance", label: "Layout e ferramentas", icon: Settings2 },
   ] },
   { label: "IA e ferramentas", items: [
+    { id: "toph", label: "Toph", icon: Bot },
     { id: "skills", label: "Skills", icon: Sparkles },
     { id: "harness", label: "Harness", icon: PlugZap },
     { id: "email", label: "Email", icon: Mail },
@@ -239,6 +241,8 @@ export default function TophSettings({ user, projectRoot, projectId, hideTrigger
                   <FeatureToggle label="Toph" checked disabled onChange={() => undefined} />
                 </SettingsGroup>
               </div>
+            ) : section === "toph" ? (
+              <><SettingsHeading title="Toph" description="Identidade, prompt, modelo e ferramentas do Toph deste projeto." /><div className="mt-5"><TophConfigSettings projectId={projectId} projectRoot={projectRoot} /></div></>
             ) : section === "skills" ? (
               <SkillsPanel projectId={projectId} />
             ) : section === "harness" ? (

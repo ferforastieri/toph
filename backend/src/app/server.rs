@@ -81,7 +81,7 @@ use crate::features::agents::{
     tools::Tools as AgentTools,
 };
 use crate::features::integrations::mcp::Service as McpService;
-use crate::model::{DbProfile, PetConfig, Project, Session, User, WebTarget};
+use crate::model::{DbProfile, Project, Session, User, WebTarget};
 use crate::platform::instance_lock::InstanceLock;
 use crate::push::{PushMessage, PushService};
 use crate::store::{Store, WorkspaceMessageCursor};
@@ -691,8 +691,6 @@ fn router(state: Arc<AppState>) -> Router {
             get(list_notifications).delete(clear_notifications),
         )
         .route("/api/notifications/read", post(mark_notifications_read))
-        .route("/api/notifications/bot", post(notify_bot))
-        .route("/api/pet", get(get_pet).put(save_pet))
         .route("/api/notifications/stream", get(notification_stream))
         .route("/api/events/ws", get(events_ws))
         .route("/api/projects", get(list_projects).post(create_project))
@@ -881,7 +879,9 @@ fn router(state: Arc<AppState>) -> Router {
         )
         .route(
             "/api/projects/{project_id}/agent/runs",
-            post(start_agent).layer(DefaultBodyLimit::max(32 * 1024 * 1024)),
+            get(agent_active_runs)
+                .post(start_agent)
+                .layer(DefaultBodyLimit::max(32 * 1024 * 1024)),
         )
         .route(
             "/api/projects/{project_id}/agent/cancel",
@@ -903,10 +903,6 @@ fn router(state: Arc<AppState>) -> Router {
         .route(
             "/api/projects/{project_id}/agent/chats/{chat_id}",
             delete(delete_chat),
-        )
-        .route(
-            "/api/projects/{project_id}/agent/chats/{chat_id}/tophs/{toph_id}",
-            delete(delete_chat_toph),
         )
         .route(
             "/api/projects/{project_id}/agent/tophs/{toph_id}",
@@ -1217,12 +1213,6 @@ fn static_response(path: &str, data: Cow<'static, [u8]>) -> Response {
         .header(header::CACHE_CONTROL, cache)
         .body(Body::from(data))
         .unwrap_or_else(|_| StatusCode::INTERNAL_SERVER_ERROR.into_response())
-}
-
-// Keep this handler public so future server integrations can reuse the same
-// health shape without constructing an AppState manually.
-pub fn version_string() -> &'static str {
-    VERSION
 }
 
 #[derive(Debug, Serialize)]

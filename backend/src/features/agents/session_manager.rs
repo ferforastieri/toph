@@ -138,22 +138,8 @@ impl Sessions {
         }
     }
 
-    /// The session a turn here would go on from, if it has not expired.
-    pub fn id_of(&self, key: &str) -> Option<&str> {
-        self.entries
-            .get(key)
-            .filter(|entry| super::models::now() - entry.used_at <= self.ttl_ms)
-            .map(|entry| entry.id.as_str())
-    }
-
     pub fn drop_where(&mut self, mut match_key: impl FnMut(&str) -> bool) {
         self.entries.retain(|key, _| !match_key(key));
-    }
-
-    pub fn sweep(&mut self) {
-        let now = super::models::now();
-        self.entries
-            .retain(|_, entry| now - entry.used_at <= self.ttl_ms);
     }
 
     /// What is new since the session's last turn, or None when it cannot go on.

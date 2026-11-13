@@ -308,31 +308,3 @@ export function extractAgentDiffs(toolName: string, inputText?: string, detailTe
   const result = artifact(title, diffText(before, after || writeContent));
   return result ? [result] : [];
 }
-
-/** Finds files a mutating agent tool is about to change so callers can snapshot them. */
-export function extractAgentFilePaths(toolName: string, inputText?: string): string[] {
-  if (!/edit|write|patch|apply|replace|create|delete|move|rename/i.test(toolName)) return [];
-  const paths = new Set<string>();
-  const add = (value: unknown) => {
-    if (typeof value !== "string") return;
-    let path = cleanArtifactPath(value).replace(/^file:\/\//i, "").replace(/\\/g, "/");
-    if (/^[ab]\//.test(path)) path = path.slice(2);
-    if (path && !path.includes("\n") && !path.includes("\0")) paths.add(path);
-  };
-  const input = parsedToolRecord(inputText);
-  if (input) {
-    for (const key of ["filePath", "path", "file", "filename", "outputPath", "output_path", "targetPath", "target_path", "sourcePath", "source_path", "oldPath", "old_path", "newPath", "new_path", "from", "to"]) add(input[key]);
-  }
-  const patch = [
-    recordString(input, ["patch", "diff", "unifiedDiff", "patchText"]),
-    inputText ?? "",
-  ].find((candidate) => candidate && looksLikePatch(candidate));
-  if (patch) {
-    const pattern = /^(?:\*\*\* (?:Update|Add|Delete) File:|\+\+\+|---)\s+(?:[ab]\/)?(.+)$/gm;
-    let match: RegExpExecArray | null;
-    while ((match = pattern.exec(patch))) {
-      if (match[1] !== "/dev/null") add(match[1] ?? "");
-    }
-  }
-  return [...paths];
-}

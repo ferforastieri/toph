@@ -381,9 +381,9 @@ export default function MobileApp() {
           ) : (
             <div className="flex h-full w-full flex-col items-center justify-center gap-3 p-8 text-center">
               <span className="flex size-12 items-center justify-center rounded-2xl bg-accent-500/10 text-accent-500"><Bot size={22} /></span>
-              <strong className="text-title-3-medium text-text-primary">Escolha um Toph</strong>
-              <p className="max-w-xs text-caption-1-regular text-text-secondary">Abra uma tarefa individual ou uma conversa em grupo.</p>
-              <Button variant="secondary" size="small" onClick={openConversations}>Ver Tophs</Button>
+              <strong className="text-title-3-medium text-text-primary">Nenhuma sessão aberta</strong>
+              <p className="max-w-xs text-caption-1-regular text-text-secondary">Abra uma sessão ou comece uma nova tarefa com o Toph.</p>
+              <Button variant="secondary" size="small" onClick={openConversations}>Ver sessões</Button>
             </div>
           )
         ) : screen === "files" ? (

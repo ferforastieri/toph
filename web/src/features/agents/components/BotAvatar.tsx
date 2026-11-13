@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties } from "react";
+import { useState, type CSSProperties } from "react";
 import type { ChatToph } from "../../conversations/store";
 import { cx } from "@/shared/boardui/utils/cx";
 import { usePointerLook } from "../../../shared/ui/usePointerLook";
@@ -20,14 +20,11 @@ const CORE_AVATAR = `${AVATAR_BASE}${AVATAR}.png${AVATAR_VERSION}`;
 const CORE_EYELESS = `${AVATAR_BASE}${AVATAR}-eyeless.png${AVATAR_VERSION}`;
 
 export default function BotAvatar({ bot, size = 36, className, style, look = true }: Props) {
-  const [image, setImage] = useState(CORE_AVATAR);
   const [eyesMissing, setEyesMissing] = useState(false);
   const lookRef = usePointerLook<HTMLSpanElement>({ disabled: !look });
   // Without an eye sprite the still art (with its own eyes) is the honest fallback.
   const animated = look && !eyesMissing;
-  const base = animated ? CORE_EYELESS : image;
-
-  useEffect(() => setEyesMissing(false), [image]);
+  const base = animated ? CORE_EYELESS : CORE_AVATAR;
 
   return (
     <span

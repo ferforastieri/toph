@@ -30,10 +30,6 @@ export type SliderProps = SliderBaseProps<number> & {
   thumbLabel?: string;
 };
 
-export type RangeSliderProps = SliderBaseProps<number[]> & {
-  /** Accessible names for the lower and upper thumbs. */
-  thumbLabels?: [string, string];
-};
 
 type SliderBaseInternalProps<T extends SliderValue> = SliderBaseProps<T> & {
   thumbLabels: string[];
@@ -186,12 +182,4 @@ function SliderBase<T extends SliderValue>({
 /** A single-value slider with an exact-value bubble above the thumb. */
 export function Slider({ thumbLabel = "Value", ...props }: SliderProps) {
   return <SliderBase {...props} thumbLabels={[thumbLabel]} />;
-}
-
-/** A two-thumb slider for selecting a minimum and maximum value. */
-export function RangeSlider({
-  thumbLabels = ["Minimum", "Maximum"],
-  ...props
-}: RangeSliderProps) {
-  return <SliderBase {...props} thumbLabels={thumbLabels} />;
 }

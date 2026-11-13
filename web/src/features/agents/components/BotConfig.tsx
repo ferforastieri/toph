@@ -19,11 +19,15 @@ import { Select, SelectItem } from "@/shared/boardui/base/select/select";
 import ModelPicker from "../../providers/components/ModelPicker";
 import ColorPicker from "../../../shared/ui/ColorPicker";
 import { useConfirm } from "../../../shared/ui/confirm";
+import { cx } from "@/shared/boardui/utils/cx";
 
 interface Props {
   projectId: string;
   projectRoot?: string;
   bot: ChatToph;
+  /** The Settings screen embeds it: no delete, no scroll of its own. */
+  embedded?: boolean;
+  showDelete?: boolean;
 }
 
 const AVATARS: Array<{ id: BotAvatarShape; label: string }> = BOT_AVATARS.map((id) => ({
@@ -42,7 +46,7 @@ const TOOL_OPTIONS = [
   { id: "generate_image", label: "Gerar imagens", description: "Criar e salvar imagens no projeto com os provedores configurados.", icon: Image },
 ] as const;
 
-export default function BotConfig({ projectId, projectRoot, bot }: Props) {
+export default function BotConfig({ projectId, projectRoot, bot, embedded = false, showDelete = true }: Props) {
   const updateToph = useChats((state) => state.updateToph);
   const removeToph = useChats((state) => state.removeToph);
   const aiConfig = useAI((state) => state.config);
@@ -167,7 +171,7 @@ export default function BotConfig({ projectId, projectRoot, bot }: Props) {
     : undefined);
 
   return (
-    <div className="flex min-h-0 flex-col gap-3 overflow-y-auto p-4">
+    <div className={cx("flex min-h-0 flex-col gap-3", embedded ? "pb-1" : "overflow-y-auto p-4")}>
       <header className="flex items-center gap-3 rounded-2xl border border-border-button-default bg-background-secondary-default/45 p-3">
         <BotAvatar bot={bot} size={54} />
         <div className="min-w-0 flex-1">
@@ -429,9 +433,11 @@ export default function BotConfig({ projectId, projectRoot, bot }: Props) {
       </Accordion>
 
       <div className="flex flex-col gap-2 px-1 pt-1">
-        <Button type="button" variant="ghost" size="small" leadingIcon={Trash2} className="justify-start text-status-rose-text" onClick={() => void remove()}>
-          Apagar Toph
-        </Button>
+        {showDelete ? (
+          <Button type="button" variant="ghost" size="small" leadingIcon={Trash2} className="justify-start text-status-rose-text" onClick={() => void remove()}>
+            Apagar Toph
+          </Button>
+        ) : null}
         <p className="flex items-center gap-1 text-caption-2-regular text-text-tertiary"><Bot size={11} /> As alterações são aplicadas nas próximas respostas.</p>
       </div>
     </div>

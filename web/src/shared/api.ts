@@ -88,13 +88,6 @@ export interface GitHistoryEntry {
 }
 
 
-export interface PetConfig {
-  chosen: boolean;
-  enabled: boolean;
-  kind: string;
-  mode: string;
-  commits: number;
-}
 
 export interface ImageProviderConfig {
   id: string;
@@ -364,31 +357,11 @@ export interface WorkspaceLayout {
   activeTabId: string | null;
   sidebar?: string;
   terminalOpen?: boolean;
-  aiSessionId?: string;
-  aiSessionTitle?: string;
-  aiPanelOpen?: boolean;
   chats?: unknown;
 }
 
-export interface WorkspaceMessageCursor {
-  createdAt: number;
-  channel: string;
-  id: string;
-}
 
-export interface WorkspaceMessagePage<T> {
-  items: T[];
-  hasMore: boolean;
-  nextCursor: WorkspaceMessageCursor | null;
-}
 
-export interface WorkspaceMessageQuery {
-  mode: "chat";
-  channel?: string;
-  scope?: "all" | "conversation" | "activity";
-  before?: WorkspaceMessageCursor | null;
-  limit?: number;
-}
 
 export class ApiError extends Error {
   status: number;
@@ -565,23 +538,6 @@ export const api = {
     });
   },
 
-  async notifyBot(input: {
-    notificationId: string;
-    projectId: string;
-    botId: string;
-    botName: string;
-    botRole?: string;
-    sessionId?: string;
-    chatId?: string;
-    tabId?: string;
-    title: string;
-    body: string;
-  }): Promise<void> {
-    await request("/notifications/bot", {
-      method: "POST",
-      ...json(input),
-    });
-  },
 
   async login(username: string, password: string): Promise<LoginResponse> {
     return request<LoginResponse>("/auth/login", {
@@ -607,14 +563,6 @@ export const api = {
     await request("/auth/logout", { method: "POST", body: JSON.stringify({}) });
   },
 
-  async pet(): Promise<PetConfig> {
-    return request<PetConfig>("/pet");
-  },
-
-  async savePet(pet: PetConfig): Promise<PetConfig> {
-    return request<PetConfig>("/pet", { method: "PUT", ...json(pet) });
-  },
-
   async projects(): Promise<Project[]> {
     return request<Project[]>("/projects");
   },
@@ -626,9 +574,6 @@ export const api = {
     });
   },
 
-  async deleteProject(id: string): Promise<void> {
-    await request(`/projects/${encodeURIComponent(id)}`, { method: "DELETE" });
-  },
 
   async repos(query = ""): Promise<Repository[]> {
     const suffix = query.trim() ? `?q=${encodeURIComponent(query.trim())}` : "";
@@ -846,71 +791,13 @@ export const api = {
     });
   },
 
-  async workspaceMessages<T>(projectId: string, query: WorkspaceMessageQuery): Promise<WorkspaceMessagePage<T>> {
-    const params = new URLSearchParams({
-      mode: query.mode,
-      scope: query.scope ?? "all",
-      limit: String(query.limit ?? 30),
-    });
-    if (query.channel) params.set("channel", query.channel);
-    if (query.before) {
-      params.set("beforeAt", String(query.before.createdAt));
-      params.set("beforeChannel", query.before.channel);
-      params.set("beforeId", query.before.id);
-    }
-    return request<WorkspaceMessagePage<T>>(
-      `/projects/${encodeURIComponent(projectId)}/workspace/messages?${params}`,
-    );
-  },
 
-  async chatMessages<T>(projectId: string, chatId: string, query: { before?: WorkspaceMessageCursor | null; limit?: number } = {}): Promise<WorkspaceMessagePage<T>> {
-    return this.workspaceMessages<T>(projectId, {
-      mode: "chat",
-      channel: chatId,
-      scope: "all",
-      before: query.before,
-      limit: query.limit,
-    });
-  },
 
-  async saveChatMessages(projectId: string, messages: unknown[]): Promise<void> {
-    return this.saveWorkspaceMessages(projectId, messages);
-  },
 
-  async replaceChatMessages(projectId: string, chatId: string, messages: unknown[]): Promise<void> {
-    return this.replaceWorkspaceMessages(projectId, { mode: "chat", channel: chatId }, messages);
-  },
 
-  async deleteChatMessages(projectId: string, chatId: string, tophId?: string): Promise<number> {
-    return this.deleteWorkspaceMessages(projectId, { mode: "chat", channel: chatId, botId: tophId });
-  },
 
-  async saveWorkspaceMessages(projectId: string, messages: unknown[]): Promise<void> {
-    if (messages.length === 0) return;
-    await request(`/projects/${encodeURIComponent(projectId)}/workspace/messages`, {
-      method: "PUT",
-      ...json({ messages }),
-    });
-  },
 
-  async replaceWorkspaceMessages(projectId: string, filter: { mode: "chat"; channel: string }, messages: unknown[]): Promise<void> {
-    await request(`/projects/${encodeURIComponent(projectId)}/workspace/messages`, {
-      method: "PUT",
-      ...json({ messages, replace: filter }),
-    });
-  },
 
-  async deleteWorkspaceMessages(projectId: string, filter: { mode?: "chat"; channel?: string; botId?: string }): Promise<number> {
-    const params = new URLSearchParams();
-    if (filter.mode) params.set("mode", filter.mode);
-    if (filter.channel) params.set("channel", filter.channel);
-    if (filter.botId) params.set("botId", filter.botId);
-    const response = await request<{ deleted: number }>(
-      `/projects/${encodeURIComponent(projectId)}/workspace/messages?${params}`,
-      { method: "DELETE" },
-    );
-    return response.deleted;
-  },
 
   async createTerminal(projectId: string, shell = "bash"): Promise<{ id: string; projectId: string; shell: string }> {
     return request(`/projects/${encodeURIComponent(projectId)}/terminals`, {
@@ -972,9 +859,6 @@ export const api = {
     await request(`/projects/${encodeURIComponent(projectId)}/debug/session`, { method: "DELETE" });
   },
 
-  async debugRelease(projectId: string): Promise<void> {
-    await request(`/projects/${encodeURIComponent(projectId)}/debug/release`, { method: "POST", body: "{}" });
-  },
 
   async debugConfig(projectId: string): Promise<Partial<DebugProjectConfig>> {
     return request(`/projects/${encodeURIComponent(projectId)}/debug/config`);
@@ -1023,12 +907,6 @@ export const api = {
     return request<SchemaTable[]>(`/db/profiles/${encodeURIComponent(id)}/schema`);
   },
 
-  async insertRow(id: string, change: RowChange): Promise<{ rowsAffected: number }> {
-    return request(`/db/profiles/${encodeURIComponent(id)}/row`, {
-      method: "POST",
-      ...json(change),
-    });
-  },
 
   async updateRow(id: string, change: RowChange): Promise<{ rowsAffected: number }> {
     return request(`/db/profiles/${encodeURIComponent(id)}/row`, {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { extractAgentDiffs, extractAgentFilePaths, extractAgentImages } from "./artifacts";
+import { extractAgentDiffs, extractAgentImages } from "./artifacts";
 
 describe("agent artifacts", () => {
   it("extracts agent file parts and provider image payloads", () => {
@@ -52,18 +52,4 @@ describe("agent artifacts", () => {
     expect(diff.lines.find((line) => line.kind === "add")).toMatchObject({ text: "const newValue = true;", newLine: 1 });
   });
 
-  it("finds every file changed by a patch tool", () => {
-    const paths = extractAgentFilePaths("apply_patch", JSON.stringify({ patch: [
-      "*** Begin Patch",
-      "*** Update File: src/one.ts",
-      "@@",
-      "-old",
-      "+new",
-      "*** Add File: src/two.ts",
-      "+created",
-      "*** End Patch",
-    ].join("\n") }));
-
-    expect(paths).toEqual(["src/one.ts", "src/two.ts"]);
-  });
 });

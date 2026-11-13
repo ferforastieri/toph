@@ -10,6 +10,7 @@ import {
   Globe2,
   Info,
   Mail,
+  MessageSquare,
   Moon,
   PlugZap,
   Search,
@@ -18,7 +19,6 @@ import {
   Sun,
   TerminalSquare,
   UserRound,
-  Users,
 } from "@toph/icons";
 import type { ComponentType } from "react";
 import type { Project, User } from "../../../shared/api";
@@ -28,7 +28,7 @@ import ProjectTophAvatar from "../../../features/projects/components/ProjectToph
 import { cx } from "@/shared/boardui/utils/cx";
 import type { MobileScreen } from "./mobile-nav";
 
-type SettingsSection = "general" | "companion" | "appearance" | "skills" | "harness" | "email" | "workspace" | "about";
+type SettingsSection = "general" | "appearance" | "toph" | "skills" | "harness" | "email" | "workspace" | "about";
 
 interface Props {
   project: Project;
@@ -122,15 +122,16 @@ export default function MobileMoreScreen({
     { id: "web", label: "Web apps", description: "Sites e previews", icon: Globe2, onSelect: () => onScreen("web") },
     { id: "debug", label: "Debug", description: "Breakpoints e console", icon: Bug, onSelect: () => onScreen("debug") },
     { id: "terminal", label: "Terminal", description: "Shell do projeto", icon: TerminalSquare, onSelect: onTerminal },
-    { id: "search", label: "Busca global", description: "Tophs, tarefas e arquivos", icon: Search, onSelect: () => window.dispatchEvent(new CustomEvent("toph:global-search")) },
+    { id: "search", label: "Busca global", description: "Sessões, tarefas e arquivos", icon: Search, onSelect: () => window.dispatchEvent(new CustomEvent("toph:global-search")) },
     { id: "workspace", label: "Trabalho", description: activeTitle ? `Aba: ${activeTitle}` : "Editor e abas", icon: Boxes, onSelect: () => onScreen("workspace") },
   ];
 
   const tophActions: Action[] = [
-    { id: "tophs", label: "Tophs", description: "Tarefas e grupos", icon: Users, onSelect: onTophs },
-    { id: "skills", label: "Skills", description: "Receitas dos Tophs", icon: Sparkles, onSelect: () => openSettings("skills") },
+    { id: "sessions", label: "Sessões", description: "Tarefas do Toph", icon: MessageSquare, onSelect: onTophs },
+    { id: "toph", label: "Toph", description: "Identidade e prompt", icon: Bot, onSelect: () => openSettings("toph") },
+    { id: "skills", label: "Skills", description: "Receitas do Toph", icon: Sparkles, onSelect: () => openSettings("skills") },
     { id: "harness", label: "Harness e MCP", description: "CLIs, modelos e MCPs", icon: PlugZap, onSelect: () => openSettings("harness") },
-    { id: "email", label: "Email", description: "Contas dos Tophs", icon: Mail, onSelect: () => openSettings("email") },
+    { id: "email", label: "Email", description: "Contas do Toph", icon: Mail, onSelect: () => openSettings("email") },
   ];
 
   const projectActions: Action[] = [

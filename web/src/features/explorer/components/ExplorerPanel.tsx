@@ -128,9 +128,7 @@ export default function ExplorerPanel({
   headerControl,
 }: Props) {
   const notify = useApp((state) => state.notify);
-  const setSidebar = useApp((state) => state.setSidebar);
   const setTerminalOpen = useApp((state) => state.setTerminalOpen);
-  const setAiPanelOpen = useApp((state) => state.setAiPanelOpen);
   const confirm = useConfirm();
   const [gitStatus, setGitStatus] = useState("");
   const [rootOpen, setRootOpen] = useState(true);
@@ -434,12 +432,7 @@ export default function ExplorerPanel({
     }
   }
 
-  function addFolderToChat(entry: FileEntry) {
-    setAiPanelOpen(true);
-    setSidebar("ai");
-    window.dispatchEvent(new CustomEvent("toph:ai-context", { detail: { path: entry.path } }));
-    notify("info", `Pasta ${entry.path} adicionada ao contexto da IA.`);
-  }
+
 
   function menuAction(action: () => void) {
     setContextMenu(null);
@@ -587,7 +580,6 @@ export default function ExplorerPanel({
           <div className="my-1 h-px bg-separator-border" />
           <ActionItem label="Find in Folder..." disabled={!contextMenu.entry.dir} onSelect={() => menuAction(() => void findInFolder(contextMenu.entry))} />
           <ActionItem label="Folder History" disabled={!contextMenu.entry.dir} onSelect={() => menuAction(() => void showHistory(contextMenu.entry))} />
-          <ActionItem label="Add Folder to Chat" disabled={!contextMenu.entry.dir} onSelect={() => menuAction(() => addFolderToChat(contextMenu.entry))} />
           <div className="my-1 h-px bg-separator-border" />
           <ActionItem label="Paste" shortcut="Ctrl+V" onSelect={() => menuAction(() => void pasteImage(contextMenu.entry))} />
           <ActionItem label="Upload..." onSelect={() => menuAction(() => uploadRef.current?.click())} />

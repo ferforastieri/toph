@@ -1,7 +1,8 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import BotStudioTab from "./BotStudioTab";
-import { TOPH_PRESETS, useChats } from "../store";
+import { DEFAULT_TOPH } from "../../agents/default-toph";
+import { useChats } from "../store";
 import { useAI } from "../../providers/store";
 import { useTophDrafts } from "../../agents/drafts";
 import { agentApi, engineApi } from "../../agents/api";
@@ -26,8 +27,8 @@ beforeAll(() => {
 beforeEach(() => {
   useChats.setState({ byProject: {}, messageWrites: {} });
   useChats.getState().load(project.id);
-  firstId = useChats.getState().createToph(project.id, { ...TOPH_PRESETS[0], name: "Fernando", model: "go::deepseek", agentMode: "build" })!.id;
-  memberId = useChats.getState().createToph(project.id, { ...TOPH_PRESETS[1], name: "Beto", model: "openai::review", agentMode: "build" })!.id;
+  firstId = useChats.getState().createToph(project.id, { ...DEFAULT_TOPH, name: "Fernando", model: "go::deepseek", agentMode: "build" })!.id;
+  memberId = useChats.getState().createToph(project.id, { ...DEFAULT_TOPH, name: "Beto", model: "openai::review", agentMode: "build" })!.id;
   chatId = useChats.getState().createConversation(project.id, [firstId, memberId], { description: "Preservar os contratos da tarefa" })!.id;
   useAI.setState({ config: null, error: "", models: [{ id: "go::deepseek", label: "DeepSeek", provider: "custom" }, { id: "openai::gpt", label: "GPT", provider: "openai" }, { id: "openai::review", label: "Review", provider: "openai" }] });
   useTophDrafts.setState({ drafts: {} });

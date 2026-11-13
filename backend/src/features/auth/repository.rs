@@ -137,13 +137,5 @@ impl Store {
             .await?;
         Ok(())
     }
-
-    pub async fn delete_expired_sessions(&self) -> AppResult<()> {
-        sqlx::query("DELETE FROM sessions WHERE expires_at < ?")
-            .bind(now())
-            .execute(&self.pool)
-            .await?;
-        Ok(())
-    }
 }
 use sqlx::Row;
