@@ -1,0 +1,702 @@
+/* Settings: the Tophs settings blocks, copied from apps/web/src/layout.css (Vira-TI/tophs), plus the dialog variant. */
+/* Settings: a grouped left sub-nav + one section. */
+.settings {
+  display: flex;
+  gap: 40px;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: var(--page-top) var(--page-x) 96px;
+  align-items: flex-start;
+}
+.settings__nav {
+  flex: 0 0 216px;
+  min-width: 0;
+  position: sticky;
+  top: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.settings__head {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0 10px;
+}
+.settings__title {
+  margin: 0;
+  font-size: 20px;
+  line-height: 26px;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+}
+/* The workspace's name wraps under the mark, which stays on its first line: a long one never widens the nav. */
+.settings__org {
+  min-width: 0;
+  color: var(--ink-muted);
+  font-size: 13px;
+}
+.settings__org > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.settings__groups {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.settings__nav ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+/*
+ * The compact step of the control ruler, as the sidebar's rows; a finger keeps the default step (below). A name too
+ * long for one line (a long translation) wraps under its first line, and the icon or face stays centred on that line
+ * as on a one-line link: the words start as far down as the link centres one line.
+ */
+.settings__link {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-height: var(--control-h-sm);
+  padding: calc((var(--control-h-sm) - 22px) / 2) 10px;
+  border-radius: var(--control-r-sm);
+  color: var(--ink2);
+  text-decoration: none;
+  font-size: 14px;
+  transition:
+    background-color 0.15s,
+    color 0.15s;
+}
+.settings__link > :first-child {
+  flex: none;
+  translate: 0 calc((22px - 100%) / 2);
+}
+/* A face's own small type would set its `lh`: it takes the link's line. */
+.settings__link > .ac-avatar:first-child {
+  line-height: inherit;
+}
+.settings__link > .ac-icon {
+  color: var(--ink-muted);
+}
+/* A personal workspace's Advanced row (ADR 0159) is a button that shows the other sections: a row like its links, none
+   of the browser's button look. */
+button.settings__link {
+  width: 100%;
+  margin: 0;
+  border: 0;
+  background: none;
+  font-family: inherit;
+  line-height: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+/* Hover is a tint; the current page is a raised key (never the same look), as the agent page's current tab: its edge
+   and shadow show it in light too, where a raised face is white on the white page. */
+.settings__link:hover {
+  background: color-mix(in srgb, var(--ink) 5%, transparent);
+  color: var(--ink);
+}
+.settings__link[aria-current="page"] {
+  background: var(--raised);
+  box-shadow: var(--e1), var(--top);
+  color: var(--ink);
+  font-weight: 600;
+}
+.settings__link[aria-current="page"] > .ac-icon {
+  color: var(--ink);
+}
+html:not([data-pointer]) .settings__link:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+@supports (top: 1lh) {
+  .settings__link {
+    padding-block: calc((var(--control-h-sm) - 1lh) / 2);
+  }
+  .settings__link > :first-child {
+    translate: 0 calc((1lh - 100%) / 2);
+  }
+}
+@media (pointer: coarse) {
+  .settings__link {
+    min-height: var(--control-h-md);
+    padding-block: calc((var(--control-h-md) - 22px) / 2);
+    border-radius: var(--control-r-md);
+  }
+  @supports (top: 1lh) {
+    .settings__link {
+      padding-block: calc((var(--control-h-md) - 1lh) / 2);
+    }
+  }
+}
+.settings__body {
+  flex: 1 1 560px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+/*
+ * Side by side the nav and the section are columns that scroll on their own (`.page-split`). The section's column runs
+ * to the work area's right edge, so the wheel scrolls it there too, and its text keeps the old width: the page's
+ * centred 1120px, its side room every page's (`--page-x`, or half of what the window has past 1120px). The page's top
+ * room moves into the columns, so they scroll up to the window's top. Both keep room for the shadows and focus rings
+ * at their edges, which their scroll would cut. A strip in the section runs out over the section's own room on the
+ * left, beside the nav, and no further (`--bleed`): past it the column would scroll sideways.
+ */
+@media (min-width: 941px) and (min-height: 560px) {
+  .settings {
+    max-width: none;
+    margin: 0;
+    padding: 0 0 0 max(var(--page-x), calc(50% - 532px));
+  }
+  .settings__nav {
+    flex-basis: 228px;
+    margin: 0 -6px;
+    padding: var(--page-top) 6px 24px;
+  }
+  .settings__body {
+    --bleed: 12px;
+    margin-left: calc(-1 * var(--bleed));
+    padding: var(--page-top) max(var(--page-x), calc(100% - 1064px)) 96px var(--bleed);
+  }
+}
+.settings__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+/* A workspace being deleted: the section's controls greyed out at once (ADR 0088 §7), laid out as without it. */
+.settings__frozen {
+  display: flex;
+  flex-direction: column;
+  gap: inherit;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+/* "Salvo": shows for a moment after each automatic save. */
+.settings__saved {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  color: var(--ink-muted);
+  font-size: 12.5px;
+  font-weight: 600;
+  opacity: 0;
+  transform: translateY(2px);
+  transition:
+    opacity 0.25s,
+    transform 0.25s var(--out);
+}
+.settings__saved[data-on] {
+  opacity: 1;
+  transform: none;
+}
+.settings__saved > .ac-icon {
+  color: var(--ok);
+}
+/*
+ * Rows: the label (and its ⓘ) at the start, the control at the end, centred on each other, hairlines between. One
+ * compact control's height and the row's room above and below it (48), whatever the row holds: its controls are the
+ * compact step, as every action inside a row. A status line under the label makes it two lines, the control centred
+ * on both.
+ */
+.settings-rows {
+  display: flex;
+  flex-direction: column;
+  margin: calc(-1 * var(--card-pad));
+}
+.settings-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: calc(var(--control-h-sm) + 2 * var(--row-py));
+  box-sizing: border-box;
+  padding: var(--row-py) var(--card-pad);
+  border-top: 1px solid var(--line);
+}
+/* A text field of several lines (the right hand's guidance) keeps its rows: the kit's `textarea.ac-input` sizes it. */
+.settings-row
+:is(.ac-select__trigger, .ac-input:not(textarea), .ac-input-affix, .ac-btn:not(.ac-btn--glyph, .ac-btn--icon)) {
+  height: var(--control-h-sm);
+}
+.settings-row:first-child {
+  border-top: 0;
+}
+/* A group's heading among a card's rows (Limites' Por papel): on the rows' words, the hairline above it. */
+.settings-rows > .ac-grouphead {
+  margin: 0;
+  padding: var(--space-4) var(--card-pad) var(--space-2);
+  border-top: 1px solid var(--line);
+}
+.settings-rows > .ac-grouphead + .settings-row {
+  border-top: 0;
+}
+/* Under a card's title the rows start below it, a hairline above the first as between the others: a row's hover
+   plate never reaches the title. */
+.ac-card__head + .settings-rows {
+  margin-top: 0;
+}
+/* Over a card's foot the last row ends on the foot's hairline, as deep below as above (the card's gap is
+   `--space-3`). */
+.settings-rows:has(+ .ac-card__foot) {
+  margin-bottom: calc(-1 * var(--space-3));
+}
+.settings-row__text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.settings-row__label {
+  font-size: 14px;
+  font-weight: 600;
+}
+/* What must stay in sight under the label: why the control is off, what it waits on, what the line opens to. */
+.settings-row__status {
+  color: var(--ink-muted);
+  font-size: 13px;
+  line-height: 18px;
+}
+/* A value before its control (the plan a line uses: its logo and name). */
+.settings-row__value {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: var(--ink-muted);
+  font-size: 13px;
+  line-height: 20px;
+}
+.settings-row__value b {
+  color: var(--ink);
+  font-weight: 600;
+}
+.settings-row__control {
+  flex: 0 0 300px;
+  min-width: 0;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+}
+.settings-row__control > .ac-input,
+.settings-row__control > .ac-select {
+  flex: 1;
+}
+.settings-ideas {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.settings-ideas > span {
+  margin-right: 2px;
+  color: var(--ink-muted);
+  font-size: 12.5px;
+}
+/* The sections' column beside the page needs the window: on a tablet (the sidebar an icon rail, 761–940px) its 216px
+   left the page ~380px, narrower than on a phone, with every row and card still in its wide layout (a 300px control
+   beside a sliver of a label). Up to there the sections are the strip above the page, as on a phone. */
+@media (max-width: 940px) {
+  .settings {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 20px;
+  }
+  .settings__nav {
+    position: static;
+    flex: none;
+    gap: 10px;
+  }
+  /* The desktop nav's inset lines the header up with its links; over the strip it keeps the page's gutter. */
+  .settings__head {
+    padding: 0;
+  }
+  .settings__groups {
+    flex-direction: row;
+    gap: 4px;
+    margin: 0 calc(-1 * var(--page-x));
+    padding: 2px var(--page-x) 6px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+  }
+  .settings__groups::-webkit-scrollbar {
+    display: none;
+  }
+  .settings__nav ul {
+    flex-direction: row;
+    gap: 4px;
+  }
+  .settings__link {
+    flex: none;
+    white-space: nowrap;
+  }
+}
+/* On a phone the control goes under the words, as wide as the row. The row wraps to put it there, never turns into a
+   column: there the words' 24-character basis (`.ac-actrow`) would be their height. */
+@media (max-width: 760px) {
+  .settings-row {
+    gap: 10px;
+  }
+  .settings-row:not(.settings-row--lead) > .ac-actrow__text + * {
+    flex-basis: 100%;
+  }
+  .settings-row__control {
+    flex: none;
+    justify-content: flex-start;
+  }
+}
+
+
+/* The person's own settings, Sua conta and Notificações (PrefRow in NoticePrefs.tsx): settings rows with an icon
+   before the name and a control at the end (a switch, a chip, a choice of several). The icon sits in the agent page
+   cells' tile (`.agp-cell__key`), in the name's type so its `ex` is the name's. */
+.settings-row__icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 10px 10px 10px 4px;
+  color: var(--muted);
+  background: var(--raised);
+  box-shadow:
+    inset 0 0 0 1px var(--line),
+    var(--top);
+  font-size: 14px;
+}
+/* A face, or a plan maker's mark, brings its own tile. */
+.settings-row__icon:has(> .ac-avatar, > .ac-brand, > .ac-rolemark) {
+  background: none;
+  box-shadow: none;
+}
+.settings-row__end {
+  flex: none;
+  display: flex;
+  align-items: center;
+}
+/* A row whose end is a group (PrefRow's `actions`), an `.ac-actline`: the icon and the words, then the group beside
+   them while they fit on one line there, else under them at the row's width. */
+.settings-row--acts {
+  row-gap: var(--space-2);
+}
+.settings-row__lead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+/* Configurações › Aprovações (ADR 0139): a row whose box is the choice, centred on its label, on the label's first line
+   when a line says under it why it is off. */
+.settings-row.rh-check {
+  gap: 12px;
+}
+.rh-check .ac-check {
+  flex: none;
+}
+.settings-row.rh-check:has(.settings-row__status) {
+  align-items: flex-start;
+}
+.settings-row.rh-check:has(.settings-row__status) .ac-check {
+  margin-top: 2px;
+}
+.rh-check .ac-check:disabled + .settings-row__text .settings-row__label {
+  color: var(--muted);
+}
+.rh-money {
+  gap: 10px;
+}
+.rh-money .ac-input-affix {
+  width: 120px;
+}
+/* The guidance under its label, as wide as the row: a wrap, not a column (`.ac-actrow`). */
+.settings-row.rh-guidance {
+  gap: 10px;
+}
+.rh-guidance > .ac-actrow__text + * {
+  flex-basis: 100%;
+}
+/* Configurações › Sua conta: a line that opens something is a button, its chevron at the end. Its hover stays inside
+   the card's corners. */
+.ac-card:has(> .settings-rows > :is(.settings-row--open, .settings-row--toggle)) {
+  overflow: hidden;
+}
+.settings-row--open {
+  width: 100%;
+  border: 0;
+  border-top: 1px solid var(--line);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+.settings-row--open:hover {
+  background: color-mix(in srgb, var(--ink) 3%, transparent);
+}
+/* A line with a switch is its label: a press anywhere on it toggles, as a line that opens something opens. The label
+   reaches over the line (`.settings-row__hit`), under its ⓘ and its control, which stay pressable on their own. */
+.settings-row--toggle {
+  position: relative;
+}
+.settings-row--toggle .settings-row__hit::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+.settings-row--toggle :is(.ac-hint, .settings-row__status, .settings-row__end) {
+  position: relative;
+  z-index: 1;
+}
+.settings-row--toggle:not(:has(.ac-switch:disabled)) {
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+.settings-row--toggle:not(:has(.ac-switch:disabled)):hover {
+  background: color-mix(in srgb, var(--ink) 3%, transparent);
+}
+html:not([data-pointer]) .settings-row--open:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring-inset);
+}
+.settings-row__chevron {
+  flex: none;
+  color: var(--faint);
+}
+/* The person's face where the other lines have their icon, as wide as it. */
+.settings-row__face.ac-avatar {
+  width: 28px;
+  height: 28px;
+  font-size: 12px;
+}
+/* On a phone the icon, the words and a switch stay on one line while the words keep their 24 characters there (the
+   kit's `.ac-actrow` basis), else the switch goes under them, at the row's end: beside both, at 320, a long name would
+   wrap a word a line. A chevron stays on its line, its words shrinking (a line that opens something has no ⓘ). Any
+   other control (a choice of several, a select, a field, buttons) goes under the words, from their edge (the 28px icon
+   and the 12px gap), so the rows of one card start their controls on one edge. */
+@media (max-width: 760px) {
+  .settings-row--lead {
+    flex-wrap: wrap;
+    gap: var(--space-2) var(--space-3);
+  }
+  .settings-row--open > .settings-row__text {
+    flex: 1 1 160px;
+  }
+  .settings-row--lead > .settings-row__end {
+    margin-left: auto;
+  }
+  .settings-row--lead > .settings-row__end:not(:has(> .ac-switch)) {
+    flex-basis: 100%;
+    box-sizing: border-box;
+    min-width: 0;
+    padding-left: calc(28px + var(--space-3));
+  }
+  /* A line with a status under its name and a switch or nothing at its end: the icon, the name and the switch on one
+     line as above (the name keeps the 24 characters), the status under them at the row's full width, so the icon never
+     owns a column beside three lines. A step (`--space-2`, a MediaRow's) parts it from the icon: closer, it reads as
+     the icon's caption. */
+  .settings-row--lead:has(> .settings-row__end > .ac-switch) > .settings-row__text:has(> .settings-row__status),
+  .settings-row--lead:not(.settings-row--open, :has(> .settings-row__end))
+    > .settings-row__text:has(> .settings-row__status) {
+    display: contents;
+  }
+  .settings-row--lead:has(> .settings-row__end > .ac-switch)
+    > .settings-row__text:has(> .settings-row__status)
+    > :first-child,
+  .settings-row--lead:not(.settings-row--open, :has(> .settings-row__end))
+    > .settings-row__text:has(> .settings-row__status)
+    > :first-child {
+    flex: 1 1 24ch;
+    max-width: max-content;
+    min-width: 0;
+  }
+  .settings-row--lead:has(> .settings-row__end > .ac-switch) > .settings-row__text > .settings-row__status,
+  .settings-row--lead:not(.settings-row--open, :has(> .settings-row__end))
+    > .settings-row__text
+    > .settings-row__status {
+    flex-basis: 100%;
+    order: 1;
+  }
+  /* A line that opens something, with a status: the icon, the name and the chevron (a value before it) on one line,
+     the status under them at the row's width, so the icon never owns a column beside three lines. */
+  .settings-row--lead.settings-row--open:has(> .settings-row__text > .settings-row__status) {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: var(--space-2) var(--space-3);
+  }
+  .settings-row--lead.settings-row--open:has(> .settings-row__value):has(
+    > .settings-row__text > .settings-row__status
+  ) {
+    grid-template-columns: auto minmax(0, 1fr) auto auto;
+  }
+  .settings-row--lead.settings-row--open > .settings-row__text:has(> .settings-row__status) {
+    display: contents;
+  }
+  .settings-row--lead.settings-row--open > .settings-row__text > .settings-row__status {
+    grid-column: 1 / -1;
+  }
+  .settings-row--lead.settings-row--open:has(> .settings-row__text > .settings-row__status) > .settings-row__value {
+    grid-area: 1 / 3;
+  }
+  .settings-row--lead.settings-row--open:has(> .settings-row__text > .settings-row__status) > .settings-row__chevron {
+    grid-area: 1 / -2;
+  }
+}
+
+
+/* ---------------------------------------------------------------------------------------------
+   The same settings blocks inside the app's one dialog: the page's padding and sticky nav give
+   way to the dialog's own edges, the nav keeps its column and the section its scroll.
+   --------------------------------------------------------------------------------------------- */
+.toph-settings-dialog {
+  height: min(820px, calc(100dvh - 32px));
+}
+.toph-settings-dialog > .ac-dialog__body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  padding: 0;
+  overflow: hidden;
+}
+.settings--dialog {
+  flex: 1;
+  gap: 0;
+  height: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  align-items: stretch;
+}
+.settings--dialog .settings__nav {
+  position: static;
+  flex: 0 0 232px;
+  gap: var(--space-4);
+  padding: var(--dialog-pad) 12px var(--dialog-pad) var(--dialog-pad);
+  overflow-y: auto;
+  border-inline-end: 1px solid var(--line);
+}
+.settings--dialog .settings__head {
+  padding: 0 10px;
+}
+.settings--dialog .settings__body {
+  flex: 1 1 auto;
+  gap: var(--space-4);
+  min-width: 0;
+  padding: var(--dialog-pad);
+  overflow-y: auto;
+}
+/* The account under the title: the person's initial on the rows' tile, the name on its first line. */
+.settings__mark {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 8px 8px 8px 3px;
+  color: var(--muted);
+  background: var(--raised);
+  box-shadow:
+    inset 0 0 0 1px var(--line),
+    var(--top);
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1;
+  text-transform: uppercase;
+}
+/* A row that is only a value (a version, a build): the label quiet, the value beside it. */
+.settings-row__value {
+  flex: none;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 20px;
+}
+@media (max-width: 900px) {
+  .settings--dialog {
+    flex-direction: column;
+  }
+  .settings--dialog .settings__nav {
+    flex: none;
+    gap: 10px;
+    padding: var(--dialog-pad) var(--dialog-pad) 10px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    border-inline-end: 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .settings--dialog .settings__nav ul {
+    flex-direction: row;
+    gap: 4px;
+  }
+  .settings--dialog .settings__link {
+    flex: none;
+    white-space: nowrap;
+  }
+  .settings--dialog .settings__body {
+    padding: 16px var(--dialog-pad) var(--dialog-pad);
+  }
+}
+
+/* The Toph mark that opens Settings from the shell: the kit's focus ring and hover tint, nothing of its own. */
+.toph-settings-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: none;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+.toph-settings-trigger:hover {
+  background: color-mix(in srgb, var(--ink) 5%, transparent);
+}
+html:not([data-pointer]) .toph-settings-trigger:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.toph-settings-trigger__logo {
+  display: block;
+  width: 34px;
+  height: 34px;
+  object-fit: contain;
+  user-select: none;
+}
+
+/* A dialog whose own page carries the title (Settings): only the close keeps the head's place. */
+.toph-modal-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 2;
+}
+
+/* A dialog whose own page carries the title (Settings): only the close keeps the head's place. */
+.ac-dialog > .toph-modal-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  left: auto;
+  z-index: 2;
+}
+
+/* A control that ends a settings row (the segmented choice) keeps its own width. */
+.settings__body .ac-seg {
+  align-self: flex-start;
+}

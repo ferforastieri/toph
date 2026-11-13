@@ -8,16 +8,15 @@ import BotAvatar from "../../agents/components/BotAvatar";
 import { Modal } from "@toph/ui/app";
 import { cx } from "@toph/ui";
 
-type SettingsSection = "general" | "appearance" | "skills" | "harness" | "email" | "workspace" | "about";
+type SettingsSection = "general" | "appearance" | "skills" | "harness" | "email" | "workspace";
 
 const SETTINGS: Array<{ id: SettingsSection; title: string; subtitle: string }> = [
-  { id: "general", title: "Geral", subtitle: "Conta e servidor" },
+  { id: "general", title: "Geral", subtitle: "Conta, servidor e versão" },
   { id: "appearance", title: "Layout e ferramentas", subtitle: "Aparência do workspace" },
   { id: "skills", title: "Skills", subtitle: "Receitas do Toph" },
   { id: "harness", title: "Harness", subtitle: "CLIs, modelos e MCPs" },
   { id: "email", title: "Email", subtitle: "Contas de email do Toph" },
   { id: "workspace", title: "Workspace", subtitle: "Pastas acessíveis" },
-  { id: "about", title: "Sobre", subtitle: "Versão e build" },
 ];
 
 type Item =

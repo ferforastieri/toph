@@ -28,7 +28,7 @@ import ProjectTophAvatar from "../../../features/projects/components/ProjectToph
 import { cx } from "@toph/ui";
 import type { MobileScreen } from "./mobile-nav";
 
-type SettingsSection = "general" | "appearance" | "skills" | "harness" | "email" | "workspace" | "about";
+type SettingsSection = "general" | "appearance" | "skills" | "harness" | "email" | "workspace";
 
 interface Props {
   project: Project;
@@ -213,7 +213,7 @@ export default function MobileMoreScreen({
 
       <button
         type="button"
-        onClick={() => openSettings("about")}
+        onClick={() => openSettings("general")}
         className="flex shrink-0 items-center justify-center gap-1.5 self-center rounded-full px-3 py-1 text-[10px] text-text-tertiary transition-colors hover:text-text-primary"
       >
         <Info className="size-3" /> Sobre o Toph

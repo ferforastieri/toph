@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode, Ref } from "react";
-import { RiInformationFill } from "@remixicon/react";
+import { Icon } from "../../../icons/Icon";
 import type { LabelProps as AriaLabelProps } from "react-aria-components";
 import { Label as AriaLabel } from "react-aria-components";
 import { cx } from "@toph/ui/app/utils/cx";
@@ -53,7 +53,7 @@ export function Label({
         </span>
       )}
       {tooltip && (
-        <RiInformationFill className="ac-icon" aria-hidden />
+        <Icon name="info" className="ac-icon" />
       )}
     </AriaLabel>
   );

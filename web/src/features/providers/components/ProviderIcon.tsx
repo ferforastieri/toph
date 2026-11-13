@@ -1,5 +1,4 @@
-import { RiSparkling2Fill } from "@remixicon/react";
-import { cx } from "@toph/ui";
+import { Icon, cx } from "@toph/ui";
 import { PROVIDER_LOGOS, type ProviderLogo } from "../logos";
 
 interface Props {
@@ -35,7 +34,7 @@ function providerLogo(provider: string): ProviderLogo | undefined {
 
 export default function ProviderIcon({ provider, className }: Props) {
   const logo = providerLogo(provider);
-  if (!logo) return <RiSparkling2Fill aria-hidden className={cx("shrink-0", className)} />;
+  if (!logo) return <Icon name="agent" className={cx("shrink-0", className)} />;
   return (
     <svg
       aria-hidden

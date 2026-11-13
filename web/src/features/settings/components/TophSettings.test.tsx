@@ -45,7 +45,7 @@ describe("TophSettings", () => {
     render(<TophSettings user={{ id: 1, username: "admin", createdAt: "" }} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Abrir configurações" }));
-    expect(await screen.findByText("Configurações")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { level: 1, name: "Configurações" })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Harness" }));
     expect(await screen.findByTestId("engine-settings")).toBeInTheDocument();
@@ -56,5 +56,16 @@ describe("TophSettings", () => {
 
     expect(screen.queryByRole("button", { name: "Toph" })).not.toBeInTheDocument();
     expect(screen.queryByTestId("toph-config")).not.toBeInTheDocument();
+  });
+
+  it("keeps the installation facts and the sign-out in General", async () => {
+    render(<TophSettings user={{ id: 1, username: "admin", createdAt: "" }} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Abrir configurações" }));
+
+    expect(await screen.findByText("v0.85.0")).toBeInTheDocument();
+    expect(screen.getByText("test-build")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Sair" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Sobre" })).not.toBeInTheDocument();
   });
 });

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { RiArrowDownSLine } from "@remixicon/react";
+import { Icon } from "@toph/ui";
 import { api, type FileEntry, type Project } from "../../../shared/api";
 import { useApp } from "../../../app/store";
 import FileIcon from "./FileIcon";
@@ -210,7 +210,7 @@ function TreeNode({ project, entry, depth, onOpenFile, statuses, revision, onSel
       >
         <span className="flex size-3.5 shrink-0 items-center justify-center text-foreground-icon-tertiary">
           {entry.dir ? (
-            <RiArrowDownSLine
+            <Icon name="chevronDown"
               className={cn(
                 "size-3.5 transition-[rotate,color] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
                 open && "rotate-180",

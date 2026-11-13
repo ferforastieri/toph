@@ -15,12 +15,7 @@ import {
   useSyncExternalStore,
 } from "react";
 import { createPortal } from "react-dom";
-import {
-  RiCheckboxCircleFill,
-  RiErrorWarningFill,
-  RiInformationFill,
-  RiNotification3Fill,
-} from "@remixicon/react";
+import { Icon as KitIcon, type IconName } from "../../../icons/Icon";
 import { AnimatePresence, motion } from "motion/react";
 import { Avatar, type AvatarProps } from "../avatar/avatar";
 import { Button, type ButtonProps } from "../buttons/button";
@@ -113,11 +108,11 @@ export interface NotificationViewportProps
   placement?: Extract<NotificationPosition, "bottom-left" | "bottom-right">;
 }
 
-const STATUS_ICON: Record<NotificationStatus, IconComponent> = {
-  neutral: RiNotification3Fill,
-  information: RiInformationFill,
-  success: RiCheckboxCircleFill,
-  error: RiErrorWarningFill,
+const STATUS_ICON: Record<NotificationStatus, IconName> = {
+  neutral: "bell",
+  information: "info",
+  success: "check",
+  error: "alert",
 };
 
 const styles = sortCx({
@@ -222,7 +217,7 @@ export function Notification({
   ...props
 }: NotificationProps) {
   const [dismissed, setDismissed] = useState(false);
-  const Icon = icon ?? STATUS_ICON[status];
+  const Glyph = icon;
   const hasIntro = introDelay !== undefined;
   const introDelayMs = (introDelay ?? 0) * 1000;
   const actionButtons = actions?.length ? (
@@ -289,7 +284,11 @@ export function Notification({
             <NotificationAvatarVisual {...avatar} />
           ) : (
             <span className={cx(styles.visual, compact ? styles.visualCompact : styles.visualDefault, styles.status[status])}>
-              <Icon className={cx(styles.icon, compact && styles.iconCompact)} aria-hidden />
+              {Glyph ? (
+                <Glyph className={cx(styles.icon, compact && styles.iconCompact)} aria-hidden />
+              ) : (
+                <KitIcon name={STATUS_ICON[status]} className={cx(styles.icon, compact && styles.iconCompact)} />
+              )}
             </span>
           )}
 

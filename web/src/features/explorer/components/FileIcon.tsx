@@ -1,67 +1,26 @@
-import {
-} from "@toph/icons";
-import materialManifest from "material-icon-theme/dist/material-icons.json";
-import { useSettings } from "../../settings/store";
+import { Icon, type IconName } from "@toph/ui";
 
 interface Props {
   name: string;
   path?: string;
   dir?: boolean;
   open?: boolean;
-
   size?: number;
 }
 
-interface MaterialManifest {
-  fileNames: Record<string, string>;
-  fileExtensions: Record<string, string>;
-  folderNames: Record<string, string>;
-  folderNamesExpanded: Record<string, string>;
-  file: string;
-  folder: string;
-  folderExpanded: string;
-  iconDefinitions: Record<string, { iconPath?: string }>;
+/** The kit's own file marks: a folder, a sheet, code, a table, an image. No other icon set. */
+function glyphFor(name: string, dir: boolean): IconName {
+  if (dir) return "archiveBox";
+  const lower = name.toLowerCase();
+  if (/\.(png|jpe?g|gif|webp|svg|ico|bmp|avif)$/.test(lower)) return "image";
+  if (/\.(ts|tsx|js|jsx|mjs|cjs|css|scss|html|json|toml|yaml|yml|rs|py|go|java|sh|sql)$/.test(lower)) return "code";
+  if (/\.(md|mdx|txt|rst|log)$/.test(lower)) return "document";
+  if (/\.(csv|tsv|xls|xlsx)$/.test(lower)) return "table";
+  if (/\.(db|sqlite|sqlite3|duckdb)$/.test(lower)) return "database";
+  return "document";
 }
 
-const material = materialManifest as MaterialManifest;
-
-function baseName(value: string): string {
-  const normalized = value.replace(/\\/g, "/").replace(/\/+$/, "");
-  return normalized.split("/").pop() || normalized;
-}
-
-function materialIconName(name: string, dir: boolean, open: boolean): string {
-  const lower = baseName(name).toLowerCase();
-  if (dir) {
-    return (open ? material.folderNamesExpanded[lower] : material.folderNames[lower])
-      ?? (open ? material.folderExpanded : material.folder);
-  }
-  const exact = material.fileNames[lower];
-  if (exact) return exact;
-  // Material Icon Theme supports compound suffixes such as d.ts, test.ts,
-  // schema.json and routing.tsx. Try the longest suffix first.
-  const parts = lower.split(".");
-  for (let index = 0; index < parts.length; index += 1) {
-    const extension = material.fileExtensions[parts.slice(index).join(".")];
-    if (extension) return extension;
-  }
-  return material.file;
-}
-
-function materialIconFile(name: string, dir: boolean, open: boolean): string {
-  const definition = material.iconDefinitions[materialIconName(name, dir, open)];
-  const path = definition?.iconPath ?? "file.svg";
-  return path.split("/").pop() ?? "file.svg";
-}
-
-export default function FileIcon({ name, dir = false, open = false, size = 15 }: Props) {
-  const theme = useSettings((state) => state.theme);
-  return (
-    <img
-      src={`${import.meta.env.BASE_URL}material-icons/${materialIconFile(name, dir, open)}`}
-      alt=""
-      className={`shrink-0 object-contain ${theme === "light" ? "" : "brightness-150 saturate-125"}`}
-      style={{ width: size, height: size }}
-    />
-  );
+export default function FileIcon({ name, dir = false, size }: Props) {
+  const px = size === 14 || size === 16 || size === 18 || size === 20 ? size : 16;
+  return <Icon name={glyphFor(name, dir)} size={px} className="shrink-0 text-foreground-icon-tertiary" />;
 }

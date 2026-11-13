@@ -10,7 +10,7 @@ import {
   Heading as AriaHeading,
 } from "react-aria-components";
 import type { DisclosureGroupProps as AriaDisclosureGroupProps, DisclosureProps as AriaDisclosureProps } from "react-aria-components";
-import { RiAddLine, RiArrowDownSLine } from "@remixicon/react";
+import { Icon as KitIcon } from "../../../icons/Icon";
 import { cx, sortCx } from "@toph/ui/app/utils/cx";
 
 /**
@@ -127,7 +127,7 @@ export function AccordionItem({
   ...props
 }: AccordionItemProps) {
   const { variant, indicator } = useContext(AccordionContext);
-  const Indicator = indicator === "plus" ? RiAddLine : RiArrowDownSLine;
+  const indicatorName = indicator === "plus" ? "plus" : "chevronDown";
 
   return (
     <AriaDisclosure
@@ -152,7 +152,8 @@ export function AccordionItem({
             <span className="text-headline-medium text-text-primary">{title}</span>
             {description ? <span className="text-body-regular text-text-secondary">{description}</span> : null}
           </span>
-          <Indicator
+          <KitIcon
+            name={indicatorName}
             aria-hidden
             className={cx(
               "size-3 shrink-0 text-text-tertiary transition-[rotate,color] duration-300 motion-reduce:transition-none",

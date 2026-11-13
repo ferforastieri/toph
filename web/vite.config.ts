@@ -1,6 +1,5 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
-import tailwindcss from "@tailwindcss/vite";
 import { cpSync, copyFileSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
@@ -49,7 +48,7 @@ export default defineConfig({
   root: resolve(import.meta.dirname),
   base: "/app/",
   resolve: { alias: { "@": resolve(import.meta.dirname, "src") } },
-  plugins: [localAssets(), react(), tailwindcss()],
+  plugins: [localAssets(), react()],
   server: {
     port: 5173,
     https,

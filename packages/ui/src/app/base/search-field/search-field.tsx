@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import type { ComponentType, ReactNode, Ref } from "react";
 import { SearchField as AriaSearchField } from "react-aria-components";
 import type { SearchFieldProps as AriaSearchFieldProps } from "react-aria-components";
-import { LoaderCircle, Search } from "@toph/icons";
+import { Icon as KitIcon } from "../../../icons/Icon";
 import { CloseButton } from "../buttons/close-button";
 import { HintText } from "../input/hint-text";
 import { InputBase } from "../input/input";
@@ -22,6 +22,11 @@ type IconComponent = ComponentType<{
   className?: string;
   "aria-hidden"?: boolean | "true" | "false";
 }>;
+
+/** The search field's own glyphs, from the Tophs set. */
+function SearchGlyph({ className }: { className?: string }) {
+  return <KitIcon name="search" className={className} />;
+}
 
 export interface SearchFieldProps
   extends Omit<AriaSearchFieldProps, "className" | "children"> {
@@ -53,7 +58,7 @@ export function SearchField({
   size = "medium",
   shape = "pill",
   isLoading = false,
-  icon: Icon = Search,
+  icon: Icon = SearchGlyph,
   clearLabel = "Limpar busca",
   endAddon,
   value: controlledValue,
@@ -115,7 +120,7 @@ export function SearchField({
             leadingAddon={
               <span aria-hidden className="relative ms-1 size-5 shrink-0">
                 {isLoading ? (
-                  <LoaderCircle className="absolute inset-0 size-5 animate-spin text-foreground-icon-secondary" />
+                  <KitIcon name="spinner" className="absolute inset-0 size-5 text-foreground-icon-secondary" />
                 ) : (
                   <Icon className="absolute inset-0 size-5 text-foreground-icon-secondary" />
                 )}
