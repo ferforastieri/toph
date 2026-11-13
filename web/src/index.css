@@ -11,6 +11,13 @@
 /* Toph aliases the app tokens so every screen reads one palette. */
 :root {
   --radius: 0.625rem;
+  /* The Tophs app face: Source Sans 3, with JetBrains Mono for code. */
+  --font-display: var(--font-sans);
+  --font-display-weight: 600;
+  --font-size-adjust: 0.52;
+  --title-cap-mid: 1.19px;
+  --font-brand: "Funnel Display", var(--font-sans);
+  --font-dot: "Doto", var(--font-mono);
   --text-on-accent: #1c1204;
   --safe-top: max(var(--native-safe-top, 0px), env(safe-area-inset-top, 0px));
   --safe-bottom: max(var(--native-safe-bottom, 0px), env(safe-area-inset-bottom, 0px));
@@ -120,8 +127,8 @@
 }
 
 @theme inline {
-  --font-sans: "Onest", "Segoe UI", system-ui, sans-serif;
-  --font-mono: "Martian Mono", ui-monospace, Menlo, monospace;
+  --font-sans: "Source Sans 3 Variable", "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, Menlo, monospace;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -173,6 +180,8 @@
     @apply bg-background text-foreground antialiased;
     margin: 0;
     overflow: hidden;
+    font-family: var(--font-sans);
+    font-size-adjust: var(--font-size-adjust, none);
     font-variant-ligatures: contextual;
     font-kerning: normal;
   }
@@ -316,6 +325,9 @@
   --color-segmented-control-background: var(--sunken);
   --color-segmented-control-selected-background: var(--raised);
   --color-notification-center-background: var(--raised);
+  --font-sans: "Source Sans 3 Variable", "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, Menlo, monospace;
+  --font-size-adjust: 0.52;
 }
 
 

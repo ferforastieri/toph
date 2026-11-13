@@ -1,12 +1,9 @@
 import React from "react";
+import "@fontsource-variable/source-sans-3";
+import "@fontsource-variable/jetbrains-mono";
 import "@fontsource-variable/onest";
-import "@fontsource-variable/martian-mono";
-import "@fontsource/inter/400.css";
-import "@fontsource/inter/500.css";
-import "@fontsource/inter/600.css";
-import "@fontsource/inter/700.css";
 import ReactDOM from "react-dom/client";
-import "@fontsource/ibm-plex-mono";
+import "./fonts.css";
 import "./index.css";
 import { initAppearance } from "./features/settings/store";
 import { ConfirmProvider } from "./shared/ui/confirm";

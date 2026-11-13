@@ -2,7 +2,7 @@ import type { Monaco } from "@monaco-editor/react";
 import type { editor } from "monaco-editor";
 import type { Theme } from "../settings/store";
 
-export const CODE_FONT_FAMILY = "'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace";
+export const CODE_FONT_FAMILY = "'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace";
 
 export function codeLineHeight(fontSize: number): number {
   return Math.round(fontSize * 1.35);
