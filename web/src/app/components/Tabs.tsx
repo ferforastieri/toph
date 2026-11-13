@@ -7,9 +7,9 @@ import BotAvatar from "../../features/agents/components/BotAvatar";
 import { agentApi } from "../../features/agents/api";
 import { useSettings } from "../../features/settings/store";
 import { useConfirm } from "../../shared/ui/confirm";
-import { IconButton } from "@/shared/toph-ui/base/buttons/icon-button";
+import { IconButton } from "@toph/ui/app";
 import FileIcon from "../../features/explorer/components/FileIcon";
-import { cx } from "@/shared/toph-ui/utils/cx";
+import { cx } from "@toph/ui";
 
 const icons = { editor: FileCode2, db: Database, ai: Bot, web: Globe2, diff: FileDiff };
 

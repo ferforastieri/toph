@@ -11,10 +11,10 @@ import { suggestGitChanges } from "../../../../features/git/ai";
 import { useConfirm } from "../../../../shared/ui/confirm";
 import FileIcon from "../../../../features/explorer/components/FileIcon";
 import GitStatusIcon from "../../../../features/git/components/GitStatusIcon";
-import { Badge } from "@/shared/toph-ui/base/badges/badge";
-import { Button } from "@/shared/toph-ui/base/buttons/button";
-import { Input } from "@/shared/toph-ui/base/input/input";
-import { Modal } from "@/shared/toph-ui/base/modal/modal";
+import { Badge } from "@toph/ui/app";
+import { Button } from "@toph/ui/app";
+import { Input } from "@toph/ui/app";
+import { Modal } from "@toph/ui/app";
 
 interface Props {
   project: Project;

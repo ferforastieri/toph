@@ -7,10 +7,10 @@ import { chatTabId } from "../navigation";
 import { agentApi } from "../../agents/api";
 import { useApp } from "../../../app/store";
 import BotAvatar from "../../agents/components/BotAvatar";
-import { Button } from "@/shared/toph-ui/base/buttons/button";
-import { Input } from "@/shared/toph-ui/base/input/input";
-import { Modal } from "@/shared/toph-ui/base/modal/modal";
-import { Textarea } from "@/shared/toph-ui/base/textarea/textarea";
+import { Button } from "@toph/ui/app";
+import { Input } from "@toph/ui/app";
+import { Modal } from "@toph/ui/app";
+import { Textarea } from "@toph/ui/app";
 import { useConfirm } from "../../../shared/ui/confirm";
 
 interface Props {

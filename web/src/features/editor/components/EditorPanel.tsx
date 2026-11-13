@@ -6,8 +6,8 @@ import CodeEditor from "./CodeEditor";
 import FileIcon from "../../explorer/components/FileIcon";
 import { isImagePath } from "../image";
 import ImagePreview from "./ImagePreview";
-import { Breadcrumb, BreadcrumbItem } from "@/shared/toph-ui/base/breadcrumb/breadcrumb";
-import { Badge } from "@/shared/toph-ui/base/badges/badge";
+import { Breadcrumb, BreadcrumbItem } from "@toph/ui/app";
+import { Badge } from "@toph/ui/app";
 import { useProjectEvents } from "../../projects/events";
 import { useDebug } from "../../debug/store";
 

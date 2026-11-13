@@ -1,15 +1,14 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @plugin "@tailwindcss/typography";
-@import "./shared/toph-ui/styles/theme.css";
-@import "./shared/toph-ui/styles/typography.css";
-@import "./shared/toph-ui/styles/components.css";
+@import "./styles/tokens.css";
+@import "./styles/type.css";
+@import "./styles/primitives.css";
 @import "@toph/ui/styles.css";
 
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* Toph aliases BoardUI's semantic tokens so the app-specific classes and the
-   BoardUI components always read from one palette. No separate theme layer. */
+/* Toph aliases the app tokens so every screen reads one palette. */
 :root {
   --radius: 0.625rem;
   --text-on-accent: #1c1204;
@@ -232,9 +231,8 @@
   }
 }
 
-/* BoardUI's dark ghost button is an accent-tinted action. Toph uses ghost for
-   neutral chrome (activity bar, settings rail, modal actions), so keep that
-   variant transparent and let the selected/secondary variant carry emphasis. */
+/* Ghost is neutral chrome (activity bar, settings rail, modal actions):
+   keep it transparent and let the selected/secondary variant carry emphasis. */
 :root,
 .dark {
   --color-button-ghost-background: transparent;

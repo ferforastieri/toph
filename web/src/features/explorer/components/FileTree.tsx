@@ -4,7 +4,7 @@ import { api, type FileEntry, type Project } from "../../../shared/api";
 import { useApp } from "../../../app/store";
 import FileIcon from "./FileIcon";
 import GitStatusIcon from "../../git/components/GitStatusIcon";
-import { Badge } from "@/shared/toph-ui/base/badges/badge";
+import { Badge } from "@toph/ui/app";
 import { useProjectEvents } from "../../projects/events";
 import LoadingState from "../../../shared/ui/LoadingState";
 import { cn } from "@/shared/lib/utils";

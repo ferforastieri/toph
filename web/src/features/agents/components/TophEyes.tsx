@@ -1,5 +1,5 @@
 import type { CSSProperties, HTMLAttributes } from "react";
-import { cx } from "@/shared/toph-ui/utils/cx";
+import { cx } from "@toph/ui";
 
 const EYE_TRANSFORM = "translate3d(var(--toph-look-x, 0px), var(--toph-look-y, 0px), 0)";
 

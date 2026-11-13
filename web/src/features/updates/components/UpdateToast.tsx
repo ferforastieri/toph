@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api, ApiError, type UpdateInstaller, type UpdateStatus } from "../../../shared/api";
-import { Notification, NotificationViewport } from "@/shared/toph-ui/base/notification/notification";
-import { ProgressBar } from "@/shared/toph-ui/base/progress/progress";
+import { Notification, NotificationViewport } from "@toph/ui/app";
+import { ProgressBar } from "@toph/ui/app";
 import { isMobileViewport } from "../../../shared/ui/useIsMobile";
 
 type Phase = "idle" | "updating" | "error";

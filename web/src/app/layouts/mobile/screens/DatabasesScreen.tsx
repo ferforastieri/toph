@@ -4,12 +4,12 @@ import { api, type DBProfile, type Project, type SchemaTable } from "../../../..
 import { useApp } from "../../../store";
 import { useConfirm } from "../../../../shared/ui/confirm";
 import { useProjectEvents } from "../../../../features/projects/events";
-import { Badge } from "@/shared/toph-ui/base/badges/badge";
-import { Button } from "@/shared/toph-ui/base/buttons/button";
-import { Checkbox } from "@/shared/toph-ui/base/checkbox/checkbox";
-import { Input } from "@/shared/toph-ui/base/input/input";
-import { Modal } from "@/shared/toph-ui/base/modal/modal";
-import { Select, SelectItem } from "@/shared/toph-ui/base/select/select";
+import { Badge } from "@toph/ui/app";
+import { Button } from "@toph/ui/app";
+import { Checkbox } from "@toph/ui/app";
+import { Input } from "@toph/ui/app";
+import { Modal } from "@toph/ui/app";
+import { Select, SelectItem } from "@toph/ui/app";
 import LoadingState from "../../../../shared/ui/LoadingState";
 
 interface Props {

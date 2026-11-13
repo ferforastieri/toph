@@ -4,7 +4,7 @@ import { useApp } from "../../../app/store";
 import { useChats } from "../../conversations/store";
 import BotAvatar from "../../agents/components/BotAvatar";
 import { activeTophFromChats, useProjectTophs } from "../project-tophs";
-import { cx } from "@/shared/toph-ui/utils/cx";
+import { cx } from "@toph/ui";
 
 interface Props {
   project: Project;

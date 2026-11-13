@@ -1,6 +1,6 @@
 import { MessageSquare } from "@toph/icons";
 import { PixelSpinner } from "@toph/ui";
-import { cx } from "@/shared/toph-ui/utils/cx";
+import { cx } from "@toph/ui";
 import { sessionWhen, sessionMessages } from "../sessions";
 
 interface Props {

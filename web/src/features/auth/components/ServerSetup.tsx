@@ -2,9 +2,9 @@ import { useState, type FormEvent } from "react";
 import { ArrowRight, Server } from "@toph/icons";
 import { probeServer } from "../../../shared/api";
 import BrandMark from "@toph/brand";
-import { Button } from "@/shared/toph-ui/base/buttons/button";
-import { Input } from "@/shared/toph-ui/base/input/input";
-import { Chip } from "@/shared/toph-ui/base/badges/chip";
+import { Button } from "@toph/ui/app";
+import { Input } from "@toph/ui/app";
+import { Chip } from "@toph/ui/app";
 
 interface Props {
   defaultUrl: string;

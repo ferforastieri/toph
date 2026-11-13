@@ -5,8 +5,8 @@ import { agentApi, type AgentSearchResult } from "../../agents/api";
 import { chatDisplayName, chatTophs, conversations, latestChatForToph, useChats, type ChatToph, type TophChat } from "../../conversations/store";
 import { requestOpenChat } from "../../conversations/navigation";
 import BotAvatar from "../../agents/components/BotAvatar";
-import { Modal } from "@/shared/toph-ui/base/modal/modal";
-import { cx } from "@/shared/toph-ui/utils/cx";
+import { Modal } from "@toph/ui/app";
+import { cx } from "@toph/ui";
 
 type SettingsSection = "general" | "appearance" | "toph" | "skills" | "harness" | "email" | "workspace" | "about";
 

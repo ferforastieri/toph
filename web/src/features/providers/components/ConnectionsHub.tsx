@@ -6,11 +6,11 @@ import { useApp } from "../../../app/store";
 import { agentApi, type Connection, type McpServer } from "../../agents/api";
 import ProviderIcon from "./ProviderIcon";
 import AiSettings from "./AiSettings";
-import { Button } from "@/shared/toph-ui/base/buttons/button";
-import { Input } from "@/shared/toph-ui/base/input/input";
-import { Select, SelectItem } from "@/shared/toph-ui/base/select/select";
-import { ProgressBar } from "@/shared/toph-ui/base/progress/progress";
-import { cx } from "@/shared/toph-ui/utils/cx";
+import { Button } from "@toph/ui/app";
+import { Input } from "@toph/ui/app";
+import { Select, SelectItem } from "@toph/ui/app";
+import { ProgressBar } from "@toph/ui/app";
+import { cx } from "@toph/ui";
 
 interface ModelPreset {
   id: string;

@@ -3,8 +3,8 @@ import { Check, ChevronDown } from "@toph/icons";
 import type { AIModel } from "../../../shared/api";
 import { modelDisplay, modelGroup, modelTitle, providerLabel } from "../store";
 import ProviderIcon from "./ProviderIcon";
-import { cx } from "@/shared/toph-ui/utils/cx";
-import { Slider } from "@/shared/toph-ui/base/slider/slider";
+import { cx } from "@toph/ui";
+import { Slider } from "@toph/ui/app";
 import ComposerMenu from "../../conversations/components/ComposerMenu";
 
 const EFFORT_LABEL: Record<string, string> = {

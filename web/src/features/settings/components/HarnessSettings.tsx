@@ -4,8 +4,8 @@ import { engineApi, type EngineInfo, type EngineTest } from "../../agents/api";
 import { useApp } from "../../../app/store";
 import HarnessIcon from "../../agents/components/HarnessIcon";
 import ConnectionsHub from "../../providers/components/ConnectionsHub";
-import { Button } from "@/shared/toph-ui/base/buttons/button";
-import { cx } from "@/shared/toph-ui/utils/cx";
+import { Button } from "@toph/ui/app";
+import { cx } from "@toph/ui";
 
 type Busy = { id: string; action: "test" | "install" | "update" } | null;
 
