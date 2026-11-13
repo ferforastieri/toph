@@ -227,15 +227,19 @@ export default function TopBar({ onOpenProject, onCloseProject, onGoHome, projec
       <header className="relative z-50 mx-1 mt-1 flex h-11 shrink-0 items-center gap-1.5 rounded-3xl border border-border-button-white bg-background-primary-default px-2.5 shadow-sidebar">
         <button
           type="button"
-          onClick={() => {
-            if (activeProjectId) onGoHome();
-            else setPickerOpen(true);
+          onClick={(event) => {
+            if (event.altKey) {
+              if (activeProjectId) onGoHome();
+              else setPickerOpen(true);
+              return;
+            }
+            window.dispatchEvent(new CustomEvent("toph:open-settings", { detail: { section: "general" } }));
           }}
-          className="flex size-9 shrink-0 items-center justify-center rounded-xl transition-colors hover:bg-background-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus-ring"
-          aria-label="Ir para o Toph"
-          title="Ir para o Toph"
+          className="flex size-10 shrink-0 items-center justify-center rounded-xl transition-colors hover:bg-background-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus-ring"
+          aria-label="Abrir configurações"
+          title="Configurações · Alt+clique vai para o Toph"
         >
-          <BrandMark size="small" className="size-7" />
+          <BrandMark size="small" className="size-[34px]" />
         </button>
 
         <Button
@@ -348,15 +352,19 @@ export function ProjectRail({ onOpenProject, onCloseProject, onGoHome, onQuickOp
       <aside className="relative z-50 me-1 flex w-12 shrink-0 flex-col items-center gap-2 rounded-3xl border border-border-button-white bg-background-primary-default px-0 py-3 shadow-sidebar" aria-label="Projetos e ferramentas">
         <button
           type="button"
-          onClick={() => {
-            if (activeProjectId) onGoHome();
-            else setPickerOpen(true);
+          onClick={(event) => {
+            if (event.altKey) {
+              if (activeProjectId) onGoHome();
+              else setPickerOpen(true);
+              return;
+            }
+            window.dispatchEvent(new CustomEvent("toph:open-settings", { detail: { section: "general" } }));
           }}
           className="flex size-10 shrink-0 items-center justify-center rounded-xl transition-colors hover:bg-background-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus-ring"
-          aria-label="Ir para o Toph"
-          title="Ir para o Toph"
+          aria-label="Abrir configurações"
+          title="Configurações · Alt+clique vai para o Toph"
         >
-          <BrandMark size="small" className="size-7" />
+          <BrandMark size="small" className="size-[34px]" />
         </button>
         <Button variant="ghost" size="medium" iconOnly leadingIcon={Plus} className="size-10 [&_svg]:size-5" aria-label="Abrir projeto" title="Abrir projeto" onClick={() => setPickerOpen(true)} />
         <span className="h-px w-8 shrink-0 bg-separator-border" aria-hidden="true" />

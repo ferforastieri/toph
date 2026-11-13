@@ -350,7 +350,7 @@ export default function MobileApp() {
 
   return (
     <div
-      className="relative flex h-dvh flex-col overflow-hidden bg-background-full"
+      className="relative flex h-dvh flex-col overflow-hidden bg-[var(--side)]"
       style={{
         height: "min(var(--visual-viewport-height, 100dvh), calc(100dvh - var(--keyboard-inset, 0px)))",
         paddingTop: "var(--safe-top)",

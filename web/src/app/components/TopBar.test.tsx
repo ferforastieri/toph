@@ -66,7 +66,7 @@ describe("TopBar", () => {
     const toggle = screen.getByRole("button", { name: "Ativar modo claro" });
     fireEvent.click(toggle);
     expect(useSettings.getState().theme).toBe("light");
-    expect(screen.getByRole("button", { name: "Ir para o Toph" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Abrir configurações" })).toBeInTheDocument();
   });
 
   it("keeps the workspace actions in the header", () => {

@@ -4,7 +4,7 @@ import BrandMark from "@toph/brand";
 export default function MobileBoot() {
   return (
     <div
-      className="flex h-dvh flex-col bg-background-full"
+      className="flex h-dvh flex-col bg-[var(--side)]"
       style={{
         paddingTop: "var(--safe-top)",
         paddingBottom: "var(--safe-bottom)",
