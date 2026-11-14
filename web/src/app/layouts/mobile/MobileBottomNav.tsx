@@ -17,6 +17,7 @@ const tabs: Array<{ id: MobileScreen; label: string; icon: ComponentType<{ class
 ];
 
 const moreScreens: MobileScreen[] = ["db", "web", "debug", "more"];
+const MARK = `${import.meta.env.BASE_URL}brand/toph-mark-eyeless.png?v=3`;
 
 /**
  * The always-there mobile tab bar, in the native tab bar's shape: labels under
@@ -45,7 +46,18 @@ export default function MobileBottomNav({ screen, onSelect }: Props) {
                 active ? "text-text-primary" : "text-text-tertiary",
               )}
             >
-              <Icon className={"size-[22px]"} />
+              {item.id === "bots" ? (
+                <span
+                  className="toph-tab-mark"
+                  style={{
+                    WebkitMaskImage: `url("${MARK}")`,
+                    maskImage: `url("${MARK}")`,
+                  }}
+                  aria-hidden="true"
+                />
+              ) : (
+                <Icon className="toph-tab-icon" />
+              )}
               <span className={cx("max-w-full truncate text-[10px] leading-3", active ? "font-semibold" : "font-medium")}>{item.label}</span>
             </button>
           );
