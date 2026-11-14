@@ -79,6 +79,7 @@ export default function TerminalPanel({ project, onOpenFile, sheet = false, onCl
   const [debugBusy, setDebugBusy] = useState(false);
   const [reconnectNonce, setReconnectNonce] = useState(0);
   const [clearNonce, setClearNonce] = useState(0);
+  const [runRequest, setRunRequest] = useState<{ text: string; sessionId: string; nonce: number } | null>(null);
   const [sessionMenu, setSessionMenu] = useState<{ session: Session; x: number; y: number } | null>(null);
   const [shellMenuOpen, setShellMenuOpen] = useState(false);
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
@@ -272,6 +273,19 @@ export default function TerminalPanel({ project, onOpenFile, sheet = false, onCl
       else if (command === "reconnect") setReconnectNonce((value) => value + 1);
       else if (command === "kill") void killSession();
       else if (command === "kill-all") void killAll();
+      else if (command === "login" || command === "run") {
+        const text = (event as CustomEvent<{ text?: string }>).detail?.text;
+        if (!text) return;
+        const target = selectedSession ?? activeSession;
+        if (target) {
+          setRunRequest({ text, sessionId: target.id, nonce: Date.now() });
+        } else {
+          void createSession(shell).then((created) => {
+            setActiveId(created.id);
+            setRunRequest({ text, sessionId: created.id, nonce: Date.now() });
+          }).catch((error) => setError(error instanceof Error ? error.message : "Não foi possível abrir o terminal."));
+        }
+      }
     };
     const handleTab = (event: Event) => {
       const next = (event as CustomEvent<{ tab?: string }>).detail?.tab;
@@ -283,7 +297,7 @@ export default function TerminalPanel({ project, onOpenFile, sheet = false, onCl
       window.removeEventListener("toph:terminal-command", handleCommand);
       window.removeEventListener("toph:terminal-tab", handleTab);
     };
-  }, [activeSession?.id, shell, sessions.length]);
+  }, [activeSession?.id, createSession, selectedSession?.id, shell, sessions.length]);
 
   return (
     <section
@@ -349,16 +363,16 @@ export default function TerminalPanel({ project, onOpenFile, sheet = false, onCl
             {split && paneSessions.length >= 2 ? (
               <Group orientation="horizontal" className="min-h-0 flex-1">
                 <Panel defaultSize="50" minSize="20">
-                  <TerminalView key={`${paneSessions[0].id}:${reconnectNonce}`} session={paneSessions[0]} theme={theme} clearNonce={clearNonce} focusNonce={focusNonce} mobile={sheet} onOutput={appendOutput} onOpenFile={onOpenFile} />
+                  <TerminalView key={`${paneSessions[0].id}:${reconnectNonce}`} session={paneSessions[0]} theme={theme} clearNonce={clearNonce} focusNonce={focusNonce} mobile={sheet} runRequest={runRequest?.sessionId === paneSessions[0].id ? runRequest : null} onOutput={appendOutput} onOpenFile={onOpenFile} />
                 </Panel>
                 <Separator className="relative w-px bg-separator-border after:absolute after:inset-y-0 after:left-1/2 after:w-2 after:-translate-x-1/2 focus-visible:ring-2 focus-visible:ring-border-focus-ring" />
                 <Panel defaultSize="50" minSize="20">
-                  <TerminalView key={`${paneSessions[1].id}:${reconnectNonce}`} session={paneSessions[1]} theme={theme} clearNonce={clearNonce} focusNonce={focusNonce} mobile={sheet} onOutput={appendOutput} onOpenFile={onOpenFile} />
+                  <TerminalView key={`${paneSessions[1].id}:${reconnectNonce}`} session={paneSessions[1]} theme={theme} clearNonce={clearNonce} focusNonce={focusNonce} mobile={sheet} runRequest={runRequest?.sessionId === paneSessions[1].id ? runRequest : null} onOutput={appendOutput} onOpenFile={onOpenFile} />
                 </Panel>
               </Group>
             ) : (
               <div className="min-h-0 flex-1">
-                {paneSessions[0] ? <TerminalView key={`${paneSessions[0].id}:${reconnectNonce}`} session={paneSessions[0]} theme={theme} clearNonce={clearNonce} focusNonce={focusNonce} mobile={sheet} onOutput={appendOutput} onOpenFile={onOpenFile} /> : <div className="flex h-full items-center justify-center text-caption-1-regular text-text-secondary">Nenhum terminal aberto.</div>}
+                {paneSessions[0] ? <TerminalView key={`${paneSessions[0].id}:${reconnectNonce}`} session={paneSessions[0]} theme={theme} clearNonce={clearNonce} focusNonce={focusNonce} mobile={sheet} runRequest={runRequest?.sessionId === paneSessions[0].id ? runRequest : null} onOutput={appendOutput} onOpenFile={onOpenFile} /> : <div className="flex h-full items-center justify-center text-caption-1-regular text-text-secondary">Nenhum terminal aberto.</div>}
               </div>
             )}
             {sessions.length > 1 && (
@@ -500,9 +514,10 @@ export default function TerminalPanel({ project, onOpenFile, sheet = false, onCl
   );
 }
 
-function TerminalView({ session, theme, clearNonce, focusNonce, mobile, onOutput, onOpenFile }: { session: Session; theme: "light" | "dark"; clearNonce: number; focusNonce: number; mobile: boolean; onOutput: (text: string) => void; onOpenFile: (path: string, line?: number) => void; }) {
+function TerminalView({ session, theme, clearNonce, focusNonce, mobile, runRequest, onOutput, onOpenFile }: { session: Session; theme: "light" | "dark"; clearNonce: number; focusNonce: number; mobile: boolean; runRequest?: { text: string; sessionId: string; nonce: number } | null; onOutput: (text: string) => void; onOpenFile: (path: string, line?: number) => void; }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<Terminal | null>(null);
+  const sendRunRef = useRef<((text: string) => void) | null>(null);
   const outputCallback = useRef(onOutput);
   outputCallback.current = onOutput;
   const openFileCallback = useRef(onOpenFile);
@@ -629,6 +644,8 @@ function TerminalView({ session, theme, clearNonce, focusNonce, mobile, onOutput
         return false;
       } catch { return false; }
     };
+    let pendingRun = "";
+    const encoder = new TextEncoder();
     const connect = () => {
       if (disposed) return;
       const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
@@ -643,6 +660,11 @@ function TerminalView({ session, theme, clearNonce, focusNonce, mobile, onOutput
         // stale local state first to avoid duplicated or ghost lines.
         term.reset();
         scheduleFit(() => { sendResize(ws); term.scrollToBottom(); });
+        if (pendingRun) {
+          const text = pendingRun;
+          pendingRun = "";
+          ws.send(encoder.encode(`${text}\n`));
+        }
       };
       ws.onmessage = (event) => {
         lastSeen = Date.now();
@@ -676,7 +698,10 @@ function TerminalView({ session, theme, clearNonce, focusNonce, mobile, onOutput
     scheduleFit();
     if (!mobile) term.focus();
     connect();
-    const encoder = new TextEncoder();
+    sendRunRef.current = (text) => {
+      if (socket?.readyState === WebSocket.OPEN) socket.send(encoder.encode(`${text}\n`));
+      else pendingRun = text;
+    };
     term.onData((data) => { if (socket?.readyState === WebSocket.OPEN) socket.send(encoder.encode(data)); });
     term.onResize(({ cols, rows }) => { if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: "resize", cols, rows })); });
     heartbeatTimer = window.setInterval(() => {
@@ -728,6 +753,7 @@ function TerminalView({ session, theme, clearNonce, focusNonce, mobile, onOutput
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("focus", onVisible);
       window.removeEventListener("pageshow", onVisible);
+      sendRunRef.current = null;
       socket?.close();
       term.dispose();
       termRef.current = null;
@@ -737,6 +763,11 @@ function TerminalView({ session, theme, clearNonce, focusNonce, mobile, onOutput
   useEffect(() => {
     if (clearNonce > 0) termRef.current?.clear();
   }, [clearNonce]);
+
+  useEffect(() => {
+    if (!runRequest) return;
+    sendRunRef.current?.(runRequest.text);
+  }, [runRequest]);
 
   useEffect(() => {
     if (focusNonce > 0) termRef.current?.focus();
