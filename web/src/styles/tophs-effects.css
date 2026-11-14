@@ -47,3 +47,27 @@
 .ac-composer textarea {
   padding: 13px 16px 4px;
 }
+
+/* On a phone the composer's model and effort keep room for the actions: the
+   model shortens, the effort keeps its word, and neither runs under the send. */
+@media (max-width: 640px) {
+  .ac-composer .composer-trigger {
+    max-width: 150px;
+  }
+  .ac-composer .composer-trigger[aria-label="Esforço"] {
+    max-width: 84px;
+    padding-inline: 4px;
+  }
+  /* The chevron takes room the effort's own word needs on a phone. */
+  .ac-composer .composer-trigger[aria-label="Esforço"] > svg {
+    display: none;
+  }
+}
+
+
+/* On a phone the composer sits at the bottom: notices stand above it, not over its actions. */
+@media (max-width: 640px) {
+  .ac-toasts {
+    bottom: calc(96px + var(--safe-bottom));
+  }
+}

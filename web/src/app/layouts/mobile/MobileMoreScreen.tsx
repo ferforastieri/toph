@@ -1,12 +1,9 @@
-import { useEffect } from "react";
 import {
-  Bot,
   Boxes,
   Bug,
   ChevronRight,
   Database,
   FolderGit2,
-  GitBranch,
   Globe2,
   Moon,
   PlugZap,
@@ -18,23 +15,17 @@ import {
   UserRound,
 } from "@toph/icons";
 import type { ComponentType } from "react";
-import type { Project, User } from "../../../shared/api";
-import { useChats } from "../../../features/conversations/store";
 import { useSettings } from "../../../features/settings/store";
-import ProjectTophAvatar from "../../../features/projects/components/ProjectTophAvatar";
 import { cx } from "@toph/ui";
 import type { MobileScreen } from "./mobile-nav";
 
 type SettingsSection = "general" | "appearance" | "skills" | "harness" | "workspace";
 
 interface Props {
-  project: Project;
-  user: User | null;
   activeTitle?: string;
   onScreen: (screen: MobileScreen) => void;
   onTerminal: () => void;
   onProjects: () => void;
-  onBranch: () => void;
   onAccount: () => void;
 }
 
@@ -92,25 +83,15 @@ function Section({ title, actions }: { title: string; actions: Action[] }) {
 
 /** Full-screen feature hub for the mobile app. Every workspace feature has an entry here. */
 export default function MobileMoreScreen({
-  project,
-  user,
   activeTitle,
   onScreen,
   onTerminal,
   onProjects,
-  onBranch,
   onAccount,
 }: Props) {
-  const chats = useChats((state) => state.byProject[project.id]);
-  const ensure = useChats((state) => state.ensure);
   const theme = useSettings((state) => state.theme);
   const setTheme = useSettings((state) => state.setTheme);
   const light = theme === "light";
-  const tophCount = chats?.tophs.length ?? 0;
-
-  useEffect(() => {
-    ensure(project.id);
-  }, [ensure, project.id]);
 
   const work: Action[] = [
     { id: "db", label: "Bancos de dados", description: "Conexões e queries", icon: Database, onSelect: () => onScreen("db") },
@@ -126,54 +107,24 @@ export default function MobileMoreScreen({
     { id: "harness", label: "Harness e MCP", description: "CLIs do agente", icon: PlugZap, onSelect: () => openSettings("harness") },
   ];
 
-  const projectActions: Action[] = [
-    { id: "projects", label: "Projetos", description: "Abrir ou fechar", icon: FolderGit2, onSelect: onProjects },
-    { id: "branch", label: "Branch", description: "Trocar ou criar", icon: GitBranch, onSelect: onBranch },
-    { id: "settings", label: "Configurações", description: "Layout e ferramentas", icon: Settings2, onSelect: () => openSettings("general") },
-    { id: "account", label: "Conta", description: "Sessão e servidor", icon: UserRound, onSelect: onAccount },
-  ];
+
 
   return (
     <div className="no-scrollbar flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto bg-background-secondary-default px-3 pb-5 pt-3">
-      <section className="relative shrink-0 overflow-hidden rounded-3xl border border-border-button-white bg-background-primary-default p-3.5 shadow-xs">
-        <span className="pointer-events-none absolute -end-8 -top-10 size-32 rounded-full bg-accent-500/10 blur-2xl" />
-        <div className="relative flex items-center gap-3">
-          <ProjectTophAvatar project={project} size={46} look />
-          <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-            <strong className="truncate text-body-medium text-text-primary">{project.name}</strong>
-            <span className="truncate text-caption-2-regular text-text-tertiary">{project.root}</span>
-            <span className="flex items-center gap-1.5 text-[10px] text-text-tertiary">
-              <Bot className="size-3 text-accent-500" />
-              {tophCount} Toph{tophCount === 1 ? "" : "s"} · {user?.username ?? "conta local"}
-            </span>
-          </div>
-          <button
-            type="button"
-            onClick={onProjects}
-            className="flex shrink-0 items-center gap-1 rounded-full border border-border-button-default bg-background-secondary-default px-2.5 py-1.5 text-[10px] font-medium text-text-secondary transition-colors hover:border-border-button-hover hover:text-text-primary"
-          >
-            Trocar <ChevronRight className="size-3" />
-          </button>
-        </div>
-        {activeTitle ? (
-          <button
-            type="button"
-            onClick={() => onScreen("workspace")}
-            className="relative mt-3 flex w-full items-center gap-2 rounded-2xl border border-accent-500/20 bg-accent-500/[0.06] px-3 py-2 text-start"
-          >
-            <span className="flex size-7 items-center justify-center rounded-lg bg-accent-500/15 text-accent-600"><Bot className="size-3.5" /></span>
-            <span className="min-w-0 flex-1">
-              <span className="block text-[9px] uppercase tracking-wide text-text-tertiary">Continuar</span>
-              <span className="block truncate text-caption-1-medium text-text-primary">{activeTitle}</span>
-            </span>
-            <ChevronRight className="size-4 shrink-0 text-text-tertiary" />
-          </button>
-        ) : null}
-      </section>
+      <div className="flex shrink-0 items-center gap-1.5">
+        <button type="button" onClick={() => openSettings("general")} aria-label="Configurações" title="Configurações" className="flex size-10 items-center justify-center rounded-xl border border-border-button-white bg-background-primary-default text-text-secondary shadow-xs transition-colors hover:bg-background-primary-hover hover:text-text-primary active:scale-[0.97]">
+          <Settings2 className="size-4.5" />
+        </button>
+        <button type="button" onClick={onProjects} aria-label="Projetos" title="Projetos" className="flex size-10 items-center justify-center rounded-xl border border-border-button-white bg-background-primary-default text-text-secondary shadow-xs transition-colors hover:bg-background-primary-hover hover:text-text-primary active:scale-[0.97]">
+          <FolderGit2 className="size-4.5" />
+        </button>
+        <button type="button" onClick={onAccount} aria-label="Conta" title="Conta" className="flex size-10 items-center justify-center rounded-xl border border-border-button-white bg-background-primary-default text-text-secondary shadow-xs transition-colors hover:bg-background-primary-hover hover:text-text-primary active:scale-[0.97]">
+          <UserRound className="size-4.5" />
+        </button>
+      </div>
 
       <Section title="Trabalho" actions={work} />
       <Section title="Toph e IA" actions={tophActions} />
-      <Section title="Projeto e app" actions={projectActions} />
 
       <section className="flex shrink-0 items-center justify-between gap-2 rounded-2xl border border-border-button-white bg-background-primary-default px-3 py-2.5 shadow-xs">
         <span className="flex items-center gap-2 text-caption-1-medium text-text-primary">
