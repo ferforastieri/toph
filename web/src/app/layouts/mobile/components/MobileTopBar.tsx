@@ -3,8 +3,8 @@ import { Bell, MessageCircleQuestion, MessageSquare, X } from "@toph/icons";
 import type { Project } from "../../../../shared/api";
 import ProjectMonogram from "../../../../features/projects/components/ProjectMonogram";
 import { useProjectQuestion, useProjectRunning } from "../../../../features/agents/activity";
-import BrandMark from "@toph/brand";
 import { cx } from "@toph/ui";
+import BrandGlyph from "../../../../shared/ui/BrandGlyph";
 
 interface Props {
   title: string;
@@ -41,9 +41,9 @@ export default function MobileTopBar({
       <div className="relative flex w-full min-w-0 items-center gap-3">
         <span className={cx(
           "flex size-10 shrink-0 items-center justify-center rounded-2xl",
-          brandIcon ? "mobile-topbar__brand shadow-xs" : "bg-accent-500/10 text-accent-600",
+          brandIcon ? "mobile-topbar__brand text-text-primary shadow-xs" : "bg-accent-500/10 text-accent-600",
         )}>
-          {brandIcon ? <BrandMark size="small" className="size-7" /> : <Icon className="size-[18px]" />}
+          {brandIcon ? <BrandGlyph size={24} /> : <Icon className="size-[18px]" />}
         </span>
         {hideTitle ? <div className="min-w-0 flex-1" /> : (
           <div className="flex min-w-0 flex-1 flex-col">

@@ -113,6 +113,7 @@ export function SearchField({
             size={size}
             placeholder={placeholder}
             fieldClassName={cx(
+              "w-full",
               shape === "pill" && "rounded-full",
               fieldClassName,
             )}

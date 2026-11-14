@@ -1,7 +1,6 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState, type ComponentType, type ReactNode } from "react";
 import { flushSync } from "react-dom";
-import { Bell, Bot, Bug, Database, Files, GitBranch, Globe2, MessageCircleQuestion, Moon, Plus, Sun, TerminalSquare, X } from "@toph/icons";
-import BrandMark from "@toph/brand";
+import { Bell, Bug, Database, Files, GitBranch, Globe2, MessageCircleQuestion, Moon, Plus, Sun, TerminalSquare, X } from "@toph/icons";
 import { useApp, type Sidebar } from "../store";
 import { featureEnabled, useSettings, type WorkspaceFeature } from "../../features/settings/store";
 import type { Project } from "../../shared/api";
@@ -9,15 +8,16 @@ import ProjectSwitcher from "../../features/projects/components/ProjectSwitcher"
 import ProjectMonogram from "../../features/projects/components/ProjectMonogram";
 import { useProjectQuestion, useProjectRunning } from "../../features/agents/activity";
 import QuickOpen from "../../features/explorer/components/QuickOpen";
+import BrandGlyph from "../../shared/ui/BrandGlyph";
 import { Button } from "@toph/ui/app";
 import { Modal } from "@toph/ui/app";
 import { cx } from "@toph/ui";
 
-const activityItems: Array<{ id: Sidebar; feature: WorkspaceFeature; label: string; icon: typeof Files }> = [
+const activityItems: Array<{ id: Sidebar; feature: WorkspaceFeature; label: string; icon: ComponentType<{ className?: string; "aria-hidden"?: boolean | "true" | "false" }> }> = [
   { id: "files", feature: "files", label: "Explorer", icon: Files },
   { id: "scm", feature: "sourceControl", label: "Source Control", icon: GitBranch },
   { id: "db", feature: "databases", label: "Databases", icon: Database },
-  { id: "bots", feature: "bots", label: "Toph", icon: Bot },
+  { id: "bots", feature: "bots", label: "Toph", icon: BrandGlyph },
   { id: "debug", feature: "debug", label: "Debug", icon: Bug },
   { id: "web", feature: "webApps", label: "Web apps", icon: Globe2 },
 ];
@@ -313,11 +313,11 @@ export default function TopBar({ onOpenProject, onCloseProject, onGoHome, projec
             }
             window.dispatchEvent(new CustomEvent("toph:open-settings", { detail: { section: "general" } }));
           }}
-          className="flex size-10 shrink-0 items-center justify-center rounded-xl transition-colors hover:bg-background-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus-ring"
+          className="flex size-10 shrink-0 items-center justify-center rounded-xl text-text-primary transition-colors hover:bg-background-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus-ring"
           aria-label="Abrir configurações"
           title="Configurações · Alt+clique vai para o Toph"
         >
-          <BrandMark size="small" className="size-[34px]" />
+          <BrandGlyph size={28} />
         </button>
 
         <Button

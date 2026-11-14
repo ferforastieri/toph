@@ -166,3 +166,26 @@ html.theme-transitioning *::after {
   -webkit-mask-position: center;
   mask-position: center;
 }
+
+/* The brand mark used as an icon, tinted by the line it sits in. */
+.brand-glyph {
+  display: block;
+  flex: none;
+  background: currentColor;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+}
+
+/* The commit box is the sidebar's compact field, not a full dialog input. */
+.commit-message-input {
+  height: 32px;
+}
+.commit-message-input input {
+  height: 100%;
+  padding-inline: 12px;
+  font-size: 13px;
+}

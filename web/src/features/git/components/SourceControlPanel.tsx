@@ -4,9 +4,9 @@ import {
   ChevronDown,
   ChevronRight,
   GitBranch,
+  Sparkles,
   Minus,
   Plus,
-  Bot,
   FileDiff,
   TriangleAlert,
   Undo2,
@@ -338,9 +338,9 @@ export default function SourceControlPanel({
           onKeyDownCapture={(event) => { if ((event.ctrlKey || event.metaKey) && event.key === "Enter") { event.preventDefault(); void commit(); } }}
         >
           <div className="relative w-full">
-            <Input value={message} onChange={setMessage} placeholder={`Message (Ctrl+Enter to commit on "${parsed.branch || "detached"}")`} aria-label="Commit message" fieldClassName="w-full pe-9" />
+            <Input value={message} onChange={setMessage} placeholder="Mensagem do commit" aria-label="Mensagem do commit" fieldClassName="commit-message-input w-full pe-9" />
             <IconButton
-              icon={Bot}
+              icon={Sparkles}
               size="small"
               aria-label="Generate message from pattern"
               title="Generate commit message"
@@ -349,7 +349,7 @@ export default function SourceControlPanel({
               className="absolute end-1 top-1/2 size-6 -translate-y-1/2 border-transparent bg-transparent p-0 shadow-none [&_svg]:size-4"
             />
           </div>
-          <Button className="h-10 w-full justify-center" disabled={staged.length === 0 || Boolean(busy)} onClick={() => void commit()} leadingIcon={Check}>Commit</Button>
+          <Button size="small" className="h-8 w-full justify-center" disabled={staged.length === 0 || Boolean(busy)} onClick={() => void commit()} leadingIcon={Check}>Commit</Button>
         </div>
       )}
       {showChanges && (view === "changes" || changesOpen) && (
