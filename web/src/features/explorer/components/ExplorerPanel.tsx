@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { ArrowLeft, ChevronDown, FilePlus2, FolderOpen, FolderPlus, RefreshCw, Settings2 } from "@toph/icons";
+import { ArrowLeft, ChevronDown, Files, FilePlus2, FolderOpen, FolderPlus, RefreshCw, Settings2 } from "@toph/icons";
 import { Button } from "@toph/ui/app";
 import { createPortal } from "react-dom";
 import { Modal } from "@toph/ui/app";
@@ -515,7 +515,7 @@ export default function ExplorerPanel({
           Solte os arquivos ou pastas para enviar
         </div>
       ) : null}
-      <SidebarHeader control={headerControl} title="Explorer" actions={
+      <SidebarHeader control={headerControl} icon={<Files size={15} className="text-accent-500" />} title="Explorer" actions={
         <div className="flex items-center gap-0.5">
           <Button variant={workspaceSettingsOpen ? "secondary" : "ghost"} size="xs" iconOnly className="max-[900px]:flex-1" leadingIcon={Settings2} aria-label="Configurações do workspace" title="Configurações do workspace" onClick={() => setWorkspaceSettingsOpen((value) => !value)} />
           <Button variant="ghost" size="xs" iconOnly className="max-[900px]:flex-1" leadingIcon={FilePlus2} aria-label="Novo arquivo" title="Novo arquivo" onClick={() => void newFile(rootEntry)} />

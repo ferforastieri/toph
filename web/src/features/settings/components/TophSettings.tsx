@@ -48,7 +48,7 @@ const copy: Record<Section, { title: string; meta: string }> = {
   general: { title: "Geral", meta: "Sua conta, o servidor e o que o Toph usa." },
   appearance: { title: "Layout e ferramentas", meta: "Escolha diretamente o que aparece e é inicializado no workspace." },
   skills: { title: "Skills", meta: "Receitas que o Toph lê sob demanda." },
-  harness: { title: "Harness", meta: "CLIs, modelos e MCPs deste workspace." },
+  harness: { title: "Harness", meta: "O CLI conduz o loop do agente; o Toph entrega contexto, ferramentas, permissões e aprovações." },
   workspace: { title: "Workspace", meta: "Pastas acessíveis pelo Toph." },
 };
 
@@ -123,6 +123,7 @@ export default function TophSettings({ user, projectRoot, projectId, hideTrigger
   const setFeature = (feature: WorkspaceFeature, enabled: boolean) => updateSettings({ workspaceFeatures: { [feature]: enabled } });
   const current = copy[section];
   const initial = (user?.username ?? "T").trim().charAt(0);
+  const sectionIcon = sections.find((item) => item.id === section)?.icon ?? "person";
 
   return (
     <>
@@ -176,7 +177,16 @@ export default function TophSettings({ user, projectRoot, projectId, hideTrigger
           </nav>
 
           <div className="settings__body">
-            <PageHeader level={2} title={current.title} meta={current.meta} />
+            <PageHeader
+              level={2}
+              title={current.title}
+              meta={current.meta}
+              lead={(
+                <span className="flex size-8 shrink-0 items-center justify-center rounded-xl border border-border-button-default bg-background-secondary-default text-text-secondary">
+                  <Icon name={sectionIcon} size={16} />
+                </span>
+              )}
+            />
 
             <Suspense fallback={<p className="ac-setnote" role="status">Carregando configurações…</p>}>
               {section === "general" ? (

@@ -20112,7 +20112,7 @@ html:not([data-pointer]) .ac-foldrow__head:focus-visible {
 }
 
 .ac-settings {
-  gap: var(--space-5);
+  gap: var(--space-6);
   grid-template-columns: 180px minmax(0, 1fr);
   align-items: start;
   display: grid;
@@ -21418,7 +21418,7 @@ html:not([data-pointer]) .settings__link:focus-visible {
 }
 
 .settings__body {
-  gap: var(--space-5);
+  gap: var(--space-6);
   flex-direction: column;
   flex: 560px;
   min-width: 0;
@@ -21885,7 +21885,7 @@ html:not([data-pointer]) .settings-row--open:focus-visible {
 }
 
 .settings--dialog .settings__body {
-  gap: var(--space-5);
+  gap: var(--space-6);
   min-width: 0;
   padding: var(--dialog-pad);
   flex: auto;

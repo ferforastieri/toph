@@ -1,7 +1,7 @@
 import { useProjectStream } from "../../features/projects/hooks/useProjectStream";
 import { useLayoutTabs, useWorkspacePersistence } from "../../features/projects/hooks/useWorkspacePersistence";
 import { lazy, Suspense, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { Bot, ChevronDown, ChevronRight, GitBranch, X } from "@toph/icons";
+import { Bot, Bug, ChevronDown, ChevronRight, GitBranch, X } from "@toph/icons";
 import { api, getApiBase, type Project, type SchemaTable, type WebTarget } from "../../shared/api";
 import { basename, expandGitPattern, quoteIdentifier, sanitizeBranchName } from "../../shared/lib";
 import { useApp, type Sidebar, type Tab } from "../store";
@@ -891,7 +891,7 @@ export default function Workbench() {
     openTab({
       id: chatTabId(projectId, chatId),
       kind: "ai",
-      title: title?.trim() || chatDisplayName(chats, chat, 2) || "Toph",
+      title: title?.trim() || chatDisplayName(chats, chat, 2) || "Conversa",
       projectId,
       chatId,
     });
@@ -1085,7 +1085,7 @@ export default function Workbench() {
       {project && sidebar === "bots" && <BotsSidebar project={project} />}
       {project && sidebar === "debug" && featureIsEnabled("debug") && (
         <div className="flex h-full min-h-0 flex-col">
-          <SidebarHeader title="Debug" />
+          <SidebarHeader icon={<Bug size={15} className="text-accent-500" />} title="Debug" />
           <p className="p-3 text-caption-1-regular leading-relaxed text-text-tertiary">A execução e as ferramentas de depuração aparecem no painel principal.</p>
         </div>
       )}
