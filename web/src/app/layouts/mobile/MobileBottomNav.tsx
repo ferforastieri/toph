@@ -1,4 +1,4 @@
-import { Bot, Boxes, GitBranch, MoreHorizontal } from "@toph/icons";
+import { Bot, Boxes, Files, GitBranch, MoreHorizontal } from "@toph/icons";
 import { cx } from "@toph/ui";
 import type { ComponentType } from "react";
 import type { MobileScreen } from "./mobile-nav";
@@ -12,6 +12,7 @@ const tabs: Array<{ id: MobileScreen; label: string; icon: ComponentType<{ class
   { id: "workspace", label: "Trabalho", icon: Boxes },
   { id: "scm", label: "Git", icon: GitBranch },
   { id: "bots", label: "Toph", icon: Bot },
+  { id: "files", label: "Arquivos", icon: Files },
   { id: "more", label: "Mais", icon: MoreHorizontal },
 ];
 

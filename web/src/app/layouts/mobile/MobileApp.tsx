@@ -424,11 +424,11 @@ export default function MobileApp() {
           <DebugPanel project={project} mobile />
         ) : screen === "more" ? (
           <MobileMoreScreen
-            user={user}
             activeTitle={activeTab?.title}
             onScreen={selectScreen}
             onTerminal={() => setTerminalOpen(true)}
             onProjects={openProjectSheet}
+            onBranch={() => setBranchOpen(true)}
             onAccount={() => setAccountOpen(true)}
           />
         ) : (

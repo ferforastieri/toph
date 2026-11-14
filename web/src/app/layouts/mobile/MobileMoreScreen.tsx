@@ -1,6 +1,7 @@
 import {
   Boxes,
   Bug,
+  GitBranch,
   ChevronRight,
   Database,
   FolderGit2,
@@ -18,16 +19,15 @@ import type { ComponentType } from "react";
 import { useSettings } from "../../../features/settings/store";
 import { cx } from "@toph/ui";
 import type { MobileScreen } from "./mobile-nav";
-import type { User } from "../../../shared/api";
 
 type SettingsSection = "general" | "appearance" | "skills" | "harness" | "workspace";
 
 interface Props {
-  user: User | null;
   activeTitle?: string;
   onScreen: (screen: MobileScreen) => void;
   onTerminal: () => void;
   onProjects: () => void;
+  onBranch: () => void;
   onAccount: () => void;
 }
 
@@ -85,11 +85,11 @@ function Section({ title, actions }: { title: string; actions: Action[] }) {
 
 /** Full-screen feature hub for the mobile app. Every workspace feature has an entry here. */
 export default function MobileMoreScreen({
-  user,
   activeTitle,
   onScreen,
   onTerminal,
   onProjects,
+  onBranch,
   onAccount,
 }: Props) {
   const theme = useSettings((state) => state.theme);
@@ -105,6 +105,13 @@ export default function MobileMoreScreen({
     { id: "workspace", label: "Trabalho", description: activeTitle ? `Aba: ${activeTitle}` : "Editor e abas", icon: Boxes, onSelect: () => onScreen("workspace") },
   ];
 
+  const projectActions: Action[] = [
+    { id: "projects", label: "Projetos", description: "Abrir ou fechar", icon: FolderGit2, onSelect: onProjects },
+    { id: "branch", label: "Branch", description: "Trocar ou criar", icon: GitBranch, onSelect: onBranch },
+    { id: "settings", label: "Configurações", description: "Layout e ferramentas", icon: Settings2, onSelect: () => openSettings("general") },
+    { id: "account", label: "Conta", description: "Sessão e servidor", icon: UserRound, onSelect: onAccount },
+  ];
+
   const tophActions: Action[] = [
     { id: "skills", label: "Skills", description: "Receitas do Toph", icon: Sparkles, onSelect: () => openSettings("skills") },
     { id: "harness", label: "Harness e MCP", description: "CLIs do agente", icon: PlugZap, onSelect: () => openSettings("harness") },
@@ -114,49 +121,9 @@ export default function MobileMoreScreen({
 
   return (
     <div className="no-scrollbar flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto bg-background-secondary-default px-3 pb-5 pt-3">
-      <section className="shrink-0 rounded-3xl border border-border-button-white bg-background-primary-default p-2 shadow-xs">
-        <div className="grid grid-cols-3 gap-1">
-          {[
-            { id: "settings", label: "Configurações", icon: Settings2, onClick: () => openSettings("general") },
-            { id: "projects", label: "Projetos", icon: FolderGit2, onClick: onProjects },
-            { id: "account", label: "Conta", icon: UserRound, onClick: onAccount },
-          ].map((item) => {
-            const Icon = item.icon;
-            return (
-              <button
-                key={item.id}
-                type="button"
-                onClick={item.onClick}
-                aria-label={item.label}
-                className="group flex min-w-0 flex-col items-center gap-1.5 rounded-2xl px-2 py-2.5 transition-colors hover:bg-background-primary-hover active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus-ring"
-              >
-                <span className="flex size-9 items-center justify-center rounded-xl bg-background-tertiary-default text-text-primary transition-colors group-hover:bg-accent-500/12 group-hover:text-accent-600">
-                  <Icon className="size-[17px]" />
-                </span>
-                <span className="truncate text-[10px] font-medium text-text-secondary">{item.label}</span>
-              </button>
-            );
-          })}
-        </div>
-      </section>
-
       <Section title="Trabalho" actions={work} />
       <Section title="Toph e IA" actions={tophActions} />
-
-      <button
-        type="button"
-        onClick={onAccount}
-        className="flex shrink-0 items-center gap-3 rounded-2xl border border-border-button-white bg-background-primary-default px-3 py-3 text-start shadow-xs transition-colors hover:bg-background-primary-hover active:scale-[0.99]"
-      >
-        <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-background-tertiary-default text-text-primary">
-          <UserRound className="size-4" />
-        </span>
-        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-          <span className="truncate text-caption-1-semibold text-text-primary">Conta</span>
-          <span className="truncate text-[10px] leading-snug text-text-tertiary">{user?.username ?? "Sessão e servidor"}</span>
-        </span>
-        <ChevronRight className="size-4 shrink-0 text-text-tertiary" />
-      </button>
+      <Section title="Projeto e app" actions={projectActions} />
 
       <section className="flex shrink-0 items-center justify-between gap-2 rounded-2xl border border-border-button-white bg-background-primary-default px-3 py-2.5 shadow-xs">
         <span className="flex items-center gap-2 text-caption-1-medium text-text-primary">
