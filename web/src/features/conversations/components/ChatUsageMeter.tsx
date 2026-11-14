@@ -19,10 +19,10 @@ interface Props {
 }
 
 const CIRCUMFERENCE = 2 * Math.PI * 11.5;
-const WINDOWS: Array<{ key: keyof NonNullable<UsageLimits["go"]>; label: string; hint: string }> = [
-  { key: "rolling", label: "Agora", hint: "janela curta" },
-  { key: "weekly", label: "Semana", hint: "limite semanal" },
-  { key: "monthly", label: "Mês", hint: "limite mensal" },
+const WINDOWS: Array<{ key: keyof NonNullable<UsageLimits["go"]>; label: string }> = [
+  { key: "rolling", label: "Janela de 5 horas" },
+  { key: "weekly", label: "Semanal" },
+  { key: "monthly", label: "Mensal" },
 ];
 
 function remaining(window: UsageWindow | undefined): number | null {
@@ -31,13 +31,15 @@ function remaining(window: UsageWindow | undefined): number | null {
   return Math.max(0, Math.min(100, 100 - Math.round(window.percent)));
 }
 
-function reset(value: number): string {
-  return new Date(value).toLocaleString("pt-BR", {
-    day: "2-digit",
-    month: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+function resetIn(value: number | undefined): string {
+  if (!value) return "—";
+  const minutes = Math.ceil((value - Date.now()) / 60_000);
+  if (!Number.isFinite(minutes)) return "—";
+  if (minutes <= 0) return "agora";
+  if (minutes < 60) return `${minutes}min`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ${minutes % 60}min`;
+  return `${Math.floor(hours / 24)}d ${hours % 24}h`;
 }
 
 function time(value: number): string {
@@ -49,12 +51,6 @@ function tone(left: number | null): string {
   if (left <= 10) return "stroke-status-rose-text";
   if (left <= 30) return "stroke-status-amber-text";
   return "stroke-accent-500";
-}
-
-function barTone(left: number): string {
-  if (left <= 10) return "bg-status-rose-text";
-  if (left <= 30) return "bg-status-amber-text";
-  return "bg-accent-500";
 }
 
 export default function ChatUsageMeter({ chatName, model }: Props) {
@@ -155,45 +151,42 @@ export default function ChatUsageMeter({ chatName, model }: Props) {
       ) : null}
 
       {go ? (
-        <>
-          <div className="rounded-2xl border border-border-button-default bg-background-secondary-default/60 p-3">
-            <div className="flex items-end justify-between gap-3">
-              <div>
-                <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-tertiary">Restante na janela mais apertada</p>
-                <p className="mt-0.5 text-caption-2-regular text-text-secondary">{tightest ? `${tightest.label} · ${tightest.hint}` : "sem janela ativa"}</p>
-              </div>
-              <strong className={cx("text-title-2-medium tabular-nums", left != null && left <= 10 ? "text-status-rose-text" : left != null && left <= 30 ? "text-status-amber-text" : "text-text-primary")}>
-                {left == null ? "—" : `${left}%`}
-              </strong>
-            </div>
-            <div className="mt-2 h-2 overflow-hidden rounded-full bg-background-tertiary-default">
-              <div className={cx("h-full rounded-full transition-[width] duration-500", left == null ? "bg-text-tertiary/30" : barTone(left))} style={{ width: `${left ?? 0}%` }} />
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-2">
-            {windows.map(({ key, label: windowLabel, hint, window, left: value }) => (
-              <div key={key} className="rounded-xl border border-border-button-default px-3 py-2.5">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="min-w-0">
-                    <span className="text-caption-1-semibold text-text-primary">{windowLabel}</span>
-                    <span className="ms-1.5 text-[10px] text-text-tertiary">{hint}</span>
+        <div className="divide-y divide-separator-border overflow-hidden rounded-2xl border border-border-button-default bg-background-secondary-default/60">
+          {windows.map(({ key, label: windowLabel, window, left: value }) => {
+            const used = value == null ? null : 100 - value;
+            return (
+              <div key={key} className="px-3 py-3">
+                <div className="flex min-w-0 items-center justify-between gap-3">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <span className="truncate text-caption-1-semibold text-text-primary">{windowLabel}</span>
+                    <span className={cx(
+                      "shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-semibold",
+                      used == null
+                        ? "bg-background-tertiary-default text-text-tertiary"
+                        : used >= 90
+                          ? "bg-status-rose-bg text-status-rose-text"
+                          : "bg-status-lime-bg text-status-lime-text",
+                    )}>
+                      {used == null ? "sem dados" : `${used}% usado`}
+                    </span>
                   </div>
-                  <span className={cx("text-caption-1-semibold tabular-nums", value != null && value <= 10 ? "text-status-rose-text" : value != null && value <= 30 ? "text-status-amber-text" : "text-text-primary")}>
-                    {value == null ? "—" : `${value}% restante`}
+                  <span className="shrink-0 text-caption-2-regular text-text-tertiary">
+                    {window ? `Renova em ${resetIn(window.resetsAt)}` : "—"}
                   </span>
                 </div>
-                <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-background-tertiary-default">
-                  <div className={cx("h-full rounded-full transition-[width] duration-500", value == null ? "bg-text-tertiary/30" : barTone(value))} style={{ width: `${value ?? 0}%` }} />
-                </div>
-                <div className="mt-1 flex items-center justify-between gap-2 text-[10px] text-text-tertiary">
-                  <span>{value == null ? "sem dados" : `${100 - value}% usado`}</span>
-                  <span>{window ? `renova ${reset(window.resetsAt)}` : "renovação indisponível"}</span>
+                <div className="mt-2 h-2 overflow-hidden rounded-full bg-background-tertiary-default">
+                  <div
+                    className={cx(
+                      "h-full rounded-full transition-[width] duration-500",
+                      used == null ? "bg-text-tertiary/30" : used >= 90 ? "bg-status-rose-text" : "bg-status-lime-text",
+                    )}
+                    style={{ width: `${used ?? 0}%` }}
+                  />
                 </div>
               </div>
-            ))}
-          </div>
-        </>
+            );
+          })}
+        </div>
       ) : null}
 
       {!loading && !go && !error ? (
@@ -213,7 +206,7 @@ export default function ChatUsageMeter({ chatName, model }: Props) {
       ) : null}
 
       <p className="text-[10px] leading-relaxed text-text-tertiary">
-        Percentual restante do limite do OpenCode Go. As janelas são atualizadas pelo OpenCode e recarregam a cada minuto.
+        Percentual usado do limite do OpenCode Go. As janelas são atualizadas pelo OpenCode e recarregam a cada minuto.
         {updatedAt ? ` Última leitura às ${time(updatedAt)}.` : ""}
       </p>
     </div>}

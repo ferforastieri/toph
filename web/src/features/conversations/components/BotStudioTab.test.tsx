@@ -103,10 +103,10 @@ describe("Toph chat controls", () => {
     render(<BotStudioTab project={project} conversationId={chatId} />);
     fireEvent.click(screen.getByRole("button", { name: "Consumo do plano" }));
     const dialog = await screen.findByRole("dialog", { name: "Consumo do plano" });
-    expect(within(dialog).getByText("Semana")).toBeVisible();
-    expect(within(dialog).getByText("45% restante")).toBeVisible();
-    expect(within(dialog).getByText("Mês")).toBeVisible();
-    expect(within(dialog).getByText("73% restante")).toBeVisible();
+    expect(within(dialog).getByText("Semanal")).toBeVisible();
+    expect(within(dialog).getByText("55% usado")).toBeVisible();
+    expect(within(dialog).getByText("Mensal")).toBeVisible();
+    expect(within(dialog).getByText("27% usado")).toBeVisible();
     expect(within(dialog).getByText(/Personal/)).toBeVisible();
   });
 
