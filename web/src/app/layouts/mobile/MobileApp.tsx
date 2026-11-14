@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Bot, MessageSquare, Plus, TerminalSquare } from "@toph/icons";
+import { Bot, Boxes, Bug, Database, Files, GitBranch, Globe2, MoreHorizontal, Plus, TerminalSquare } from "@toph/icons";
 import { api, type Project, type SchemaTable, type WebTarget } from "../../../shared/api";
 import { useApp } from "../../store";
 import { useIsMobile } from "../../../shared/ui/useIsMobile";
@@ -30,6 +30,7 @@ import MobileBranchSheet from "./MobileBranchSheet";
 import MobileAccountSheet from "./MobileAccountSheet";
 import MobileConversationsSheet from "./MobileConversationsSheet";
 import MobileBottomNav from "./MobileBottomNav";
+import { useMobileBack } from "./useMobileBack";
 import MobileMoreScreen from "./MobileMoreScreen";
 import { type MobileScreen } from "./mobile-nav";
 import GlobalSearch from "../../../features/search/components/GlobalSearch";
@@ -68,6 +69,20 @@ export default function MobileApp() {
   const chatsHydrated = useChats((state) => activeProjectId ? state.byProject[activeProjectId]?.hydrated === true : false);
   const activeConversationId = useChats((state) => activeProjectId ? state.byProject[activeProjectId]?.activeChatId ?? null : null);
   const [currentBranch, setCurrentBranch] = useState("");
+  const screenTitles: Record<MobileScreen, string> = {
+    bots: "Toph",
+    files: "Arquivos",
+    scm: "Git",
+    db: "Bancos",
+    web: "Web apps",
+    debug: "Debug",
+    workspace: activeTab?.title ?? "Trabalho",
+    more: "Mais",
+  };
+  const screenIcons = { bots: Bot, files: Files, scm: GitBranch, db: Database, web: Globe2, debug: Bug, workspace: Boxes, more: MoreHorizontal };
+  const pageTitle = screenTitles[screen];
+  const pageSubtitle = screen === "scm" && currentBranch ? currentBranch : (project?.name ?? "");
+  const pageIcon = screenIcons[screen];
 
   useEffect(() => {
     setScreen("bots");
@@ -319,6 +334,21 @@ export default function MobileApp() {
     }
   }
 
+  useMobileBack(() => {
+    if (closeTarget) { setCloseTarget(null); return true; }
+    if (terminalOpen) { setTerminalOpen(false); return true; }
+    if (conversationsOpen) { setConversationsOpen(false); return true; }
+    if (projectsOpen) { setProjectsOpen(false); return true; }
+    if (branchOpen) { setBranchOpen(false); return true; }
+    if (accountOpen) { setAccountOpen(false); return true; }
+    if (screen !== "bots") { setScreen("bots"); return true; }
+    if (project && activeConversationId) {
+      useChats.getState().setActiveChat(project.id, null);
+      return true;
+    }
+    return false;
+  });
+
   if (!project) {
     return (
       <main className="flex min-h-dvh items-center justify-center bg-background-full p-4">
@@ -345,19 +375,19 @@ export default function MobileApp() {
         paddingRight: "var(--safe-right)",
       }}
     >
+      <MobileTopBar
+        title={pageTitle}
+        subtitle={pageSubtitle}
+        project={project}
+        unreadCount={projectUnread}
+        icon={pageIcon}
+        onTophs={openConversations}
+        onProjects={openProjectSheet}
+        brandIcon={screen === "bots"}
+      />
       <main className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background-primary-default">
         {screen === "bots" ? (
           <>
-            <div className="flex shrink-0 items-center gap-2 border-b border-separator-border px-3 py-1.5">
-              <button
-                type="button"
-                onClick={openConversations}
-                className="flex min-w-0 items-center gap-1.5 rounded-lg px-1.5 py-1 text-caption-1-medium text-text-secondary transition-colors hover:bg-background-primary-hover hover:text-text-primary"
-              >
-                <MessageSquare className="size-3.5" /> Sessões
-              </button>
-              <span className="min-w-0 flex-1" />
-            </div>
             {activeConversationId ? (
               <BotStudioTab
                 key={activeConversationId}
@@ -437,6 +467,7 @@ export default function MobileApp() {
         onSelect={selectScreen}
         onProjects={openProjectSheet}
         projectsOpen={projectsOpen}
+        project={project}
       />
 
       {terminalOpen && (

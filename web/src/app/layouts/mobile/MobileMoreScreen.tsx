@@ -111,17 +111,31 @@ export default function MobileMoreScreen({
 
   return (
     <div className="no-scrollbar flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto bg-background-secondary-default px-3 pb-5 pt-3">
-      <div className="flex shrink-0 items-center gap-1.5">
-        <button type="button" onClick={() => openSettings("general")} aria-label="Configurações" title="Configurações" className="flex size-10 items-center justify-center rounded-xl border border-border-button-white bg-background-primary-default text-text-secondary shadow-xs transition-colors hover:bg-background-primary-hover hover:text-text-primary active:scale-[0.97]">
-          <Settings2 className="size-4.5" />
-        </button>
-        <button type="button" onClick={onProjects} aria-label="Projetos" title="Projetos" className="flex size-10 items-center justify-center rounded-xl border border-border-button-white bg-background-primary-default text-text-secondary shadow-xs transition-colors hover:bg-background-primary-hover hover:text-text-primary active:scale-[0.97]">
-          <FolderGit2 className="size-4.5" />
-        </button>
-        <button type="button" onClick={onAccount} aria-label="Conta" title="Conta" className="flex size-10 items-center justify-center rounded-xl border border-border-button-white bg-background-primary-default text-text-secondary shadow-xs transition-colors hover:bg-background-primary-hover hover:text-text-primary active:scale-[0.97]">
-          <UserRound className="size-4.5" />
-        </button>
-      </div>
+      <section className="shrink-0 rounded-3xl border border-border-button-white bg-background-primary-default p-2 shadow-xs">
+        <div className="grid grid-cols-3 gap-1">
+          {[
+            { id: "settings", label: "Configurações", icon: Settings2, onClick: () => openSettings("general") },
+            { id: "projects", label: "Projetos", icon: FolderGit2, onClick: onProjects },
+            { id: "account", label: "Conta", icon: UserRound, onClick: onAccount },
+          ].map((item) => {
+            const Icon = item.icon;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={item.onClick}
+                aria-label={item.label}
+                className="group flex min-w-0 flex-col items-center gap-1.5 rounded-2xl px-2 py-2.5 transition-colors hover:bg-background-primary-hover active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus-ring"
+              >
+                <span className="flex size-9 items-center justify-center rounded-xl bg-background-tertiary-default text-text-primary transition-colors group-hover:bg-accent-500/12 group-hover:text-accent-600">
+                  <Icon className="size-[17px]" />
+                </span>
+                <span className="truncate text-[10px] font-medium text-text-secondary">{item.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </section>
 
       <Section title="Trabalho" actions={work} />
       <Section title="Toph e IA" actions={tophActions} />

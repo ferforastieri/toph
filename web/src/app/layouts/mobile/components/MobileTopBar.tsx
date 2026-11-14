@@ -36,29 +36,29 @@ export default function MobileTopBar({
   const question = useProjectQuestion(project.id);
   const running = useProjectRunning(project.id);
   return (
-    <header className="relative z-20 shrink-0 overflow-visible border-b border-separator-border bg-background-secondary-default/95 px-3 py-2 backdrop-blur-xl">
-      <div className="pointer-events-none absolute -right-10 -top-16 size-36 rounded-full bg-accent-500/10 blur-2xl" />
-      <div className="relative flex w-full min-w-0 items-center gap-2.5">
+    <header className="relative z-20 shrink-0 overflow-visible border-b border-[var(--line)] bg-[var(--bg)]/95 px-3.5 py-2.5 backdrop-blur-xl">
+      <div className="pointer-events-none absolute -right-12 -top-20 size-44 rounded-full bg-accent-500/10 blur-3xl" />
+      <div className="relative flex w-full min-w-0 items-center gap-3">
         <span className={cx(
-          "flex size-9 shrink-0 items-center justify-center rounded-xl",
-          brandIcon ? "bg-background-primary-default shadow-xs" : "bg-accent-500/10 text-accent-600",
+          "flex size-10 shrink-0 items-center justify-center rounded-2xl",
+          brandIcon ? "bg-[var(--raised)] shadow-xs" : "bg-accent-500/10 text-accent-600",
         )}>
           {brandIcon ? <BrandMark size="small" className="size-7" /> : <Icon className="size-[18px]" />}
         </span>
         {hideTitle ? <div className="min-w-0 flex-1" /> : (
           <div className="flex min-w-0 flex-1 flex-col">
-            <h1 className="truncate text-[19px] font-medium leading-6 text-text-primary">{title}</h1>
-            {secondary ? <p className="truncate text-caption-2-regular text-text-secondary">{secondary}</p> : null}
+            <h1 className="truncate text-[20px] font-semibold leading-6 tracking-[-0.01em] text-text-primary">{title}</h1>
+            {secondary ? <p className="truncate text-[11.5px] leading-4 text-text-secondary">{secondary}</p> : null}
           </div>
         )}
-        <div className="flex shrink-0 items-center gap-1">
+        <div className="flex shrink-0 items-center gap-1.5">
           {onTophs ? (
             <button
               type="button"
               onClick={onTophs}
               aria-label="Abrir sessões"
               title="Sessões"
-              className="flex h-9 items-center gap-1.5 rounded-full border border-border-button-default bg-background-primary-default px-2.5 text-caption-2-semibold text-text-secondary shadow-xs transition-[background-color,color,border-color,transform] duration-300 hover:border-border-button-hover hover:text-text-primary active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus-ring"
+              className="flex h-8 items-center gap-1.5 rounded-full border border-[var(--line)] bg-[var(--raised)] px-2.5 text-caption-2-semibold text-text-secondary shadow-xs transition-[background-color,color,border-color,transform] duration-300 hover:border-[var(--line-strong)] hover:text-text-primary active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus-ring"
             >
               <MessageSquare className="size-3.5" />
               <span className="hidden min-[380px]:inline">Sessões</span>
@@ -69,7 +69,7 @@ export default function MobileTopBar({
             onClick={onProjects}
             aria-label={`Projeto ${project.name}. ${question ? "Pergunta pendente. " : unreadCount > 0 ? `${unreadCount} notificações não lidas. ` : ""}${running ? "Agente rodando. " : ""}Ver projetos abertos`}
             title={`${project.name}\n${project.root}`}
-            className="relative flex size-9 shrink-0 items-center justify-center rounded-xl border border-transparent bg-transparent transition-[background-color,border-color,transform] duration-300 hover:border-border-button-default hover:bg-background-primary-hover active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus-ring"
+            className="relative flex size-10 shrink-0 items-center justify-center rounded-2xl border border-transparent bg-transparent transition-[background-color,border-color,transform] duration-300 hover:border-[var(--line)] hover:bg-background-primary-hover active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus-ring"
           >
             <span className="relative inline-flex shrink-0">
               <ProjectMonogram project={project} size={30} />
