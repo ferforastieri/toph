@@ -370,7 +370,6 @@ export default function MobileApp() {
       style={{
         height: "min(var(--visual-viewport-height, 100dvh), calc(100dvh - var(--keyboard-inset, 0px)))",
         paddingTop: "var(--safe-top)",
-        paddingBottom: "var(--safe-bottom)",
         paddingLeft: "var(--safe-left)",
         paddingRight: "var(--safe-right)",
       }}
@@ -425,6 +424,7 @@ export default function MobileApp() {
           <DebugPanel project={project} mobile />
         ) : screen === "more" ? (
           <MobileMoreScreen
+            user={user}
             activeTitle={activeTab?.title}
             onScreen={selectScreen}
             onTerminal={() => setTerminalOpen(true)}
@@ -465,9 +465,6 @@ export default function MobileApp() {
       <MobileBottomNav
         screen={screen}
         onSelect={selectScreen}
-        onProjects={openProjectSheet}
-        projectsOpen={projectsOpen}
-        project={project}
       />
 
       {terminalOpen && (

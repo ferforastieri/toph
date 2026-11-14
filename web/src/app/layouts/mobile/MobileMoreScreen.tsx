@@ -18,10 +18,12 @@ import type { ComponentType } from "react";
 import { useSettings } from "../../../features/settings/store";
 import { cx } from "@toph/ui";
 import type { MobileScreen } from "./mobile-nav";
+import type { User } from "../../../shared/api";
 
 type SettingsSection = "general" | "appearance" | "skills" | "harness" | "workspace";
 
 interface Props {
+  user: User | null;
   activeTitle?: string;
   onScreen: (screen: MobileScreen) => void;
   onTerminal: () => void;
@@ -83,6 +85,7 @@ function Section({ title, actions }: { title: string; actions: Action[] }) {
 
 /** Full-screen feature hub for the mobile app. Every workspace feature has an entry here. */
 export default function MobileMoreScreen({
+  user,
   activeTitle,
   onScreen,
   onTerminal,
@@ -139,6 +142,21 @@ export default function MobileMoreScreen({
 
       <Section title="Trabalho" actions={work} />
       <Section title="Toph e IA" actions={tophActions} />
+
+      <button
+        type="button"
+        onClick={onAccount}
+        className="flex shrink-0 items-center gap-3 rounded-2xl border border-border-button-white bg-background-primary-default px-3 py-3 text-start shadow-xs transition-colors hover:bg-background-primary-hover active:scale-[0.99]"
+      >
+        <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-background-tertiary-default text-text-primary">
+          <UserRound className="size-4" />
+        </span>
+        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <span className="truncate text-caption-1-semibold text-text-primary">Conta</span>
+          <span className="truncate text-[10px] leading-snug text-text-tertiary">{user?.username ?? "Sessão e servidor"}</span>
+        </span>
+        <ChevronRight className="size-4 shrink-0 text-text-tertiary" />
+      </button>
 
       <section className="flex shrink-0 items-center justify-between gap-2 rounded-2xl border border-border-button-white bg-background-primary-default px-3 py-2.5 shadow-xs">
         <span className="flex items-center gap-2 text-caption-1-medium text-text-primary">

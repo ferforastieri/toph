@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { Bell, FolderGit2, LoaderCircle, Search, X } from "@toph/icons";
+import { Bell, FolderGit2, LoaderCircle, X } from "@toph/icons";
 import { api, ApiError, type Repository } from "../../../shared/api";
 import { useApp } from "../../../app/store";
 import ProjectTophAvatar from "./ProjectTophAvatar";
 import { Button } from "@toph/ui/app";
-import { Input } from "@toph/ui/app";
+import { SearchField } from "@toph/ui";
 import NotificationBadge from "../../notifications/components/NotificationBadge";
 
 interface Props {
@@ -117,16 +117,15 @@ export default function ProjectSwitcher({ onSelect, onCloseProject, onlyClosed =
 
   return (
     <div className="flex flex-col gap-2">
-      <div className="relative">
-        <span className="pointer-events-none absolute start-2.5 top-1/2 z-10 -translate-y-1/2 text-text-tertiary"><Search size={14} /></span>
-        <Input
-          value={query}
-          onChange={setQuery}
-          placeholder={onlyOpen ? "Pesquisar projeto" : "Pesquisar repositório"}
-          aria-label={onlyOpen ? "Pesquisar projeto" : "Pesquisar repositório"}
-          className="[&_input]:ps-8"
-        />
-      </div>
+      <SearchField
+        size="sm"
+        value={query}
+        onChange={(event) => setQuery(event.target.value)}
+        onClear={() => setQuery("")}
+        clearLabel="Limpar busca"
+        placeholder={onlyOpen ? "Pesquisar projeto" : "Pesquisar repositório"}
+        aria-label={onlyOpen ? "Pesquisar projeto" : "Pesquisar repositório"}
+      />
       {error ? <p role="alert" className="rounded-lg border border-status-rose-border bg-status-rose-bg px-2 py-1.5 text-caption-2-regular text-status-rose-text">{error}</p> : null}
       <div className="flex items-center justify-between px-1 text-caption-2-regular text-text-tertiary">
         <span>{heading || (onlyOpen ? "Abertos agora" : "Projetos")}</span>
