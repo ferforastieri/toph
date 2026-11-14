@@ -47,26 +47,17 @@ export default function MobileConversationsSheet({ open, project, onClose, onSel
       cancelled = true;
     };
   }, [project.id, sessionCount, activeSessions]);
+  // Every conversation is listed; the harness only enriches its title and time.
   const sessions = useMemo(() => {
     if (!harness) return allSessions;
-    const byChat = new Map(allSessions.map((session) => [session.chat.id, session]));
-    const rows = harness.flatMap((item) => {
-      const base = byChat.get(item.chatId);
-      if (!base) return [];
-      return [{
-        ...base,
-        title: item.title || base.title,
-        activityAt: item.updatedAt || base.activityAt,
-      }];
+    const byChat = new Map(harness.map((item) => [item.chatId, item]));
+    return allSessions.map((session) => {
+      const item = byChat.get(session.chat.id);
+      return item
+        ? { ...session, title: item.title || session.title, activityAt: item.updatedAt || session.activityAt }
+        : session;
     });
-    // A task being born (no run yet) still shows while it is the one open.
-    const active = chats?.activeChatId;
-    if (active && !rows.some((row) => row.chat.id === active)) {
-      const base = allSessions.find((session) => session.chat.id === active);
-      if (base) rows.unshift(base);
-    }
-    return rows;
-  }, [allSessions, harness, chats?.activeChatId]);
+  }, [allSessions, harness]);
 
   useEffect(() => {
     ensure(project.id);
@@ -87,7 +78,7 @@ export default function MobileConversationsSheet({ open, project, onClose, onSel
   function newTask() {
     const toph = ensureToph(project.id);
     if (!toph) return;
-    const created = createConversation(project.id, [toph.id], { name: toph.name });
+    const created = createConversation(project.id, [toph.id]);
     if (created) select(created.id);
   }
 
@@ -96,7 +87,7 @@ export default function MobileConversationsSheet({ open, project, onClose, onSel
       isOpen={open}
       onClose={onClose}
       title="Sessões"
-      description="As tarefas do Toph neste projeto, a mais recente primeiro."
+      description="As conversas deste projeto, a mais recente primeiro."
      
       size="sm"
       bodyClassName="p-2"

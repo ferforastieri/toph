@@ -784,7 +784,9 @@ export function chatDisplayName(project: ProjectChats | undefined, chat: TophCha
   const title = chat.name.trim();
   if (title) return title;
   const names = chatTophs(project, chat.id).map((toph) => toph.name);
-  if (names.length === 0) return "Conversa";
+  // One Toph is not a participant to name: a conversation without a subject is
+  // just a new conversation, never "Toph".
+  if (names.length <= 1) return "Nova conversa";
   if (maxNames > 0 && names.length > maxNames) {
     return `${names.slice(0, maxNames).join(" + ")} +${names.length - maxNames}`;
   }

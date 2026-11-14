@@ -16,6 +16,6 @@ export function openChatTab(projectId: string, chatId: string, title: string): v
 }
 
 /** Lets the workbench switch projects and hydrate the conversation list first. */
-export function requestOpenChat(projectId: string, chatId: string, title = "Toph"): void {
+export function requestOpenChat(projectId: string, chatId: string, title = "Conversa"): void {
   window.dispatchEvent(new CustomEvent("toph:open-chat", { detail: { projectId, chatId, title } }));
 }

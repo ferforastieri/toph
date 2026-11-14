@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { Bot, MessageSquarePlus } from "@toph/icons";
+import { MessageSquarePlus } from "@toph/icons";
+import BrandMark from "@toph/brand";
 import type { Project } from "../../../shared/api";
 import { useChats } from "../../conversations/store";
 import { chatTabId, openChatTab } from "../../conversations/navigation";
+import { chatSessionTitle } from "../../conversations/store";
 import { projectSessions } from "../../conversations/sessions";
 import { ensureChatSubjects } from "../../conversations/subjects";
 import { Button } from "@toph/ui/app";
@@ -77,27 +79,18 @@ export default function BotsSidebar({ project, headerControl, onSelectChat }: Pr
     () => projectSessions(chats, notifications, project.id, activeSessions),
     [activeSessions, chats, notifications, project.id],
   );
-  // Only the chats the harness actually opened: a new task appears once its first message runs.
+  // Every conversation is a message list entry; the harness only enriches it
+  // with the title and time it knows. It never hides a conversation.
   const sessions = useMemo(() => {
     if (!harness) return allSessions;
-    const byChat = new Map(allSessions.map((session) => [session.chat.id, session]));
-    const rows = harness.flatMap((item) => {
-      const base = byChat.get(item.chatId);
-      if (!base) return [];
-      return [{
-        ...base,
-        title: item.title || base.title,
-        activityAt: item.updatedAt || base.activityAt,
-      }];
+    const byChat = new Map(harness.map((item) => [item.chatId, item]));
+    return allSessions.map((session) => {
+      const item = byChat.get(session.chat.id);
+      return item
+        ? { ...session, title: item.title || session.title, activityAt: item.updatedAt || session.activityAt }
+        : session;
     });
-    // A task being born (no run yet) still shows while it is the one open.
-    const active = chats?.activeChatId;
-    if (active && !rows.some((row) => row.chat.id === active)) {
-      const base = allSessions.find((session) => session.chat.id === active);
-      if (base) rows.unshift(base);
-    }
-    return rows;
-  }, [allSessions, harness, chats?.activeChatId]);
+  }, [allSessions, harness]);
 
   function openTask(chatId: string) {
     const current = useChats.getState().byProject[project.id];
@@ -106,14 +99,14 @@ export default function BotsSidebar({ project, headerControl, onSelectChat }: Pr
     useApp.getState().markChatNotificationsRead(chatId);
     useChats.getState().setActiveChat(project.id, chatId);
     useChats.getState().touchConversation(project.id, chatId);
-    openChatTab(project.id, chatId, "Toph");
+    openChatTab(project.id, chatId, chatSessionTitle(chats, chat));
     onSelectChat?.();
   }
 
   function newTask() {
     const active = ensureToph(project.id);
     if (!active) return;
-    const created = createConversation(project.id, [active.id], { name: active.name });
+    const created = createConversation(project.id, [active.id]);
     if (created) openTask(created.id);
   }
 
@@ -121,8 +114,8 @@ export default function BotsSidebar({ project, headerControl, onSelectChat }: Pr
     <div className="flex h-full min-h-0 flex-col bg-background-primary-default">
       <SidebarHeader
         control={headerControl}
-        icon={<Bot size={15} className="text-accent-500" />}
-        title="Toph"
+        icon={<BrandMark size="small" className="size-4" />}
+        title="Mensagens"
         count={
           sessions.length > 0 ? (
             <span
@@ -161,7 +154,7 @@ export default function BotsSidebar({ project, headerControl, onSelectChat }: Pr
           >
             <span className="flex size-9 items-center justify-center rounded-full bg-background-secondary-default text-accent-500"><MessageSquarePlus size={16} /></span>
             <span className="text-caption-1-semibold text-text-primary">Começar a primeira tarefa</span>
-            <span className="text-caption-2-regular text-text-tertiary">O Toph abre uma sessão nova para você.</span>
+            <span className="text-caption-2-regular text-text-tertiary">A conversa abre uma sessão nova para você.</span>
           </button>
         ) : null}
         {sessions.length > 0 ? (
