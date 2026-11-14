@@ -72,8 +72,13 @@ export default function TophSettings({ user, projectRoot, projectId, hideTrigger
       }
       setOpen(true);
     };
+    const close = () => setOpen(false);
     window.addEventListener("toph:open-settings", handler);
-    return () => window.removeEventListener("toph:open-settings", handler);
+    window.addEventListener("toph:close-settings", close);
+    return () => {
+      window.removeEventListener("toph:open-settings", handler);
+      window.removeEventListener("toph:close-settings", close);
+    };
   }, []);
   useEffect(() => {
     if (!open) return;

@@ -122,6 +122,7 @@ async function downloadInstaller(installer: UpdateInstaller): Promise<string> {
 export default function UpdateToast() {
   const [status, setStatus] = useState<UpdateStatus | null>(null);
   const [phase, setPhase] = useState<Phase>("idle");
+  const [detail, setDetail] = useState("");
   const [error, setError] = useState("");
   const dismissed = useRef<string | null>(null);
 
@@ -161,6 +162,7 @@ export default function UpdateToast() {
 
     setPhase("updating");
     setError("");
+    setDetail(mobileClient ? "Baixando o APK…" : installer ? "Baixando o instalador…" : "Preparando a atualização…");
     try {
       if (mobileClient && status.apkUrl) {
         downloadApk(status.apkUrl, target);
@@ -181,6 +183,7 @@ export default function UpdateToast() {
 
     const startedAt = Date.now();
     try {
+      setDetail("Instalando a atualização…");
       const start = await api.startUpdate();
       if (start.status === "current") {
         setStatus((current) => current ? {
@@ -190,6 +193,7 @@ export default function UpdateToast() {
           latestVersion: start.version,
         } : current);
         setPhase("idle");
+        setDetail("");
         return;
       }
     } catch (err) {
@@ -200,6 +204,7 @@ export default function UpdateToast() {
         setError(err instanceof Error ? err.message : "Não foi possível iniciar a atualização.");
         return;
       }
+      setDetail("Outra atualização já está em andamento; acompanhando…");
     }
 
     const deadline = startedAt + 180_000;
@@ -208,15 +213,27 @@ export default function UpdateToast() {
       try {
         const update = await api.updateStatus();
         const elapsed = Date.now() - startedAt;
+        if (update.busy) setDetail("O servidor está aplicando a atualização…");
         if (!update.busy && update.error && elapsed > 5_000) {
           setPhase("error");
           setError(update.error);
           return;
         }
+        if (!update.busy && elapsed > 20_000 && update.currentVersion !== target) {
+          // The updater may be waiting for its path unit. Say so instead of
+          // spinning silently until the deadline.
+          setDetail("Aguardando o serviço de atualização…");
+        }
+        if (!update.busy && elapsed > 45_000 && update.currentVersion !== target) {
+          setPhase("error");
+          setError("O serviço de atualização não iniciou. Confira `systemctl status toph-update.path` no servidor e tente de novo.");
+          return;
+        }
         const health = await api.health();
         if (health.version === target || update.currentVersion === target) {
+          setDetail("Reiniciando com a nova versão…");
           await clearClientCaches();
-          window.location.reload();
+          window.location.replace(window.location.href);
           return;
         }
       } catch {
@@ -224,7 +241,7 @@ export default function UpdateToast() {
       }
     }
     setPhase("error");
-    setError("A atualização não terminou a tempo. Verifique o serviço e tente novamente.");
+    setError("A atualização não terminou a tempo. Recarregue a página para ver a versão atual; se continuar na antiga, reinicie o serviço.");
   }
 
   const visible = status?.supported && status.available && dismissed.current !== status.latestVersion;
@@ -242,12 +259,15 @@ export default function UpdateToast() {
         aria-label={failed ? `Falha na atualização: ${error}` : "Clique para atualizar o Toph"}
       >
         <Icon name={failed ? "alert" : "download"} />
-        <span className="ac-toast__text">
+        <span className="ac-toast__text flex min-w-0 flex-col gap-1">
           <b className="ac-toast__title">
             {updating ? "Atualizando Toph" : failed ? "Falha na atualização" : `Toph v${status?.latestVersion ?? ""} disponível`}
           </b>
           {updating ? (
-            <ProgressBar size="sm" isIndeterminate aria-label="Atualizando Toph" />
+            <>
+              <small className="ac-toast__detail">{detail || "Preparando a atualização…"}</small>
+              <ProgressBar size="sm" isIndeterminate aria-label="Atualizando Toph" />
+            </>
           ) : failed && error ? (
             <small className="ac-toast__detail">{error}</small>
           ) : null}
@@ -261,6 +281,7 @@ export default function UpdateToast() {
               event.stopPropagation();
               if (status) dismissed.current = status.latestVersion;
               setPhase("idle");
+              setDetail("");
               setStatus(null);
             }}
           >

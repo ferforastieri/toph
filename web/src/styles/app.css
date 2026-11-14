@@ -12109,7 +12109,7 @@ html:not([data-pointer]) .ac-seg__item:focus-visible {
   margin-inline-end: calc((var(--control-icon-sm) - var(--toast-button)) / 2);
 }
 
-.ac-toast > .ac-icon, .ac-toast > .ac-actline > .ac-toast__text {
+.ac-toast > .ac-icon, .ac-toast > .ac-toast__text, .ac-toast > .ac-actline > .ac-toast__text {
   margin-block: var(--toast-line-pad);
 }
 
@@ -17044,7 +17044,7 @@ html:not([data-pointer]) .ac-filter__trigger:focus-visible, html:not([data-point
   .ac-toasts {
     left: 12px;
     right: 12px;
-    bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    bottom: calc(72px + env(safe-area-inset-bottom, 0px));
     max-width: none;
   }
 
@@ -17057,14 +17057,10 @@ html:not([data-pointer]) .ac-filter__trigger:focus-visible, html:not([data-point
   }
 
   .ac-dialog {
-    width: 100%;
-    max-height: calc(100vh - 12px);
-    max-height: calc(100dvh - 12px - env(safe-area-inset-top, 0px));
-    border-radius: var(--radius-section) var(--radius-section) 0 0;
-    padding-bottom: env(safe-area-inset-bottom, 0px);
+    width: calc(100% - 24px);
+    max-height: calc(100vh - 24px);
+    max-height: calc(100dvh - 24px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
     --dialog-pad: 16px;
-    inset: auto 0 0;
-    transform: none;
   }
 
   .ac-dialog__head {
@@ -17090,11 +17086,11 @@ html:not([data-pointer]) .ac-filter__trigger:focus-visible, html:not([data-point
 
 @media (prefers-reduced-motion: no-preference) {
   @media (max-width: 640px) {
-    .ac-dialog[data-state="open"], .ac-details[data-state="open"] {
+    .ac-details[data-state="open"] {
       animation-name: ac-sheet-up;
     }
 
-    .ac-dialog[data-state="closed"], .ac-details[data-state="closed"] {
+    .ac-details[data-state="closed"] {
       animation-name: ac-sheet-down;
     }
   }
@@ -21422,7 +21418,7 @@ html:not([data-pointer]) .settings__link:focus-visible {
 }
 
 .settings__body {
-  gap: var(--space-4);
+  gap: var(--space-5);
   flex-direction: column;
   flex: 560px;
   min-width: 0;
@@ -21889,7 +21885,7 @@ html:not([data-pointer]) .settings-row--open:focus-visible {
 }
 
 .settings--dialog .settings__body {
-  gap: var(--space-4);
+  gap: var(--space-5);
   min-width: 0;
   padding: var(--dialog-pad);
   flex: auto;

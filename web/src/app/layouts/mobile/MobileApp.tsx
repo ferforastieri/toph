@@ -482,10 +482,10 @@ export default function MobileApp() {
         isOpen={projectsOpen}
         onClose={() => setProjectsOpen(false)}
         label={projectPicker === "open" ? "Projetos abertos" : "Abrir projeto"}
-        placement="bottom"
+       
         size="sm"
         bodyClassName="p-2.5"
-        swipeToClose
+       
       >
         <ProjectSwitcher
           onlyOpen={projectPicker === "open"}

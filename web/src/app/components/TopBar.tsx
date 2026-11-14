@@ -38,14 +38,7 @@ function ThemeToggle() {
   const setTheme = useSettings((state) => state.setTheme);
   const light = theme === "light";
   function toggle() {
-    const root = document.documentElement;
-    const next = light ? "dark" : "light";
-    root.classList.remove("theme-lamp-on", "theme-lamp-off");
-    // Restart the same animation when the toggle is pressed twice quickly.
-    void root.offsetWidth;
-    root.classList.add(next === "light" ? "theme-lamp-on" : "theme-lamp-off");
-    window.setTimeout(() => root.classList.remove("theme-lamp-on", "theme-lamp-off"), 760);
-    setTheme(next);
+    setTheme(light ? "dark" : "light");
   }
   return (
     <button

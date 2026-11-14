@@ -117,7 +117,7 @@ export default function FilesScreen({ project, onOpenFile }: Props) {
         </div>
       </div>
 
-      <Modal isOpen={optionsOpen} onClose={() => setOptionsOpen(false)} title="Opções do workspace" description={project.name} placement="bottom" size="sm" bodyClassName="p-3" swipeToClose>
+      <Modal isOpen={optionsOpen} onClose={() => setOptionsOpen(false)} title="Opções do workspace" description={project.name} size="sm" bodyClassName="p-3">
         <div className="flex flex-col gap-1">
           <Button variant="ghost" className="h-11 w-full justify-start" leadingIcon={FilePlus2} onClick={() => openCreate("file")}>Novo arquivo</Button>
           <Button variant="ghost" className="h-11 w-full justify-start" leadingIcon={FolderPlus} onClick={() => openCreate("folder")}>Nova pasta</Button>
@@ -128,7 +128,7 @@ export default function FilesScreen({ project, onOpenFile }: Props) {
         </div>
       </Modal>
 
-      <Modal isOpen={Boolean(createKind)} onClose={() => setCreateKind(null)} title={createKind === "folder" ? "Nova pasta" : "Novo arquivo"} description="Informe o caminho relativo ao projeto." placement="bottom" size="sm" bodyClassName="p-3" swipeToClose>
+      <Modal isOpen={Boolean(createKind)} onClose={() => setCreateKind(null)} title={createKind === "folder" ? "Nova pasta" : "Novo arquivo"} description="Informe o caminho relativo ao projeto." size="sm" bodyClassName="p-3">
         <div className="flex flex-col gap-3">
           <Input value={name} onChange={setName} placeholder={createKind === "folder" ? "nova-pasta" : "novo-arquivo.ts"} aria-label={createKind === "folder" ? "Nome da pasta" : "Nome do arquivo"} fieldClassName="h-10" />
           <Button className="h-11 w-full justify-center" disabled={busy || !name.trim()} onClick={() => void create()}>
@@ -137,7 +137,7 @@ export default function FilesScreen({ project, onOpenFile }: Props) {
         </div>
       </Modal>
 
-      <Modal isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} title="Configurações do workspace" placement="bottom" size="lg" bodyClassName="p-3" swipeToClose>
+      <Modal isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} title="Configurações do workspace" size="lg" bodyClassName="p-3">
         <WorkspaceSettings />
       </Modal>
     </div>

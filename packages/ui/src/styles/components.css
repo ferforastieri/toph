@@ -5883,6 +5883,7 @@ html:not([data-pointer]) .ac-seg__item:focus-visible {
   margin-inline-end: calc((var(--control-icon-sm) - var(--toast-button)) / 2);
 }
 .ac-toast > .ac-icon,
+.ac-toast > .ac-toast__text,
 .ac-toast > .ac-actline > .ac-toast__text {
   margin-block: var(--toast-line-pad);
 }

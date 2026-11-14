@@ -85,7 +85,7 @@ export default function WebAppsScreen({ onOpenWeb }: Props) {
         ))}
       </div>
 
-      <Modal isOpen={formOpen} onClose={() => setFormOpen(false)} title="Novo web app" description="Adicione uma URL ao workspace." placement="bottom" size="sm" bodyClassName="p-3" swipeToClose>
+      <Modal isOpen={formOpen} onClose={() => setFormOpen(false)} title="Novo web app" description="Adicione uma URL ao workspace." size="sm" bodyClassName="p-3">
         <WebTargetForm onCreated={() => { setFormOpen(false); void load(); }} />
       </Modal>
     </div>

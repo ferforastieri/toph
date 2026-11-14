@@ -124,7 +124,7 @@ export default function MobileBranchSheet({ open, projectId, onClose, onChanged 
 
   return (
     <>
-      <Modal isOpen={open} onClose={onClose} label="Branch" placement="bottom" size="sm" bodyClassName="p-0" swipeToClose>
+      <Modal isOpen={open} onClose={onClose} label="Branch" size="sm" bodyClassName="p-0">
         <BranchPicker
           current={current}
           branches={visible}
@@ -148,10 +148,10 @@ export default function MobileBranchSheet({ open, projectId, onClose, onChanged 
         onClose={() => setCreateOpen(false)}
         title="Nova branch"
         description="Crie uma branch a partir da branch atual."
-        placement="bottom"
+       
         size="sm"
         bodyClassName="p-3"
-        swipeToClose
+       
       >
         <div className="flex flex-col gap-3">
           <Input value={name} onChange={setName} placeholder="nome-da-branch" aria-label="Nome da nova branch" fieldClassName="h-10" />

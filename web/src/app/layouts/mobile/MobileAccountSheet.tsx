@@ -37,7 +37,7 @@ export default function MobileAccountSheet({ open, user, onClose }: Props) {
   }
 
   return (
-    <Modal isOpen={open} onClose={onClose} title="Conta" description="Sessão deste dispositivo." placement="bottom" size="sm" swipeToClose>
+    <Modal isOpen={open} onClose={onClose} title="Conta" description="Sessão deste dispositivo." size="sm">
       <div className="flex flex-col gap-3">
         <div className="flex items-center gap-3 rounded-2xl border border-border-button-default bg-background-secondary-default p-3">
           <img src={`${import.meta.env.BASE_URL}tophs/toph-logo.png`} alt="" width={48} height={48} className="size-12 select-none object-contain" draggable={false} />

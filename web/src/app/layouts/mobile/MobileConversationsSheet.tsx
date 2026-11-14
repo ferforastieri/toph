@@ -97,10 +97,10 @@ export default function MobileConversationsSheet({ open, project, onClose, onSel
       onClose={onClose}
       title="Sessões"
       description="As tarefas do Toph neste projeto, a mais recente primeiro."
-      placement="bottom"
+     
       size="sm"
       bodyClassName="p-2"
-      swipeToClose
+     
     >
       <div className="flex gap-2 px-1 pb-2">
         <Button size="small" leadingIcon={MessageSquarePlus} className="flex-1 justify-center" disabled={!chats?.hydrated} onClick={newTask}>

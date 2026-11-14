@@ -320,7 +320,7 @@ export default function GitScreen({ project, branch, onOpenDiff, onBranch }: Pro
         </section>
       </div>
 
-      <Modal isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} title="Opções do Git" description="Ações rápidas do repositório." placement="bottom" size="sm" bodyClassName="p-3" swipeToClose>
+      <Modal isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} title="Opções do Git" description="Ações rápidas do repositório." size="sm" bodyClassName="p-3">
         <div className="flex flex-col gap-1">
           <Button variant="ghost" className="h-11 w-full justify-start" leadingIcon={GitBranch} onClick={() => { setSettingsOpen(false); onBranch(); }}>Trocar branch</Button>
           <Button variant="ghost" className="h-11 w-full justify-start" leadingIcon={RefreshCw} onClick={() => { setSettingsOpen(false); void load(); }}>Atualizar status</Button>
