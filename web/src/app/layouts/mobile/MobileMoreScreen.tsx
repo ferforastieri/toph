@@ -8,8 +8,6 @@ import {
   FolderGit2,
   GitBranch,
   Globe2,
-  Info,
-  MessageSquare,
   Moon,
   PlugZap,
   Search,
@@ -34,7 +32,6 @@ interface Props {
   user: User | null;
   activeTitle?: string;
   onScreen: (screen: MobileScreen) => void;
-  onTophs: () => void;
   onTerminal: () => void;
   onProjects: () => void;
   onBranch: () => void;
@@ -99,7 +96,6 @@ export default function MobileMoreScreen({
   user,
   activeTitle,
   onScreen,
-  onTophs,
   onTerminal,
   onProjects,
   onBranch,
@@ -126,7 +122,6 @@ export default function MobileMoreScreen({
   ];
 
   const tophActions: Action[] = [
-    { id: "sessions", label: "Sessões", description: "Tarefas do Toph", icon: MessageSquare, onSelect: onTophs },
     { id: "skills", label: "Skills", description: "Receitas do Toph", icon: Sparkles, onSelect: () => openSettings("skills") },
     { id: "harness", label: "Harness e MCP", description: "CLIs do agente", icon: PlugZap, onSelect: () => openSettings("harness") },
   ];
@@ -209,13 +204,6 @@ export default function MobileMoreScreen({
         </div>
       </section>
 
-      <button
-        type="button"
-        onClick={() => openSettings("general")}
-        className="flex shrink-0 items-center justify-center gap-1.5 self-center rounded-full px-3 py-1 text-[10px] text-text-tertiary transition-colors hover:text-text-primary"
-      >
-        <Info className="size-3" /> Sobre o Toph
-      </button>
     </div>
   );
 }

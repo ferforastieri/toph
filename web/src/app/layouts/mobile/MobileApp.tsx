@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Bot, Boxes, Bug, Database, Files, GitBranch, Globe2, MoreHorizontal, Plus, TerminalSquare } from "@toph/icons";
+import { Bot, MessageSquare, Plus, TerminalSquare } from "@toph/icons";
 import { api, type Project, type SchemaTable, type WebTarget } from "../../../shared/api";
 import { useApp } from "../../store";
 import { useIsMobile } from "../../../shared/ui/useIsMobile";
@@ -55,19 +55,6 @@ export default function MobileApp() {
 
   const screen = useApp((state) => state.mobileScreen);
   const setScreen = useApp((state) => state.setMobileScreen);
-  const screenTitles: Record<MobileScreen, string> = {
-    bots: "Toph",
-    files: "Arquivos",
-    scm: "Git",
-    db: "Bancos",
-    web: "Web apps",
-    debug: "Debug",
-    workspace: activeTab?.title ?? "Trabalho",
-    more: "Mais",
-  };
-  const screenIcons = { bots: Bot, files: Files, scm: GitBranch, db: Database, web: Globe2, debug: Bug, workspace: Boxes, more: MoreHorizontal };
-  const pageTitle = screenTitles[screen];
-  const pageIcon = screenIcons[screen];
   const [terminalOpen, setTerminalOpen] = useState(false);
   const [projectsOpen, setProjectsOpen] = useState(false);
   const [projectPicker, setProjectPicker] = useState<"open" | "closed">("open");
@@ -81,7 +68,6 @@ export default function MobileApp() {
   const chatsHydrated = useChats((state) => activeProjectId ? state.byProject[activeProjectId]?.hydrated === true : false);
   const activeConversationId = useChats((state) => activeProjectId ? state.byProject[activeProjectId]?.activeChatId ?? null : null);
   const [currentBranch, setCurrentBranch] = useState("");
-  const pageSubtitle = screen === "scm" && currentBranch ? currentBranch : (project?.name ?? "");
 
   useEffect(() => {
     setScreen("bots");
@@ -359,33 +345,35 @@ export default function MobileApp() {
         paddingRight: "var(--safe-right)",
       }}
     >
-      <MobileTopBar
-        title={pageTitle}
-        subtitle={pageSubtitle}
-        project={project}
-        unreadCount={projectUnread}
-        icon={pageIcon}
-        onTophs={openConversations}
-        onProjects={openProjectSheet}
-        brandIcon={screen === "bots"}
-      />
       <main className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background-primary-default">
         {screen === "bots" ? (
-          activeConversationId ? (
-            <BotStudioTab
-              key={activeConversationId}
-              project={project}
-              conversationId={activeConversationId}
-              mobile
-            />
-          ) : (
-            <div className="flex h-full w-full flex-col items-center justify-center gap-3 p-8 text-center">
-              <span className="flex size-12 items-center justify-center rounded-2xl bg-accent-500/10 text-accent-500"><Bot size={22} /></span>
-              <strong className="text-title-3-medium text-text-primary">Nenhuma sessão aberta</strong>
-              <p className="max-w-xs text-caption-1-regular text-text-secondary">Abra uma sessão ou comece uma nova tarefa com o Toph.</p>
-              <Button variant="secondary" size="small" onClick={openConversations}>Ver sessões</Button>
+          <>
+            <div className="flex shrink-0 items-center gap-2 border-b border-separator-border px-3 py-1.5">
+              <button
+                type="button"
+                onClick={openConversations}
+                className="flex min-w-0 items-center gap-1.5 rounded-lg px-1.5 py-1 text-caption-1-medium text-text-secondary transition-colors hover:bg-background-primary-hover hover:text-text-primary"
+              >
+                <MessageSquare className="size-3.5" /> Sessões
+              </button>
+              <span className="min-w-0 flex-1" />
             </div>
-          )
+            {activeConversationId ? (
+              <BotStudioTab
+                key={activeConversationId}
+                project={project}
+                conversationId={activeConversationId}
+                mobile
+              />
+            ) : (
+              <div className="flex h-full w-full flex-col items-center justify-center gap-3 p-8 text-center">
+                <span className="flex size-12 items-center justify-center rounded-2xl bg-accent-500/10 text-accent-500"><Bot size={22} /></span>
+                <strong className="text-title-3-medium text-text-primary">Nenhuma sessão aberta</strong>
+                <p className="max-w-xs text-caption-1-regular text-text-secondary">Abra uma sessão ou comece uma nova tarefa com o Toph.</p>
+                <Button variant="secondary" size="small" onClick={openConversations}>Ver sessões</Button>
+              </div>
+            )}
+          </>
         ) : screen === "files" ? (
           <div className="min-h-0 flex-1 overflow-hidden">
             <FilesScreen project={project} onOpenFile={openFile} />
@@ -411,7 +399,6 @@ export default function MobileApp() {
             user={user}
             activeTitle={activeTab?.title}
             onScreen={selectScreen}
-            onTophs={openConversations}
             onTerminal={() => setTerminalOpen(true)}
             onProjects={openProjectSheet}
             onBranch={() => setBranchOpen(true)}
@@ -451,6 +438,8 @@ export default function MobileApp() {
       <MobileBottomNav
         screen={screen}
         onSelect={selectScreen}
+        onProjects={openProjectSheet}
+        projectsOpen={projectsOpen}
       />
 
       {terminalOpen && (
@@ -481,8 +470,7 @@ export default function MobileApp() {
       <Modal
         isOpen={projectsOpen}
         onClose={() => setProjectsOpen(false)}
-        label={projectPicker === "open" ? "Projetos abertos" : "Abrir projeto"}
-       
+        title={projectPicker === "open" ? "Projetos abertos" : "Abrir projeto"}
         size="sm"
         bodyClassName="p-2.5"
        
