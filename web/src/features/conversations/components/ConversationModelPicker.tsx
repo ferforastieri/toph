@@ -7,6 +7,7 @@ import ProviderIcon from "../../providers/components/ProviderIcon";
 import type { ChatToph, TophChat } from "../store";
 import { useChats } from "../store";
 import ComposerMenu from "./ComposerMenu";
+import { useIsMobile } from "../../../shared/ui/useIsMobile";
 import { cx } from "@toph/ui";
 
 interface Props {
@@ -25,6 +26,7 @@ export default function ConversationModelPicker({ projectId, chat, tophs }: Prop
   const config = useAI((state) => state.config);
   const loadModels = useAI((state) => state.loadModels);
   const updateChatToph = useChats((state) => state.updateChatToph);
+  const mobile = useIsMobile();
   // The picker is the only screen that lists models now: it asks the harness once.
   useEffect(() => {
     if (models.length === 0) void loadModels();
@@ -49,7 +51,7 @@ export default function ConversationModelPicker({ projectId, chat, tophs }: Prop
   }
 
   return (
-    <div className="flex min-w-0 items-center gap-0.5">
+    <div className="flex w-full min-w-0 items-center gap-0.5">
       <ComposerMenu
         label="Modelo"
         isOpen={modelOpen}
@@ -57,7 +59,7 @@ export default function ConversationModelPicker({ projectId, chat, tophs }: Prop
         trigger={
           <>
             <ProviderIcon provider={info ? modelGroup(info) : "opencode"} className="size-3.5 text-text-tertiary" />
-            <span className="truncate" title={modelTitle(info)}>{modelDisplay(info)}</span>
+            <span className="truncate" title={modelTitle(info)}>{mobile ? (info?.label?.split(" ")[0] ?? "Modelo") : modelDisplay(info)}</span>
             <ChevronDown size={12} className="size-3 shrink-0 text-text-tertiary" />
           </>
         }

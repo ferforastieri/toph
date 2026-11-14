@@ -270,10 +270,10 @@ export function AgentComposer({ value, onChange, onSend, onStop, busy, placehold
             fieldClassName="flex min-h-[50px] items-start rounded-none bg-transparent p-0 ring-0 shadow-none"
             className="min-h-[50px] px-4 pt-[13px] pb-1 text-[14px] leading-[1.55]"
           />
-          <div className="agent-composer-footer flex min-w-0 items-center gap-2 px-4 pb-2.5 pt-1.5">
+          <div className="agent-composer-footer flex min-w-0 items-center gap-2.5 px-4 pb-3 pt-2">
             {allowAttachments ? <Button type="button" variant="ghost" size="small" iconOnly leadingIcon={ImagePlus} aria-label="Anexar arquivo" title="Anexar arquivo (Ctrl+U)" onClick={() => fileRef.current?.click()} /> : null}
             {leadingControls ? <div className="agent-composer-leading flex min-w-0 items-center gap-0.5">{leadingControls}</div> : null}
-            <span className="min-w-0 flex-1" />
+            <span className="agent-composer-spacer min-w-0 flex-1" />
             {modeControls ? <div className="flex shrink-0 items-center gap-0.5">{modeControls}</div> : null}
             {audio.processing ? (
               <Button type="button" variant="secondary" size="small" iconOnly leadingIcon={LoaderCircle} disabled aria-label="Processando áudio" title="Processando áudio" className="shrink-0 rounded-full [&_svg]:animate-spin" />

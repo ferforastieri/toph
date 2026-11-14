@@ -56,22 +56,19 @@
 /* On a phone the composer's model and effort keep room for the actions: the
    model shortens, the effort keeps its word, and neither runs under the send. */
 @media (max-width: 640px) {
-  /* The phone's composer stacks its selectors over the actions, so the model
-     and the effort have the full width and never squeeze the send button. */
-  .agent-composer-footer {
-    flex-wrap: wrap;
-    row-gap: 6px;
-  }
   .agent-composer-leading {
-    order: -1;
-    flex-basis: 100%;
-  }
-  .ac-composer .composer-trigger {
-    max-width: none;
     flex: 1 1 auto;
   }
+  .agent-composer-spacer {
+    display: none;
+  }
+  .ac-composer .composer-trigger {
+    max-width: 130px;
+    flex: 1 1 auto;
+    min-width: 0;
+  }
   .ac-composer .composer-trigger[aria-label="Esforço"] {
-    max-width: 96px;
+    max-width: 70px;
     flex: none;
     padding-inline: 4px;
   }
@@ -212,8 +209,8 @@ html:not(.dark) .text-accent-600 {
 /* The phone's composer gets its own room above the tab bar and a centred placeholder. */
 @media (max-width: 640px) {
   .ac-composer textarea {
-    min-height: 48px;
-    padding: 14px 16px 8px;
+    min-height: 56px;
+    padding: 15px 16px 8px;
   }
   .ac-composer {
     margin-bottom: 2px;
