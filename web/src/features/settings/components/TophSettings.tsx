@@ -242,18 +242,6 @@ export default function TophSettings({ user, projectRoot, projectId, hideTrigger
                     <CardHeader title="Layout" subtitle="O que o workspace mostra e inicializa." />
                     <div className="settings-rows">
                       <ToggleRow id="toph-tabs" icon="layers" label="Abas e conteúdo" checked={workspaceFeatures.tabs} onChange={(value) => setFeature("tabs", value)} />
-                      <ToggleRow id="toph-terminal" icon="code" label="Terminal e painel" checked={workspaceFeatures.terminal} onChange={(value) => setFeature("terminal", value)} />
-                    </div>
-                  </Card>
-                  <Card>
-                    <CardHeader title="Ferramentas" subtitle="As ferramentas do workspace." />
-                    <div className="settings-rows">
-                      <ToggleRow id="toph-files" icon="document" label="Explorer e editor" checked={workspaceFeatures.files} onChange={(value) => setFeature("files", value)} />
-                      <ToggleRow id="toph-scm" icon="repo" label="Controle de código-fonte" checked={workspaceFeatures.sourceControl} onChange={(value) => setFeature("sourceControl", value)} />
-                      <ToggleRow id="toph-db" icon="database" label="Bancos de dados" checked={workspaceFeatures.databases} onChange={(value) => setFeature("databases", value)} />
-                      <ToggleRow id="toph-web" icon="globe" label="Aplicativos web" checked={workspaceFeatures.webApps} onChange={(value) => setFeature("webApps", value)} />
-                      <ToggleRow id="toph-debug" icon="issue" label="Debug" checked={workspaceFeatures.debug} onChange={(value) => setFeature("debug", value)} />
-                      <ToggleRow id="toph-toph" icon="agent" label="Toph" checked disabled onChange={() => undefined} />
                     </div>
                   </Card>
                 </>

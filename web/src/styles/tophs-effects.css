@@ -61,6 +61,7 @@
   }
   .ac-composer .composer-trigger[aria-label="Esforço"] {
     max-width: 84px;
+    flex: none;
     padding-inline: 4px;
   }
   /* The chevron takes room the effort's own word needs on a phone. */
@@ -70,10 +71,11 @@
 }
 
 
-/* On a phone the composer sits at the bottom: notices stand above it, not over its actions. */
+/* On a phone the composer owns the bottom: notices stand above it, never over the input or the header's actions. */
 @media (max-width: 640px) {
   .ac-toasts {
-    bottom: calc(96px + var(--safe-bottom));
+    bottom: calc(180px + var(--safe-bottom));
+    top: auto;
   }
 }
 
@@ -188,4 +190,21 @@ html.theme-transitioning *::after {
   height: 100%;
   padding-inline: 12px;
   font-size: 13px;
+}
+
+/* Light mode: the amber details need a darker ink to read on white. */
+html:not(.dark) .text-accent-500,
+html:not(.dark) .text-accent-600 {
+  color: var(--color-accent-700);
+}
+
+/* The phone's composer gets its own room above the tab bar and a centred placeholder. */
+@media (max-width: 640px) {
+  .ac-composer textarea {
+    min-height: 48px;
+    padding: 14px 16px 8px;
+  }
+  .ac-composer {
+    margin-bottom: 2px;
+  }
 }

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Bot, Check, GitBranch, Minus, Plus, RefreshCw, Settings2, Trash2, TriangleAlert, Undo2 } from "@toph/icons";
+import { Check, ChevronRight, GitBranch, Minus, Plus, RefreshCw, Settings2, Sparkles, Trash2, TriangleAlert, Undo2 } from "@toph/icons";
 import { api, type GitState, type Project } from "../../../../shared/api";
 import { useProjectEvents } from "../../../../features/projects/events";
 import { useApp } from "../../../store";
@@ -15,6 +15,7 @@ import { Badge } from "@toph/ui/app";
 import { Button } from "@toph/ui/app";
 import { Input } from "@toph/ui/app";
 import { Modal } from "@toph/ui/app";
+import { cx } from "@toph/ui";
 
 interface Props {
   project: Project;
@@ -312,7 +313,7 @@ export default function GitScreen({ project, branch, onOpenDiff, onBranch }: Pro
           </div>
           <div className="relative">
             <Input value={message} onChange={setMessage} placeholder="Mensagem do commit" aria-label="Mensagem do commit" fieldClassName="h-10 pe-10" />
-            <Button variant="ghost" size="xs" iconOnly leadingIcon={Bot} aria-label="Gerar mensagem com IA" title="Gerar mensagem com IA" disabled={Boolean(busy)} onClick={() => void generateMessage()} className="absolute end-1 top-1/2 -translate-y-1/2" />
+            <Button variant="ghost" size="xs" iconOnly leadingIcon={Sparkles} aria-label="Gerar mensagem com IA" title="Gerar mensagem com IA" disabled={Boolean(busy)} onClick={() => void generateMessage()} className="absolute end-1 top-1/2 -translate-y-1/2" />
           </div>
           <Button className="mt-2 h-11 w-full justify-center" leadingIcon={Check} disabled={!staged.length || Boolean(busy)} onClick={() => void commit()}>
             {busy === "commit" ? "Commitando..." : busy === "generate" ? "Gerando..." : "Commit"}
@@ -320,14 +321,35 @@ export default function GitScreen({ project, branch, onOpenDiff, onBranch }: Pro
         </section>
       </div>
 
-      <Modal isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} title="Opções do Git" description="Ações rápidas do repositório." size="sm" bodyClassName="p-3">
-        <div className="flex flex-col gap-1">
-          <Button variant="ghost" className="h-11 w-full justify-start" leadingIcon={GitBranch} onClick={() => { setSettingsOpen(false); onBranch(); }}>Trocar branch</Button>
-          <Button variant="ghost" className="h-11 w-full justify-start" leadingIcon={RefreshCw} onClick={() => { setSettingsOpen(false); void load(); }}>Atualizar status</Button>
-          <Button variant="ghost" className="h-11 w-full justify-start" leadingIcon={Bot} disabled={Boolean(busy)} onClick={() => { setSettingsOpen(false); void generateMessage(); }}>Gerar mensagem com IA</Button>
-          <Button variant="ghost" className="h-11 w-full justify-start" leadingIcon={Plus} disabled={!unstaged.length || Boolean(busy)} onClick={() => { setSettingsOpen(false); void mutate("stage-all", () => api.gitStage(project.id, unstaged.map((change) => change.path))); }}>Preparar todas</Button>
-          <Button variant="ghost" className="h-11 w-full justify-start" leadingIcon={Minus} disabled={!staged.length || Boolean(busy)} onClick={() => { setSettingsOpen(false); void mutate("unstage-all", () => api.gitUnstage(project.id, staged.map((change) => change.path))); }}>Despreparar todas</Button>
-          <Button variant="ghost" className="h-11 w-full justify-start text-text-error-primary" leadingIcon={Undo2} disabled={(!staged.length && !unstaged.length) || Boolean(busy)} onClick={() => { setSettingsOpen(false); void discardAll(); }}>Descartar todas</Button>
+      <Modal isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} title="Opções do Git" description="Ações rápidas do repositório." size="sm" bodyClassName="p-0">
+        <div className="overflow-hidden rounded-2xl border border-separator-border">
+          {[
+            { id: "branch", label: "Trocar branch", icon: GitBranch, onClick: () => { setSettingsOpen(false); onBranch(); } },
+            { id: "refresh", label: "Atualizar status", icon: RefreshCw, onClick: () => { setSettingsOpen(false); void load(); } },
+            { id: "generate", label: "Gerar mensagem com IA", icon: Sparkles, onClick: () => { setSettingsOpen(false); void generateMessage(); }, disabled: Boolean(busy) },
+            { id: "stage", label: "Preparar todas", icon: Plus, onClick: () => { setSettingsOpen(false); void mutate("stage-all", () => api.gitStage(project.id, unstaged.map((change) => change.path))); }, disabled: !unstaged.length || Boolean(busy) },
+            { id: "unstage", label: "Despreparar todas", icon: Minus, onClick: () => { setSettingsOpen(false); void mutate("unstage-all", () => api.gitUnstage(project.id, staged.map((change) => change.path))); }, disabled: !staged.length || Boolean(busy) },
+            { id: "discard", label: "Descartar todas", icon: Undo2, onClick: () => { setSettingsOpen(false); void discardAll(); }, disabled: (!staged.length && !unstaged.length) || Boolean(busy), danger: true },
+          ].map((row, index) => {
+            const Icon = row.icon;
+            return (
+              <button
+                key={row.id}
+                type="button"
+                disabled={row.disabled}
+                onClick={row.onClick}
+                className={cx(
+                  "flex h-12 w-full items-center gap-3 px-3 text-start text-caption-1-medium transition-colors hover:bg-background-primary-hover disabled:opacity-45",
+                  index > 0 && "border-t border-separator-border",
+                  row.danger ? "text-status-rose-text" : "text-text-primary",
+                )}
+              >
+                <Icon className="size-4 shrink-0 text-text-tertiary" />
+                <span className="min-w-0 flex-1 truncate">{row.label}</span>
+                <ChevronRight className="size-4 shrink-0 text-text-tertiary" />
+              </button>
+            );
+          })}
         </div>
       </Modal>
     </div>

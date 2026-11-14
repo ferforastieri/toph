@@ -18,6 +18,7 @@ import {
 import type { ComponentType } from "react";
 import { useSettings } from "../../../features/settings/store";
 import { cx } from "@toph/ui";
+import { runThemeTransition } from "../../../shared/ui/theme-transition";
 import type { MobileScreen } from "./mobile-nav";
 
 type SettingsSection = "general" | "appearance" | "skills" | "harness" | "workspace";
@@ -95,6 +96,10 @@ export default function MobileMoreScreen({
   const theme = useSettings((state) => state.theme);
   const setTheme = useSettings((state) => state.setTheme);
   const light = theme === "light";
+  function changeTheme(next: "light" | "dark", event: React.MouseEvent<HTMLButtonElement>) {
+    const rect = event.currentTarget.getBoundingClientRect();
+    void runThemeTransition({ x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }, () => setTheme(next));
+  }
 
   const work: Action[] = [
     { id: "db", label: "Bancos de dados", description: "Conexões e queries", icon: Database, onSelect: () => onScreen("db") },
@@ -133,7 +138,7 @@ export default function MobileMoreScreen({
         <div className="flex items-center gap-1 rounded-full bg-background-tertiary-default p-0.5">
           <button
             type="button"
-            onClick={() => setTheme("light")}
+            onClick={(event) => changeTheme("light", event)}
             aria-pressed={light}
             className={cx("flex size-7 items-center justify-center rounded-full transition-colors", light ? "bg-background-primary-default text-text-primary shadow-xs" : "text-text-tertiary")}
             aria-label="Ativar modo claro"
@@ -143,7 +148,7 @@ export default function MobileMoreScreen({
           </button>
           <button
             type="button"
-            onClick={() => setTheme("dark")}
+            onClick={(event) => changeTheme("dark", event)}
             aria-pressed={!light}
             className={cx("flex size-7 items-center justify-center rounded-full transition-colors", !light ? "bg-background-primary-default text-text-primary shadow-xs" : "text-text-tertiary")}
             aria-label="Ativar modo escuro"

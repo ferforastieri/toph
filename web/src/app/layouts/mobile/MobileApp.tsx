@@ -371,7 +371,7 @@ export default function MobileApp() {
         onProjects={openProjectSheet}
         brandIcon={screen === "bots"}
       />
-      <main className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background-primary-default">
+      <main className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background-primary-default pb-2">
         {screen === "bots" ? (
           <>
             {activeConversationId ? (

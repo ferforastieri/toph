@@ -302,7 +302,7 @@ export default function BotStudioTab({ project, conversationId, mobile = false, 
           </div>
         </div>
       ) : null}
-      {tophs.length > 0 && <div className="shrink-0">
+      {tophs.length > 0 && <div className={cx("shrink-0", mobile && "px-2 pb-2.5")}>
         {modelError && <p role="alert" className="px-3 text-xs text-text-error-primary">{modelError}</p>}
         <AgentComposer value={text} onChange={(value) => setDraft(draftKey, value)} onSend={(value, files) => void send(value, files)} onStop={() => void stop()} busy={busy}
           placeholder="Pergunte ao Toph…"
