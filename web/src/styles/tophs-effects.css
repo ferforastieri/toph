@@ -56,11 +56,22 @@
 /* On a phone the composer's model and effort keep room for the actions: the
    model shortens, the effort keeps its word, and neither runs under the send. */
 @media (max-width: 640px) {
+  /* The phone's composer stacks its selectors over the actions, so the model
+     and the effort have the full width and never squeeze the send button. */
+  .agent-composer-footer {
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+  .agent-composer-leading {
+    order: -1;
+    flex-basis: 100%;
+  }
   .ac-composer .composer-trigger {
-    max-width: 150px;
+    max-width: none;
+    flex: 1 1 auto;
   }
   .ac-composer .composer-trigger[aria-label="Esforço"] {
-    max-width: 84px;
+    max-width: 96px;
     flex: none;
     padding-inline: 4px;
   }
@@ -74,7 +85,7 @@
 /* On a phone the composer owns the bottom: notices stand above it, never over the input or the header's actions. */
 @media (max-width: 640px) {
   .ac-toasts {
-    bottom: calc(180px + var(--safe-bottom));
+    bottom: calc(240px + var(--safe-bottom));
     top: auto;
   }
 }
@@ -207,4 +218,19 @@ html:not(.dark) .text-accent-600 {
   .ac-composer {
     margin-bottom: 2px;
   }
+}
+
+
+/* The composer's surface belongs to the loader, which paints the pill and runs
+   its light band over the rim; the form itself stays transparent so the whole
+   animation is seen (the old opaque background hid it). */
+.ac-composer.agent-composer {
+  background: transparent !important;
+  box-shadow: none !important;
+  border: 0;
+  border-radius: 20px;
+}
+.ac-composer.agent-composer:focus-within {
+  box-shadow: var(--focus-ring) !important;
+  border-radius: 20px;
 }
