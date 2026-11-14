@@ -69,7 +69,6 @@ describe("BotsSidebar", () => {
     expect(screen.getByText("Ajustar o build")).toBeInTheDocument();
     expect(screen.getByText("Revisar login")).toBeInTheDocument();
     expect(screen.getByLabelText("Resposta não lida")).toBeInTheDocument();
-    expect(await screen.findByText("Rodando agora")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Ajustar o build\. Rodando agora/ })).toBeInTheDocument();
     expect(screen.queryByText("Configurar Toph")).not.toBeInTheDocument();
     expect(screen.queryByText("Conversas do Toph")).not.toBeInTheDocument();

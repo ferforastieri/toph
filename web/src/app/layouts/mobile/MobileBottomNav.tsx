@@ -45,11 +45,7 @@ export default function MobileBottomNav({ screen, onSelect }: Props) {
                   active && "bg-accent-500/12",
                 )}
               >
-                {item.id === "bots" ? (
-                  <img src={`${import.meta.env.BASE_URL}tophs/toph-logo.png`} alt="" className="size-[19px] object-contain" draggable={false} />
-                ) : (
-                  <Icon className="size-[19px]" />
-                )}
+                <Icon className="size-[19px]" />
               </span>
               <span className={cx("max-w-full truncate text-[10px] leading-3", active ? "font-semibold" : "font-medium")}>{item.label}</span>
             </button>

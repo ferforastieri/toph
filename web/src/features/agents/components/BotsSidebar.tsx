@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { MessageSquarePlus } from "@toph/icons";
-import BrandMark from "@toph/brand";
+import { Bot, MessageSquarePlus } from "@toph/icons";
 import type { Project } from "../../../shared/api";
 import { useChats } from "../../conversations/store";
 import { chatTabId, openChatTab } from "../../conversations/navigation";
@@ -79,16 +78,19 @@ export default function BotsSidebar({ project, headerControl, onSelectChat }: Pr
     () => projectSessions(chats, notifications, project.id, activeSessions),
     [activeSessions, chats, notifications, project.id],
   );
-  // Every conversation is a message list entry; the harness only enriches it
-  // with the title and time it knows. It never hides a conversation.
+  // The harness owns the session list and the title it generates. Local chats
+  // the harness does not know are drafts, not sessions, so they stay out.
   const sessions = useMemo(() => {
     if (!harness) return allSessions;
-    const byChat = new Map(harness.map((item) => [item.chatId, item]));
-    return allSessions.map((session) => {
-      const item = byChat.get(session.chat.id);
-      return item
-        ? { ...session, title: item.title || session.title, activityAt: item.updatedAt || session.activityAt }
-        : session;
+    const byChat = new Map(allSessions.map((session) => [session.chat.id, session]));
+    return harness.flatMap((item) => {
+      const base = byChat.get(item.chatId);
+      if (!base) return [];
+      return [{
+        ...base,
+        title: item.title || base.title,
+        activityAt: item.updatedAt || base.activityAt,
+      }];
     });
   }, [allSessions, harness]);
 
@@ -114,7 +116,7 @@ export default function BotsSidebar({ project, headerControl, onSelectChat }: Pr
     <div className="flex h-full min-h-0 flex-col bg-background-primary-default">
       <SidebarHeader
         control={headerControl}
-        icon={<BrandMark size="small" className="size-4" />}
+        icon={<Bot size={15} className="text-accent-500" />}
         title="Mensagens"
         count={
           sessions.length > 0 ? (
@@ -164,7 +166,6 @@ export default function BotsSidebar({ project, headerControl, onSelectChat }: Pr
                 <SessionRow
                   title={session.title}
                   activityAt={session.activityAt}
-                  messageCount={session.messageCount}
                   running={session.running}
                   unread={session.unread}
                   selected={session.chat.id === chats?.activeChatId}

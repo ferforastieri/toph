@@ -47,15 +47,18 @@ export default function MobileConversationsSheet({ open, project, onClose, onSel
       cancelled = true;
     };
   }, [project.id, sessionCount, activeSessions]);
-  // Every conversation is listed; the harness only enriches its title and time.
+  // The harness owns the session list and the title it generates.
   const sessions = useMemo(() => {
     if (!harness) return allSessions;
-    const byChat = new Map(harness.map((item) => [item.chatId, item]));
-    return allSessions.map((session) => {
-      const item = byChat.get(session.chat.id);
-      return item
-        ? { ...session, title: item.title || session.title, activityAt: item.updatedAt || session.activityAt }
-        : session;
+    const byChat = new Map(allSessions.map((session) => [session.chat.id, session]));
+    return harness.flatMap((item) => {
+      const base = byChat.get(item.chatId);
+      if (!base) return [];
+      return [{
+        ...base,
+        title: item.title || base.title,
+        activityAt: item.updatedAt || base.activityAt,
+      }];
     });
   }, [allSessions, harness]);
 
@@ -118,7 +121,6 @@ export default function MobileConversationsSheet({ open, project, onClose, onSel
                 <SessionRow
                   title={session.title}
                   activityAt={session.activityAt}
-                  messageCount={session.messageCount}
                   running={session.running}
                   unread={session.unread}
                   selected={session.chat.id === chats?.activeChatId}
