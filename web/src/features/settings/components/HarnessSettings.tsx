@@ -124,18 +124,11 @@ export default function HarnessSettings(_props: Props) {
 
   return (
     <div className="flex flex-col gap-8">
-      <header>
-        <h3 className="text-title-2-medium text-text-primary">Harness</h3>
-        <p className="mt-1 text-body-regular text-text-secondary">
-          O CLI conduz o loop do agente; o Toph entrega contexto, ferramentas, permissões e aprovações. OpenCode, Claude Code e Codex já executam.
-        </p>
-      </header>
-
       <section className="flex flex-col gap-3">
         <div className="flex items-start justify-between gap-3">
           <div>
             <h4 className="text-body-medium text-text-primary">Motores de agente</h4>
-            <p className="mt-0.5 text-caption-1-regular text-text-secondary">Conecte com a conta que você já usa. O login abre no seu terminal.</p>
+            <p className="mt-0.5 text-caption-1-regular text-text-secondary">Conecte com a conta que você já usa. O login abre no terminal do app.</p>
           </div>
           <Button variant="ghost" size="small" leadingIcon={RefreshCw} onClick={() => void refresh()} disabled={loading || busy !== null}>
             Recarregar
@@ -207,9 +200,9 @@ export default function HarnessSettings(_props: Props) {
                   <p className="rounded-lg bg-status-yellow-bg px-2 py-1.5 text-caption-2-regular text-status-yellow-text">Instalado, mas o runtime ainda não está ligado. Use OpenCode, Claude Code ou Codex.</p>
                 ) : null}
 
-                <p className="truncate text-caption-2-regular text-text-tertiary" title={`${engine.login}${engine.installed ? "" : ` · ${engine.install}`}`}>
-                  <code className="rounded bg-background-tertiary-default px-1 py-0.5 font-mono text-[11px] text-text-primary">{engine.login}</code>
-                  {!engine.installed ? <> · <code className="rounded bg-background-tertiary-default px-1 py-0.5 font-mono text-[11px] text-text-primary">{engine.install}</code></> : null}
+                <p className="line-clamp-2 break-all text-caption-2-regular text-text-tertiary" title={`${engine.login}${engine.installed ? "" : ` · ${engine.install}`}`}>
+                  <span className="font-medium text-text-secondary">Login:</span> <code className="rounded bg-background-tertiary-default px-1 py-0.5 font-mono text-[11px] text-text-primary">{engine.login}</code>
+                  {!engine.installed ? <> · <span className="font-medium text-text-secondary">Instalar:</span> <code className="rounded bg-background-tertiary-default px-1 py-0.5 font-mono text-[11px] text-text-primary">{engine.install}</code></> : null}
                 </p>
 
                 {result ? (
@@ -220,7 +213,7 @@ export default function HarnessSettings(_props: Props) {
                 ) : null}
                 {output ? <pre className="max-h-32 overflow-auto rounded-lg bg-background-tertiary-default p-2 font-mono text-[10px] leading-relaxed text-text-secondary">{output}</pre> : null}
 
-                <a href={engine.site} target="_blank" rel="noreferrer" className="inline-flex w-fit items-center gap-1 text-caption-2-regular text-text-tertiary hover:text-text-primary">
+                <a href={engine.site} target="_blank" rel="noreferrer" className="mt-auto inline-flex w-fit items-center gap-1 pt-1 text-caption-2-regular text-text-tertiary hover:text-text-primary">
                   Site do harness <ExternalLink size={11} />
                 </a>
               </section>
