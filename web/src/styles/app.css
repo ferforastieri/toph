@@ -21885,6 +21885,7 @@ html:not([data-pointer]) .settings-row--open:focus-visible {
 }
 
 .settings--dialog .settings__body {
+  margin-left: 0;
   gap: var(--space-6);
   min-width: 0;
   padding: var(--dialog-pad);
@@ -21940,6 +21941,7 @@ html:not([data-pointer]) .settings-row--open:focus-visible {
   }
 
   .settings--dialog .settings__body {
+    margin-left: 0;
     padding: 16px var(--dialog-pad) var(--dialog-pad);
   }
 }

@@ -593,6 +593,7 @@ html:not([data-pointer]) .settings-row--open:focus-visible {
   padding: 0 10px;
 }
 .settings--dialog .settings__body {
+  margin-left: 0;
   flex: 1 1 auto;
   gap: var(--space-6);
   min-width: 0;
