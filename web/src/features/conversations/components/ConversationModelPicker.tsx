@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Check, ChevronDown } from "@toph/icons";
 import type { AIModel } from "../../../shared/api";
-import { useAI, findModel, modelDisplay, modelGroup, modelTitle } from "../../providers/store";
+import { useAI, defaultModel, findModel, modelDisplay, modelGroup, modelTitle } from "../../providers/store";
 import { ModelOptions, effortLabel } from "../../providers/components/ModelPicker";
 import ProviderIcon from "../../providers/components/ProviderIcon";
 import type { ChatToph, TophChat } from "../store";
@@ -23,14 +23,19 @@ interface Props {
 export default function ConversationModelPicker({ projectId, chat, tophs }: Props) {
   const models = useAI((state) => state.models);
   const config = useAI((state) => state.config);
+  const loadModels = useAI((state) => state.loadModels);
   const updateChatToph = useChats((state) => state.updateChatToph);
+  // The picker is the only screen that lists models now: it asks the harness once.
+  useEffect(() => {
+    if (models.length === 0) void loadModels();
+  }, [models.length, loadModels]);
   const [modelOpen, setModelOpen] = useState(false);
   const [effortOpen, setEffortOpen] = useState(false);
   const member = tophs[0] ?? null;
   if (!member) return null;
 
   const override = chat.tophSettings?.[member.id] ?? {};
-  const model = override.model ?? member.model ?? config?.model ?? "";
+  const model = override.model || member.model || defaultModel(models, config);
   const effort = override.effort ?? member.effort ?? "";
   const info = findModel(models, model) ?? (model ? { id: model, label: model.split("::").pop() ?? model } : undefined);
   const variants = findModel(models, model)?.variants ?? [];

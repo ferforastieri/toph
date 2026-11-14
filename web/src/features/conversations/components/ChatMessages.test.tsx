@@ -88,8 +88,8 @@ describe("ChatMessages timeline", () => {
     );
 
     const mine = screen.getByTestId("chat-user-message");
-    expect(mine).toHaveClass("ac-msg", "ac-msg--own");
-    expect(mine.querySelector(".ac-msg__text")).toHaveTextContent("Olá");
+    expect(mine).toHaveClass("justify-end");
+    expect(mine.querySelector("p")).toHaveClass("bg-background-tertiary-default");
   });
 
   it("shows the executed command, its output and duration in the step", () => {

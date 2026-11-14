@@ -1,7 +1,7 @@
 import { useProjectStream } from "../../features/projects/hooks/useProjectStream";
 import { useLayoutTabs, useWorkspacePersistence } from "../../features/projects/hooks/useWorkspacePersistence";
 import { lazy, Suspense, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { Bot, ChevronDown, ChevronRight, GitBranch, PanelLeftClose, PanelLeftOpen, X } from "@toph/icons";
+import { Bot, ChevronDown, ChevronRight, GitBranch, X } from "@toph/icons";
 import { api, getApiBase, type Project, type SchemaTable, type WebTarget } from "../../shared/api";
 import { basename, expandGitPattern, quoteIdentifier, sanitizeBranchName } from "../../shared/lib";
 import { useApp, type Sidebar, type Tab } from "../store";
@@ -17,8 +17,7 @@ import Toasts from "../../features/notifications/components/Toasts";
 import GlobalSearch from "../../features/search/components/GlobalSearch";
 import CloseProjectModal from "../../features/projects/components/CloseProjectModal";
 import BranchPicker from "../../features/git/components/BranchPicker";
-import TopBar, { ProjectRail } from "./TopBar";
-import QuickOpen from "../../features/explorer/components/QuickOpen";
+import TopBar from "./TopBar";
 import ActivityPopover from "../../features/notifications/components/ActivityPopover";
 import { handleAiCompletion, type AiCompletionPayload } from "../../features/notifications/completion";
 import { unlockBotSound } from "../../features/conversations/sound";
@@ -155,8 +154,6 @@ export default function Workbench() {
   const tabsVisible = workspaceFeatures.tabs;
   const effectiveSidebarVisible = true;
   const panelAlignment = useSettings((state) => state.panelAlignment);
-  const projectBar = useSettings((state) => state.projectBar);
-  const [projectRailCollapsed, setProjectRailCollapsed] = useState(false);
   const [branchInfo, setBranchInfo] = useState<{ current: string; branches: string[] } | null>(null);
   const [branchBusy, setBranchBusy] = useState("");
   const [newBranchName, setNewBranchName] = useState("");
@@ -1044,17 +1041,6 @@ export default function Workbench() {
   }
 
 
-  const activityHeaderControl = projectBar === "left" ? (
-    <IconButton
-      icon={projectRailCollapsed ? PanelLeftOpen : PanelLeftClose}
-      size="xs"
-      className="border-transparent bg-transparent shadow-none"
-      aria-label={projectRailCollapsed ? "Mostrar barra de projetos" : "Ocultar barra de projetos"}
-      title={projectRailCollapsed ? "Mostrar barra de projetos" : "Ocultar barra de projetos"}
-      onClick={() => setProjectRailCollapsed((collapsed) => !collapsed)}
-    />
-  ) : undefined;
-
   function branchPickerBody() {
     return (
       <BranchPicker
@@ -1092,14 +1078,14 @@ export default function Workbench() {
 
   const sidebarContent = (
     <>
-      {project && sidebar === "files" && featureIsEnabled("files") && <ExplorerPanel project={project} headerControl={activityHeaderControl} onOpenFile={openFile} onStatusChange={setGitStatus} />}
-      {project && sidebar === "db" && featureIsEnabled("databases") && <DatabasesPanel project={project} headerControl={activityHeaderControl} onOpenQuery={openQuery} onOpenTable={openTable} />}
-      {project && sidebar === "scm" && featureIsEnabled("sourceControl") && <SourceControlPanel project={project} view="scm" headerControl={activityHeaderControl} branchControl={activityBranchControl} onOpenDiff={openDiff} onStatusChange={setGitStatus} />}
-      {project && sidebar === "web" && featureIsEnabled("webApps") && <WebSidebar headerControl={activityHeaderControl} onOpenWeb={openWeb} />}
-      {project && sidebar === "bots" && <BotsSidebar project={project} headerControl={activityHeaderControl} />}
+      {project && sidebar === "files" && featureIsEnabled("files") && <ExplorerPanel project={project} onOpenFile={openFile} onStatusChange={setGitStatus} />}
+      {project && sidebar === "db" && featureIsEnabled("databases") && <DatabasesPanel project={project} onOpenQuery={openQuery} onOpenTable={openTable} />}
+      {project && sidebar === "scm" && featureIsEnabled("sourceControl") && <SourceControlPanel project={project} view="scm" branchControl={activityBranchControl} onOpenDiff={openDiff} onStatusChange={setGitStatus} />}
+      {project && sidebar === "web" && featureIsEnabled("webApps") && <WebSidebar onOpenWeb={openWeb} />}
+      {project && sidebar === "bots" && <BotsSidebar project={project} />}
       {project && sidebar === "debug" && featureIsEnabled("debug") && (
         <div className="flex h-full min-h-0 flex-col">
-          <SidebarHeader control={activityHeaderControl} title="Debug" />
+          <SidebarHeader title="Debug" />
           <p className="p-3 text-caption-1-regular leading-relaxed text-text-tertiary">A execução e as ferramentas de depuração aparecem no painel principal.</p>
         </div>
       )}
@@ -1157,37 +1143,18 @@ export default function Workbench() {
 
   return (
     <div className="relative flex h-dvh flex-col overflow-hidden bg-[var(--side)]">
-      {projectBar === "header" ? (
-        <TopBar
-          onOpenProject={switchProject}
-          onCloseProject={requestCloseProject}
-          onGoHome={() => setSidebar("bots")}
-          onQuickOpen={() => setQuickOpenToken((current) => current + 1)}
-          onOpenAuxiliary={openAuxiliary}
-          project={project}
-          onOpenFile={openFile}
-          quickOpenToken={quickOpenToken}
-          tophControl={<TophSettings user={user} projectRoot={project.root} projectId={project.id} hideTrigger />}
-        />
-      ) : null}
-      {projectBar === "left" ? (
-        <div className="pointer-events-none absolute inset-x-0 top-16 z-[100] flex justify-center px-12">
-          <div className="pointer-events-auto w-full max-w-xl"><QuickOpen project={project} focusToken={quickOpenToken} onOpenFile={openFile} floating /></div>
-        </div>
-      ) : null}
+      <TopBar
+        onOpenProject={switchProject}
+        onCloseProject={requestCloseProject}
+        onGoHome={() => setSidebar("bots")}
+        onQuickOpen={() => setQuickOpenToken((current) => current + 1)}
+        onOpenAuxiliary={openAuxiliary}
+        project={project}
+        onOpenFile={openFile}
+        quickOpenToken={quickOpenToken}
+        tophControl={<TophSettings user={user} projectRoot={project.root} projectId={project.id} hideTrigger />}
+      />
       <div className="relative flex min-h-0 flex-1 gap-0 p-1">
-        {projectBar === "left" ? (
-          <div className={cx("project-rail-shell", projectRailCollapsed && "is-collapsed")} aria-hidden={projectRailCollapsed || undefined}>
-            <ProjectRail
-              onOpenProject={switchProject}
-              onCloseProject={requestCloseProject}
-              onGoHome={() => setSidebar("bots")}
-              onQuickOpen={() => setQuickOpenToken((current) => current + 1)}
-              onOpenAuxiliary={openAuxiliary}
-              tophControl={<TophSettings user={user} projectRoot={project.root} projectId={project.id} hideTrigger />}
-            />
-          </div>
-        ) : null}
         {primarySidebar}
         {primaryResize}
 

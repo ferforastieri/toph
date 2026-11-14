@@ -3,7 +3,7 @@ import { ArrowDown, Bot, LoaderCircle, Timer } from "@toph/icons";
 import type { Project } from "../../../shared/api";
 import { ApiError } from "../../../shared/api";
 import { chatDisplayName, chatTophs, sessionSubject, useChats } from "../store";
-import { findModel, useAI } from "../../providers/store";
+import { defaultModel, findModel, useAI } from "../../providers/store";
 import { useTophDrafts } from "../../agents/drafts";
 import { agentApi, isActive, type NativeMessage } from "../../agents/api";
 import { useAgentChat } from "../../agents/useAgentChat";
@@ -168,6 +168,7 @@ export default function BotStudioTab({ project, conversationId, mobile = false, 
     });
     try {
       const settings = chat.tophSettings ?? {};
+      const fallbackModel = defaultModel(models, config);
       await agentApi.start(project.id, {
         requestId,
         chatId: chat.id,
@@ -175,7 +176,7 @@ export default function BotStudioTab({ project, conversationId, mobile = false, 
         text: value,
         agents: tophs.map((toph) => ({
           ...toph,
-          model: settings[toph.id]?.model ?? toph.model,
+          model: settings[toph.id]?.model || toph.model || fallbackModel,
           effort: settings[toph.id]?.effort ?? toph.effort,
           chatId: chat.id,
         })),

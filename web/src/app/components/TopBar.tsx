@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from "react";
-import { Bell, Bot, Bug, Database, Files, GitBranch, Globe2, MessageCircleQuestion, Moon, Plus, Search, Sun, TerminalSquare, X } from "@toph/icons";
+import { Bell, Bot, Bug, Database, Files, GitBranch, Globe2, MessageCircleQuestion, Moon, Plus, Sun, TerminalSquare, X } from "@toph/icons";
 import BrandMark from "@toph/brand";
 import { useApp, type Sidebar } from "../store";
 import { featureEnabled, useSettings, type WorkspaceFeature } from "../../features/settings/store";
@@ -62,7 +62,7 @@ function ThemeToggle() {
   );
 }
 
-function WorkspaceOptions({ vertical = false, onQuickOpen, onOpenAuxiliary }: { vertical?: boolean; onQuickOpen?: () => void; onOpenAuxiliary?: (sidebar: Sidebar) => void }) {
+function WorkspaceOptions({ vertical = false, onOpenAuxiliary }: { vertical?: boolean; onOpenAuxiliary?: (sidebar: Sidebar) => void }) {
   const sidebar = useApp((state) => state.sidebar);
   const setSidebar = useApp((state) => state.setSidebar);
   const toggleTerminal = useApp((state) => state.toggleTerminal);
@@ -103,18 +103,6 @@ function WorkspaceOptions({ vertical = false, onQuickOpen, onOpenAuxiliary }: { 
             />
           );
         })}
-      {vertical && featureEnabled(workspaceFeatures, "files") ? (
-        <Button
-          variant="ghost"
-          size={buttonSize}
-          iconOnly
-          leadingIcon={Search}
-          className={buttonClass}
-          aria-label="Busca rápida"
-          title="Busca rápida"
-          onClick={onQuickOpen}
-        />
-      ) : null}
       {featureEnabled(workspaceFeatures, "terminal") ? (
         <Button
           variant={terminalOpen ? "secondary" : "ghost"}
@@ -319,130 +307,11 @@ export default function TopBar({ onOpenProject, onCloseProject, onGoHome, projec
 
         <div className="flex shrink-0 items-center gap-1">
           <WorkspaceOptions onOpenAuxiliary={onOpenAuxiliary} />
-          <Button variant="ghost" size="small" iconOnly leadingIcon={Search} aria-label="Busca global" title="Busca global (Ctrl+K)" onClick={() => window.dispatchEvent(new CustomEvent("toph:global-search"))} />
           <span className="h-5 w-px shrink-0 bg-separator-border" aria-hidden="true" />
           <ThemeToggle />
           {tophControl}
         </div>
       </header>
-
-      <ProjectPicker open={pickerOpen} onClose={() => setPickerOpen(false)} onSelect={openProject} />
-    </>
-  );
-}
-
-/** Vertical project bar used when the header is configured to the left. */
-export function ProjectRail({ onOpenProject, onCloseProject, onGoHome, onQuickOpen, onOpenAuxiliary, tophControl }: Props) {
-  const projects = useApp((state) => state.projects);
-  const openProjectIds = useApp((state) => state.openProjectIds);
-  const activeProjectId = useApp((state) => state.activeProjectId);
-  const notifications = useApp((state) => state.notifications);
-  const markProjectNotificationsRead = useApp((state) => state.markProjectNotificationsRead);
-  const [pickerOpen, setPickerOpen] = useState(false);
-  const [hoveredProject, setHoveredProject] = useState<string | null>(null);
-
-  const openProjects = useMemo(
-    () => openProjectIds
-      .map((id) => projects.find((project) => project.id === id))
-      .filter((project): project is NonNullable<typeof project> => Boolean(project)),
-    [openProjectIds, projects],
-  );
-
-  function unreadFor(projectId: string): number {
-    return notifications.filter((notification) => !notification.read && notification.projectId === projectId).length;
-  }
-
-  function openProject(projectId: string): void {
-    markProjectNotificationsRead(projectId);
-    onOpenProject(projectId);
-  }
-
-  return (
-    <>
-      <aside className="relative z-50 me-1 flex w-12 shrink-0 flex-col items-center gap-2 rounded-3xl border border-border-button-white bg-background-primary-default px-0 py-3 shadow-sidebar" aria-label="Projetos e ferramentas">
-        <button
-          type="button"
-          onClick={(event) => {
-            if (event.altKey) {
-              if (activeProjectId) onGoHome();
-              else setPickerOpen(true);
-              return;
-            }
-            window.dispatchEvent(new CustomEvent("toph:open-settings", { detail: { section: "general" } }));
-          }}
-          className="flex size-10 shrink-0 items-center justify-center rounded-xl transition-colors hover:bg-background-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus-ring"
-          aria-label="Abrir configurações"
-          title="Configurações · Alt+clique vai para o Toph"
-        >
-          <BrandMark size="small" className="size-[34px]" />
-        </button>
-        <Button variant="ghost" size="medium" iconOnly leadingIcon={Plus} className="size-10 [&_svg]:size-5" aria-label="Abrir projeto" title="Abrir projeto" onClick={() => setPickerOpen(true)} />
-        <span className="h-px w-8 shrink-0 bg-separator-border" aria-hidden="true" />
-        <div className="flex w-full flex-col items-center gap-2">
-          {openProjects.map((project) => {
-            const active = project.id === activeProjectId;
-            const unread = unreadFor(project.id);
-            return (
-              <div
-                key={project.id}
-                className="group relative"
-                onPointerEnter={() => setHoveredProject(project.id)}
-                onPointerLeave={() => setHoveredProject((current) => (current === project.id ? null : current))}
-                onFocus={() => setHoveredProject(project.id)}
-                onBlur={() => setHoveredProject((current) => (current === project.id ? null : current))}
-              >
-                <span className="absolute -end-1 -top-1 z-10">
-                  <ProjectAlert projectId={project.id} projectName={project.name} unread={unread} size={12} />
-                </span>
-                <button
-                  type="button"
-                  onClick={() => openProject(project.id)}
-                  className={cx(
-                    "flex size-10 items-center justify-center rounded-xl border transition-colors",
-                    active
-                      ? "border-accent-500/40 bg-accent-500/10"
-                      : "border-transparent hover:bg-background-primary-hover",
-                  )}
-                  aria-label={`Abrir ${project.name}`}
-                  aria-current={active ? "page" : undefined}
-                >
-                  <span className="relative inline-flex shrink-0">
-                    <ProjectMonogram project={project} size={30} />
-                    <ProjectRunningDot projectId={project.id} className="-bottom-1 -end-1" />
-                  </span>
-                </button>
-                {hoveredProject === project.id ? (
-                  <span className="pointer-events-none absolute start-full top-1/2 z-50 ms-1 -translate-y-1/2 rounded-xl border border-border-button-default bg-background-primary-default px-2.5 py-1.5 shadow-dropdown">
-                    <span className="block max-w-[260px] truncate text-caption-1-medium text-text-primary">{project.name}</span>
-                    <span className="block max-w-[260px] truncate text-[10px] text-text-tertiary">{project.root}</span>
-                  </span>
-                ) : null}
-                <button
-                  type="button"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onCloseProject(project.id);
-                  }}
-                  className={cx(
-                    "absolute -bottom-1 -start-1 z-10 flex size-4 items-center justify-center rounded-full bg-background-primary-default text-status-rose-text shadow-sm transition-opacity hover:bg-status-rose-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus-ring",
-                    hoveredProject === project.id ? "opacity-100" : "pointer-events-none opacity-0",
-                  )}
-                  aria-label={`Fechar ${project.name}`}
-                  title={`Fechar ${project.name}`}
-                >
-                  <X size={11} />
-                </button>
-              </div>
-            );
-          })}
-        </div>
-        <span className="h-px w-8 shrink-0 bg-separator-border" aria-hidden="true" />
-        <WorkspaceOptions vertical onQuickOpen={onQuickOpen} onOpenAuxiliary={onOpenAuxiliary} />
-        <div className="mt-auto flex flex-col items-center gap-2">
-          <ThemeToggle />
-          {tophControl}
-        </div>
-      </aside>
 
       <ProjectPicker open={pickerOpen} onClose={() => setPickerOpen(false)} onSelect={openProject} />
     </>

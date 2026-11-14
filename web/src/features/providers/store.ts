@@ -56,6 +56,23 @@ function canonicalProvider(provider: string): string {
   return value;
 }
 
+/**
+ * The model a conversation starts on when neither it nor its Toph names one:
+ * the harness default (the first OpenCode Go model), with variants when it has
+ * them so the effort control is there from the start.
+ */
+export function defaultModel(models: AIModel[], config: AIConfig | null): string {
+  const configured = config?.model?.trim();
+  if (configured) return configured;
+  // The model the CLI's own sessions start on, when the harness still offers it.
+  const preferred = models.find((model) => model.id === "opencode-go/deepseek-v4.1-flash");
+  if (preferred) return preferred.id;
+  const goVariants = models.find((model) => model.id.startsWith("opencode-go/") && model.variants?.length);
+  const variants = models.find((model) => model.variants?.length);
+  const go = models.find((model) => model.id.startsWith("opencode-go/"));
+  return goVariants?.id ?? variants?.id ?? go?.id ?? models[0]?.id ?? "";
+}
+
 export function modelGroup(model: { id: string; label: string; provider?: string; connectionLabel?: string }): string {
   const connection = model.connectionLabel?.trim();
   if (connection) return connection;

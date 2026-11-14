@@ -25,7 +25,6 @@ beforeAll(() => {
 beforeEach(() => {
   useApp.setState({ setUser: vi.fn(), notify: vi.fn() });
   useSettings.setState({
-    projectBar: "header",
     workspaceFeatures: defaultWorkspaceFeatures,
     update: vi.fn(),
   });

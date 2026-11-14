@@ -5,7 +5,6 @@ export type Theme = "light" | "dark";
 export type SideBarPosition = "left" | "right";
 export type PanelAlignment = "left" | "right" | "center" | "justify";
 export type QuickInputPosition = "top" | "center";
-export type ProjectBar = "header" | "left";
 
 export const WORKSPACE_FEATURES = [
   "topBar",
@@ -100,7 +99,6 @@ export interface SettingsState {
   primarySideBarPosition: SideBarPosition;
   panelAlignment: PanelAlignment;
   quickInputPosition: QuickInputPosition;
-  projectBar: ProjectBar;
   gitBranchPattern: string;
   gitCommitPattern: string;
   update: (patch: SettingsPatch) => void;
@@ -137,7 +135,6 @@ export const defaultSettings = {
   primarySideBarPosition: "left" as SideBarPosition,
   panelAlignment: "justify" as PanelAlignment,
   quickInputPosition: "top" as QuickInputPosition,
-  projectBar: "header" as ProjectBar,
   gitBranchPattern: "feature/{task}-{slug}",
   gitCommitPattern: "{task} {summary}",
 };
@@ -240,7 +237,6 @@ function readSettings(): Omit<SettingsState, "update" | "setTheme" | "reset"> {
           ? value.panelAlignment
           : "justify",
       quickInputPosition: value.quickInputPosition === "center" ? "center" : "top",
-      projectBar: value.projectBar === "left" ? "left" : "header",
       gitBranchPattern:
         typeof value.gitBranchPattern === "string" && value.gitBranchPattern.trim()
           ? value.gitBranchPattern
@@ -310,7 +306,6 @@ export const useSettings = create<SettingsState>((set, get) => ({
       primarySideBarPosition: patch.primarySideBarPosition ?? current.primarySideBarPosition,
       panelAlignment: patch.panelAlignment ?? current.panelAlignment,
       quickInputPosition: patch.quickInputPosition ?? current.quickInputPosition,
-      projectBar: patch.projectBar ?? current.projectBar,
       gitBranchPattern: patch.gitBranchPattern ?? current.gitBranchPattern,
       gitCommitPattern: patch.gitCommitPattern ?? current.gitCommitPattern,
     };

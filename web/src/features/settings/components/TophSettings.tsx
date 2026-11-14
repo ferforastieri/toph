@@ -7,7 +7,6 @@ import {
   Icon,
   Input,
   PageHeader,
-  Segmented,
   Switch,
   cx,
   type IconName,
@@ -57,7 +56,6 @@ export default function TophSettings({ user, projectRoot, projectId, hideTrigger
   const setUser = useApp((state) => state.setUser);
   const notify = useApp((state) => state.notify);
   const workspaceFeatures = useSettings((state) => state.workspaceFeatures);
-  const projectBar = useSettings((state) => state.projectBar);
   const updateSettings = useSettings((state) => state.update);
   const [open, setOpen] = useState(false);
   const [section, setSection] = useState<Section>("general");
@@ -218,29 +216,6 @@ export default function TophSettings({ user, projectRoot, projectId, hideTrigger
                 </>
               ) : section === "appearance" ? (
                 <>
-                  <Card>
-                    <div className="settings-rows">
-                      <div className="settings-row ac-actrow settings-row--lead">
-                        <span className="settings-row__icon" aria-hidden="true"><Icon name="grid" size={16} /></span>
-                        <span className="settings-row__text ac-actrow__text">
-                          <span className="settings-row__label">Barra de projetos</span>
-                          <span className="settings-row__status">Onde os projetos abertos ficam.</span>
-                        </span>
-                        <span className="settings-row__end">
-                          <Segmented
-                            size="sm"
-                            label="Barra de projetos"
-                            value={projectBar}
-                            onValueChange={(value) => updateSettings({ projectBar: value })}
-                            options={[
-                              { value: "header", label: "Header" },
-                              { value: "left", label: "Esquerda" },
-                            ]}
-                          />
-                        </span>
-                      </div>
-                    </div>
-                  </Card>
                   <Card>
                     <CardHeader title="Layout" subtitle="O que o workspace mostra e inicializa." />
                     <div className="settings-rows">
