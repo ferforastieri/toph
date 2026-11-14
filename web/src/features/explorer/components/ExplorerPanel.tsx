@@ -1,12 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { ArrowLeft, ChevronDown, Files, FilePlus2, FolderOpen, FolderPlus, RefreshCw, Settings2 } from "@toph/icons";
+import { ChevronDown, Files, FilePlus2, FolderOpen, FolderPlus, RefreshCw } from "@toph/icons";
 import { Button } from "@toph/ui/app";
 import { createPortal } from "react-dom";
 import { Modal } from "@toph/ui/app";
 import type { FileEntry, GitHistoryEntry, Project, SearchMatch } from "../../../shared/api";
 import { api } from "../../../shared/api";
 import { changeStatusByPath } from "../../git/status";
-import WorkspaceSettings from "../../settings/components/WorkspaceSettings";
 import { useApp } from "../../../app/store";
 import { PROJECT_EVENT } from "../../projects/events";
 import FileTree, { clearTreeExpansion } from "./FileTree";
@@ -133,7 +132,6 @@ export default function ExplorerPanel({
   const [gitStatus, setGitStatus] = useState("");
   const [rootOpen, setRootOpen] = useState(true);
   const [treeKey, setTreeKey] = useState(0);
-  const [workspaceSettingsOpen, setWorkspaceSettingsOpen] = useState(false);
   const [contextMenu, setContextMenu] = useState<ContextTarget | null>(null);
   const [selected, setSelected] = useState<FileEntry | null>(null);
   const [historyDialog, setHistoryDialog] = useState<{
@@ -448,7 +446,6 @@ export default function ExplorerPanel({
       const action = (event as CustomEvent<{ action?: string }>).detail?.action;
       if (action === "new-file") void newFile(selected);
       else if (action === "new-folder") void newFolder(selected);
-      else if (action === "workspace-settings") setWorkspaceSettingsOpen(true);
     };
     window.addEventListener("toph:explorer-action", handler);
     return () => window.removeEventListener("toph:explorer-action", handler);
@@ -517,7 +514,6 @@ export default function ExplorerPanel({
       ) : null}
       <SidebarHeader control={headerControl} icon={<Files size={15} className="text-accent-500" />} title="Explorer" actions={
         <div className="flex items-center gap-0.5">
-          <Button variant={workspaceSettingsOpen ? "secondary" : "ghost"} size="xs" iconOnly className="max-[900px]:flex-1" leadingIcon={Settings2} aria-label="Configurações do workspace" title="Configurações do workspace" onClick={() => setWorkspaceSettingsOpen((value) => !value)} />
           <Button variant="ghost" size="xs" iconOnly className="max-[900px]:flex-1" leadingIcon={FilePlus2} aria-label="Novo arquivo" title="Novo arquivo" onClick={() => void newFile(rootEntry)} />
           <Button variant="ghost" size="xs" iconOnly className="max-[900px]:flex-1" leadingIcon={FolderPlus} aria-label="Nova pasta" title="Nova pasta" onClick={() => void newFolder(rootEntry)} />
           <Button variant="ghost" size="xs" iconOnly className="max-[900px]:flex-1" leadingIcon={RefreshCw} aria-label="Atualizar" title="Atualizar" onClick={() => { setTreeKey((value) => value + 1); notify("info", "Explorer atualizado."); }} />
@@ -549,17 +545,6 @@ export default function ExplorerPanel({
           </AccordionItem>
         </Accordion>
       </div>
-    {workspaceSettingsOpen && (
-      <div className="absolute inset-0 z-20 flex flex-col bg-background-primary-default">
-        <div className="flex h-9 shrink-0 items-center gap-2 border-b px-2">
-          <Button variant="ghost" size="xs" iconOnly leadingIcon={ArrowLeft} aria-label="Voltar" onClick={() => setWorkspaceSettingsOpen(false)} />
-          <span className="text-body-2-medium text-text-primary">Configurações do workspace</span>
-        </div>
-        <div className="min-h-0 flex-1 overflow-y-auto p-3">
-          <WorkspaceSettings />
-        </div>
-      </div>
-    )}
     </div>
     {contextMenu && createPortal(
       <div className="fixed inset-0 z-100" onMouseDown={() => setContextMenu(null)}>
@@ -575,7 +560,6 @@ export default function ExplorerPanel({
           <ActionItem label="Open in Integrated Terminal" onSelect={() => menuAction(() => setTerminalOpen(true))} />
           <div className="my-1 h-px bg-separator-border" />
           <ActionItem label="Add Folder to Workspace..." disabled={!contextMenu.entry.dir} onSelect={() => menuAction(() => void addWorkspaceFolder(contextMenu.entry))} />
-          <ActionItem label="Open Folder Settings" onSelect={() => menuAction(() => setWorkspaceSettingsOpen(true))} />
           <ActionItem label="Remove Folder from Workspace" disabled={!contextMenu.entry.dir} onSelect={() => menuAction(() => void removeWorkspaceFolder(contextMenu.entry))} />
           <div className="my-1 h-px bg-separator-border" />
           <ActionItem label="Find in Folder..." disabled={!contextMenu.entry.dir} onSelect={() => menuAction(() => void findInFolder(contextMenu.entry))} />

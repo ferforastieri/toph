@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useState, type ReactNode } from "react";
-import { ChevronDown, ChevronRight, Database, Folder, Play, Plus, Table2, Trash2, Wifi } from "@toph/icons";
+import { ChevronDown, ChevronRight, Database, Folder, Plus, Table2, Trash2 } from "@toph/icons";
 import { api, type DBProfile, type Project, type SchemaTable } from "../../../shared/api";
 import { useApp } from "../../../app/store";
 import { useConfirm } from "../../../shared/ui/confirm";
@@ -15,13 +15,12 @@ import SidebarHeader from "../../../app/components/SidebarHeader";
 
 interface Props {
   project: Project;
-  onOpenQuery: (profileId: string, sql: string) => void;
   onOpenTable: (profileId: string, table: SchemaTable, driver: string) => void;
   embedded?: boolean;
   headerControl?: ReactNode;
 }
 
-export default function DatabasesPanel({ project, onOpenQuery, onOpenTable, embedded = false, headerControl }: Props) {
+export default function DatabasesPanel({ project, onOpenTable, embedded = false, headerControl }: Props) {
   const [profiles, setProfiles] = useState<DBProfile[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [schemas, setSchemas] = useState<Record<string, SchemaTable[] | undefined>>({});
@@ -91,13 +90,11 @@ export default function DatabasesPanel({ project, onOpenQuery, onOpenTable, embe
                     <Badge color="neutral" className="px-1 text-[9px] uppercase">{profile.driver}</Badge>
                   </Button>
                   <span className="flex shrink-0 opacity-100 min-[901px]:opacity-0 min-[901px]:group-hover:opacity-100">
-                    <Button variant="ghost" size="xs" aria-label="Nova query" onClick={() => onOpenQuery(profile.id, "")}><Play size={13} /></Button>
-                    <Button variant="ghost" size="xs" aria-label="Testar conexão" onClick={() => { api.testDBProfile(profile.id).then(() => notify("success", `${profile.name} is reachable.`)).catch((err) => notify("error", err instanceof Error ? err.message : "Connection failed.")); }}><Wifi size={13} /></Button>
                     <Button variant="ghost" size="xs" aria-label="Excluir conexão" onClick={async () => { const ok = await confirm({ title: "Excluir conexão?", message: `Excluir "${profile.name}" deste workspace?`, confirmLabel: "Excluir", danger: true }); if (!ok) return; try { await api.deleteDBProfile(profile.id); await load(); } catch (err) { notify("error", err instanceof Error ? err.message : "Could not delete."); } }}><Trash2 size={13} /></Button>
                   </span>
                 </div>
                 {expanded[profile.id] && (
-                  <div className="ms-5 border-s ps-1">
+                  <div className="ms-4 border-s border-separator-border ps-2">
                     {schemas[profile.id] === undefined && <div className="px-2 py-1 text-caption-1-regular text-text-secondary">Lendo schema...</div>}
                     {schemas[profile.id]?.length === 0 && <div className="px-2 py-1 text-caption-1-regular text-text-secondary">Sem tabelas.</div>}
                     {(() => {
@@ -112,7 +109,7 @@ export default function DatabasesPanel({ project, onOpenQuery, onOpenTable, embe
                             {showSchema && <div className="flex items-center gap-1.5 px-2 pb-0.5 pt-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground"><Database size={11} /><span>{table.schema || "default"}</span></div>}
                             <div className="flex items-center gap-0.5">
                               <Button variant="ghost" size="xs" aria-label={open ? "Ocultar colunas" : "Mostrar colunas"} onClick={() => setExpandedTables((value) => ({ ...value, [key]: !open }))}>{open ? <ChevronDown size={12} /> : <ChevronRight size={12} />}</Button>
-                              <Button variant="ghost" size="small" className="h-7 min-w-0 flex-1 justify-start px-1" onClick={() => onOpenTable(profile.id, table, profile.driver)} title={`Open ${table.schema}.${table.name}`}>
+                              <Button variant="ghost" size="small" className="h-8 min-w-0 flex-1 justify-start px-1.5" onClick={() => onOpenTable(profile.id, table, profile.driver)} title={`Open ${table.schema}.${table.name}`}>
                                 <Table2 size={14} className="text-muted-foreground" /><span className="truncate text-caption-1-regular">{table.name}</span><span className="text-caption-2-regular text-text-secondary">{table.columns.length}</span>
                               </Button>
                             </div>

@@ -225,19 +225,6 @@ export default function MobileApp() {
     setScreen("workspace");
   }
 
-  function openQuery(profileId: string, sql: string) {
-    if (!project) return;
-    openTab({
-      id: `db:${project.id}:${crypto.randomUUID()}`,
-      kind: "db",
-      title: "SQL query",
-      projectId: project.id,
-      profileId,
-      sql,
-    });
-    setScreen("workspace");
-  }
-
   function openTable(profileId: string, table: SchemaTable, driver: string) {
     if (!project) return;
     const schema = table.schema;
@@ -417,7 +404,7 @@ export default function MobileApp() {
             />
           </div>
         ) : screen === "db" ? (
-          <DatabasesScreen project={project} onOpenQuery={openQuery} onOpenTable={openTable} />
+          <DatabasesScreen project={project} onOpenTable={openTable} />
         ) : screen === "web" ? (
           <WebAppsScreen onOpenWeb={openWeb} />
         ) : screen === "debug" ? (

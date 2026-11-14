@@ -349,7 +349,7 @@ export default function SourceControlPanel({
               className="absolute end-1 top-1/2 size-6 -translate-y-1/2 border-transparent bg-transparent p-0 shadow-none [&_svg]:size-4"
             />
           </div>
-          <Button size="small" className="w-full justify-center" disabled={staged.length === 0 || Boolean(busy)} onClick={() => void commit()} leadingIcon={Check}>Commit</Button>
+          <Button className="h-10 w-full justify-center" disabled={staged.length === 0 || Boolean(busy)} onClick={() => void commit()} leadingIcon={Check}>Commit</Button>
         </div>
       )}
       {showChanges && (view === "changes" || changesOpen) && (

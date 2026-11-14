@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ChevronDown, ChevronRight, Database, Folder, Play, Plus, Table2, Trash2, Wifi } from "@toph/icons";
+import { ChevronDown, ChevronRight, Database, Folder, Plus, Table2, Trash2 } from "@toph/icons";
 import { api, type DBProfile, type Project, type SchemaTable } from "../../../../shared/api";
 import { useApp } from "../../../store";
 import { useConfirm } from "../../../../shared/ui/confirm";
@@ -14,7 +14,6 @@ import LoadingState from "../../../../shared/ui/LoadingState";
 
 interface Props {
   project: Project;
-  onOpenQuery: (profileId: string, sql: string) => void;
   onOpenTable: (profileId: string, table: SchemaTable, driver: string) => void;
 }
 
@@ -38,7 +37,7 @@ const HINTS: Record<string, string> = {
   neo4j: "neo4j://user:pass@host:7687",
 };
 
-export default function DatabasesScreen({ project, onOpenQuery, onOpenTable }: Props) {
+export default function DatabasesScreen({ project, onOpenTable }: Props) {
   const notify = useApp((state) => state.notify);
   const confirm = useConfirm();
   const [profiles, setProfiles] = useState<DBProfile[]>([]);
@@ -76,18 +75,6 @@ export default function DatabasesScreen({ project, onOpenQuery, onOpenTable }: P
       } finally {
         setBusy("");
       }
-    }
-  }
-
-  async function test(profile: DBProfile) {
-    setBusy(`test:${profile.id}`);
-    try {
-      await api.testDBProfile(profile.id);
-      notify("success", `${profile.name} está acessível.`);
-    } catch (err) {
-      notify("error", err instanceof Error ? err.message : "Falha ao conectar.");
-    } finally {
-      setBusy("");
     }
   }
 
@@ -144,10 +131,8 @@ export default function DatabasesScreen({ project, onOpenQuery, onOpenTable }: P
                 {open ? <ChevronDown className="size-5 text-text-tertiary" /> : <ChevronRight className="size-5 text-text-tertiary" />}
               </button>
 
-              <div className="grid grid-cols-3 gap-1 border-t border-separator-border p-2">
-                <Button variant="secondary" size="small" className="w-full justify-center" leadingIcon={Play} disabled={Boolean(busy)} onClick={() => onOpenQuery(profile.id, "")}>Query</Button>
-                <Button variant="ghost" size="small" className="w-full justify-center" leadingIcon={Wifi} disabled={Boolean(busy)} onClick={() => void test(profile)}>Testar</Button>
-                <Button variant="ghost" size="small" className="w-full justify-center" leadingIcon={Trash2} onClick={() => void remove(profile)}>Excluir</Button>
+              <div className="flex justify-end border-t border-separator-border p-2">
+                <Button variant="ghost" size="small" leadingIcon={Trash2} onClick={() => void remove(profile)}>Excluir</Button>
               </div>
 
               {open ? (

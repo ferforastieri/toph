@@ -305,7 +305,7 @@ export default function BotStudioTab({ project, conversationId, mobile = false, 
       {tophs.length > 0 && <div className="shrink-0">
         {modelError && <p role="alert" className="px-3 text-xs text-text-error-primary">{modelError}</p>}
         <AgentComposer value={text} onChange={(value) => setDraft(draftKey, value)} onSend={(value, files) => void send(value, files)} onStop={() => void stop()} busy={busy}
-          placeholder="Mensagem"
+          placeholder="Pergunte ao Toph…"
           history={native.messages.filter((m) => m.role === "user").map((m) => m.content)}
           leadingControls={<ConversationModelPicker projectId={project.id} chat={chat!} tophs={tophs} />}
           modeControls={<ChatUsageMeter chatName={title} model={activeModelDisplay} />} members={tophs} />

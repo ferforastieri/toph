@@ -42,11 +42,16 @@
 }
 
 
-/* The composer's box keeps the room the app gave the words (the kit's own is tighter). */
+/* The composer's box: the words and the placeholder sit on the same left edge as the actions below. */
 .ac-composer > * textarea,
 .ac-composer textarea {
-  padding: 13px 16px 4px;
+  padding: 14px 16px 6px;
+  line-height: 20px;
 }
+.ac-composer textarea::placeholder {
+  color: var(--muted);
+}
+
 
 /* On a phone the composer's model and effort keep room for the actions: the
    model shortens, the effort keeps its word, and neither runs under the send. */
@@ -126,4 +131,38 @@
 .toph-tab-icon {
   width: 20px;
   height: 20px;
+}
+
+
+/* Theme change as a view transition (the Faang app's): the old page stays under
+   the new one, revealed by the circle mask the toggle injects. */
+html.theme-transitioning *,
+html.theme-transitioning *::before,
+html.theme-transitioning *::after {
+  transition: none !important;
+}
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+::view-transition-old(root) {
+  z-index: 1;
+}
+::view-transition-new(root) {
+  z-index: 2;
+}
+
+/* The settings trigger in the header wears the mark, tinted like the icons beside it. */
+.toph-settings-trigger__mark {
+  display: block;
+  width: 30px;
+  height: 30px;
+  background: currentColor;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
 }

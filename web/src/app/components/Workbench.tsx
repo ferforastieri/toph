@@ -816,18 +816,6 @@ export default function Workbench() {
     });
   }
 
-  function openQuery(profileId: string, sql: string) {
-    if (!project || !featureIsEnabled("databases")) return;
-    openTab({
-      id: `db:${project.id}:${crypto.randomUUID()}`,
-      kind: "db",
-      title: "SQL query",
-      projectId: project.id,
-      profileId,
-      sql,
-    });
-  }
-
   function openDiff(path: string, staged: boolean) {
     if (!project || !featureIsEnabled("files")) return;
     openTab({
@@ -1079,7 +1067,7 @@ export default function Workbench() {
   const sidebarContent = (
     <>
       {project && sidebar === "files" && featureIsEnabled("files") && <ExplorerPanel project={project} onOpenFile={openFile} onStatusChange={setGitStatus} />}
-      {project && sidebar === "db" && featureIsEnabled("databases") && <DatabasesPanel project={project} onOpenQuery={openQuery} onOpenTable={openTable} />}
+      {project && sidebar === "db" && featureIsEnabled("databases") && <DatabasesPanel project={project} onOpenTable={openTable} />}
       {project && sidebar === "scm" && featureIsEnabled("sourceControl") && <SourceControlPanel project={project} view="scm" branchControl={activityBranchControl} onOpenDiff={openDiff} onStatusChange={setGitStatus} />}
       {project && sidebar === "web" && featureIsEnabled("webApps") && <WebSidebar onOpenWeb={openWeb} />}
       {project && sidebar === "bots" && <BotsSidebar project={project} />}
@@ -1112,7 +1100,7 @@ export default function Workbench() {
         <SourceControlPanel project={project} view="scm" headerControl={rightPanelControl} onOpenDiff={openDiff} onStatusChange={setGitStatus} />
       )}
       {rightPanel === "db" && featureIsEnabled("databases") && (
-        <DatabasesPanel project={project} headerControl={rightPanelControl} onOpenQuery={openQuery} onOpenTable={openTable} />
+        <DatabasesPanel project={project} headerControl={rightPanelControl} onOpenTable={openTable} />
       )}
       {rightPanel === "web" && featureIsEnabled("webApps") && (
         <WebSidebar headerControl={rightPanelControl} onOpenWeb={openWeb} />

@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useApp } from "../store";
 import { useSettings } from "../../features/settings/store";
@@ -61,11 +61,11 @@ describe("TopBar", () => {
     expect(open).toHaveBeenCalledWith("b");
   });
 
-  it("toggles the theme next to the Toph mark", () => {
+  it("toggles the theme next to the Toph mark", async () => {
     render(<TopBar onOpenProject={() => undefined} onCloseProject={() => undefined} onGoHome={() => undefined} onQuickOpen={() => undefined} />);
     const toggle = screen.getByRole("button", { name: "Ativar modo claro" });
     fireEvent.click(toggle);
-    expect(useSettings.getState().theme).toBe("light");
+    await waitFor(() => expect(useSettings.getState().theme).toBe("light"));
     expect(screen.getByRole("button", { name: "Abrir configurações" })).toBeInTheDocument();
   });
 

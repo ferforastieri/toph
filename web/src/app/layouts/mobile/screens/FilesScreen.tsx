@@ -4,7 +4,6 @@ import { api, type Project } from "../../../../shared/api";
 import { useApp } from "../../../store";
 import ProjectSearch from "../../../../features/explorer/components/ProjectSearch";
 import FileTree, { clearTreeExpansion } from "../../../../features/explorer/components/FileTree";
-import WorkspaceSettings from "../../../../features/settings/components/WorkspaceSettings";
 import { Button } from "@toph/ui/app";
 import { Input } from "@toph/ui/app";
 import { Modal } from "@toph/ui/app";
@@ -23,11 +22,10 @@ function fileToBase64(file: File): Promise<string> {
   });
 }
 
-/** Mobile file browser: search, options and workspace settings in one place. */
+/** Mobile file browser: search, create and refresh the project tree. */
 export default function FilesScreen({ project, onOpenFile }: Props) {
   const notify = useApp((state) => state.notify);
   const [optionsOpen, setOptionsOpen] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [createKind, setCreateKind] = useState<"file" | "folder" | null>(null);
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
@@ -124,7 +122,6 @@ export default function FilesScreen({ project, onOpenFile }: Props) {
           <Button variant="ghost" className="h-11 w-full justify-start" leadingIcon={Upload} disabled={busy} onClick={() => { setOptionsOpen(false); uploadRef.current?.click(); }}>Enviar arquivos</Button>
           <Button variant="ghost" className="h-11 w-full justify-start" leadingIcon={RefreshCw} onClick={() => { setOptionsOpen(false); refresh(); }}>Atualizar</Button>
           <Button variant="ghost" className="h-11 w-full justify-start" leadingIcon={ChevronDown} onClick={() => { setOptionsOpen(false); collapseAll(); }}>Recolher tudo</Button>
-          <Button variant="ghost" className="h-11 w-full justify-start" leadingIcon={Settings2} onClick={() => { setOptionsOpen(false); setSettingsOpen(true); }}>Configurações do workspace</Button>
         </div>
       </Modal>
 
@@ -137,9 +134,6 @@ export default function FilesScreen({ project, onOpenFile }: Props) {
         </div>
       </Modal>
 
-      <Modal isOpen={settingsOpen} onClose={() => setSettingsOpen(false)} title="Configurações do workspace" size="lg" bodyClassName="p-3">
-        <WorkspaceSettings />
-      </Modal>
     </div>
   );
 }

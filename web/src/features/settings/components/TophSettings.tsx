@@ -133,9 +133,16 @@ export default function TophSettings({ user, projectRoot, projectId, hideTrigger
           aria-label="Abrir configurações"
           title="Abrir configurações"
           onClick={() => { setSection("general"); setOpen(true); }}
-          className="toph-settings-trigger"
+          className="toph-settings-trigger text-foreground-icon-secondary hover:text-foreground-icon-primary"
         >
-          <img src={`${import.meta.env.BASE_URL}tophs/toph-logo.png`} alt="" width={34} height={34} className="toph-settings-trigger__logo" draggable={false} />
+          <span
+            className="toph-settings-trigger__mark"
+            style={{
+              WebkitMaskImage: `url("${import.meta.env.BASE_URL}brand/toph-mark-eyeless.png?v=3")`,
+              maskImage: `url("${import.meta.env.BASE_URL}brand/toph-mark-eyeless.png?v=3")`,
+            }}
+            aria-hidden="true"
+          />
         </button>
       )}
 
