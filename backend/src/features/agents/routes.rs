@@ -157,7 +157,9 @@ pub(super) async fn harness_sessions(
     let rows = sessions
         .into_iter()
         .map(|session| {
-            let engine = by_id.get(session.id.as_str());
+            // The engine names its session `ses_<id>`, where <id> is our row's id.
+            let engine_id = format!("ses_{}", session.id);
+            let engine = by_id.get(engine_id.as_str());
             let title = engine
                 .and_then(|item| item.get("title"))
                 .and_then(Value::as_str)
